@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login - GestãoObra</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<!-- Firebase App (the core Firebase SDK) -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<!-- Firebase Realtime Database -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<!-- Firebase Auth -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+
+<style>
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: linear-gradient(135deg, var(--bg) 0%, var(--bg3) 100%);
+  }
+  .login-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    width: 380px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    text-align: center;
+    animation: fadeIn 0.4s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .login-brand {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    letter-spacing: -0.5px;
+  }
+  .login-brand span { color: var(--accent); }
+  .login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    text-align: left;
+  }
+  .btn-login {
+    width: 100%;
+    justify-content: center;
+    padding: 12px;
+    font-size: 15px;
+    margin-top: 8px;
+    font-weight: 600;
+  }
+  .error-msg {
+    color: var(--red);
+    font-size: 13px;
+    background: rgba(239,68,68,0.1);
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(239,68,68,0.2);
+    display: none;
+    text-align: center;
+  }
+  .credentials-box {
+    margin-top: 32px; 
+    font-size: 12px; 
+    color: var(--text3); 
+    display: flex; 
+    flex-direction: column; 
+    gap: 6px;
+    background: var(--bg3);
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px dashed var(--border);
+  }
+  .credentials-box p { margin: 0; display:flex; justify-content: space-between; align-items: center;}
+  .credentials-box span { font-family: monospace; color: var(--text2); background: var(--bg); padding: 2px 6px; border-radius: 4px;}
+</style>
+</head>
+<body>
+
+<div class="login-card">
+  <div class="login-brand">🏗️ <span class="app-brand-name">GestãoObra</span></div>
+  <p style="color:var(--text2);font-size:14px;margin-bottom:28px;">Acesso ao Sistema de Obra</p>
+  
+  <div class="login-form">
+    <div id="login-error" class="error-msg"></div>
+    <button type="button" class="btn btn-primary btn-login" onclick="doGoogleLogin()" style="display:flex;align-items:center;justify-content:center;gap:12px;background:#fff;color:#333;border:1px solid #ddd;font-size:15px;padding:12px">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:20px;height:20px" alt="G">
+      <span>Continuar com Google</span>
+    </button>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/auth.js"></script>
+</body>
+</html>
