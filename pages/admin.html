@@ -1,0 +1,32 @@
+<div class="page-header">
+  <div class="page-title">Configurações do Sistema <small>Gestão de Usuários e White-label</small></div>
+</div>
+
+<div class="form-grid" style="align-items:start; margin-bottom: 24px;">
+  <!-- WHITE LABEL CONFIG -->
+  <div class="kpi-card">
+    <div class="section-title">🎨 Personalização (White-Label)</div>
+    <div class="form-group" style="margin-bottom: 12px">
+      <label class="form-label">Nome da Empresa</label>
+      <input type="text" class="form-control" id="cfg-empresa" placeholder="Ex: Construtora ABC">
+    </div>
+    <div class="form-group" style="margin-bottom: 16px">
+      <label class="form-label">Cor Primária (Destaque)</label>
+      <input type="color" class="form-control" id="cfg-cor" style="height:40px; padding: 4px;">
+    </div>
+    <button class="btn btn-primary" onclick="salvarConfiguracoes()">Salvar Visual</button>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <h3>Usuários do Sistema</h3>
+    <div class="toolbar-right">
+      <button class="btn btn-primary btn-sm" onclick="openModal('modal-usuario')">+ Novo Usuário</button>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>E-mail do Usuário</th><th>Nome Completo</th><th>Nível de Acesso (Perfil)</th><th>Ações</th></tr></thead>
+    <tbody id="usuarios-tbody"></tbody>
+  </table>
+</div>

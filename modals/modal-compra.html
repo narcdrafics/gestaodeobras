@@ -1,0 +1,24 @@
+<div class="modal-header"><span class="modal-title">🛒 Nova Compra</span><button class="modal-close" onclick="closeModal('modal-compra')">×</button></div>
+<div class="form-grid">
+  <div class="form-group"><label class="form-label">Nº Pedido</label><input class="form-control" id="cp-num" readonly></div>
+  <div class="form-group"><label class="form-label">Data Solic.</label><input type="date" class="form-control" id="cp-data"></div>
+  <div class="form-group"><label class="form-label">Obra</label><select class="form-control" id="cp-obra"></select></div>
+  <div class="form-group"><label class="form-label">Material/Serviço *</label><input class="form-control" id="cp-mat"></div>
+  <div class="form-group"><label class="form-label">Qtd.</label><input type="number" class="form-control" id="cp-qtd" value="1" oninput="calcCompraTotal()"></div>
+  <div class="form-group"><label class="form-label">Unid.</label><input class="form-control" id="cp-unid" placeholder="Saco"></div>
+  <div class="form-group"><label class="form-label">Status</label>
+    <select class="form-control" id="cp-status"><option>Aguardando</option><option>Aprovada</option><option>Pedido Feito</option><option>Entregue</option><option>Reprovada</option><option>Divergência</option></select></div>
+  <div class="form-group"><label class="form-label">Fornecedor</label><input class="form-control" id="cp-forn"></div>
+  <div class="form-group"><label class="form-label">Vl. Unit. (R$)</label><input type="number" class="form-control" id="cp-vunit" oninput="calcCompraTotal()"></div>
+  <div class="form-group"><label class="form-label">Vl. Total (R$)</label><input type="number" class="form-control" id="cp-vtotal" readonly></div>
+  <div class="form-group"><label class="form-label">Vl. Orç. (R$)</label><input type="number" class="form-control" id="cp-vorc"></div>
+  <div class="form-group"><label class="form-label">Prazo Entrega</label><input type="date" class="form-control" id="cp-prazo"></div>
+  <div class="form-group"><label class="form-label">Dt. Recebimento</label><input type="date" class="form-control" id="cp-receb"></div>
+  <div class="form-group"><label class="form-label">Conferido?</label>
+    <select class="form-control" id="cp-conf"><option></option><option>Sim</option><option>Não</option></select></div>
+  <div class="form-group form-full"><label class="form-label">Obs.</label><input class="form-control" id="cp-obs"></div>
+</div>
+<div class="modal-footer">
+  <button class="btn btn-secondary" onclick="closeModal('modal-compra')">Cancelar</button>
+  <button class="btn btn-primary" onclick="saveCompra()">Salvar</button>
+</div>

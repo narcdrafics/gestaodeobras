@@ -1,0 +1,22 @@
+<div class="modal-header"><span class="modal-title">📏 Nova Medição</span><button class="modal-close" onclick="closeModal('modal-medicao')">×</button></div>
+<div class="form-grid">
+  <div class="form-group"><label class="form-label">Semana (data) *</label><input type="date" class="form-control" id="md-semana"></div>
+  <div class="form-group"><label class="form-label">Obra *</label><select class="form-control" id="md-obra"></select></div>
+  <div class="form-group"><label class="form-label">Etapa</label><input class="form-control" id="md-etapa" placeholder="Alvenaria"></div>
+  <div class="form-group"><label class="form-label">Frente Serviço</label><input class="form-control" id="md-frente" placeholder="Alvenaria ext."></div>
+  <div class="form-group"><label class="form-label">Equipe</label><input class="form-control" id="md-equipe" placeholder="Pedreiros"></div>
+  <div class="form-group form-full"><label class="form-label">Serviço Executado</label><input class="form-control" id="md-servico"></div>
+  <div class="form-group"><label class="form-label">Unid.</label><input class="form-control" id="md-unid" placeholder="m²"></div>
+  <div class="form-group"><label class="form-label">Qtd. Prevista</label><input type="number" class="form-control" id="md-qprev" oninput="calcAvanco()"></div>
+  <div class="form-group"><label class="form-label">Qtd. Realizada</label><input type="number" step="0.01" class="form-control" id="md-qreal" oninput="calcAvanco()"></div>
+  <div class="form-group"><label class="form-label">Vl. Unit. (R$)</label><input type="number" step="0.01" class="form-control" id="md-vunit" value="0.00" oninput="calcAvanco()"></div>
+  <div class="form-group"><label class="form-label">Vl. Total (R$)</label><input type="number" step="0.01" class="form-control" id="md-vtotal" readonly></div>
+  <div class="form-group"><label class="form-label">% Avanço</label><input type="number" class="form-control" id="md-avanco" readonly></div>
+  <div class="form-group"><label class="form-label">Retrabalho?</label>
+    <select class="form-control" id="md-retr"><option>Não</option><option>Sim</option></select></div>
+  <div class="form-group form-full"><label class="form-label">Obs.</label><input class="form-control" id="md-obs"></div>
+</div>
+<div class="modal-footer">
+  <button class="btn btn-secondary" onclick="closeModal('modal-medicao')">Cancelar</button>
+  <button class="btn btn-primary" onclick="saveMedicao()">Salvar</button>
+</div>

@@ -1,0 +1,21 @@
+<div class="modal-header"><span class="modal-title">🏗️ Nova Obra</span><button class="modal-close" onclick="closeModal('modal-obra')">×</button></div>
+<div class="form-grid">
+  <div class="form-group"><label class="form-label">Cód. Obra *</label><input class="form-control" id="ob-cod" placeholder="OB001"></div>
+  <div class="form-group"><label class="form-label">Nome *</label><input class="form-control" id="ob-nome" placeholder="Residência Silva"></div>
+  <div class="form-group form-full"><label class="form-label">Endereço</label><input class="form-control" id="ob-end" placeholder="Rua das Flores, 123"></div>
+  <div class="form-group"><label class="form-label">Tipo</label>
+    <select class="form-control" id="ob-tipo"><option>Casa</option><option>Sobrado</option><option>Comercial</option><option>Reforma</option></select></div>
+  <div class="form-group"><label class="form-label">Status</label>
+    <select class="form-control" id="ob-status"><option>Planejada</option><option>Em andamento</option><option>Concluída</option><option>Pausada</option></select></div>
+  <div class="form-group"><label class="form-label">Data Início</label><input type="date" class="form-control" id="ob-inicio"></div>
+  <div class="form-group"><label class="form-label">Prazo Previsto</label><input type="date" class="form-control" id="ob-prazo"></div>
+  <div class="form-group"><label class="form-label">Orç. Previsto (R$)</label><input type="number" class="form-control" id="ob-orc" placeholder="350000"></div>
+  <div class="form-group"><label class="form-label">Mestre Responsável</label><input class="form-control" id="ob-mestre" placeholder="João Mestre"></div>
+  <div class="form-group"><label class="form-label">Engenheiro</label><input class="form-control" id="ob-eng" placeholder="Eng. Carlos"></div>
+  <div class="form-group"><label class="form-label">Cliente</label><input class="form-control" id="ob-cliente" placeholder="Família Silva"></div>
+  <div class="form-group form-full"><label class="form-label">Observações</label><input class="form-control" id="ob-obs"></div>
+</div>
+<div class="modal-footer">
+  <button class="btn btn-secondary" onclick="closeModal('modal-obra')">Cancelar</button>
+  <button class="btn btn-primary" onclick="saveObra()">Salvar</button>
+</div>

@@ -1,0 +1,17 @@
+<div class="modal-header"><span class="modal-title">📐 Novo Item de Orçamento</span><button class="modal-close" onclick="closeModal('modal-orcamento')">×</button></div>
+<div class="form-grid">
+  <div class="form-group"><label class="form-label">Obra *</label><select class="form-control" id="oc-obra"></select></div>
+  <div class="form-group"><label class="form-label">Etapa *</label><input class="form-control" id="oc-etapa" placeholder="Fundação"></div>
+  <div class="form-group"><label class="form-label">Tipo Custo</label>
+    <select class="form-control" id="oc-tipo"><option>Mão de obra</option><option>Material</option><option>Empreiteiro</option><option>Equipamento</option></select></div>
+  <div class="form-group form-full"><label class="form-label">Descrição *</label><input class="form-control" id="oc-desc"></div>
+  <div class="form-group"><label class="form-label">Qtd. Prev.</label><input type="number" class="form-control" id="oc-qtd" value="1" oninput="calcOrcTotal()"></div>
+  <div class="form-group"><label class="form-label">Unid.</label><input class="form-control" id="oc-unid" placeholder="Vb"></div>
+  <div class="form-group"><label class="form-label">Vl. Unit. Prev. (R$)</label><input type="number" class="form-control" id="oc-vunit" value="0" oninput="calcOrcTotal()"></div>
+  <div class="form-group"><label class="form-label">Vl. Total Prev. (R$)</label><input type="number" class="form-control" id="oc-vtotal" readonly></div>
+  <div class="form-group form-full"><label class="form-label">Obs.</label><input class="form-control" id="oc-obs"></div>
+</div>
+<div class="modal-footer">
+  <button class="btn btn-secondary" onclick="closeModal('modal-orcamento')">Cancelar</button>
+  <button class="btn btn-primary" onclick="saveOrcamento()">Salvar</button>
+</div>

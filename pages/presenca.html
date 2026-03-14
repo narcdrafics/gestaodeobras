@@ -1,0 +1,21 @@
+<div class="page-header">
+  <div class="page-title">Controle de Presença <small>Lançado pelo Mestre</small></div>
+  <button class="btn btn-primary" onclick="openModal('modal-presenca')">+ Lançar Presença</button>
+</div>
+<div class="kpi-grid" id="pres-kpi"></div>
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <h3>Registros de Presença</h3>
+    <div class="toolbar-right">
+      <input class="search-input" placeholder="Buscar..." oninput="filterTable('pres-tbody', this.value, [0,2,3])">
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>Data</th><th>Obra</th><th>Trabalhador</th><th>Função</th><th>Frente</th><th>Entrada</th><th>Saída</th><th>H.Norm.</th><th>H.Extra</th><th>Presença</th><th>Diária</th><th>Total Dia</th><th>Lançado por</th><th>Ações</th></tr></thead>
+    <tbody id="pres-tbody"></tbody>
+  </table>
+</div>
+<div class="table-wrap" style="margin-top:16px">
+  <div class="table-toolbar"><h3>Totalizadores — Fechamento</h3></div>
+  <div id="pres-totais" style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px"></div>
+</div>

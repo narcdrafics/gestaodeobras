@@ -1,0 +1,20 @@
+<div class="page-header">
+  <div class="page-title">Tarefas <small>Checklist de Obra</small></div>
+  <button class="btn btn-primary" onclick="openModal('modal-tarefa')">+ Nova Tarefa</button>
+</div>
+<div class="kpi-grid" id="tar-kpi"></div>
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <h3>Controle de Tarefas</h3>
+    <div class="toolbar-right">
+      <select class="form-control" style="width:150px" onchange="renderTarefas()">
+        <option value="">Todas obras</option>
+      </select>
+      <input class="search-input" placeholder="Buscar..." oninput="filterTable('tar-tbody', this.value, [4,5])">
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>Cód.</th><th>Obra</th><th>Etapa</th><th>Frente</th><th>Descrição</th><th>Responsável</th><th>Prior.</th><th>Status</th><th>Criação</th><th>Prazo</th><th>% Conc.</th><th>Ações</th></tr></thead>
+    <tbody id="tar-tbody"></tbody>
+  </table>
+</div>

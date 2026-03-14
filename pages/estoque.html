@@ -1,0 +1,16 @@
+<div class="page-header">
+  <div class="page-title">Estoque <small>Saldo por Obra — Entradas e Saídas</small></div>
+  <button class="btn btn-primary" onclick="openModal('modal-estoque')">+ Novo Item</button>
+</div>
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <h3>Controle de Estoque</h3>
+    <div class="toolbar-right">
+      <input class="search-input" placeholder="Buscar..." oninput="filterTable('est-tbody', this.value, [0,1])">
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>Cód.</th><th>Material</th><th>Unid.</th><th>Obra</th><th>Estq. Mín.</th><th>Qtd. Entrada</th><th>Qtd. Saída</th><th>Saldo</th><th>Custo Unit.</th><th>Valor Total</th><th>Status</th><th>Ações</th></tr></thead>
+    <tbody id="est-tbody"></tbody>
+  </table>
+</div>

@@ -88,14 +88,78 @@
   <div class="login-brand">🏗️ <span class="app-brand-name">GestãoObra</span></div>
   <p style="color:var(--text2);font-size:14px;margin-bottom:28px;">Acesso ao Sistema de Obra</p>
   
+  <div class="login-tabs" style="display:flex;margin-bottom:20px;border-bottom:2px solid var(--border);">
+    <div id="tab-login" onclick="switchTab('login')" style="flex:1;padding:10px;cursor:pointer;font-weight:600;color:var(--accent);border-bottom:2px solid var(--accent);margin-bottom:-2px;">Entrar</div>
+    <div id="tab-signup" onclick="switchTab('signup')" style="flex:1;padding:10px;cursor:pointer;color:var(--text3);">Criar Conta</div>
+  </div>
+
   <div class="login-form">
     <div id="login-error" class="error-msg"></div>
-    <button type="button" class="btn btn-primary btn-login" onclick="doGoogleLogin()" style="display:flex;align-items:center;justify-content:center;gap:12px;background:#fff;color:#333;border:1px solid #ddd;font-size:15px;padding:12px">
+
+    <div id="field-name" class="form-group" style="display:none; text-align:left;">
+      <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block;">Nome Completo</label>
+      <input type="text" id="auth-name" class="form-control" placeholder="Seu nome" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box;">
+    </div>
+    <div class="form-group" style="text-align:left;">
+      <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block;">E-mail</label>
+      <input type="email" id="auth-email" class="form-control" placeholder="nome@email.com" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box;">
+    </div>
+    <div class="form-group" style="text-align:left;">
+      <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block;">Senha</label>
+      <input type="password" id="auth-pass" class="form-control" placeholder="••••••••" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box;">
+    </div>
+
+    <button type="button" id="btn-action" class="btn btn-primary btn-login" onclick="handleAuthAction()" style="margin-top:10px;">Acessar Conta</button>
+
+    <div style="margin:15px 0; color:var(--text3); font-size:13px; display:flex; align-items:center; text-align:center;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <span style="padding:0 10px;">OU</span>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
+
+    <button type="button" class="btn btn-primary btn-login" onclick="doGoogleLogin()" style="display:flex;align-items:center;justify-content:center;gap:12px;background:#fff;color:#333;border:1px solid #ddd;font-size:15px;padding:12px;margin-top:0;">
       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:20px;height:20px" alt="G">
       <span>Continuar com Google</span>
     </button>
   </div>
 </div>
+
+<script>
+  let currentMode = 'login';
+  function switchTab(mode) {
+    currentMode = mode;
+    const tabLogin = document.getElementById('tab-login');
+    const tabSignup = document.getElementById('tab-signup');
+    const fieldName = document.getElementById('field-name');
+    const btnAction = document.getElementById('btn-action');
+    
+    document.getElementById('login-error').style.display = 'none';
+
+    if(mode === 'login') {
+      tabLogin.style.color = 'var(--accent)';
+      tabLogin.style.borderBottom = '2px solid var(--accent)';
+      tabSignup.style.color = 'var(--text3)';
+      tabSignup.style.borderBottom = 'none';
+      fieldName.style.display = 'none';
+      btnAction.textContent = 'Acessar Conta';
+    } else {
+      tabSignup.style.color = 'var(--accent)';
+      tabSignup.style.borderBottom = '2px solid var(--accent)';
+      tabLogin.style.color = 'var(--text3)';
+      tabLogin.style.borderBottom = 'none';
+      fieldName.style.display = 'block';
+      btnAction.textContent = 'Criar Nova Conta';
+    }
+  }
+
+  function handleAuthAction() {
+    if(currentMode === 'login') {
+      if(typeof doEmailLogin === 'function') doEmailLogin();
+    } else {
+      if(typeof doEmailSignup === 'function') doEmailSignup();
+    }
+  }
+</script>
 
 <script src="js/data.js"></script>
 <script src="js/auth.js"></script>

@@ -1,104 +1,176 @@
 // ==================== HELPERS ====================
-const fmt = (v) => v != null && !isNaN(v) ? 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
-const fmtPct = (v) => v != null ? (v*100).toFixed(1)+'%' : '—';
-const fmtDate = (d) => { if(!d) return '—'; const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; };
+let currentEditIdx = -1; // Global variable to identify if we are creating new (-1) or editing an existing record.
+
+const fmt = (v) => v != null && !isNaN(v) ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+const fmtPct = (v) => v != null ? (v * 100).toFixed(1) + '%' : '—';
+const fmtDate = (d) => { if (!d) return '—'; const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; };
 const today = new Date().toISOString().split('T')[0];
 
 function statusBadge(s) {
   const map = {
-    'Em andamento':'badge-blue','Ativo':'badge-green','Presente':'badge-green',
-    'Concluída':'badge-green','Concluído':'badge-green','Entregue':'badge-green','Pago':'badge-green','Aprovada':'badge-green',
-    'Atrasada':'badge-red','Falta':'badge-red','Reprovada':'badge-red','Atrasado':'badge-red','CRÍTICO':'badge-red',
-    'Aguardando':'badge-orange','Pendente':'badge-orange','Planejada':'badge-orange','A fazer':'badge-orange','Pedido Feito':'badge-orange',
-    'Alta':'badge-red','Média':'badge-orange','Baixa':'badge-blue',
-    'NORMAL':'badge-green','BAIXO':'badge-orange','SEM ESTOQUE':'badge-red',
-    'Pausada':'badge-gray','Inativo':'badge-gray','Parcial':'badge-yellow','Divergência':'badge-yellow','Meio período':'badge-yellow',
+    'Em andamento': 'badge-blue', 'Ativo': 'badge-green', 'Presente': 'badge-green',
+    'Concluída': 'badge-green', 'Concluído': 'badge-green', 'Entregue': 'badge-green', 'Pago': 'badge-green', 'Aprovada': 'badge-green',
+    'Atrasada': 'badge-red', 'Falta': 'badge-red', 'Reprovada': 'badge-red', 'Atrasado': 'badge-red', 'CRÍTICO': 'badge-red',
+    'Aguardando': 'badge-orange', 'Pendente': 'badge-orange', 'Planejada': 'badge-orange', 'A fazer': 'badge-orange', 'Pedido Feito': 'badge-orange',
+    'Alta': 'badge-red', 'Média': 'badge-orange', 'Baixa': 'badge-blue',
+    'NORMAL': 'badge-green', 'BAIXO': 'badge-orange', 'SEM ESTOQUE': 'badge-red',
+    'Pausada': 'badge-gray', 'Inativo': 'badge-gray', 'Parcial': 'badge-yellow', 'Divergência': 'badge-yellow', 'Meio período': 'badge-yellow',
   };
   const cls = map[s] || 'badge-gray';
-  return `<span class="badge ${cls}">${s||'—'}</span>`;
+  return `<span class="badge ${cls}">${s || '—'}</span>`;
 }
 
-function calcSaldo(item) { return (item.entrada||0) - (item.saida||0); }
+function calcSaldo(item) { return (item.entrada || 0) - (item.saida || 0); }
 function estoqueStatus(item) {
   const saldo = calcSaldo(item);
-  if(saldo <= 0) return 'SEM ESTOQUE';
-  if(saldo <= item.min) return 'CRÍTICO';
-  if(saldo <= item.min * 1.5) return 'BAIXO';
+  if (saldo <= 0) return 'SEM ESTOQUE';
+  if (saldo <= item.min) return 'CRÍTICO';
+  if (saldo <= item.min * 1.5) return 'BAIXO';
   return 'NORMAL';
 }
 
 function nextCod(arr, prefix) {
-  const nums = arr.map(x => parseInt((x.cod||x.num||'0').replace(/\D/g,''))||0);
-  return prefix + String(Math.max(0,...nums)+1).padStart(3,'0');
+  const nums = arr.map(x => parseInt((x.cod || x.num || '0').replace(/\D/g, '')) || 0);
+  return prefix + String(Math.max(0, ...nums) + 1).padStart(3, '0');
 }
 
-// ==================== PAGE NAVIGATION ====================
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+// ==================== PAGE NAVIGATION (DYNAMIC FETCH) ====================
+const cachePaginas = {};
+
+async function carregarHTML(caminho) {
+  if (cachePaginas[caminho]) return cachePaginas[caminho];
+  try {
+    const res = await fetch(caminho);
+    if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
+    const html = await res.text();
+    cachePaginas[caminho] = html;
+    return html;
+  } catch (err) {
+    console.error('Falha ao buscar:', caminho, err);
+    return `<div style="padding: 20px; color: var(--red)">Erro ao carregar o componente: ${caminho}</div>`;
+  }
+}
+
+async function showPage(id) {
+  // Atualiza o menu lateral (Estilos)
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-'+id).classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(n => { if(n.getAttribute('onclick')?.includes(id)) n.classList.add('active'); });
+  document.querySelectorAll('.nav-item').forEach(n => { if (n.getAttribute('onclick')?.includes(id)) n.classList.add('active'); });
   document.querySelector('.sidebar').classList.remove('open');
+
+  // Adiciona um loading simples enquanto busca
+  const mainEl = document.getElementById("conteudo-principal");
+  mainEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3)">Carregando tela...</div>';
+
+  // Busca e injeta o HTML da pasta pages/
+  const html = await carregarHTML(`pages/${id}.html`);
+  mainEl.innerHTML = `<div class="page active" id="page-${id}">${html}</div>`;
+
+  // Chama a lógica de renderização
   renderPage(id);
 }
 
 function renderPage(id) {
-  const r = { dashboard:renderDashboard, obras:renderObras, trabalhadores:renderTrabalhadores,
-    presenca:renderPresenca, tarefas:renderTarefas, estoque:renderEstoque,
-    movEstoque:renderMovEstoque, compras:renderCompras, financeiro:renderFinanceiro,
-    orcamento:renderOrcamento, medicao:renderMedicao, admin:renderAdmin };
-  if(r[id]) r[id]();
+  const r = {
+    dashboard: renderDashboard, obras: renderObras, trabalhadores: renderTrabalhadores,
+    presenca: renderPresenca, tarefas: renderTarefas, estoque: renderEstoque,
+    movEstoque: renderMovEstoque, compras: renderCompras, financeiro: renderFinanceiro,
+    orcamento: renderOrcamento, medicao: renderMedicao, admin: renderAdmin
+  };
+  if (r[id]) r[id]();
 }
 
 // ==================== DASHBOARD ====================
 function renderDashboard() {
   const obrasAtivas = DB.obras.filter(o => o.status === 'Em andamento').length;
   const tarefasAtrasadas = DB.tarefas.filter(t => t.status === 'Atrasada').length;
-  const estoquesBaixos = DB.estoque.filter(e => ['BAIXO','CRÍTICO'].includes(estoqueStatus(e))).length;
+  const estoquesBaixos = DB.estoque.filter(e => ['BAIXO', 'CRÍTICO'].includes(estoqueStatus(e))).length;
   const comprasAguardando = DB.compras.filter(c => c.status === 'Aguardando').length;
-  const totalPrev = DB.financeiro.reduce((a,f) => a+(f.prev||0), 0);
-  const totalReal = DB.financeiro.reduce((a,f) => a+(f.real||0), 0);
-  const pctCusto = totalPrev > 0 ? ((totalReal/totalPrev)*100).toFixed(1) : 0;
+  const totalPrev = DB.financeiro.reduce((a, f) => a + (f.prev || 0), 0);
+
+  // Unificação Rápida Financeira Global do Dashboard
+  let globalFinance = [];
+  DB.financeiro.forEach(f => globalFinance.push({ obra: f.obra, data: f.data, v: parseFloat(f.real) || 0 }));
+  DB.presenca.forEach(p => globalFinance.push({ obra: p.obra, data: p.data, v: parseFloat(p.total) || 0 }));
+  DB.medicao.forEach(m => globalFinance.push({ obra: m.obra, data: m.semana, v: parseFloat(m.vtotal) || 0 }));
+
+  const totalRealGlobal = globalFinance.reduce((a, f) => a + f.v, 0);
+  const pctCusto = totalPrev > 0 ? ((totalRealGlobal / totalPrev) * 100).toFixed(1) : 0;
+  
   const hoje = DB.presenca.filter(p => p.data === today);
   const presPresente = hoje.filter(p => p.presenca === 'Presente').length;
   const presTotal = hoje.length;
 
+  const todayDate = new Date();
+  const fSemana = new Date(todayDate);
+  fSemana.setDate(fSemana.getDate() - fSemana.getDay());
+  const strSemana = fSemana.toISOString().split('T')[0];
+  const fMes = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+  const strMes = fMes.toISOString().split('T')[0];
+
+  const cDiariasSemana = DB.presenca
+    .filter(p => p.data >= strSemana && p.data <= today)
+    .reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
+    
+  const cEmpreitaSemana = DB.medicao
+    .filter(m => m.semana >= strSemana && m.semana <= today)
+    .reduce((a, m) => a + (parseFloat(m.vtotal) || 0), 0);
+
   document.getElementById('kpi-grid').innerHTML = `
     <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obrasAtivas}</div><div class="kpi-sub">de ${DB.obras.length} cadastradas</div></div>
-    <div class="kpi-card"><div class="kpi-label">Presença Hoje</div><div class="kpi-val ${presPresente===presTotal && presTotal>0?'green':'orange'}">${presPresente}/${presTotal}</div><div class="kpi-sub">${today}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Custo Real / Prev.</div><div class="kpi-val ${pctCusto>100?'red':'green'}">${pctCusto}%</div><div class="kpi-sub">${fmt(totalReal)} de ${fmt(totalPrev)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Tarefas Atrasadas</div><div class="kpi-val ${tarefasAtrasadas>0?'red':'green'}">${tarefasAtrasadas}</div><div class="kpi-sub">requer atenção imediata</div></div>
-    <div class="kpi-card"><div class="kpi-label">Estoque Baixo/Crítico</div><div class="kpi-val ${estoquesBaixos>0?'orange':'green'}">${estoquesBaixos}</div><div class="kpi-sub">itens abaixo do mínimo</div></div>
-    <div class="kpi-card"><div class="kpi-label">Compras Aguardando</div><div class="kpi-val ${comprasAguardando>0?'orange':'green'}">${comprasAguardando}</div><div class="kpi-sub">pendentes de aprovação</div></div>
+    <div class="kpi-card"><div class="kpi-label">Diárias (Semana)</div><div class="kpi-val blue">${fmt(cDiariasSemana)}</div><div class="kpi-sub">Custo de Folha na contabilidade</div></div>
+    <div class="kpi-card"><div class="kpi-label">Empreitas (Semana)</div><div class="kpi-val blue" style="font-size:20px">${fmt(cEmpreitaSemana)}</div><div class="kpi-sub">Custo de Medições na contabilidade</div></div>
+    <div class="kpi-card"><div class="kpi-label">Custo Real / Prev.</div><div class="kpi-val ${pctCusto > 100 ? 'red' : 'green'}">${pctCusto}%</div><div class="kpi-sub">${fmt(totalRealGlobal)} de ${fmt(totalPrev)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Tarefas Atrasadas</div><div class="kpi-val ${tarefasAtrasadas > 0 ? 'red' : 'green'}">${tarefasAtrasadas}</div><div class="kpi-sub">requer atenção imediata</div></div>
+    <div class="kpi-card"><div class="kpi-label">Estoque Baixo/Crítico</div><div class="kpi-val ${estoquesBaixos > 0 ? 'orange' : 'green'}">${estoquesBaixos}</div><div class="kpi-sub">itens abaixo do mínimo</div></div>
   `;
 
   const alerts = [];
   DB.estoque.forEach(e => {
     const s = estoqueStatus(e);
-    if(s === 'CRÍTICO') alerts.push({tipo:'ESTOQUE CRÍTICO', obra:e.obra, desc:`${e.mat} — saldo ${calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp:'Almoxarife', prior:'alto'});
-    else if(s === 'BAIXO') alerts.push({tipo:'ESTOQUE BAIXO', obra:e.obra, desc:`${e.mat} — saldo ${calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp:'Almoxarife', prior:'medio'});
+    if (s === 'CRÍTICO') alerts.push({ tipo: 'ESTOQUE CRÍTICO', obra: e.obra, desc: `${e.mat} — saldo ${calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp: 'Almoxarife', prior: 'alto' });
+    else if (s === 'BAIXO') alerts.push({ tipo: 'ESTOQUE BAIXO', obra: e.obra, desc: `${e.mat} — saldo ${calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp: 'Almoxarife', prior: 'medio' });
   });
-  DB.tarefas.filter(t => t.status === 'Atrasada').forEach(t => alerts.push({tipo:'TAREFA ATRASADA', obra:t.obra, desc:`${t.desc} — prazo: ${fmtDate(t.prazo)}`, resp:t.resp, prior:'alto'}));
-  DB.compras.filter(c => c.status === 'Aguardando').forEach(c => alerts.push({tipo:'COMPRA PENDENTE', obra:c.obra, desc:`${c.mat} — ${fmt(c.vtotal)}`, resp:'Gestor', prior:'medio'}));
+  DB.tarefas.filter(t => t.status === 'Atrasada').forEach(t => alerts.push({ tipo: 'TAREFA ATRASADA', obra: t.obra, desc: `${t.desc} — prazo: ${fmtDate(t.prazo)}`, resp: t.resp, prior: 'alto' }));
+  DB.compras.filter(c => c.status === 'Aguardando').forEach(c => alerts.push({ tipo: 'COMPRA PENDENTE', obra: c.obra, desc: `${c.mat} — ${fmt(c.vtotal)}`, resp: 'Gestor', prior: 'medio' }));
 
-  const alertIcons = {'ESTOQUE CRÍTICO':'🔴','ESTOQUE BAIXO':'🟡','TAREFA ATRASADA':'⏰','COMPRA PENDENTE':'🛒'};
+  const currentUserStr = sessionStorage.getItem('gestaoUser');
+  if(currentUserStr) {
+     const currentUser = JSON.parse(currentUserStr);
+     if(currentUser.role === 'admin' && DB.usuarios) {
+        const contasPendentes = DB.usuarios.filter(u => u.role === 'pendente');
+        contasPendentes.forEach(pUser => {
+           alerts.push({ tipo: 'NOVO USUÁRIO', obra: 'SISTEMA', desc: `${pUser.name} (${pUser.email}) solicitou acesso.`, resp: 'Admin', prior: 'alto' });
+        });
+     }
+  }
+
+  const alertIcons = { 'ESTOQUE CRÍTICO': '🔴', 'ESTOQUE BAIXO': '🟡', 'TAREFA ATRASADA': '⏰', 'COMPRA PENDENTE': '🛒', 'NOVO USUÁRIO': '👤' };
   document.getElementById('alerts-grid').innerHTML = alerts.length
-    ? alerts.map(a => `<div class="alert-card ${a.prior}"><div class="alert-icon">${alertIcons[a.tipo]||'⚠️'}</div><div class="alert-body"><h4>${a.tipo}</h4><p><b>${a.obra}</b> — ${a.desc}</p><p style="margin-top:4px">Resp: ${a.resp}</p></div></div>`).join('')
+    ? alerts.map(a => `<div class="alert-card ${a.prior}"><div class="alert-icon">${alertIcons[a.tipo] || '⚠️'}</div><div class="alert-body"><h4>${a.tipo}</h4><p><b>${a.obra}</b> — ${a.desc}</p><p style="margin-top:4px">Resp: ${a.resp}</p></div></div>`).join('')
     : '<div style="color:var(--text3);font-size:13px;padding:8px">✅ Nenhum alerta no momento.</div>';
 
   const tbody = document.getElementById('dash-obras-tbody');
   tbody.innerHTML = DB.obras.map(o => {
     const tarefas = DB.tarefas.filter(t => t.obra === o.cod);
-    const realizado = DB.financeiro.filter(f => f.obra === o.cod).reduce((a,f) => a+(f.real||0), 0);
-    const pct = o.orc > 0 ? (realizado/o.orc*100).toFixed(1) : 0;
+    
+    // Filtro Financeiro por Obra
+    const tabObj = globalFinance.filter(f => f.obra === o.cod);
+    const realizado = tabObj.reduce((a, f) => a + f.v, 0);
+    const cSemanal = tabObj.filter(f => f.data >= strSemana && f.data <= today).reduce((a, f) => a + f.v, 0);
+    const cMensal = tabObj.filter(f => f.data >= strMes && f.data <= today).reduce((a, f) => a + f.v, 0);
+    
+    const pct = o.orc > 0 ? (realizado / o.orc * 100).toFixed(1) : 0;
+    
     return `<tr>
       <td><span class="cod">${o.cod}</span> ${o.nome}</td>
       <td>${statusBadge(o.status)}</td>
       <td>${o.mestre}</td>
       <td>${fmt(o.orc)}</td>
+      <td><b style="color:var(--accent)">${fmt(cSemanal)}</b></td>
+      <td><b style="color:var(--orange)">${fmt(cMensal)}</b></td>
       <td>${fmt(realizado)}</td>
       <td>${pct}%</td>
-      <td>${tarefas.filter(t=>t.status==='Concluída').length}/${tarefas.length} concluídas</td>
+      <td>${tarefas.filter(t => t.status === 'Concluída').length}/${tarefas.length} concluídas</td>
     </tr>`;
   }).join('');
   document.getElementById('dash-updated').textContent = 'Atualizado: ' + new Date().toLocaleString('pt-BR');
@@ -108,8 +180,8 @@ function renderDashboard() {
 function renderObras() {
   const grid = document.getElementById('obras-grid');
   grid.innerHTML = DB.obras.map(o => {
-    const realizado = DB.financeiro.filter(f => f.obra === o.cod).reduce((a,f) => a+(f.real||0), 0);
-    const pct = o.orc > 0 ? (realizado/o.orc*100).toFixed(1) : 0;
+    const realizado = DB.financeiro.filter(f => f.obra === o.cod).reduce((a, f) => a + (f.real || 0), 0);
+    const pct = o.orc > 0 ? (realizado / o.orc * 100).toFixed(1) : 0;
     const tarefas = DB.tarefas.filter(t => t.obra === o.cod);
     return `<div class="obra-card" onclick="showPage('financeiro')">
       <h3>${o.nome}</h3>
@@ -118,17 +190,20 @@ function renderObras() {
         <div class="obra-stat"><div class="obra-stat-label">Orçamento</div><div class="obra-stat-val" style="font-size:13px">${fmt(o.orc)}</div></div>
         <div class="obra-stat"><div class="obra-stat-label">% Custo</div><div class="obra-stat-val">${pct}%</div></div>
         <div class="obra-stat"><div class="obra-stat-label">Mestre</div><div class="obra-stat-val" style="font-size:12px">${o.mestre}</div></div>
-        <div class="obra-stat"><div class="obra-stat-label">Tarefas</div><div class="obra-stat-val" style="font-size:13px">${tarefas.filter(t=>t.status==='Concluída').length}/${tarefas.length}</div></div>
+        <div class="obra-stat"><div class="obra-stat-label">Tarefas</div><div class="obra-stat-val" style="font-size:13px">${tarefas.filter(t => t.status === 'Concluída').length}/${tarefas.length}</div></div>
       </div>
     </div>`;
   }).join('');
 
   const tbody = document.getElementById('obras-tbody');
-  tbody.innerHTML = DB.obras.map((o,i) => `<tr>
+  tbody.innerHTML = DB.obras.map((o, i) => `<tr>
     <td><span class="cod">${o.cod}</span></td><td>${o.nome}</td><td>${o.tipo}</td>
     <td>${statusBadge(o.status)}</td><td>${fmtDate(o.inicio)}</td><td>${fmtDate(o.prazo)}</td>
     <td>${fmt(o.orc)}</td><td>${o.mestre}</td><td>${o.cliente}</td>
-    <td><button class="btn btn-danger btn-sm" onclick="deleteItem('obras',${i})">🗑</button></td>
+    <td>
+      <button class="btn btn-secondary btn-sm" onclick="editObra(${i})" style="margin-right:8px">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteItem('obras',${i})">🗑</button>
+    </td>
   </tr>`).join('');
 }
 
@@ -136,11 +211,14 @@ function renderObras() {
 function renderTrabalhadores() {
   const tbody = document.getElementById('trab-tbody');
   tbody.innerHTML = DB.trabalhadores.length
-    ? DB.trabalhadores.map((t,i) => `<tr>
+    ? DB.trabalhadores.map((t, i) => `<tr>
         <td><span class="cod">${t.cod}</span></td><td>${t.nome}</td><td>${t.cpf}</td>
         <td>${t.funcao}</td><td>${statusBadge(t.vinculo)}</td><td>${t.obras}</td>
         <td>${fmt(t.diaria)}</td><td>${t.pgto}</td><td>${statusBadge(t.status)}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteItem('trabalhadores',${i})">🗑</button></td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="editTrabalhador(${i})" style="margin-right:8px">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('trabalhadores',${i})">🗑</button>
+        </td>
       </tr>`).join('')
     : '<tr class="empty-row"><td colspan="10">Nenhum trabalhador cadastrado</td></tr>';
 }
@@ -150,34 +228,37 @@ function renderPresenca() {
   const hoje = DB.presenca.filter(p => p.data === today);
   const presentes = hoje.filter(p => p.presenca === 'Presente').length;
   const faltas = hoje.filter(p => p.presenca === 'Falta').length;
-  const totalPagar = hoje.reduce((a,p) => a+(p.total||0), 0);
+  const totalPagar = hoje.reduce((a, p) => a + (p.total || 0), 0);
   document.getElementById('pres-kpi').innerHTML = `
     <div class="kpi-card"><div class="kpi-label">Presentes Hoje</div><div class="kpi-val green">${presentes}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Faltas Hoje</div><div class="kpi-val ${faltas>0?'red':'green'}">${faltas}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Faltas Hoje</div><div class="kpi-val ${faltas > 0 ? 'red' : 'green'}">${faltas}</div></div>
     <div class="kpi-card"><div class="kpi-label">Total a Pagar Hoje</div><div class="kpi-val yellow" style="font-size:20px">${fmt(totalPagar)}</div></div>
   `;
   const tbody = document.getElementById('pres-tbody');
   tbody.innerHTML = DB.presenca.length
-    ? DB.presenca.map((p,i) => `<tr>
+    ? DB.presenca.map((p, i) => `<tr>
         <td>${fmtDate(p.data)}</td><td><span class="cod">${p.obra}</span></td>
         <td>${p.nome}</td><td>${p.funcao}</td><td>${p.frente}</td>
-        <td>${p.entrada||'—'}</td><td>${p.saida||'—'}</td>
-        <td>${p.hnorm||0}h</td><td>${p.hextra||0}h</td>
+        <td>${p.entrada || '—'}</td><td>${p.saida || '—'}</td>
+        <td>${p.hnorm || 0}h</td><td>${p.hextra || 0}h</td>
         <td>${statusBadge(p.presenca)}</td>
         <td>${fmt(p.diaria)}</td><td><b>${fmt(p.total)}</b></td>
         <td>${p.lancador}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${i})">🗑</button></td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="editPresenca(${i})" style="margin-right:8px">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${i})">🗑</button>
+        </td>
       </tr>`).join('')
     : '<tr class="empty-row"><td colspan="14">Nenhum registro de presença</td></tr>';
 
   // Totais por obra/data
-  const dates = [...new Set(DB.presenca.map(p=>p.data))];
+  const dates = [...new Set(DB.presenca.map(p => p.data))];
   const totalsHtml = dates.map(d => {
     const rows = DB.presenca.filter(p => p.data === d);
     return `<div class="kpi-card">
       <div class="kpi-label">${fmtDate(d)}</div>
-      <div style="font-size:13px;margin-top:4px">Presentes: <b style="color:var(--green)">${rows.filter(r=>r.presenca==='Presente').length}</b> · Faltas: <b style="color:var(--red)">${rows.filter(r=>r.presenca==='Falta').length}</b></div>
-      <div style="font-size:13px;margin-top:4px">Total: <b style="color:var(--accent)">${fmt(rows.reduce((a,r)=>a+(r.total||0),0))}</b></div>
+      <div style="font-size:13px;margin-top:4px">Presentes: <b style="color:var(--green)">${rows.filter(r => r.presenca === 'Presente').length}</b> · Faltas: <b style="color:var(--red)">${rows.filter(r => r.presenca === 'Falta').length}</b></div>
+      <div style="font-size:13px;margin-top:4px">Total: <b style="color:var(--accent)">${fmt(rows.reduce((a, r) => a + (r.total || 0), 0))}</b></div>
     </div>`;
   }).join('');
   document.getElementById('pres-totais').innerHTML = totalsHtml || '<p style="color:var(--text3)">—</p>';
@@ -186,25 +267,28 @@ function renderPresenca() {
 // ==================== TAREFAS ====================
 function renderTarefas() {
   const total = DB.tarefas.length;
-  const conc = DB.tarefas.filter(t=>t.status==='Concluída').length;
-  const atra = DB.tarefas.filter(t=>t.status==='Atrasada').length;
+  const conc = DB.tarefas.filter(t => t.status === 'Concluída').length;
+  const atra = DB.tarefas.filter(t => t.status === 'Atrasada').length;
   document.getElementById('tar-kpi').innerHTML = `
     <div class="kpi-card"><div class="kpi-label">Total Tarefas</div><div class="kpi-val">${total}</div></div>
     <div class="kpi-card"><div class="kpi-label">Concluídas</div><div class="kpi-val green">${conc}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Atrasadas</div><div class="kpi-val ${atra>0?'red':'green'}">${atra}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Em Andamento</div><div class="kpi-val blue">${DB.tarefas.filter(t=>t.status==='Em andamento').length}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Atrasadas</div><div class="kpi-val ${atra > 0 ? 'red' : 'green'}">${atra}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Em Andamento</div><div class="kpi-val blue">${DB.tarefas.filter(t => t.status === 'Em andamento').length}</div></div>
   `;
   const tbody = document.getElementById('tar-tbody');
   tbody.innerHTML = DB.tarefas.length
-    ? DB.tarefas.map((t,i) => `<tr>
+    ? DB.tarefas.map((t, i) => `<tr>
         <td><span class="cod">${t.cod}</span></td><td>${t.obra}</td><td>${t.etapa}</td><td>${t.frente}</td>
         <td>${t.desc}</td><td>${t.resp}</td><td>${statusBadge(t.prior)}</td>
         <td>${statusBadge(t.status)}</td><td>${fmtDate(t.criacao)}</td><td>${fmtDate(t.prazo)}</td>
         <td><div style="display:flex;align-items:center;gap:6px">
-          <div class="progress-bar"><div class="progress-fill" style="width:${t.perc||0}%;background:${t.perc>=100?'var(--green)':t.status==='Atrasada'?'var(--red)':'var(--accent2)'}"></div></div>
-          <span style="font-size:12px">${t.perc||0}%</span>
+          <div class="progress-bar"><div class="progress-fill" style="width:${t.perc || 0}%;background:${t.perc >= 100 ? 'var(--green)' : t.status === 'Atrasada' ? 'var(--red)' : 'var(--accent2)'}"></div></div>
+          <span style="font-size:12px">${t.perc || 0}%</span>
         </div></td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteItem('tarefas',${i})">🗑</button></td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="editTarefa(${i})" style="margin-right:8px">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('tarefas',${i})">🗑</button>
+        </td>
       </tr>`).join('')
     : '<tr class="empty-row"><td colspan="12">Nenhuma tarefa cadastrada</td></tr>';
 }
@@ -213,18 +297,21 @@ function renderTarefas() {
 function renderEstoque() {
   const tbody = document.getElementById('est-tbody');
   tbody.innerHTML = DB.estoque.length
-    ? DB.estoque.map((e,i) => {
-        const saldo = calcSaldo(e);
-        const s = estoqueStatus(e);
-        return `<tr>
+    ? DB.estoque.map((e, i) => {
+      const saldo = calcSaldo(e);
+      const s = estoqueStatus(e);
+      return `<tr>
           <td><span class="cod">${e.cod}</span></td><td>${e.mat}</td><td>${e.unid}</td>
           <td>${e.obra}</td><td>${e.min}</td><td>${e.entrada}</td><td>${e.saida}</td>
-          <td><b style="color:${saldo<=e.min?'var(--red)':saldo<=e.min*1.5?'var(--orange)':'var(--green)'}">${saldo}</b></td>
-          <td>${fmt(e.custo)}</td><td>${fmt(saldo*e.custo)}</td>
+          <td><b style="color:${saldo <= e.min ? 'var(--red)' : saldo <= e.min * 1.5 ? 'var(--orange)' : 'var(--green)'}">${saldo}</b></td>
+          <td>${fmt(e.custo)}</td><td>${fmt(saldo * e.custo)}</td>
           <td>${statusBadge(s)}</td>
-          <td><button class="btn btn-danger btn-sm" onclick="deleteItem('estoque',${i})">🗑</button></td>
+          <td>
+            <button class="btn btn-secondary btn-sm" onclick="editEstoque(${i})" style="margin-right:8px">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteItem('estoque',${i})">🗑</button>
+          </td>
         </tr>`;
-      }).join('')
+    }).join('')
     : '<tr class="empty-row"><td colspan="12">Nenhum item no estoque</td></tr>';
 }
 
@@ -232,14 +319,17 @@ function renderEstoque() {
 function renderMovEstoque() {
   const tbody = document.getElementById('movest-tbody');
   tbody.innerHTML = DB.movEstoque.length
-    ? DB.movEstoque.map((m,i) => `<tr>
+    ? DB.movEstoque.map((m, i) => `<tr>
         <td>${fmtDate(m.data)}</td><td><span class="cod">${m.codMat}</span></td><td>${m.mat}</td>
         <td>${m.obra}</td>
-        <td><span class="badge ${m.tipo==='Entrada'?'badge-green':'badge-orange'}">${m.tipo}</span></td>
-        <td>${m.qtd}</td><td>${m.frente||'—'}</td><td>${m.retirado||'—'}</td>
-        <td>${m.autor||'—'}</td><td>${m.nf||'—'}</td>
-        <td>${fmt(m.vunit)}</td><td>${fmt(m.vtotal)}</td><td>${m.obs||'—'}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteItem('movEstoque',${i})">🗑</button></td>
+        <td><span class="badge ${m.tipo === 'Entrada' ? 'badge-green' : 'badge-orange'}">${m.tipo}</span></td>
+        <td>${m.qtd}</td><td>${m.frente || '—'}</td><td>${m.retirado || '—'}</td>
+        <td>${m.autor || '—'}</td><td>${m.nf || '—'}</td>
+        <td>${fmt(m.vunit)}</td><td>${fmt(m.vtotal)}</td><td>${m.obs || '—'}</td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="editMovEstoque(${i})" style="margin-right:8px">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('movEstoque',${i})">🗑</button>
+        </td>
       </tr>`).join('')
     : '<tr class="empty-row"><td colspan="14">Nenhuma movimentação registrada</td></tr>';
 }
@@ -248,70 +338,130 @@ function renderMovEstoque() {
 function renderCompras() {
   const tbody = document.getElementById('compras-tbody');
   tbody.innerHTML = DB.compras.length
-    ? DB.compras.map((c,i) => `<tr>
+    ? DB.compras.map((c, i) => `<tr>
         <td><span class="cod">${c.num}</span></td><td>${fmtDate(c.data)}</td><td>${c.obra}</td>
         <td>${c.mat}</td><td>${c.qtd}</td><td>${c.unid}</td>
-        <td>${statusBadge(c.status)}</td><td>${c.forn||'—'}</td>
+        <td>${statusBadge(c.status)}</td><td>${c.forn || '—'}</td>
         <td>${fmt(c.vtotal)}</td><td>${fmtDate(c.prazo)}</td>
-        <td>${c.conf||'—'}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteItem('compras',${i})">🗑</button></td>
+        <td>${c.conf || '—'}</td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="editCompra(${i})" style="margin-right:8px">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('compras',${i})">🗑</button>
+        </td>
       </tr>`).join('')
     : '<tr class="empty-row"><td colspan="12">Nenhuma compra registrada</td></tr>';
 }
 
 // ==================== FINANCEIRO ====================
 function renderFinanceiro() {
+  let allFin = [];
+  
+  // 1. Lançamentos Manuais Core
+  DB.financeiro.forEach((f, i) => {
+    allFin.push({
+      idx: i, source: 'fin', data: f.data,
+      obra: f.obra, etapa: f.etapa, tipo: f.tipo, desc: f.desc,
+      forn: f.forn || '—', prev: f.prev || 0, real: f.real || 0,
+      pgto: f.pgto, status: f.status, nf: f.nf || '—'
+    });
+  });
+
+  // 2. Mão de Obra - Folha de Ponto (Diárias)
+  DB.presenca.forEach((p, i) => {
+    if ((p.total || 0) > 0) {
+      const tb = DB.trabalhadores.find(t => t.cod === p.trab);
+      const funcName = tb ? tb.nome : p.trab;
+      allFin.push({
+        idx: i, source: 'pre', data: p.data,
+        obra: p.obra, etapa: 'N/A', tipo: 'Mão de obra própria',
+        desc: `[Diária] Trabalhador: ${funcName}`,
+        forn: funcName, prev: 0, real: parseFloat(p.total),
+        pgto: 'N/A', status: 'Pago', nf: '—'
+      });
+    }
+  });
+
+  // 3. Empreita - Medições Físicas
+  DB.medicao.forEach((m, i) => {
+    if ((m.vtotal || 0) > 0) {
+      allFin.push({
+        idx: i, source: 'med', data: m.semana,
+        obra: m.obra, etapa: m.etapa, tipo: 'Empreiteiro',
+        desc: `[Medição] ${m.servico}`,
+        forn: m.equipe || 'Equipe Terceira', prev: 0, real: parseFloat(m.vtotal),
+        pgto: 'N/A', status: 'Pendente', nf: '—'
+      });
+    }
+  });
+
+  // Sort: Mais recentes primeiro
+  allFin.sort((a, b) => new Date(b.data) - new Date(a.data));
+
   // Summary by obra
-  const obras = [...new Set(DB.financeiro.map(f=>f.obra))];
+  const obras = [...new Set(allFin.map(f => f.obra))];
   let sumHtml = '';
-  let totalPrev=0, totalReal=0;
+  let totalPrev = 0, totalReal = 0;
   obras.forEach(ob => {
-    const rows = DB.financeiro.filter(f=>f.obra===ob);
-    const p = rows.reduce((a,r)=>a+(r.prev||0),0);
-    const r = rows.reduce((a,r)=>a+(r.real||0),0);
+    const rows = allFin.filter(f => f.obra === ob);
+    const p = rows.reduce((a, r) => a + (r.prev || 0), 0);
+    const r = rows.reduce((a, r) => a + (r.real || 0), 0);
     totalPrev += p; totalReal += r;
     sumHtml += `<div class="fin-card"><div class="fin-card-label">${ob} — Previsto</div><div class="fin-card-val">${fmt(p)}</div></div>
-    <div class="fin-card"><div class="fin-card-label">${ob} — Realizado</div><div class="fin-card-val" style="color:${r>p?'var(--red)':'var(--green)'}">${fmt(r)}</div></div>
-    <div class="fin-card"><div class="fin-card-label">${ob} — Diferença</div><div class="fin-card-val" style="color:${r-p>0?'var(--red)':'var(--green)'}">${fmt(r-p)}</div></div>`;
+    <div class="fin-card"><div class="fin-card-label">${ob} — Realizado</div><div class="fin-card-val" style="color:${r > p ? 'var(--red)' : 'var(--green)'}">${fmt(r)}</div></div>
+    <div class="fin-card"><div class="fin-card-label">${ob} — Diferença</div><div class="fin-card-val" style="color:${r - p > 0 ? 'var(--red)' : 'var(--green)'}">${fmt(r - p)}</div></div>`;
   });
+  
   sumHtml += `<div class="fin-card"><div class="fin-card-label">Total Geral Previsto</div><div class="fin-card-val">${fmt(totalPrev)}</div></div>
   <div class="fin-card"><div class="fin-card-label">Total Geral Realizado</div><div class="fin-card-val">${fmt(totalReal)}</div></div>
-  <div class="fin-card"><div class="fin-card-label">Diferença Total</div><div class="fin-card-val" style="color:${totalReal-totalPrev>0?'var(--red)':'var(--green)'}">${fmt(totalReal-totalPrev)}</div></div>`;
+  <div class="fin-card"><div class="fin-card-label">Diferença Total</div><div class="fin-card-val" style="color:${totalReal - totalPrev > 0 ? 'var(--red)' : 'var(--green)'}">${fmt(totalReal - totalPrev)}</div></div>`;
+  
   document.getElementById('fin-summary').innerHTML = sumHtml;
 
   const tbody = document.getElementById('fin-tbody');
-  tbody.innerHTML = DB.financeiro.length
-    ? DB.financeiro.map((f,i) => {
-        const diff = (f.real||0) - (f.prev||0);
-        return `<tr>
+  tbody.innerHTML = allFin.length
+    ? allFin.map(f => {
+      const diff = f.real - f.prev;
+      
+      let editBtn = '';
+      if(f.source === 'fin') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px">✏️</button>`;
+      else if(f.source === 'med') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editMedicao(${f.idx})" style="margin-right:8px">✏️ Med.</button>`;
+      else if(f.source === 'pre') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editPresenca(${f.idx})" style="margin-right:8px">✏️ Dia.</button>`;
+      
+      let delBtn = '';
+      if(f.source === 'fin') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">🗑</button>`;
+      
+      return `<tr>
           <td>${fmtDate(f.data)}</td><td>${f.obra}</td><td>${f.etapa}</td><td>${f.tipo}</td>
-          <td>${f.desc}</td><td>${f.forn||'—'}</td>
+          <td>${f.desc}</td><td>${f.forn}</td>
           <td>${fmt(f.prev)}</td><td>${fmt(f.real)}</td>
-          <td style="color:${diff>0?'var(--red)':diff<0?'var(--green)':'var(--text)'}">${fmt(diff)}</td>
-          <td>${f.pgto}</td><td>${statusBadge(f.status)}</td><td>${f.nf||'—'}</td>
-          <td><button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${i})">🗑</button></td>
+          <td style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
+          <td>${f.pgto}</td><td>${statusBadge(f.status)}</td><td>${f.nf}</td>
+          <td>${editBtn}${delBtn}</td>
         </tr>`;
-      }).join('')
-    : '<tr class="empty-row"><td colspan="13">Nenhum lançamento financeiro</td></tr>';
+    }).join('')
+    : '<tr class="empty-row"><td colspan="13">Nenhum lançamento financeiro ou Custo Mapeado</td></tr>';
 }
 
 // ==================== ORÇAMENTO ====================
 function renderOrcamento() {
   const tbody = document.getElementById('orc-tbody');
   tbody.innerHTML = DB.orcamento.length
-    ? DB.orcamento.map((o,i) => {
-        const diff = (o.vtotal||0) - (o.vreal||0);
-        const pexec = o.vtotal > 0 ? ((o.vreal||0)/o.vtotal*100).toFixed(1) : 0;
-        return `<tr>
+    ? DB.orcamento.map((o, i) => {
+      const diff = (o.vtotal || 0) - (o.vreal || 0);
+      const pexec = o.vtotal > 0 ? ((o.vreal || 0) / o.vtotal * 100).toFixed(1) : 0;
+      return `<tr>
           <td>${o.obra}</td><td>${o.etapa}</td><td>${o.tipo}</td><td>${o.desc}</td>
           <td>${o.qtd}</td><td>${o.unid}</td>
           <td>${fmt(o.vunit)}</td><td>${fmt(o.vtotal)}</td>
           <td>${fmt(o.vreal)}</td>
-          <td style="color:${diff<0?'var(--red)':'var(--text)'}">${fmt(diff)}</td>
+          <td style="color:${diff < 0 ? 'var(--red)' : 'var(--text)'}">${fmt(diff)}</td>
           <td>${pexec}%</td>
-          <td><button class="btn btn-danger btn-sm" onclick="deleteItem('orcamento',${i})">🗑</button></td>
+          <td>
+            <button class="btn btn-secondary btn-sm" onclick="editOrcamento(${i})" style="margin-right:8px">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteItem('orcamento',${i})">🗑</button>
+          </td>
         </tr>`;
-      }).join('')
+    }).join('')
     : '<tr class="empty-row"><td colspan="12">Nenhum item de orçamento</td></tr>';
 }
 
@@ -319,21 +469,25 @@ function renderOrcamento() {
 function renderMedicao() {
   const tbody = document.getElementById('med-tbody');
   tbody.innerHTML = DB.medicao.length
-    ? DB.medicao.map((m,i) => {
-        const av = m.qprev > 0 ? (m.qreal/m.qprev) : 0;
-        return `<tr>
+    ? DB.medicao.map((m, i) => {
+      const av = m.qprev > 0 ? (m.qreal / m.qprev) : 0;
+      return `<tr>
           <td>${fmtDate(m.semana)}</td><td>${m.obra}</td><td>${m.etapa}</td>
           <td>${m.frente}</td><td>${m.equipe}</td><td>${m.servico}</td>
           <td>${m.unid}</td><td>${m.qprev}</td><td>${m.qreal}</td>
+          <td>${fmt(m.vtotal || 0)}</td>
           <td><div style="display:flex;align-items:center;gap:6px">
-            <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(av*100,100)}%;background:${av>=1?'var(--green)':av>=0.7?'var(--accent2)':'var(--orange)'}"></div></div>
-            <span style="font-size:12px">${(av*100).toFixed(1)}%</span>
+            <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(av * 100, 100)}%;background:${av >= 1 ? 'var(--green)' : av >= 0.7 ? 'var(--accent2)' : 'var(--orange)'}"></div></div>
+            <span style="font-size:12px">${(av * 100).toFixed(1)}%</span>
           </div></td>
-          <td>${statusBadge(m.retr==='Sim'?'Alta':'Baixa').replace('Alta','Sim').replace('Baixa','Não')}</td>
-          <td>${m.obs||'—'}</td>
-          <td><button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${i})">🗑</button></td>
+          <td>${statusBadge(m.retr === 'Sim' ? 'Alta' : 'Baixa').replace('Alta', 'Sim').replace('Baixa', 'Não')}</td>
+          <td>${m.obs || '—'}</td>
+          <td>
+            <button class="btn btn-secondary btn-sm" onclick="editMedicao(${i})" style="margin-right:8px">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${i})">🗑</button>
+          </td>
         </tr>`;
-      }).join('')
+    }).join('')
     : '<tr class="empty-row"><td colspan="13">Nenhuma medição registrada</td></tr>';
 }
 
@@ -343,12 +497,12 @@ function renderAdmin() {
     document.getElementById('cfg-empresa').value = DB.config.nomeEmpresa || '';
     document.getElementById('cfg-cor').value = DB.config.corPrimaria || '#f59e0b';
   }
-  
+
   const tbody = document.getElementById('usuarios-tbody');
   tbody.innerHTML = (DB.usuarios && DB.usuarios.length)
-    ? DB.usuarios.map((u,i) => `<tr>
-        <td><b>${u.email||u.username}</b></td><td>${u.name}</td>
-        <td><span class="badge ${u.role==='admin'?'badge-red':u.role==='engenheiro'?'badge-blue':'badge-orange'}">${u.role.toUpperCase()}</span></td>
+    ? DB.usuarios.map((u, i) => `<tr>
+        <td><b>${u.email || u.username}</b></td><td>${u.name}</td>
+        <td><span class="badge ${u.role === 'admin' ? 'badge-red' : u.role === 'engenheiro' ? 'badge-blue' : u.role === 'pendente' ? 'badge-orange' : 'badge-green'}">${u.role.toUpperCase()}</span></td>
         <td>
            <button class="btn btn-secondary btn-sm" onclick="editUsuario(${i})" style="margin-right:8px">✏️</button>
            <button class="btn btn-danger btn-sm" onclick="deleteUsuario(${i})">🗑</button>
@@ -368,22 +522,23 @@ function salvarConfiguracoes() {
   toast('Configurações visuais salvas e aplicadas em tempo real!');
 }
 
-function editUsuario(idx) {
+async function editUsuario(idx) {
+  await openModal('modal-usuario');
+  currentEditIdx = idx;
   const u = DB.usuarios[idx];
   document.getElementById('usr-edit-idx').value = idx;
   document.getElementById('usr-email').value = u.email || u.username || '';
   document.getElementById('usr-name').value = u.name;
-  document.getElementById('usr-role').value = u.role;
-  document.getElementById('usr-email').disabled = true; // Block email edit
-  openModal('modal-usuario');
+  document.getElementById('usr-role').value = u.role || 'pendente';
+  document.getElementById('usr-email').disabled = true; // Impede alteração do e-mail de acesso
 }
 
 function deleteUsuario(idx) {
-  if(DB.usuarios[idx].role === 'admin' && DB.usuarios.filter(u=>u.role==='admin').length <= 1) {
+  if (DB.usuarios[idx].role === 'admin' && DB.usuarios.filter(u => u.role === 'admin').length <= 1) {
     toast('Não é possível remover o único administrador restante!', 'error');
     return;
   }
-  if(confirm('Remover usuário? Isso derrubará ele instantaneamente de qualquer tela.')) {
+  if (confirm('Remover usuário? Isso derrubará ele instantaneamente de qualquer tela.')) {
     DB.usuarios.splice(idx, 1);
     persistDB();
     renderAdmin();
@@ -391,57 +546,72 @@ function deleteUsuario(idx) {
   }
 }
 
-// ==================== MODAL UTILS ====================
-function openModal(id) {
-  const m = document.getElementById(id);
-  m.classList.add('open');
+// ==================== MODAL UTILS (DYNAMIC FETCH) ====================
+async function openModal(id) {
+  currentEditIdx = -1; // Reset to "Create New" mode by default. Edit functions will override this after opening.
+  
+  const modalContainer = document.getElementById('modal-container');
+  const modalContent = document.getElementById('modal-content');
+
+  modalContent.innerHTML = '<div style="padding:20px;text-align:center">Carregando modal...</div>';
+  modalContainer.classList.add('open');
+
+  const html = await carregarHTML(`modals/${id}.html`);
+  modalContent.innerHTML = html;
+
   // Populate selects
+  const m = modalContent;
   const obraSelects = m.querySelectorAll('select[id$="-obra"], select[id^="pr-obra"], select[id^="fn-obra"], select[id^="cp-obra"], select[id^="md-obra"], select[id^="tf-obra"], select[id^="es-obra"], select[id^="mv-obra"], select[id^="oc-obra"]');
   obraSelects.forEach(sel => {
     sel.innerHTML = DB.obras.map(o => `<option value="${o.cod}">${o.cod} — ${o.nome}</option>`).join('');
   });
-  if(id === 'modal-presenca') {
+  if (id === 'modal-presenca') {
     document.getElementById('pr-data').value = today;
     const tsel = document.getElementById('pr-trab');
-    tsel.innerHTML = DB.trabalhadores.filter(t=>t.status==='Ativo').map(t=>`<option value="${t.cod}">${t.nome}</option>`).join('');
-    fillTrabInfo();
+    if (tsel) {
+      tsel.innerHTML = DB.trabalhadores.filter(t => t.status === 'Ativo').map(t => `<option value="${t.cod}">${t.nome}</option>`).join('');
+      fillTrabInfo();
+    }
   }
-  if(id === 'modal-tarefa') {
-    document.getElementById('tf-cod').value = nextCod(DB.tarefas,'TF');
+  if (id === 'modal-tarefa') {
+    document.getElementById('tf-cod').value = nextCod(DB.tarefas, 'TF');
     document.getElementById('tf-criacao').value = today;
   }
-  if(id === 'modal-compra') {
-    document.getElementById('cp-num').value = nextCod(DB.compras,'PC');
+  if (id === 'modal-compra') {
+    document.getElementById('cp-num').value = nextCod(DB.compras, 'PC');
     document.getElementById('cp-data').value = today;
   }
-  if(id === 'modal-financeiro') document.getElementById('fn-data').value = today;
-  if(id === 'modal-presenca') calcPresenca();
-  if(id === 'modal-movest') {
+  if (id === 'modal-financeiro') document.getElementById('fn-data').value = today;
+  if (id === 'modal-presenca') calcPresenca();
+  if (id === 'modal-movest') {
     document.getElementById('mv-data').value = today;
     const msel = document.getElementById('mv-mat');
-    msel.innerHTML = DB.estoque.map(e => `<option value="${e.cod}">${e.cod} — ${e.mat} (${e.obra})</option>`).join('');
-    fillMatInfo();
+    if (msel) {
+      msel.innerHTML = DB.estoque.map(e => `<option value="${e.cod}">${e.cod} — ${e.mat} (${e.obra})</option>`).join('');
+      fillMatInfo();
+    }
   }
-  if(id === 'modal-medicao') document.getElementById('md-semana').value = today;
-  if(id === 'modal-usuario') {
-    if(document.getElementById('usr-edit-idx').value === '-1') {
-       document.getElementById('usr-email').value = '';
-       document.getElementById('usr-email').disabled = false;
-       document.getElementById('usr-name').value = '';
-       document.getElementById('usr-role').value = 'engenheiro';
+  if (id === 'modal-medicao') document.getElementById('md-semana').value = today;
+  if (id === 'modal-usuario') {
+    if (document.getElementById('usr-edit-idx') && document.getElementById('usr-edit-idx').value === '-1') {
+      document.getElementById('usr-email').value = '';
+      document.getElementById('usr-email').disabled = false;
+      document.getElementById('usr-name').value = '';
+      document.getElementById('usr-role').value = 'engenheiro';
     }
   }
 }
 
-function closeModal(id) { 
-  document.getElementById(id).classList.remove('open'); 
-  if(id === 'modal-usuario') document.getElementById('usr-edit-idx').value = '-1';
+function closeModal(id) {
+  document.getElementById('modal-container').classList.remove('open');
+  const editIdx = document.getElementById('usr-edit-idx');
+  if (id === 'modal-usuario' && editIdx) editIdx.value = '-1';
 }
 
 function fillTrabInfo() {
   const sel = document.getElementById('pr-trab').value;
-  const t = DB.trabalhadores.find(x=>x.cod===sel);
-  if(t) {
+  const t = DB.trabalhadores.find(x => x.cod === sel);
+  if (t) {
     document.getElementById('pr-funcao').value = t.funcao;
     document.getElementById('pr-diaria').value = t.diaria;
     calcPresenca();
@@ -450,8 +620,8 @@ function fillTrabInfo() {
 
 function fillMatInfo() {
   const sel = document.getElementById('mv-mat').value;
-  const e = DB.estoque.find(x=>x.cod===sel);
-  if(e) {
+  const e = DB.estoque.find(x => x.cod === sel);
+  if (e) {
     document.getElementById('mv-matname').value = e.mat;
     document.getElementById('mv-vunit').value = e.custo;
     calcMovTotal();
@@ -462,15 +632,24 @@ function calcPresenca() {
   const entrada = document.getElementById('pr-entrada')?.value || '07:00';
   const saida = document.getElementById('pr-saida')?.value || '17:00';
   const presenca = document.getElementById('pr-presenca')?.value;
-  if(presenca === 'Falta') { document.getElementById('pr-total').value = 0; return; }
-  const [eh,em] = entrada.split(':').map(Number);
-  const [sh,sm] = saida.split(':').map(Number);
-  const hTrabalhadas = Math.max(0, (sh*60+sm - eh*60-em)/60);
+  if (presenca === 'Falta') { document.getElementById('pr-total').value = 0; return; }
+  const [eh, em] = entrada.split(':').map(Number);
+  const [sh, sm] = saida.split(':').map(Number);
+  const hTrabalhadas = Math.max(0, (sh * 60 + sm - eh * 60 - em) / 60);
   const hnorm = Math.min(hTrabalhadas, 8);
   const hextra = Math.max(0, hTrabalhadas - 8);
   document.getElementById('pr-hnorm').value = hTrabalhadas.toFixed(1);
-  const diaria = parseFloat(document.getElementById('pr-diaria').value)||0;
-  const total = hTrabalhadas > 0 ? diaria * (hTrabalhadas/8) * (1 + hextra*0.5/8) : 0;
+  const diaria = parseFloat(document.getElementById('pr-diaria').value) || 0;
+  const valorHora = diaria / 8;
+  document.getElementById('pr-total').value = total.toFixed(2);
+}
+
+function calcTotalManual() {
+  const hnorm = parseFloat(document.getElementById('pr-hnorm').value) || 0;
+  const hextra = parseFloat(document.getElementById('pr-hextra').value) || 0;
+  const diaria = parseFloat(document.getElementById('pr-diaria').value) || 0;
+  const valorHora = diaria / 8;
+  const total = hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
   document.getElementById('pr-total').value = total.toFixed(2);
 }
 
@@ -479,231 +658,499 @@ function togglePresenca() {
   const show = v !== 'Falta';
   document.getElementById('pr-entrada-grp').style.display = show ? '' : 'none';
   document.getElementById('pr-saida-grp').style.display = show ? '' : 'none';
-  if(!show) document.getElementById('pr-total').value = 0;
+  if (!show) document.getElementById('pr-total').value = 0;
 }
 
 function calcMovTotal() {
-  const q = parseFloat(document.getElementById('mv-qtd').value)||0;
-  const v = parseFloat(document.getElementById('mv-vunit').value)||0;
-  document.getElementById('mv-vtotal').value = (q*v).toFixed(2);
+  const q = parseFloat(document.getElementById('mv-qtd').value) || 0;
+  const v = parseFloat(document.getElementById('mv-vunit').value) || 0;
+  document.getElementById('mv-vtotal').value = (q * v).toFixed(2);
 }
 function calcCompraTotal() {
-  const q = parseFloat(document.getElementById('cp-qtd').value)||0;
-  const v = parseFloat(document.getElementById('cp-vunit').value)||0;
-  document.getElementById('cp-vtotal').value = (q*v).toFixed(2);
+  const q = parseFloat(document.getElementById('cp-qtd').value) || 0;
+  const v = parseFloat(document.getElementById('cp-vunit').value) || 0;
+  document.getElementById('cp-vtotal').value = (q * v).toFixed(2);
 }
 function calcFinDiff() {
-  const p = parseFloat(document.getElementById('fn-prev').value)||0;
-  const r = parseFloat(document.getElementById('fn-real').value)||0;
-  document.getElementById('fn-diff').value = (r-p).toFixed(2);
+  const p = parseFloat(document.getElementById('fn-prev').value) || 0;
+  const r = parseFloat(document.getElementById('fn-real').value) || 0;
+  document.getElementById('fn-diff').value = (r - p).toFixed(2);
 }
 function calcOrcTotal() {
-  const q = parseFloat(document.getElementById('oc-qtd').value)||0;
-  const v = parseFloat(document.getElementById('oc-vunit').value)||0;
-  document.getElementById('oc-vtotal').value = (q*v).toFixed(2);
+  const q = parseFloat(document.getElementById('oc-qtd').value) || 0;
+  const v = parseFloat(document.getElementById('oc-vunit').value) || 0;
+  document.getElementById('oc-vtotal').value = (q * v).toFixed(2);
 }
 function calcAvanco() {
-  const p = parseFloat(document.getElementById('md-qprev').value)||0;
-  const r = parseFloat(document.getElementById('md-qreal').value)||0;
-  document.getElementById('md-avanco').value = p > 0 ? (r/p*100).toFixed(1) : 0;
+  const p = parseFloat(document.getElementById('md-qprev').value) || 0;
+  const r = parseFloat(document.getElementById('md-qreal').value) || 0;
+  const v = parseFloat(document.getElementById('md-vunit').value) || 0;
+  document.getElementById('md-avanco').value = p > 0 ? (r / p * 100).toFixed(1) : 0;
+  document.getElementById('md-vtotal').value = (r * v).toFixed(2);
 }
 
 // ==================== SAVE FUNCTIONS ====================
 function saveObra() {
   const cod = document.getElementById('ob-cod').value.trim();
-  if(!cod) { toast('Informe o código da obra','error'); return; }
-  DB.obras.push({
-    cod, nome:document.getElementById('ob-nome').value,
-    end:document.getElementById('ob-end').value,
-    tipo:document.getElementById('ob-tipo').value,
-    status:document.getElementById('ob-status').value,
-    inicio:document.getElementById('ob-inicio').value,
-    prazo:document.getElementById('ob-prazo').value,
-    orc:parseFloat(document.getElementById('ob-orc').value)||0,
-    mestre:document.getElementById('ob-mestre').value,
-    eng:document.getElementById('ob-eng').value,
-    cliente:document.getElementById('ob-cliente').value,
-    obs:document.getElementById('ob-obs').value
-  });
-  closeModal('modal-obra'); renderObras(); persistDB(); toast('Obra cadastrada!');
+  if (!cod) { toast('Informe o código da obra', 'error'); return; }
+  const data = {
+    cod, nome: document.getElementById('ob-nome').value,
+    end: document.getElementById('ob-end').value,
+    tipo: document.getElementById('ob-tipo').value,
+    status: document.getElementById('ob-status').value,
+    inicio: document.getElementById('ob-inicio').value,
+    prazo: document.getElementById('ob-prazo').value,
+    orc: parseFloat(document.getElementById('ob-orc').value) || 0,
+    mestre: document.getElementById('ob-mestre').value,
+    eng: document.getElementById('ob-eng').value,
+    cliente: document.getElementById('ob-cliente').value,
+    obs: document.getElementById('ob-obs').value
+  };
+  if (currentEditIdx >= 0) {
+    DB.obras[currentEditIdx] = data;
+    toast('Obra atualizada!');
+  } else {
+    DB.obras.push(data);
+    toast('Obra cadastrada!');
+  }
+  closeModal('modal-obra'); renderObras(); persistDB(); 
+}
+
+async function editObra(idx) {
+  await openModal('modal-obra');
+  currentEditIdx = idx;
+  const o = DB.obras[idx];
+  document.getElementById('ob-cod').value = o.cod;
+  document.getElementById('ob-nome').value = o.nome;
+  document.getElementById('ob-end').value = o.end;
+  document.getElementById('ob-tipo').value = o.tipo;
+  document.getElementById('ob-status').value = o.status;
+  document.getElementById('ob-inicio').value = o.inicio;
+  document.getElementById('ob-prazo').value = o.prazo;
+  document.getElementById('ob-orc').value = o.orc;
+  document.getElementById('ob-mestre').value = o.mestre;
+  document.getElementById('ob-eng').value = o.eng;
+  document.getElementById('ob-cliente').value = o.cliente;
+  document.getElementById('ob-obs').value = o.obs;
 }
 
 function saveTrabalhador() {
   const cod = document.getElementById('tr-cod').value.trim();
-  if(!cod) { toast('Informe o código','error'); return; }
-  DB.trabalhadores.push({
-    cod, nome:document.getElementById('tr-nome').value,
-    cpf:document.getElementById('tr-cpf').value,
-    funcao:document.getElementById('tr-funcao').value,
-    vinculo:document.getElementById('tr-vinculo').value,
-    equipe:document.getElementById('tr-equipe').value,
-    obras:document.getElementById('tr-obras').value,
-    diaria:parseFloat(document.getElementById('tr-diaria').value)||0,
-    pgto:document.getElementById('tr-pgto').value,
-    contato:document.getElementById('tr-contato').value,
-    status:document.getElementById('tr-status').value,
-    admissao:document.getElementById('tr-admissao').value
-  });
-  closeModal('modal-trabalhador'); renderTrabalhadores(); persistDB(); toast('Trabalhador cadastrado!');
+  if (!cod) { toast('Informe o código', 'error'); return; }
+  const data = {
+    cod, nome: document.getElementById('tr-nome').value,
+    cpf: document.getElementById('tr-cpf').value,
+    funcao: document.getElementById('tr-funcao').value,
+    vinculo: document.getElementById('tr-vinculo').value,
+    equipe: document.getElementById('tr-equipe').value,
+    obras: document.getElementById('tr-obras').value,
+    diaria: parseFloat(document.getElementById('tr-diaria').value) || 0,
+    pgto: document.getElementById('tr-pgto').value,
+    contato: document.getElementById('tr-contato').value,
+    status: document.getElementById('tr-status').value,
+    admissao: document.getElementById('tr-admissao').value
+  };
+  if (currentEditIdx >= 0) {
+    DB.trabalhadores[currentEditIdx] = data;
+    toast('Trabalhador atualizado!');
+  } else {
+    DB.trabalhadores.push(data);
+    toast('Trabalhador cadastrado!');
+  }
+  closeModal('modal-trabalhador'); renderTrabalhadores(); persistDB();
+}
+
+async function editTrabalhador(idx) {
+  await openModal('modal-trabalhador');
+  currentEditIdx = idx;
+  const t = DB.trabalhadores[idx];
+  document.getElementById('tr-cod').value = t.cod;
+  document.getElementById('tr-nome').value = t.nome;
+  document.getElementById('tr-cpf').value = t.cpf;
+  document.getElementById('tr-funcao').value = t.funcao;
+  document.getElementById('tr-vinculo').value = t.vinculo;
+  document.getElementById('tr-equipe').value = t.equipe;
+  document.getElementById('tr-obras').value = t.obras;
+  document.getElementById('tr-diaria').value = t.diaria;
+  document.getElementById('tr-pgto').value = t.pgto;
+  document.getElementById('tr-contato').value = t.contato;
+  document.getElementById('tr-status').value = t.status;
+  document.getElementById('tr-admissao').value = t.admissao;
 }
 
 function savePresenca() {
   const tsel = document.getElementById('pr-trab').value;
-  const t = DB.trabalhadores.find(x=>x.cod===tsel);
-  DB.presenca.push({
-    data:document.getElementById('pr-data').value,
-    obra:document.getElementById('pr-obra').value,
-    nome:t?t.nome:tsel,
-    funcao:document.getElementById('pr-funcao').value,
-    vinculo:t?t.vinculo:'',
-    equipe:t?t.equipe:'',
-    frente:document.getElementById('pr-frente').value,
-    entrada:document.getElementById('pr-entrada').value,
-    saida:document.getElementById('pr-saida').value,
-    hnorm:parseFloat(document.getElementById('pr-hnorm').value)||0,
-    hextra:parseFloat(document.getElementById('pr-hextra').value)||0,
-    presenca:document.getElementById('pr-presenca').value,
-    justif:document.getElementById('pr-obs').value,
-    diaria:parseFloat(document.getElementById('pr-diaria').value)||0,
-    total:parseFloat(document.getElementById('pr-total').value)||0,
-    lancador:document.getElementById('pr-lancador').value,
-    hrLanc:new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
-    obs:document.getElementById('pr-obs').value
-  });
-  closeModal('modal-presenca'); renderPresenca(); persistDB(); toast('Presença registrada!');
+  const t = DB.trabalhadores.find(x => x.cod === tsel);
+  const data = {
+    data: document.getElementById('pr-data').value,
+    obra: document.getElementById('pr-obra').value,
+    nome: t ? t.nome : tsel,
+    funcao: document.getElementById('pr-funcao').value,
+    vinculo: t ? t.vinculo : '',
+    equipe: t ? t.equipe : '',
+    frente: document.getElementById('pr-frente').value,
+    entrada: document.getElementById('pr-entrada').value,
+    saida: document.getElementById('pr-saida').value,
+    hnorm: parseFloat(document.getElementById('pr-hnorm').value) || 0,
+    hextra: parseFloat(document.getElementById('pr-hextra').value) || 0,
+    presenca: document.getElementById('pr-presenca').value,
+    justif: document.getElementById('pr-obs').value,
+    diaria: parseFloat(document.getElementById('pr-diaria').value) || 0,
+    total: parseFloat(document.getElementById('pr-total').value) || 0,
+    lancador: document.getElementById('pr-lancador').value,
+    hrLanc: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    obs: document.getElementById('pr-obs').value
+  };
+  if (currentEditIdx >= 0) {
+    DB.presenca[currentEditIdx] = data;
+    toast('Presença atualizada!');
+  } else {
+    DB.presenca.push(data);
+    toast('Presença registrada!');
+  }
+  closeModal('modal-presenca'); renderPresenca(); persistDB();
+}
+
+async function editPresenca(idx) {
+  await openModal('modal-presenca');
+  currentEditIdx = idx;
+  const p = DB.presenca[idx];
+  document.getElementById('pr-data').value = p.data;
+  document.getElementById('pr-obra').value = p.obra;
+  
+  // Try finding and selecting the TRAB
+  const trSelect = document.getElementById('pr-trab');
+  const findCode = Array.from(trSelect.options).find(o => o.text.includes(p.nome) || o.value === p.nome);
+  if(findCode) trSelect.value = findCode.value;
+  else trSelect.value = p.nome;
+
+  document.getElementById('pr-funcao').value = p.funcao;
+  document.getElementById('pr-frente').value = p.frente;
+  document.getElementById('pr-entrada').value = p.entrada;
+  document.getElementById('pr-saida').value = p.saida;
+  document.getElementById('pr-hnorm').value = p.hnorm;
+  document.getElementById('pr-hextra').value = p.hextra;
+  document.getElementById('pr-presenca').value = p.presenca;
+  document.getElementById('pr-obs').value = p.justif || p.obs;
+  document.getElementById('pr-diaria').value = p.diaria;
+  document.getElementById('pr-total').value = p.total;
+  document.getElementById('pr-lancador').value = p.lancador;
+  togglePresenca();
 }
 
 function saveTarefa() {
-  DB.tarefas.push({
-    cod:document.getElementById('tf-cod').value,
-    obra:document.getElementById('tf-obra').value,
-    etapa:document.getElementById('tf-etapa').value,
-    frente:document.getElementById('tf-frente').value,
-    desc:document.getElementById('tf-desc').value,
-    resp:document.getElementById('tf-resp').value,
-    prior:document.getElementById('tf-prior').value,
-    status:document.getElementById('tf-status').value,
-    criacao:document.getElementById('tf-criacao').value,
-    prazo:document.getElementById('tf-prazo').value,
-    conclusao:document.getElementById('tf-conclusao').value,
-    perc:parseInt(document.getElementById('tf-perc').value)||0,
-    foto:document.getElementById('tf-foto').value,
-    obs:document.getElementById('tf-obs').value
-  });
-  closeModal('modal-tarefa'); renderTarefas(); persistDB(); toast('Tarefa criada!');
+  const data = {
+    cod: document.getElementById('tf-cod').value,
+    obra: document.getElementById('tf-obra').value,
+    etapa: document.getElementById('tf-etapa').value,
+    frente: document.getElementById('tf-frente').value,
+    desc: document.getElementById('tf-desc').value,
+    resp: document.getElementById('tf-resp').value,
+    prior: document.getElementById('tf-prior').value,
+    status: document.getElementById('tf-status').value,
+    criacao: document.getElementById('tf-criacao').value,
+    prazo: document.getElementById('tf-prazo').value,
+    conclusao: document.getElementById('tf-conclusao').value,
+    perc: parseInt(document.getElementById('tf-perc').value) || 0,
+    foto: document.getElementById('tf-foto').value,
+    obs: document.getElementById('tf-obs').value
+  };
+  if (currentEditIdx >= 0) {
+    DB.tarefas[currentEditIdx] = data;
+    toast('Tarefa atualizada!');
+  } else {
+    DB.tarefas.push(data);
+    toast('Tarefa criada!');
+  }
+  closeModal('modal-tarefa'); renderTarefas(); persistDB();
+}
+
+async function editTarefa(idx) {
+  await openModal('modal-tarefa');
+  currentEditIdx = idx;
+  const t = DB.tarefas[idx];
+  document.getElementById('tf-cod').value = t.cod;
+  document.getElementById('tf-obra').value = t.obra;
+  document.getElementById('tf-etapa').value = t.etapa;
+  document.getElementById('tf-frente').value = t.frente;
+  document.getElementById('tf-desc').value = t.desc;
+  document.getElementById('tf-resp').value = t.resp;
+  document.getElementById('tf-prior').value = t.prior;
+  document.getElementById('tf-status').value = t.status;
+  document.getElementById('tf-criacao').value = t.criacao;
+  document.getElementById('tf-prazo').value = t.prazo;
+  document.getElementById('tf-conclusao').value = t.conclusao;
+  document.getElementById('tf-perc').value = t.perc;
+  document.getElementById('tf-foto').value = t.foto || '';
+  document.getElementById('tf-obs').value = t.obs || '';
 }
 
 function saveEstoque() {
-  DB.estoque.push({
-    cod:document.getElementById('es-cod').value,
-    mat:document.getElementById('es-mat').value,
-    unid:document.getElementById('es-unid').value,
-    obra:document.getElementById('es-obra').value,
-    min:parseFloat(document.getElementById('es-min').value)||0,
-    entrada:parseFloat(document.getElementById('es-entrada').value)||0,
-    saida:0,
-    custo:parseFloat(document.getElementById('es-custo').value)||0,
-    obs:document.getElementById('es-obs').value
-  });
-  closeModal('modal-estoque'); renderEstoque(); persistDB(); toast('Item de estoque cadastrado!');
+  const data = {
+    cod: document.getElementById('es-cod').value,
+    mat: document.getElementById('es-mat').value,
+    unid: document.getElementById('es-unid').value,
+    obra: document.getElementById('es-obra').value,
+    min: parseFloat(document.getElementById('es-min').value) || 0,
+    entrada: parseFloat(document.getElementById('es-entrada').value) || 0,
+    saida: 0,
+    custo: parseFloat(document.getElementById('es-custo').value) || 0,
+    obs: document.getElementById('es-obs').value
+  };
+  if (currentEditIdx >= 0) {
+    if(DB.estoque[currentEditIdx].saida !== undefined) {
+       data.saida = DB.estoque[currentEditIdx].saida; // preserve existing usage counter
+    }
+    DB.estoque[currentEditIdx] = data;
+    toast('Item de estoque atualizado!');
+  } else {
+    DB.estoque.push(data);
+    toast('Item de estoque cadastrado!');
+  }
+  closeModal('modal-estoque'); renderEstoque(); persistDB();
+}
+
+async function editEstoque(idx) {
+  await openModal('modal-estoque');
+  currentEditIdx = idx;
+  const e = DB.estoque[idx];
+  document.getElementById('es-cod').value = e.cod;
+  document.getElementById('es-mat').value = e.mat;
+  document.getElementById('es-unid').value = e.unid;
+  document.getElementById('es-obra').value = e.obra;
+  document.getElementById('es-min').value = e.min;
+  document.getElementById('es-entrada').value = e.entrada;
+  document.getElementById('es-custo').value = e.custo;
+  document.getElementById('es-obs').value = e.obs || '';
 }
 
 function saveMovEstoque() {
   const codMat = document.getElementById('mv-mat').value;
-  const e = DB.estoque.find(x=>x.cod===codMat);
+  const e = DB.estoque.find(x => x.cod === codMat);
   const tipo = document.getElementById('mv-tipo').value;
-  const qtd = parseFloat(document.getElementById('mv-qtd').value)||0;
-  if(e) {
-    if(tipo === 'Entrada') e.entrada += qtd;
-    else { if(qtd > calcSaldo(e)) { toast('Qtd. maior que saldo!','error'); return; } e.saida += qtd; }
+  const qtd = parseFloat(document.getElementById('mv-qtd').value) || 0;
+  if (e) {
+    if (tipo === 'Entrada') e.entrada += qtd;
+    else { if (qtd > calcSaldo(e)) { toast('Qtd. maior que saldo!', 'error'); return; } e.saida += qtd; }
   }
-  DB.movEstoque.push({
-    data:document.getElementById('mv-data').value,
-    codMat, mat:document.getElementById('mv-matname').value,
-    obra:document.getElementById('mv-obra').value,
+  const data = {
+    data: document.getElementById('mv-data').value,
+    codMat, mat: document.getElementById('mv-matname').value,
+    obra: document.getElementById('mv-obra').value,
     tipo, qtd,
-    frente:document.getElementById('mv-frente').value,
-    retirado:document.getElementById('mv-retirado').value,
-    autor:document.getElementById('mv-autor').value,
-    nf:document.getElementById('mv-nf').value,
-    vunit:parseFloat(document.getElementById('mv-vunit').value)||0,
-    vtotal:parseFloat(document.getElementById('mv-vtotal').value)||0,
-    obs:document.getElementById('mv-obs').value
-  });
-  closeModal('modal-movest'); renderMovEstoque(); persistDB(); toast('Movimentação registrada!');
+    frente: document.getElementById('mv-frente').value,
+    retirado: document.getElementById('mv-retirado').value,
+    autor: document.getElementById('mv-autor').value,
+    nf: document.getElementById('mv-nf').value,
+    vunit: parseFloat(document.getElementById('mv-vunit').value) || 0,
+    vtotal: parseFloat(document.getElementById('mv-vtotal').value) || 0,
+    obs: document.getElementById('mv-obs').value
+  };
+  if (currentEditIdx >= 0) {
+    DB.movEstoque[currentEditIdx] = data;
+    toast('Movimentação atualizada!');
+  } else {
+    DB.movEstoque.push(data);
+    toast('Movimentação registrada!');
+  }
+  closeModal('modal-movest'); renderMovEstoque(); persistDB();
+}
+
+async function editMovEstoque(idx) {
+  await openModal('modal-movest');
+  currentEditIdx = idx;
+  const m = DB.movEstoque[idx];
+  document.getElementById('mv-data').value = m.data;
+  document.getElementById('mv-mat').value = m.codMat;
+  document.getElementById('mv-matname').value = m.mat;
+  document.getElementById('mv-obra').value = m.obra;
+  document.getElementById('mv-tipo').value = m.tipo;
+  document.getElementById('mv-qtd').value = m.qtd;
+  document.getElementById('mv-frente').value = m.frente;
+  document.getElementById('mv-retirado').value = m.retirado;
+  document.getElementById('mv-autor').value = m.autor;
+  document.getElementById('mv-nf').value = m.nf;
+  document.getElementById('mv-vunit').value = m.vunit;
+  document.getElementById('mv-vtotal').value = m.vtotal;
+  document.getElementById('mv-obs').value = m.obs || '';
 }
 
 function saveCompra() {
-  DB.compras.push({
-    num:document.getElementById('cp-num').value,
-    data:document.getElementById('cp-data').value,
-    obra:document.getElementById('cp-obra').value,
-    mat:document.getElementById('cp-mat').value,
-    qtd:parseFloat(document.getElementById('cp-qtd').value)||0,
-    unid:document.getElementById('cp-unid').value,
-    status:document.getElementById('cp-status').value,
-    forn:document.getElementById('cp-forn').value,
-    vunit:parseFloat(document.getElementById('cp-vunit').value)||0,
-    vtotal:parseFloat(document.getElementById('cp-vtotal').value)||0,
-    vorc:parseFloat(document.getElementById('cp-vorc').value)||0,
-    prazo:document.getElementById('cp-prazo').value,
-    receb:document.getElementById('cp-receb').value,
-    conf:document.getElementById('cp-conf').value,
-    obs:document.getElementById('cp-obs').value
-  });
-  closeModal('modal-compra'); renderCompras(); persistDB(); toast('Compra registrada!');
+  const data = {
+    num: document.getElementById('cp-num').value,
+    data: document.getElementById('cp-data').value,
+    obra: document.getElementById('cp-obra').value,
+    mat: document.getElementById('cp-mat').value,
+    qtd: parseFloat(document.getElementById('cp-qtd').value) || 0,
+    unid: document.getElementById('cp-unid').value,
+    status: document.getElementById('cp-status').value,
+    forn: document.getElementById('cp-forn').value,
+    vunit: parseFloat(document.getElementById('cp-vunit').value) || 0,
+    vtotal: parseFloat(document.getElementById('cp-vtotal').value) || 0,
+    vorc: parseFloat(document.getElementById('cp-vorc').value) || 0,
+    prazo: document.getElementById('cp-prazo').value,
+    receb: document.getElementById('cp-receb').value,
+    conf: document.getElementById('cp-conf').value,
+    obs: document.getElementById('cp-obs').value
+  };
+  if (currentEditIdx >= 0) {
+    DB.compras[currentEditIdx] = data;
+    toast('Compra atualizada!');
+  } else {
+    DB.compras.push(data);
+    toast('Compra registrada!');
+  }
+  closeModal('modal-compra'); renderCompras(); persistDB();
+}
+
+async function editCompra(idx) {
+  await openModal('modal-compra');
+  currentEditIdx = idx;
+  const c = DB.compras[idx];
+  document.getElementById('cp-num').value = c.num;
+  document.getElementById('cp-data').value = c.data;
+  document.getElementById('cp-obra').value = c.obra;
+  document.getElementById('cp-mat').value = c.mat;
+  document.getElementById('cp-qtd').value = c.qtd;
+  document.getElementById('cp-unid').value = c.unid;
+  document.getElementById('cp-status').value = c.status;
+  document.getElementById('cp-forn').value = c.forn;
+  document.getElementById('cp-vunit').value = c.vunit;
+  document.getElementById('cp-vtotal').value = c.vtotal;
+  document.getElementById('cp-vorc').value = c.vorc;
+  document.getElementById('cp-prazo').value = c.prazo;
+  document.getElementById('cp-receb').value = c.receb;
+  document.getElementById('cp-conf').value = c.conf;
+  document.getElementById('cp-obs').value = c.obs || '';
 }
 
 function saveFinanceiro() {
-  const prev = parseFloat(document.getElementById('fn-prev').value)||0;
-  const real = parseFloat(document.getElementById('fn-real').value)||0;
-  DB.financeiro.push({
-    data:document.getElementById('fn-data').value,
-    obra:document.getElementById('fn-obra').value,
-    etapa:document.getElementById('fn-etapa').value,
-    tipo:document.getElementById('fn-tipo').value,
-    desc:document.getElementById('fn-desc').value,
-    forn:document.getElementById('fn-forn').value,
+  const prev = parseFloat(document.getElementById('fn-prev').value) || 0;
+  const real = parseFloat(document.getElementById('fn-real').value) || 0;
+  const data = {
+    data: document.getElementById('fn-data').value,
+    obra: document.getElementById('fn-obra').value,
+    etapa: document.getElementById('fn-etapa').value,
+    tipo: document.getElementById('fn-tipo').value,
+    desc: document.getElementById('fn-desc').value,
+    forn: document.getElementById('fn-forn').value,
     prev, real,
-    pgto:document.getElementById('fn-pgto').value,
-    status:document.getElementById('fn-status').value,
-    nf:document.getElementById('fn-nf').value,
-    obs:document.getElementById('fn-obs').value
-  });
-  closeModal('modal-financeiro'); renderFinanceiro(); persistDB(); toast('Lançamento financeiro salvo!');
+    pgto: document.getElementById('fn-pgto').value,
+    status: document.getElementById('fn-status').value,
+    nf: document.getElementById('fn-nf').value,
+    obs: document.getElementById('fn-obs').value
+  };
+  if (currentEditIdx >= 0) {
+    DB.financeiro[currentEditIdx] = data;
+    toast('Lançamento financeiro atualizado!');
+  } else {
+    DB.financeiro.push(data);
+    toast('Lançamento financeiro salvo!');
+  }
+  closeModal('modal-financeiro'); renderFinanceiro(); persistDB();
+}
+
+async function editFinanceiro(idx) {
+  await openModal('modal-financeiro');
+  currentEditIdx = idx;
+  const f = DB.financeiro[idx];
+  document.getElementById('fn-data').value = f.data;
+  document.getElementById('fn-obra').value = f.obra;
+  document.getElementById('fn-etapa').value = f.etapa;
+  document.getElementById('fn-tipo').value = f.tipo;
+  document.getElementById('fn-desc').value = f.desc;
+  document.getElementById('fn-forn').value = f.forn;
+  document.getElementById('fn-prev').value = f.prev;
+  document.getElementById('fn-real').value = f.real;
+  document.getElementById('fn-pgto').value = f.pgto;
+  document.getElementById('fn-status').value = f.status;
+  document.getElementById('fn-nf').value = f.nf;
+  document.getElementById('fn-obs').value = f.obs || '';
 }
 
 function saveOrcamento() {
-  const qtd = parseFloat(document.getElementById('oc-qtd').value)||0;
-  const vunit = parseFloat(document.getElementById('oc-vunit').value)||0;
-  DB.orcamento.push({
-    obra:document.getElementById('oc-obra').value,
-    etapa:document.getElementById('oc-etapa').value,
-    tipo:document.getElementById('oc-tipo').value,
-    desc:document.getElementById('oc-desc').value,
-    qtd, unid:document.getElementById('oc-unid').value,
-    vunit, vtotal:qtd*vunit, vreal:0,
-    obs:document.getElementById('oc-obs').value
-  });
-  closeModal('modal-orcamento'); renderOrcamento(); persistDB(); toast('Item de orçamento salvo!');
+  const qtd = parseFloat(document.getElementById('oc-qtd').value) || 0;
+  const vunit = parseFloat(document.getElementById('oc-vunit').value) || 0;
+  const data = {
+    obra: document.getElementById('oc-obra').value,
+    etapa: document.getElementById('oc-etapa').value,
+    tipo: document.getElementById('oc-tipo').value,
+    desc: document.getElementById('oc-desc').value,
+    qtd, unid: document.getElementById('oc-unid').value,
+    vunit, vtotal: qtd * vunit, vreal: 0,
+    obs: document.getElementById('oc-obs').value
+  };
+  if (currentEditIdx >= 0) {
+    if(DB.orcamento[currentEditIdx].vreal !== undefined) {
+      data.vreal = DB.orcamento[currentEditIdx].vreal; // preserve the current progress amount
+    }
+    DB.orcamento[currentEditIdx] = data;
+    toast('Item de orçamento atualizado!');
+  } else {
+    DB.orcamento.push(data);
+    toast('Item de orçamento salvo!');
+  }
+  closeModal('modal-orcamento'); renderOrcamento(); persistDB();
+}
+
+async function editOrcamento(idx) {
+  await openModal('modal-orcamento');
+  currentEditIdx = idx;
+  const o = DB.orcamento[idx];
+  document.getElementById('oc-obra').value = o.obra;
+  document.getElementById('oc-etapa').value = o.etapa;
+  document.getElementById('oc-tipo').value = o.tipo;
+  document.getElementById('oc-desc').value = o.desc;
+  document.getElementById('oc-qtd').value = o.qtd;
+  document.getElementById('oc-unid').value = o.unid;
+  document.getElementById('oc-vunit').value = o.vunit;
+  document.getElementById('oc-obs').value = o.obs || '';
 }
 
 function saveMedicao() {
-  const qprev = parseFloat(document.getElementById('md-qprev').value)||0;
-  const qreal = parseFloat(document.getElementById('md-qreal').value)||0;
-  DB.medicao.push({
-    semana:document.getElementById('md-semana').value,
-    obra:document.getElementById('md-obra').value,
-    etapa:document.getElementById('md-etapa').value,
-    frente:document.getElementById('md-frente').value,
-    equipe:document.getElementById('md-equipe').value,
-    servico:document.getElementById('md-servico').value,
-    unid:document.getElementById('md-unid').value,
+  const qprev = parseFloat(document.getElementById('md-qprev').value) || 0;
+  const qreal = parseFloat(document.getElementById('md-qreal').value) || 0;
+  const vunit = parseFloat(document.getElementById('md-vunit').value) || 0;
+  const data = {
+    semana: document.getElementById('md-semana').value,
+    obra: document.getElementById('md-obra').value,
+    etapa: document.getElementById('md-etapa').value,
+    frente: document.getElementById('md-frente').value,
+    equipe: document.getElementById('md-equipe').value,
+    servico: document.getElementById('md-servico').value,
+    unid: document.getElementById('md-unid').value,
     qprev, qreal,
-    retr:document.getElementById('md-retr').value,
-    obs:document.getElementById('md-obs').value
-  });
-  closeModal('modal-medicao'); renderMedicao(); persistDB(); toast('Medição salva!');
+    vunit, vtotal: qreal * vunit,
+    retr: document.getElementById('md-retr').value,
+    obs: document.getElementById('md-obs').value
+  };
+  if (currentEditIdx >= 0) {
+    DB.medicao[currentEditIdx] = data;
+    toast('Medição atualizada!');
+  } else {
+    DB.medicao.push(data);
+    toast('Medição salva!');
+  }
+  closeModal('modal-medicao'); renderMedicao(); persistDB();
+}
+
+async function editMedicao(idx) {
+  await openModal('modal-medicao');
+  currentEditIdx = idx;
+  const m = DB.medicao[idx];
+  document.getElementById('md-semana').value = m.semana;
+  document.getElementById('md-obra').value = m.obra;
+  document.getElementById('md-etapa').value = m.etapa;
+  document.getElementById('md-frente').value = m.frente;
+  document.getElementById('md-equipe').value = m.equipe;
+  document.getElementById('md-servico').value = m.servico;
+  document.getElementById('md-unid').value = m.unid;
+  document.getElementById('md-qprev').value = m.qprev;
+  document.getElementById('md-qreal').value = m.qreal;
+  document.getElementById('md-vunit').value = m.vunit || 0;
+  document.getElementById('md-vtotal').value = m.vtotal || 0;
+  document.getElementById('md-retr').value = m.retr;
+  document.getElementById('md-obs').value = m.obs || '';
 }
 
 function saveUsuario() {
@@ -712,34 +1159,37 @@ function saveUsuario() {
   const role = document.getElementById('usr-role').value;
   const editIdx = parseInt(document.getElementById('usr-edit-idx').value);
 
-  if(!email || !name) {
+  if (!email || !name) {
     toast('Preencha os campos obrigatórios (E-mail e Nome).', 'error');
     return;
   }
 
-  if(editIdx >= 0) {
+  if (editIdx >= 0) {
     DB.usuarios[editIdx] = { email: email, name: name, role: role };
     toast('Permissões de Usuário atualizadas!');
   } else {
     // New
-    if(DB.usuarios.find(u => u.email === email)) {
-       toast('Este e-mail do Google já está cadastrado.', 'error');
-       return;
+    if (DB.usuarios.find(u => u.email === email)) {
+      toast('Este e-mail do Google já está cadastrado.', 'error');
+      return;
     }
     DB.usuarios.push({ email: email, name: name, role: role });
     toast('Novo funcionário autorizado a entrar no sistema!');
   }
-  
-  closeModal('modal-usuario'); 
-  renderAdmin(); 
-  persistDB(); 
+
+  closeModal('modal-usuario');
+  renderAdmin();
+  persistDB();
 }
 
 // ==================== DELETE ====================
 function deleteItem(table, idx) {
-  if(!confirm('Remover este registro?')) return;
+  if (!confirm('Remover este registro?')) return;
   DB[table].splice(idx, 1);
-  renderPage(document.querySelector('.page.active').id.replace('page-',''));
+  const activePageEl = document.querySelector('.page.active');
+  if (activePageEl) {
+    renderPage(activePageEl.id.replace('page-', ''));
+  }
   persistDB();
   toast('Removido!');
 }
@@ -756,23 +1206,24 @@ function filterTable(tbodyId, query, cols) {
 }
 
 // ==================== TOAST ====================
-function toast(msg, type='success') {
+function toast(msg, type = 'success') {
   const c = document.getElementById('toast-container');
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.innerHTML = `${type==='success'?'✅':'❌'} ${msg}`;
+  el.innerHTML = `${type === 'success' ? '✅' : '❌'} ${msg}`;
   c.appendChild(el);
   setTimeout(() => el.remove(), 3000);
 }
 
 // ==================== INIT ====================
-window.onclick = function(e) {
-  document.querySelectorAll('.modal-overlay.open').forEach(m => {
-    if(e.target === m) m.classList.remove('open');
-  });
+window.onclick = function (e) {
+  const container = document.getElementById('modal-container');
+  if (e.target === container) closeModal(); // Fecha qualquer modal que estiver aberto se clicar fora
 };
 
-document.getElementById('header-date').textContent = new Date().toLocaleDateString('pt-BR', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+document.getElementById('header-date').textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
 renderDashboard();
+
+
 

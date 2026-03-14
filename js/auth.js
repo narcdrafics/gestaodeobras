@@ -20,58 +20,99 @@ function normalizeUserRecord(user) {
   };
 }
 
+// ================== GOOGLE LOGIN ==================
 function doGoogleLogin() {
   hideLoginError();
-
   const provider = new firebase.auth.GoogleAuthProvider();
   firebase.auth().languageCode = 'pt';
 
   firebase.auth().signInWithPopup(provider).then((result) => {
-    const googleUser = result.user;
-    const email = (googleUser.email || '').trim().toLowerCase();
+    handleAuthSuccess(result.user);
+  }).catch(handleAuthError);
+}
 
-    if (!email) {
-      throw new Error('Conta Google sem e-mail retornado.');
-    }
+// ================== EMAIL LOGIN ==================
+function doEmailLogin() {
+  hideLoginError();
+  const email = document.getElementById('auth-email').value.trim();
+  const pass = document.getElementById('auth-pass').value;
+  if(!email || !pass) { showLoginError('Preencha E-mail e Senha.'); return; }
+  
+  firebase.auth().signInWithEmailAndPassword(email, pass).then((userCredential) => {
+    handleAuthSuccess(userCredential.user);
+  }).catch(handleAuthError);
+}
 
-    let dbUsuarios = Array.isArray(DB?.usuarios) ? DB.usuarios : [];
+// ================== EMAIL SIGNUP ==================
+function doEmailSignup() {
+  hideLoginError();
+  const name = document.getElementById('auth-name').value.trim();
+  const email = document.getElementById('auth-email').value.trim();
+  const pass = document.getElementById('auth-pass').value;
+  if(!name || !email || !pass) { showLoginError('Preencha Nome, E-mail e Senha.'); return; }
+  if(pass.length < 6) { showLoginError('A senha deve ter pelo menos 6 caracteres.'); return; }
 
-    const loginRedirect = (userObj) => {
-      const safeUser = normalizeUserRecord(userObj);
-      sessionStorage.setItem('gestaoUser', JSON.stringify(safeUser));
-      window.location.href = 'index.html';
-    };
-
-    const hasGoogleUsers = dbUsuarios.some(u => u && u.email);
-
-    if (!hasGoogleUsers) {
-      DB.usuarios = [{
-        email,
-        name: googleUser.displayName || 'Administrador',
-        role: 'admin'
-      }];
-
-      Promise.resolve(typeof persistDB === 'function' ? persistDB() : null)
-        .then(() => loginRedirect(DB.usuarios[0]))
-        .catch(() => showLoginError('Falha ao salvar o primeiro usuário administrador.'));
-      return;
-    }
-
-    const user = dbUsuarios.find(x => (x.email || '').trim().toLowerCase() === email);
-    if (user) {
-      loginRedirect(user);
-      return;
-    }
-
-    firebase.auth().signOut().finally(() => {
-      showLoginError(`E-mail não autorizado (${email}). Contate a administração do painel.`);
+  firebase.auth().createUserWithEmailAndPassword(email, pass).then((userCredential) => {
+    // Optionally set display name if needed using Profile Update
+    userCredential.user.updateProfile({ displayName: name }).finally(() => {
+      handleAuthSuccess(userCredential.user, name);
     });
-  }).catch((error) => {
-    console.error(error);
-    if (error.code !== 'auth/popup-closed-by-user') {
-      showLoginError('Falha de comunicação com o Google. Verifique domínio autorizado e configuração do Firebase.');
+  }).catch(handleAuthError);
+}
+
+// ================== CENTRAL AUTH HANDLER ==================
+function handleAuthError(error) {
+  console.error(error);
+  if (error.code === 'auth/popup-closed-by-user') return;
+  if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+    showLoginError('Credenciais inválidas. Tente novamente.');
+  } else if (error.code === 'auth/email-already-in-use') {
+    showLoginError('Este e-mail já está cadastrado. Alterne para a aba "Entrar" e faça login.');
+  } else {
+    showLoginError(error.message || 'Falha de comunicação com o servidor de autenticação.');
+  }
+}
+
+function handleAuthSuccess(firebaseUser, fallbackName) {
+  const email = (firebaseUser.email || '').trim().toLowerCase();
+  if (!email) { showLoginError('Conta sem e-mail retornado.'); return; }
+
+  let dbUsuarios = Array.isArray(DB?.usuarios) ? DB.usuarios : [];
+  const Name = firebaseUser.displayName || fallbackName || 'Sem Nome';
+
+  const loginRedirect = (userObj) => {
+    if(userObj.role === 'pendente') {
+      firebase.auth().signOut().finally(() => {
+        showLoginError(`Sua conta (${email}) foi criada e está AGUARDANDO APROVAÇÃO do administrador.`);
+      });
+      return;
     }
-  });
+    const safeUser = normalizeUserRecord(userObj);
+    sessionStorage.setItem('gestaoUser', JSON.stringify(safeUser));
+    window.location.href = 'index.html';
+  };
+
+  const hasUsers = dbUsuarios.some(u => u && u.email);
+
+  if (!hasUsers) {
+    DB.usuarios = [{ email, name: Name, role: 'admin' }];
+    Promise.resolve(typeof persistDB === 'function' ? persistDB() : null)
+      .then(() => loginRedirect(DB.usuarios[0]))
+      .catch(() => showLoginError('Falha ao salvar administrador.'));
+    return;
+  }
+
+  const user = dbUsuarios.find(x => (x.email || '').trim().toLowerCase() === email);
+  if (user) {
+    loginRedirect(user);
+  } else {
+    // Inject the new unapproved user
+    const newUserObj = { email, name: Name, role: 'pendente' };
+    DB.usuarios.push(newUserObj);
+    Promise.resolve(typeof persistDB === 'function' ? persistDB() : null)
+      .then(() => loginRedirect(newUserObj))
+      .catch(() => showLoginError('Falha ao registrar seu usuário na base de aprovação.'));
+  }
 }
 
 function doLogout() {
