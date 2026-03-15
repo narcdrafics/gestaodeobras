@@ -133,6 +133,15 @@ function renderDashboard() {
   DB.tarefas.filter(t => t.status === 'Atrasada').forEach(t => alerts.push({ tipo: 'TAREFA ATRASADA', obra: t.obra, desc: `${t.desc} — prazo: ${fmtDate(t.prazo)}`, resp: t.resp, prior: 'alto' }));
   DB.compras.filter(c => c.status === 'Aguardando').forEach(c => alerts.push({ tipo: 'COMPRA PENDENTE', obra: c.obra, desc: `${c.mat} — ${fmt(c.vtotal)}`, resp: 'Gestor', prior: 'medio' }));
 
+  DB.presenca.filter(p => p.total > 0 && ['Pendente', 'Atrasado'].includes(p.pgtoStatus)).forEach(p => {
+    alerts.push({ tipo: 'PAGAMENTO PENDENTE', obra: p.obra, desc: `[Diária] Trabalhador: ${p.nome} — ${fmt(p.total)}`, resp: 'Financeiro', prior: p.pgtoStatus === 'Atrasado' ? 'alto' : 'medio' });
+  });
+
+  DB.medicao.filter(m => m.vtotal > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(m.pgtoStatus)).forEach(m => {
+    alerts.push({ tipo: 'PAGAMENTO PENDENTE', obra: m.obra, desc: `[Medição] ${m.servico} — ${fmt(m.vtotal)}`, resp: 'Financeiro', prior: m.pgtoStatus === 'Atrasado' ? 'alto' : 'medio' });
+  });
+
+
   const currentUserStr = sessionStorage.getItem('gestaoUser');
   if(currentUserStr) {
      const currentUser = JSON.parse(currentUserStr);
@@ -144,7 +153,7 @@ function renderDashboard() {
      }
   }
 
-  const alertIcons = { 'ESTOQUE CRÍTICO': '🔴', 'ESTOQUE BAIXO': '🟡', 'TAREFA ATRASADA': '⏰', 'COMPRA PENDENTE': '🛒', 'NOVO USUÁRIO': '👤' };
+  const alertIcons = { 'ESTOQUE CRÍTICO': '🔴', 'ESTOQUE BAIXO': '🟡', 'TAREFA ATRASADA': '⏰', 'COMPRA PENDENTE': '🛒', 'NOVO USUÁRIO': '👤', 'PAGAMENTO PENDENTE': '💸' };
   document.getElementById('alerts-grid').innerHTML = alerts.length
     ? alerts.map(a => `<div class="alert-card ${a.prior}"><div class="alert-icon">${alertIcons[a.tipo] || '⚠️'}</div><div class="alert-body"><h4>${a.tipo}</h4><p><b>${a.obra}</b> — ${a.desc}</p><p style="margin-top:4px">Resp: ${a.resp}</p></div></div>`).join('')
     : '<div style="color:var(--text3);font-size:13px;padding:8px">✅ Nenhum alerta no momento.</div>';
@@ -376,7 +385,7 @@ function renderFinanceiro() {
         obra: p.obra, etapa: 'N/A', tipo: 'Mão de obra própria',
         desc: `[Diária] Trabalhador: ${funcName}`,
         forn: funcName, prev: 0, real: parseFloat(p.total),
-        pgto: 'N/A', status: 'Pago', nf: '—'
+        pgto: 'N/A', status: p.pgtoStatus || 'Pendente', nf: '—'
       });
     }
   });
@@ -389,7 +398,7 @@ function renderFinanceiro() {
         obra: m.obra, etapa: m.etapa, tipo: 'Empreiteiro',
         desc: `[Medição] ${m.servico}`,
         forn: m.equipe || 'Equipe Terceira', prev: 0, real: parseFloat(m.vtotal),
-        pgto: 'N/A', status: 'Pendente', nf: '—'
+        pgto: 'N/A', status: m.pgtoStatus || 'Pendente', nf: '—'
       });
     }
   });
@@ -797,6 +806,7 @@ function savePresenca() {
     justif: document.getElementById('pr-obs').value,
     diaria: parseFloat(document.getElementById('pr-diaria').value) || 0,
     total: parseFloat(document.getElementById('pr-total').value) || 0,
+    pgtoStatus: document.getElementById('pr-pgto-status').value,
     lancador: document.getElementById('pr-lancador').value,
     hrLanc: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     obs: document.getElementById('pr-obs').value
@@ -834,6 +844,7 @@ async function editPresenca(idx) {
   document.getElementById('pr-obs').value = p.justif || p.obs;
   document.getElementById('pr-diaria').value = p.diaria;
   document.getElementById('pr-total').value = p.total;
+  document.getElementById('pr-pgto-status').value = p.pgtoStatus || 'Pendente';
   document.getElementById('pr-lancador').value = p.lancador;
   togglePresenca();
 }
@@ -1122,6 +1133,7 @@ function saveMedicao() {
     qprev, qreal,
     vunit, vtotal: qreal * vunit,
     retr: document.getElementById('md-retr').value,
+    pgtoStatus: document.getElementById('md-pgto-status').value,
     obs: document.getElementById('md-obs').value
   };
   if (currentEditIdx >= 0) {
@@ -1150,6 +1162,7 @@ async function editMedicao(idx) {
   document.getElementById('md-vunit').value = m.vunit || 0;
   document.getElementById('md-vtotal').value = m.vtotal || 0;
   document.getElementById('md-retr').value = m.retr;
+  document.getElementById('md-pgto-status').value = m.pgtoStatus || 'Pendente';
   document.getElementById('md-obs').value = m.obs || '';
 }
 
