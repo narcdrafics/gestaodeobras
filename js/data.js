@@ -153,7 +153,10 @@ function loadTheme() {
     const container = document.getElementById('brand-container');
     if (container) {
         if (cfg.logoUrl) {
-            container.innerHTML = `<img src="${cfg.logoUrl}" class="header-logo" alt="${cfg.nomeEmpresa}">`;
+            container.innerHTML = `
+                <img src="${cfg.logoUrl}" class="header-logo" alt="${cfg.nomeEmpresa}" style="max-height: 40px; width: auto; object-fit: contain;">
+                <span class="app-brand-name" style="margin-left: 8px;">${cfg.nomeEmpresa || 'GestãoObra'}</span>
+            `;
         } else {
             container.innerHTML = `<span id="brand-icon">🏗️</span> <span class="app-brand-name">${cfg.nomeEmpresa || 'GestãoObra'}</span>`;
         }

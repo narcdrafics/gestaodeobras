@@ -66,7 +66,8 @@ function doEmailSignup() {
 function handleAuthError(error) {
   console.error(error);
   if (error.code === 'auth/popup-closed-by-user') return;
-  if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+  if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' ||
+    error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
     showLoginError('Credenciais inválidas. Tente novamente.');
   } else if (error.code === 'auth/email-already-in-use') {
     showLoginError('Este e-mail já está cadastrado. Alterne para a aba "Entrar" e faça login.');
@@ -169,14 +170,25 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
 }
 
 function doLogout() {
+  const userStr = sessionStorage.getItem('gestaoUser');
+  let redirectUrl = 'login.html';
+
+  if (userStr) {
+    const user = JSON.parse(userStr);
+    if (user.role === 'super_admin') {
+      redirectUrl = 'admin-login.html';
+    }
+  }
+
   firebase.auth().signOut().finally(() => {
     sessionStorage.removeItem('gestaoUser');
-    window.location.href = 'login.html';
+    window.location.href = redirectUrl;
   });
 }
 
 function checkAuth() {
   const isLoginPage = window.location.pathname.endsWith('login.html') || /\/login(?:\.html)?$/i.test(window.location.pathname);
+  const isAdminLoginPage = window.location.pathname.endsWith('admin-login.html') || /\/admin-login(?:\.html)?$/i.test(window.location.pathname);
 
   firebase.auth().onAuthStateChanged((user) => {
     if (user) {
@@ -195,7 +207,7 @@ function checkAuth() {
         if (typeof initDB === 'function' && sessionUser.tenantId) {
           initDB(sessionUser.tenantId);
         }
-        if (isLoginPage) {
+        if (isLoginPage || isAdminLoginPage) {
           window.location.href = 'index.html';
         } else {
           applyAccessControl(sessionUser);
@@ -203,17 +215,47 @@ function checkAuth() {
         return;
       }
 
-      if (!isLoginPage) {
+      if (!isLoginPage && !isAdminLoginPage) {
         window.location.href = 'login.html';
       }
       return;
     }
 
+    const prevUser = sessionStorage.getItem('gestaoUser');
     sessionStorage.removeItem('gestaoUser');
-    if (!isLoginPage) {
-      window.location.href = 'login.html';
+
+    if (!isLoginPage && !isAdminLoginPage) {
+      let redirectUrl = 'login.html';
+      if (prevUser) {
+        try {
+          const u = JSON.parse(prevUser);
+          if (u.role === 'super_admin') redirectUrl = 'admin-login.html';
+        } catch (e) { }
+      }
+      window.location.href = redirectUrl;
     }
   });
+}
+
+// SaaS: Variável para impedir múltiplas inicializações
+let checkAuthInitialized = false;
+
+function safeCheckAuth() {
+  if (checkAuthInitialized) return;
+  checkAuthInitialized = true;
+  checkAuth();
+}
+
+// SaaS: Dispara verificação automática caso não esteja na index (onde o app.js assume)
+const currPath = window.location.pathname;
+const isIndex = currPath.endsWith('index.html') || /\/$/i.test(currPath) || currPath.endsWith('gestaodeobras/');
+
+if (!isIndex) {
+  if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+    safeCheckAuth();
+  } else {
+    window.addEventListener('load', () => safeCheckAuth());
+  }
 }
 
 function applyAccessControl(user) {
@@ -251,10 +293,10 @@ function setRestrictions(user) {
     } else {
       document.querySelector('.header')?.appendChild(userNameSpan);
     }
-    
+
     // SaaS: Adiciona botão de logout no final se não existir
     if (!document.getElementById('btn-logout')) {
-       // Já existe lógica acima, mas garantindo aqui.
+      // Já existe lógica acima, mas garantindo aqui.
     }
   }
 
@@ -284,22 +326,23 @@ function setRestrictions(user) {
   const mainEl = document.getElementById("conteudo-principal");
   // Verifica se não há uma página ativa injetada
   const hasPage = mainEl.querySelector('.page');
-  
+
   if (mainEl && !hasPage && typeof showPage === 'function') {
-      const userStr = sessionStorage.getItem('gestaoUser');
-      const activeUser = userStr ? JSON.parse(userStr) : {};
-      
-      if (activeUser.role === 'super_admin') {
-          showPage('super_admin');
-      } else {
-          showPage('dashboard');
-      }
+    const userStr = sessionStorage.getItem('gestaoUser');
+    const activeUser = userStr ? JSON.parse(userStr) : {};
+
+    if (activeUser.role === 'super_admin') {
+      showPage('super_admin');
+    } else {
+      showPage('dashboard');
+    }
   }
 }
 
 window.addEventListener('firebaseSync', (e) => {
   const db = e.detail;
-  if (window.location.pathname.endsWith('login.html')) return;
+  const cp = window.location.pathname;
+  if (cp.endsWith('login.html') || cp.endsWith('admin-login.html')) return;
 
   const userStr = sessionStorage.getItem('gestaoUser');
   if (!userStr || !db || !Array.isArray(db.usuarios)) return;
