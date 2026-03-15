@@ -11,14 +11,19 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <!-- Firebase Auth -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<!-- Firebase Storage -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 </head>
 <body>
 
 <!-- HEADER -->
 <header class="header">
-  <div class="header-brand">
+  <div class="header-brand" id="app-logo-area">
     <button class="menu-toggle" onclick="toggleMenu()">☰</button>
-    🏗️ <span class="app-brand-name">GestãoObra</span>
+    <div id="brand-container" style="display:flex; align-items:center; gap:8px">
+       <span id="brand-icon">🏗️</span>
+       <span class="app-brand-name">GestãoObra</span>
+    </div>
   </div>
   <div class="header-date" id="header-date"></div>
 </header>
@@ -43,6 +48,12 @@
   <div class="nav-item" onclick="showPage('medicao')"><span class="ico">📏</span> Medição</div>
   <div class="nav-section admin-only" style="display:none">Sistema</div>
   <div class="nav-item admin-only" style="display:none" onclick="showPage('admin')"><span class="ico">⚙️</span> Administração</div>
+
+  <div class="nav-section super-admin-only" style="display:none">SaaS Master</div>
+  <div class="nav-item super-admin-only" style="display:none" onclick="showPage('super_admin')"><span class="ico">👑</span> Painel Master</div>
+  
+  <div class="nav-section">Acesso</div>
+  <div class="nav-item" onclick="doLogout()"><span class="ico">🚪</span> Sair do Sistema</div>
 </nav>
 
 <!-- DYNAMIC MAIN CONTENT -->

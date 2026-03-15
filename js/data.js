@@ -31,7 +31,7 @@ if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 
-const dbRef = firebase.database().ref('gestaoObrasDBv2');
+let dbRef = null;
 let DB = JSON.parse(JSON.stringify(staticDB));
 let isFirstLoad = true;
 
@@ -62,7 +62,13 @@ function loadLegacyLocalIfAny() {
   }
 }
 
-function initDB() {
+function initDB(tenantId) {
+  if (!tenantId) {
+    console.error('initDB chamado sem tenantId');
+    return;
+  }
+  dbRef = firebase.database().ref('tenants/' + tenantId);
+  
   dbRef.on('value', (snapshot) => {
     const data = snapshot.val();
 
@@ -122,10 +128,36 @@ function processCloudUpdate() {
 
 function loadTheme() {
   if (DB && DB.config) {
-    document.documentElement.style.setProperty('--accent', DB.config.corPrimaria || '#f59e0b');
+    const cfg = DB.config;
+    const root = document.documentElement;
+    
+    // 1. Aplica cores principais
+    root.style.setProperty('--accent', cfg.corPrimaria || '#f59e0b');
+    if (cfg.corSidebar) root.style.setProperty('--sb-bg', cfg.corSidebar);
+    if (cfg.corMenu) root.style.setProperty('--sb-text', cfg.corMenu);
+    if (cfg.corSidebar) root.style.setProperty('--sb-active-bg', 'rgba(255,255,255,0.05)');
+
+    // 2. Aplica Tema (Light/Dark)
+    if (cfg.tema === 'light') {
+        document.body.classList.add('light-mode');
+    } else {
+        document.body.classList.remove('light-mode');
+    }
+
+    // 3. Aplica Nome da Empresa
     document.querySelectorAll('.app-brand-name').forEach(el => {
-      el.textContent = DB.config.nomeEmpresa || 'GestãoObra';
+      el.textContent = cfg.nomeEmpresa || 'GestãoObra';
     });
+
+    // 4. Aplica Logo ou Fallback
+    const container = document.getElementById('brand-container');
+    if (container) {
+        if (cfg.logoUrl) {
+            container.innerHTML = `<img src="${cfg.logoUrl}" class="header-logo" alt="${cfg.nomeEmpresa}">`;
+        } else {
+            container.innerHTML = `<span id="brand-icon">🏗️</span> <span class="app-brand-name">${cfg.nomeEmpresa || 'GestãoObra'}</span>`;
+        }
+    }
   }
 }
 
@@ -177,4 +209,5 @@ function toggleMenu() {
   if (sidebar) sidebar.classList.toggle('open');
 }
 
-initDB();
+// Retirado initDB() automático para SaaS. Será chamado em auth.js após login.
+// initDB();

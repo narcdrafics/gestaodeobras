@@ -14,6 +14,8 @@ function hideLoginError() {
 
 function normalizeUserRecord(user) {
   return {
+    uid: user.uid,
+    tenantId: user.tenantId,
     email: user.email,
     name: user.name || user.email,
     role: user.role || 'admin'
@@ -36,8 +38,8 @@ function doEmailLogin() {
   hideLoginError();
   const email = document.getElementById('auth-email').value.trim();
   const pass = document.getElementById('auth-pass').value;
-  if(!email || !pass) { showLoginError('Preencha E-mail e Senha.'); return; }
-  
+  if (!email || !pass) { showLoginError('Preencha E-mail e Senha.'); return; }
+
   firebase.auth().signInWithEmailAndPassword(email, pass).then((userCredential) => {
     handleAuthSuccess(userCredential.user);
   }).catch(handleAuthError);
@@ -49,8 +51,8 @@ function doEmailSignup() {
   const name = document.getElementById('auth-name').value.trim();
   const email = document.getElementById('auth-email').value.trim();
   const pass = document.getElementById('auth-pass').value;
-  if(!name || !email || !pass) { showLoginError('Preencha Nome, E-mail e Senha.'); return; }
-  if(pass.length < 6) { showLoginError('A senha deve ter pelo menos 6 caracteres.'); return; }
+  if (!name || !email || !pass) { showLoginError('Preencha Nome, E-mail e Senha.'); return; }
+  if (pass.length < 6) { showLoginError('A senha deve ter pelo menos 6 caracteres.'); return; }
 
   firebase.auth().createUserWithEmailAndPassword(email, pass).then((userCredential) => {
     // Optionally set display name if needed using Profile Update
@@ -73,45 +75,96 @@ function handleAuthError(error) {
   }
 }
 
-function handleAuthSuccess(firebaseUser, fallbackName) {
+// CONFIGURAÇÃO SAAS MASTER
+const MASTER_EMAIL = 'casaint65@gmail.com'; // Altere para seu e-mail de administrador mestre
+
+async function handleAuthSuccess(firebaseUser, fallbackName) {
   const email = (firebaseUser.email || '').trim().toLowerCase();
+  const uid = firebaseUser.uid;
   if (!email) { showLoginError('Conta sem e-mail retornado.'); return; }
 
-  let dbUsuarios = Array.isArray(DB?.usuarios) ? DB.usuarios : [];
-  const Name = firebaseUser.displayName || fallbackName || 'Sem Nome';
+  try {
+    // 1. Busca o Perfil Global do Usuário
+    const profileRef = firebase.database().ref(`profiles/${uid}`);
+    const snapshot = await profileRef.once('value');
+    let userProfile = snapshot.val();
 
-  const loginRedirect = (userObj) => {
-    if(userObj.role === 'pendente') {
-      firebase.auth().signOut().finally(() => {
-        showLoginError(`Sua conta (${email}) foi criada e está AGUARDANDO APROVAÇÃO do administrador.`);
-      });
+    // 1.5 - DETECÇÃO DE SUPER ADMIN (PLATAFORMA)
+    if (email === MASTER_EMAIL) {
+      userProfile = {
+        uid,
+        email,
+        name: firebaseUser.displayName || 'Super Admin',
+        role: 'super_admin',
+        tenantId: 'MASTER_SYSTEM' // ID especial para o sistema
+      };
+      await profileRef.set(userProfile);
+    }
+
+    // 2. Se o perfil não existe, é um novo Cadastro SaaS
+    if (!userProfile) {
+      const Name = firebaseUser.displayName || fallbackName || 'Sem Nome';
+      const sanitizedEmail = email.replace(/\./g, ',');
+
+      // BUSCA CONVITE PENDENTE (SaaS)
+      const inviteSnap = await firebase.database().ref(`invites/${sanitizedEmail}`).once('value');
+      const inviteData = inviteSnap.val();
+
+      if (inviteData) {
+        // Aceita Convite: Vincula à empresa que o convidou
+        userProfile = {
+          uid,
+          email,
+          name: Name,
+          role: inviteData.role || 'engenheiro',
+          tenantId: inviteData.tenantId
+        };
+        // Remove convite após uso
+        await firebase.database().ref(`invites/${sanitizedEmail}`).remove();
+      } else {
+        // Fluxo Dono de Empresa: Cria novo Tenant
+        const tenantId = uid;
+        userProfile = {
+          uid,
+          email,
+          name: Name,
+          role: 'admin',
+          tenantId: tenantId
+        };
+
+        // Inicializa o Tenant vazio (ou com config básica) se for novo
+        const tenantRef = firebase.database().ref(`tenants/${tenantId}`);
+        const tenantSnap = await tenantRef.once('value');
+        await tenantRef.set({
+          config: {
+            nomeEmpresa: 'Minha Empresa',
+            corPrimaria: '#f59e0b',
+            limiteObras: 2,
+            limiteTrabalhadores: 10
+          },
+          usuarios: [{ email, name: Name, role: 'admin' }]
+        });
+      }
+      // Salva o perfil global vinculado ao tenantId
+      await profileRef.set(userProfile);
+    }
+
+    // 3. Login com Sucesso
+    if (userProfile.role === 'pendente') {
+      await firebase.auth().signOut();
+      showLoginError(`Sua conta (${email}) aguarda aprovação do administrador.`);
       return;
     }
-    const safeUser = normalizeUserRecord(userObj);
-    sessionStorage.setItem('gestaoUser', JSON.stringify(safeUser));
+
+    // 4. Inicializa o Banco de Dados do Tenant Específico
+    sessionStorage.setItem('gestaoUser', JSON.stringify(userProfile));
+    if (typeof initDB === 'function') initDB(userProfile.tenantId);
+
     window.location.href = 'index.html';
-  };
 
-  const hasUsers = dbUsuarios.some(u => u && u.email);
-
-  if (!hasUsers) {
-    DB.usuarios = [{ email, name: Name, role: 'admin' }];
-    Promise.resolve(typeof persistDB === 'function' ? persistDB() : null)
-      .then(() => loginRedirect(DB.usuarios[0]))
-      .catch(() => showLoginError('Falha ao salvar administrador.'));
-    return;
-  }
-
-  const user = dbUsuarios.find(x => (x.email || '').trim().toLowerCase() === email);
-  if (user) {
-    loginRedirect(user);
-  } else {
-    // Inject the new unapproved user
-    const newUserObj = { email, name: Name, role: 'pendente' };
-    DB.usuarios.push(newUserObj);
-    Promise.resolve(typeof persistDB === 'function' ? persistDB() : null)
-      .then(() => loginRedirect(newUserObj))
-      .catch(() => showLoginError('Falha ao registrar seu usuário na base de aprovação.'));
+  } catch (error) {
+    console.error('Erro SaaS Auth:', error);
+    showLoginError('Erro ao processar perfil multi-empresa.');
   }
 }
 
@@ -129,7 +182,19 @@ function checkAuth() {
     if (user) {
       const userStr = sessionStorage.getItem('gestaoUser');
       if (userStr) {
-        const sessionUser = JSON.parse(userStr);
+        let sessionUser = JSON.parse(userStr);
+
+        // REFORÇO SAAS MASTER: Garante papel mestre mesmo em sessões antigas
+        if (sessionUser.email?.toLowerCase() === MASTER_EMAIL.toLowerCase() && sessionUser.role !== 'super_admin') {
+          sessionUser.role = 'super_admin';
+          sessionUser.tenantId = 'MASTER_SYSTEM';
+          sessionStorage.setItem('gestaoUser', JSON.stringify(sessionUser));
+        }
+
+        // Garante que o DB seja inicializado após refresh
+        if (typeof initDB === 'function' && sessionUser.tenantId) {
+          initDB(sessionUser.tenantId);
+        }
         if (isLoginPage) {
           window.location.href = 'index.html';
         } else {
@@ -186,11 +251,19 @@ function setRestrictions(user) {
     } else {
       document.querySelector('.header')?.appendChild(userNameSpan);
     }
+    
+    // SaaS: Adiciona botão de logout no final se não existir
+    if (!document.getElementById('btn-logout')) {
+       // Já existe lógica acima, mas garantindo aqui.
+    }
   }
 
   const role = user.role || 'admin';
-  if (role === 'admin') {
+  if (role === 'admin' || role === 'super_admin') {
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+  }
+  if (role === 'super_admin') {
+    document.querySelectorAll('.super-admin-only').forEach(el => el.style.display = '');
   }
 
   let hidePages = [];
@@ -207,10 +280,20 @@ function setRestrictions(user) {
     if (nav) nav.style.display = 'none';
   });
 
-  const activePageStr = document.querySelector('.page.active')?.id.replace('page-', '') || 'dashboard';
-  if (hidePages.includes(activePageStr)) {
-    if (!hidePages.includes('dashboard') && typeof showPage === 'function') showPage('dashboard');
-    else if (!hidePages.includes('obras') && typeof showPage === 'function') showPage('obras');
+  // SaaS: Carrega página inicial automaticamente após aplicar restrições
+  const mainEl = document.getElementById("conteudo-principal");
+  // Verifica se não há uma página ativa injetada
+  const hasPage = mainEl.querySelector('.page');
+  
+  if (mainEl && !hasPage && typeof showPage === 'function') {
+      const userStr = sessionStorage.getItem('gestaoUser');
+      const activeUser = userStr ? JSON.parse(userStr) : {};
+      
+      if (activeUser.role === 'super_admin') {
+          showPage('super_admin');
+      } else {
+          showPage('dashboard');
+      }
   }
 }
 
@@ -245,3 +328,7 @@ window.addEventListener('firebaseSync', (e) => {
     sessionStorage.setItem('gestaoUser', JSON.stringify(normalizeUserRecord(stillExists)));
   }
 });
+
+// SaaS: Removido disparo automático daqui. Será chamado no final do app.js
+// para garantir que showPage e renderPage já existam.
+// checkAuth();

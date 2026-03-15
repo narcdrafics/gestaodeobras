@@ -17,6 +17,14 @@
   <div class="form-group"><label class="form-label">Status Pgto</label>
     <select class="form-control" id="md-pgto-status"><option>Pendente</option><option>Pago</option><option>Parcial</option><option>Atrasado</option></select></div>
   <div class="form-group form-full"><label class="form-label">Obs.</label><input class="form-control" id="md-obs"></div>
+  <div class="form-group form-full">
+    <label class="form-label">📸 Foto da Medição (Evidência)</label>
+    <input type="file" id="md-file" class="form-control" accept="image/*" capture="camera" onchange="handleFileUpload(this, 'md-photo-preview', 'md-photo-url')">
+    <input type="hidden" id="md-photo-url">
+    <div id="md-photo-preview" style="margin-top:10px; display:none">
+       <img src="" style="max-width:100%; border-radius:8px; border:1px solid var(--border)">
+    </div>
+  </div>
 </div>
 <div class="modal-footer">
   <button class="btn btn-secondary" onclick="closeModal('modal-medicao')">Cancelar</button>

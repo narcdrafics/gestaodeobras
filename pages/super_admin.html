@@ -1,0 +1,84 @@
+<div class="page-header">
+  <div class="page-title">Painel Master <small>Controle Global da Plataforma SaaS</small></div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-value" id="master-total-tenants">0</div>
+    <div class="kpi-label">Empresas Cadastradas</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-value" id="master-total-users">0</div>
+    <div class="kpi-label">Usuários Totais</div>
+  </div>
+</div>
+
+<div class="table-wrap" style="margin-top: 24px;">
+  <div class="table-toolbar">
+    <h3>Gestão de Clientes (Tenants)</h3>
+    <div class="toolbar-right">
+      <button class="btn btn-primary btn-sm" onclick="openNewTenantModal()">+ Nova Empresa</button>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Empresa / Tenant ID</th>
+        <th>E-mail Admin</th>
+        <th>Limite Obras</th>
+        <th>Limite Trabalhadores</th>
+        <th style="width: 150px;">Ações</th>
+      </tr>
+    </thead>
+    <tbody id="master-tenants-tbody">
+      <tr>
+        <td colspan="5">Carregando dados globais...</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal para editar limites do cliente -->
+<div id="modal-master-tenant" class="modal-content-wrapper" style="display:none">
+  <h3>Editar Limites do Cliente</h3>
+  <input type="hidden" id="mt-tenant-id">
+  <div class="form-group">
+    <label>Limite de Obras</label>
+    <input type="number" id="mt-limite-obras" class="form-control">
+  </div>
+  <div class="form-group">
+    <label>Limite de Trabalhadores</label>
+    <input type="number" id="mt-limite-trab" class="form-control">
+  </div>
+  <div style="margin-top:20px; display:flex; gap:10px;">
+    <button class="btn btn-primary" onclick="saveMasterTenant()">Salvar Alterações</button>
+    <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+  </div>
+</div>
+
+<!-- Modal para criar nova empresa manualmente -->
+<div id="modal-create-tenant" class="modal-content-wrapper" style="display:none">
+  <h3>Cadastrar Nova Empresa (Tenant)</h3>
+  <div class="form-group">
+    <label>Nome da Empresa</label>
+    <input type="text" id="ct-nome" class="form-control" placeholder="Ex: Construtora Silva">
+  </div>
+  <div class="form-group">
+    <label>E-mail do Administrador</label>
+    <input type="email" id="ct-email" class="form-control" placeholder="cliente@email.com">
+  </div>
+  <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+    <div class="form-group">
+      <label>Limite Obras</label>
+      <input type="number" id="ct-limite-obras" class="form-control" value="2">
+    </div>
+    <div class="form-group">
+      <label>Limite Trabalhadores</label>
+      <input type="number" id="ct-limite-trab" class="form-control" value="10">
+    </div>
+  </div>
+  <div style="margin-top:20px; display:flex; gap:10px;">
+    <button class="btn btn-primary" onclick="saveNewTenant()">Criar Empresa</button>
+    <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+  </div>
+</div>
