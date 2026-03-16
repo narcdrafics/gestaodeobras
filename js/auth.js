@@ -211,6 +211,13 @@ function checkAuth() {
           sessionStorage.setItem('gestaoUser', JSON.stringify(sessionUser));
         }
 
+        // Validação de Tenant por Subdomínio (Segurança SaaS Persistente)
+        if (CURRENT_TENANT_ID && sessionUser.tenantId !== CURRENT_TENANT_ID && sessionUser.role !== 'super_admin') {
+          console.warn('Sessão inválida para este subdomínio. Deslogando...');
+          doLogout();
+          return;
+        }
+
         // Garante que o DB seja inicializado após refresh
         if (typeof initDB === 'function' && sessionUser.tenantId) {
           initDB(sessionUser.tenantId);
