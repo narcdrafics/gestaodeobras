@@ -560,6 +560,7 @@ function renderAdmin() {
     document.getElementById('cfg-cor-side').value = cfg.corSidebar || '#161b27';
     document.getElementById('cfg-cor-text').value = cfg.corMenu || '#94a3b8';
     document.getElementById('cfg-tema').value = cfg.tema || 'dark';
+    document.getElementById('cfg-slug').value = cfg.slug || '';
     document.getElementById('cfg-logo-url').value = cfg.logoUrl || '';
     
     if (cfg.logoUrl) {
@@ -744,6 +745,7 @@ function salvarConfiguracoes() {
   const corSide = document.getElementById('cfg-cor-side').value;
   const corText = document.getElementById('cfg-cor-text').value;
   const tema = document.getElementById('cfg-tema').value;
+  const slug = document.getElementById('cfg-slug').value.trim().toLowerCase();
   const logoUrl = document.getElementById('cfg-logo-url').value;
 
   if (!DB.config) DB.config = {};
@@ -753,6 +755,7 @@ function salvarConfiguracoes() {
   DB.config.corSidebar = corSide;
   DB.config.corMenu = corText;
   DB.config.tema = tema;
+  DB.config.slug = slug;
   DB.config.logoUrl = logoUrl;
   
   // Aplica visualmente em tempo real

@@ -52,6 +52,39 @@ function ensureSchema(db) {
   return safe;
 }
 
+// ==================== SUBDOMAIN & SAAS CONTEXT ====================
+function detectSubdomain() {
+  const host = window.location.hostname;
+  const parts = host.split('.');
+  
+  // Evita detectar 'www' ou 'localhost' como subdomínio de cliente
+  if (parts.length > 2 && parts[0] !== 'www') {
+    return parts[0];
+  }
+  return null;
+}
+
+async function loadTenantBySlug(slug) {
+  if (!slug) return null;
+  try {
+    // Busca no nó 'tenants' quem tem o slug correspondente
+    // Nota: Recomenda-se no Firebase criar um índice por 'slug'
+    const snapshot = await firebase.database().ref('tenants')
+      .orderByChild('config/slug')
+      .equalTo(slug)
+      .once('value');
+    
+    const tenants = snapshot.val();
+    if (tenants) {
+      const tenantId = Object.keys(tenants)[0];
+      return { id: tenantId, data: tenants[tenantId] };
+    }
+  } catch (e) {
+    console.error('Erro ao buscar tenant por slug:', e);
+  }
+  return null;
+}
+
 function loadLegacyLocalIfAny() {
   try {
     const oldLocal = localStorage.getItem('gestaoObraDB');
@@ -126,9 +159,9 @@ function processCloudUpdate() {
   }
 }
 
-function loadTheme() {
-  if (DB && DB.config) {
-    const cfg = DB.config;
+function loadTheme(externalCfg) {
+  const cfg = externalCfg || (DB && DB.config);
+  if (cfg) {
     const root = document.documentElement;
     
     // 1. Aplica cores principais
@@ -163,6 +196,18 @@ function loadTheme() {
     }
   }
 }
+
+// SaaS: Inicialização de contexto por subdomínio (antes do login)
+(async function initSubdomainContext() {
+  const slug = detectSubdomain();
+  if (slug) {
+    const tenant = await loadTenantBySlug(slug);
+    if (tenant && tenant.data && tenant.data.config) {
+      console.log('Contexto de subdomínio detectado:', slug);
+      loadTheme(tenant.data.config);
+    }
+  }
+})();
 
 function persistDB() {
   DB = ensureSchema(DB);
