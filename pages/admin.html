@@ -7,45 +7,48 @@
   <div class="kpi-card" style="grid-column: 1 / -1;">
     <div class="section-title">🎨 Identidade Visual Premium (White-Label)</div>
     <div class="form-grid">
-        <div class="form-group">
-            <label class="form-label">Nome da Empresa</label>
-            <input type="text" class="form-control" id="cfg-empresa" placeholder="Ex: Construtora ABC">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Slug do Subdomínio (ex: empresa)</label>
-            <input type="text" class="form-control" id="cfg-slug" placeholder="Seu acesso em: slug.seusite.com">
-        </div>
-        <div class="form-group">
-            <label class="form-label">🛒 Logo da Empresa (Horizontal)</label>
-            <input type="file" class="form-control" id="cfg-logo-file" accept="image/*" onchange="handleFileUpload(this, 'cfg-logo-preview', 'cfg-logo-url')">
-            <input type="hidden" id="cfg-logo-url">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Cor Primária (Botões)</label>
-            <input type="color" class="form-control" id="cfg-cor-prim" style="height:40px; padding: 4px;">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Cor da Sidebar (Menu)</label>
-            <input type="color" class="form-control" id="cfg-cor-side" style="height:40px; padding: 4px;">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Cor do Texto (Menu)</label>
-            <input type="color" class="form-control" id="cfg-cor-text" style="height:40px; padding: 4px;">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Modo Visual</label>
-            <select class="form-control" id="cfg-tema">
-                <option value="dark">Modo Escuro (Padrão)</option>
-                <option value="light">Modo Claro (Corporativo)</option>
-            </select>
-        </div>
-        <div class="form-group form-full" id="cfg-logo-preview" style="display:none; text-align:center; padding: 10px; background: var(--bg3); border-radius: 8px;">
-            <p style="font-size:11px; margin-bottom:5px">Pré-visualização da Logo:</p>
-            <img src="" style="max-height:50px; object-fit:contain">
-        </div>
-        <div class="form-group form-full">
-            <button class="btn btn-primary" onclick="salvarConfiguracoes()" style="width:200px">Salvar Identidade Visual</button>
-        </div>
+      <div class="form-group">
+        <label class="form-label">Nome da Empresa</label>
+        <input type="text" class="form-control" id="cfg-empresa" placeholder="Ex: Construtora ABC">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Slug do Subdomínio (ex: empresa)</label>
+        <input type="text" class="form-control" id="cfg-slug" placeholder="Seu acesso em: slug.seusite.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">🛒 Logo da Empresa (Horizontal)</label>
+        <input type="file" class="form-control" id="cfg-logo-file" accept="image/*"
+          onchange="handleFileUpload(this, 'cfg-logo-preview', 'cfg-logo-url')">
+        <input type="hidden" id="cfg-logo-url">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cor Primária (Botões)</label>
+        <input type="color" class="form-control" id="cfg-cor-prim" style="height:40px; padding: 4px;">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cor da Sidebar (Menu)</label>
+        <input type="color" class="form-control" id="cfg-cor-side" style="height:40px; padding: 4px;">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cor do Texto (Menu)</label>
+        <input type="color" class="form-control" id="cfg-cor-text" style="height:40px; padding: 4px;">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Modo Visual</label>
+        <select class="form-control" id="cfg-tema">
+          <option value="dark">Modo Escuro (Padrão)</option>
+          <option value="light">Modo Claro (Corporativo)</option>
+        </select>
+      </div>
+      <div class="form-group form-full" id="cfg-logo-preview"
+        style="display:none; text-align:center; padding: 10px; background: var(--bg3); border-radius: 8px;">
+        <p style="font-size:11px; margin-bottom:5px">Pré-visualização da Logo:</p>
+        <img src="" style="max-height:50px; object-fit:contain">
+      </div>
+      <div class="form-group form-full">
+        <button class="btn btn-primary" onclick="salvarConfiguracoes()" style="width:200px">Salvar Identidade
+          Visual</button>
+      </div>
     </div>
   </div>
 
@@ -65,8 +68,10 @@
         </div>
       </div>
     </div>
-    <button class="btn btn-primary w-100" id="btn-upgrade" onclick="startStripeCheckout()" style="background: #6366f1; border-color: #6366f1; width: 100%;">⭐ Assinar Plano Pro</button>
-    <p style="font-size: 11px; opacity: 0.6; margin-top: 8px; text-align: center;">Pagamento processado com segurança via Stripe.</p>
+    <button class="btn btn-primary w-100" id="btn-upgrade" onclick="startStripeCheckout()"
+      style="background: #6366f1; border-color: #6366f1; width: 100%;">⭐ Assinar Plano Pro</button>
+    <p style="font-size: 11px; opacity: 0.6; margin-top: 8px; text-align: center;">Pagamento processado com segurança
+      via Stripe.</p>
   </div>
 </div>
 
@@ -78,7 +83,14 @@
     </div>
   </div>
   <table>
-    <thead><tr><th>E-mail do Usuário</th><th>Nome Completo</th><th>Nível de Acesso (Perfil)</th><th>Ações</th></tr></thead>
+    <thead>
+      <tr>
+        <th>E-mail do Usuário</th>
+        <th>Nome Completo</th>
+        <th>Nível de Acesso (Perfil)</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
     <tbody id="usuarios-tbody"></tbody>
   </table>
 </div>
