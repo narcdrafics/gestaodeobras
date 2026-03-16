@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "profiles": {
+      "$uid": {
+        // Apenas o próprio usuário pode ler ou editar seu perfil global
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "tenants": {
+      "$tenantId": {
+        // Usuários só podem ler/escrever se o tenantId no perfil deles for igual à ID da empresa (ou se for Super Admin)
+        ".read": "auth != null && (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
+        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
+      }
+    },
+    "invites": {
+      // Qualquer usuário logado pode verificar se tem um convite sob seu e-mail
+      ".read": "auth != null",
+      // Apenas Admins de empresa ou Super Admins podem criar convites
+      ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'admin' || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
+    }
+  }
+}
