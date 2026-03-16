@@ -34,6 +34,7 @@ if (!firebase.apps.length) {
 let dbRef = null;
 let DB = JSON.parse(JSON.stringify(staticDB));
 let isFirstLoad = true;
+let CURRENT_TENANT_ID = null; // SaaS: Armazena o ID do tenant detectado por subdomínio
 
 function ensureSchema(db) {
   const safe = db && typeof db === 'object' ? db : {};
@@ -204,6 +205,7 @@ function loadTheme(externalCfg) {
     const tenant = await loadTenantBySlug(slug);
     if (tenant && tenant.data && tenant.data.config) {
       console.log('Contexto de subdomínio detectado:', slug);
+      CURRENT_TENANT_ID = tenant.id; // Vincula o ID do tenant detectado
       loadTheme(tenant.data.config);
     }
   }

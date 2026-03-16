@@ -150,14 +150,22 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       await profileRef.set(userProfile);
     }
 
-    // 3. Login com Sucesso
+    // 3. Validação Cross-Tenant (Segurança SaaS)
+    if (CURRENT_TENANT_ID && userProfile.tenantId !== CURRENT_TENANT_ID && userProfile.role !== 'super_admin') {
+      await firebase.auth().signOut();
+      sessionStorage.removeItem('gestaoUser');
+      showLoginError('Esta conta não tem acesso a esta empresa/subdomínio.');
+      return;
+    }
+
+    // 4. Login com Sucesso
     if (userProfile.role === 'pendente') {
       await firebase.auth().signOut();
       showLoginError(`Sua conta (${email}) aguarda aprovação do administrador.`);
       return;
     }
 
-    // 4. Inicializa o Banco de Dados do Tenant Específico
+    // 5. Inicializa o Banco de Dados do Tenant Específico
     sessionStorage.setItem('gestaoUser', JSON.stringify(userProfile));
     if (typeof initDB === 'function') initDB(userProfile.tenantId);
 
