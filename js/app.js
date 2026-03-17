@@ -80,6 +80,27 @@ function renderPage(id) {
   if (r[id]) r[id]();
 }
 
+function safeSetInner(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+}
+
+function safeSetText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function safeSetValue(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.value = val;
+}
+
+function safeSetStyle(id, prop, val) {
+  const el = document.getElementById(id);
+  if (el) el.style[prop] = val;
+}
+
+
 // ==================== DASHBOARD ====================
 function renderDashboard() {
   const obrasAtivas = DB.obras.filter(o => ['Em andamento', 'Planejada'].includes(o.status)).length;
@@ -116,14 +137,17 @@ function renderDashboard() {
     .filter(m => m.semana >= strSemana && m.semana <= today)
     .reduce((a, m) => a + (parseFloat(m.vtotal) || 0), 0);
 
-  document.getElementById('kpi-grid').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obrasAtivas}</div><div class="kpi-sub">de ${DB.obras.length} cadastradas</div></div>
-    <div class="kpi-card"><div class="kpi-label">Diárias (Semana)</div><div class="kpi-val blue">${fmt(cDiariasSemana)}</div><div class="kpi-sub">Custo de Folha na contabilidade</div></div>
-    <div class="kpi-card"><div class="kpi-label">Empreitas (Semana)</div><div class="kpi-val blue" style="font-size:20px">${fmt(cEmpreitaSemana)}</div><div class="kpi-sub">Custo de Medições na contabilidade</div></div>
-    <div class="kpi-card"><div class="kpi-label">Custo Real / Prev.</div><div class="kpi-val ${pctCusto > 100 ? 'red' : 'green'}">${pctCusto}%</div><div class="kpi-sub">${fmt(totalRealGlobal)} de ${fmt(totalPrev)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Tarefas Atrasadas</div><div class="kpi-val ${tarefasAtrasadas > 0 ? 'red' : 'green'}">${tarefasAtrasadas}</div><div class="kpi-sub">requer atenção imediata</div></div>
-    <div class="kpi-card"><div class="kpi-label">Estoque Baixo/Crítico</div><div class="kpi-val ${estoquesBaixos > 0 ? 'orange' : 'green'}">${estoquesBaixos}</div><div class="kpi-sub">itens abaixo do mínimo</div></div>
-  `;
+  const kpiGrid = document.getElementById('kpi-grid');
+  if (kpiGrid) {
+    kpiGrid.innerHTML = `
+      <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obrasAtivas}</div><div class="kpi-sub">de ${DB.obras.length} cadastradas</div></div>
+      <div class="kpi-card"><div class="kpi-label">Diárias (Semana)</div><div class="kpi-val blue">${fmt(cDiariasSemana)}</div><div class="kpi-sub">Custo de Folha na contabilidade</div></div>
+      <div class="kpi-card"><div class="kpi-label">Empreitas (Semana)</div><div class="kpi-val blue" style="font-size:20px">${fmt(cEmpreitaSemana)}</div><div class="kpi-sub">Custo de Medições na contabilidade</div></div>
+      <div class="kpi-card"><div class="kpi-label">Custo Real / Prev.</div><div class="kpi-val ${pctCusto > 100 ? 'red' : 'green'}">${pctCusto}%</div><div class="kpi-sub">${fmt(totalRealGlobal)} de ${fmt(totalPrev)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Tarefas Atrasadas</div><div class="kpi-val ${tarefasAtrasadas > 0 ? 'red' : 'green'}">${tarefasAtrasadas}</div><div class="kpi-sub">requer atenção imediata</div></div>
+      <div class="kpi-card"><div class="kpi-label">Estoque Baixo/Crítico</div><div class="kpi-val ${estoquesBaixos > 0 ? 'orange' : 'green'}">${estoquesBaixos}</div><div class="kpi-sub">itens abaixo do mínimo</div></div>
+    `;
+  }
 
   const alerts = [];
   DB.estoque.forEach(e => {
@@ -192,16 +216,19 @@ function renderDashboard() {
   }
 
   const alertIcons = { 'ESTOQUE CRÍTICO': '🔴', 'ESTOQUE BAIXO': '🟡', 'TAREFA ATRASADA': '⏰', 'COMPRA PENDENTE': '🛒', 'NOVO USUÁRIO': '👤', 'DIÁRIA PENDENTE': '💸', 'EMPREITA PENDENTE': '🔨', 'PGTO FINANCEIRO': '📄' };
-  document.getElementById('alerts-grid').innerHTML = alerts.length
-    ? alerts.map(a => `<div class="alert-card ${a.prior}" ${a.action ? `onclick="${a.action}" style="cursor:pointer"` : ''}>
-        <div class="alert-icon">${alertIcons[a.tipo] || '⚠️'}</div>
-        <div class="alert-body">
-          <h4>${a.tipo}</h4>
-          <p><b>${a.obra}</b> — ${a.desc}</p>
-          <p style="margin-top:4px">Resp: ${a.resp}${a.action ? ' &nbsp;<span style="color:var(--accent);font-weight:600">→ Abrir e pagar</span>' : ''}</p>
-        </div>
-      </div>`).join('')
-    : '<div style="color:var(--text3);font-size:13px;padding:8px">✅ Nenhum alerta no momento.</div>';
+  const alertsGrid = document.getElementById('alerts-grid');
+  if (alertsGrid) {
+    alertsGrid.innerHTML = alerts.length
+      ? alerts.map(a => `<div class="alert-card ${a.prior}" ${a.action ? `onclick="${a.action}" style="cursor:pointer"` : ''}>
+          <div class="alert-icon">${alertIcons[a.tipo] || '⚠️'}</div>
+          <div class="alert-body">
+            <h4>${a.tipo}</h4>
+            <p><b>${a.obra}</b> — ${a.desc}</p>
+            <p style="margin-top:4px">Resp: ${a.resp}${a.action ? ' &nbsp;<span style="color:var(--accent);font-weight:600">→ Abrir e pagar</span>' : ''}</p>
+          </div>
+        </div>`).join('')
+      : '<div style="color:var(--text3);font-size:13px;padding:8px">✅ Nenhum alerta no momento.</div>';
+  }
 
   const tbody = document.getElementById('dash-obras-tbody');
   tbody.innerHTML = DB.obras.map(o => {
@@ -227,13 +254,13 @@ function renderDashboard() {
       <td>${tarefas.filter(t => t.status === 'Concluída').length}/${tarefas.length} concluídas</td>
     </tr>`;
   }).join('');
-  document.getElementById('dash-updated').textContent = 'Atualizado: ' + new Date().toLocaleString('pt-BR');
+  const updEl = document.getElementById('dash-updated');
+  if (updEl) updEl.textContent = 'Atualizado: ' + new Date().toLocaleString('pt-BR');
 }
 
 // ==================== OBRAS ====================
 function renderObras() {
-  const grid = document.getElementById('obras-grid');
-  grid.innerHTML = DB.obras.map(o => {
+  safeSetInner('obras-grid', DB.obras.map(o => {
     const realizado = DB.financeiro.filter(f => f.obra === o.cod).reduce((a, f) => a + (f.real || 0), 0);
     const pct = o.orc > 0 ? (realizado / o.orc * 100).toFixed(1) : 0;
     const tarefas = DB.tarefas.filter(t => t.obra === o.cod);
@@ -247,10 +274,9 @@ function renderObras() {
         <div class="obra-stat"><div class="obra-stat-label">Tarefas</div><div class="obra-stat-val" style="font-size:13px">${tarefas.filter(t => t.status === 'Concluída').length}/${tarefas.length}</div></div>
       </div>
     </div>`;
-  }).join('');
+  }).join(''));
 
-  const tbody = document.getElementById('obras-tbody');
-  tbody.innerHTML = DB.obras.map((o, i) => `<tr>
+  safeSetInner('obras-tbody', DB.obras.map((o, i) => `<tr>
     <td><span class="cod">${o.cod}</span></td><td>${o.nome}</td><td>${o.tipo}</td>
     <td>${statusBadge(o.status)}</td><td>${fmtDate(o.inicio)}</td><td>${fmtDate(o.prazo)}</td>
     <td>${fmt(o.orc)}</td><td>${o.mestre}</td><td>${o.cliente}</td>
@@ -258,13 +284,12 @@ function renderObras() {
       <button class="btn btn-secondary btn-sm" onclick="editObra(${i})" style="margin-right:8px">✏️</button>
       <button class="btn btn-danger btn-sm" onclick="deleteItem('obras',${i})">🗑</button>
     </td>
-  </tr>`).join('');
+  </tr>`).join(''));
 }
 
 // ==================== TRABALHADORES ====================
 function renderTrabalhadores() {
-  const tbody = document.getElementById('trab-tbody');
-  tbody.innerHTML = DB.trabalhadores.length
+  safeSetInner('trab-tbody', DB.trabalhadores.length
     ? DB.trabalhadores.map((t, i) => `<tr>
         <td><span class="cod">${t.cod}</span></td><td>${t.nome}</td><td>${t.cpf}</td>
         <td>${t.funcao}</td><td>${statusBadge(t.vinculo)}</td><td>${t.obras}</td>
@@ -274,7 +299,7 @@ function renderTrabalhadores() {
           <button class="btn btn-danger btn-sm" onclick="deleteItem('trabalhadores',${i})">🗑</button>
         </td>
       </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="10">Nenhum trabalhador cadastrado</td></tr>';
+    : '<tr class="empty-row"><td colspan="10">Nenhum trabalhador cadastrado</td></tr>');
 }
 
 // ==================== PRESENÇA ====================
@@ -283,13 +308,13 @@ function renderPresenca() {
   const presentes = hoje.filter(p => p.presenca === 'Presente').length;
   const faltas = hoje.filter(p => p.presenca === 'Falta').length;
   const totalPagar = hoje.reduce((a, p) => a + (p.total || 0), 0);
-  document.getElementById('pres-kpi').innerHTML = `
+  
+  safeSetInner('pres-kpi', `
     <div class="kpi-card"><div class="kpi-label">Presentes Hoje</div><div class="kpi-val green">${presentes}</div></div>
     <div class="kpi-card"><div class="kpi-label">Faltas Hoje</div><div class="kpi-val ${faltas > 0 ? 'red' : 'green'}">${faltas}</div></div>
     <div class="kpi-card"><div class="kpi-label">Total a Pagar Hoje</div><div class="kpi-val yellow" style="font-size:20px">${fmt(totalPagar)}</div></div>
-  `;
-  const tbody = document.getElementById('pres-tbody');
-  tbody.innerHTML = DB.presenca.length
+  `);
+  safeSetInner('pres-tbody', DB.presenca.length
     ? DB.presenca.map((p, i) => `<tr>
         <td>${fmtDate(p.data)}</td><td><span class="cod">${p.obra}</span></td>
         <td>${p.nome}</td><td>${p.funcao}</td><td>${p.frente}</td>
@@ -303,10 +328,8 @@ function renderPresenca() {
           <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${i})">🗑</button>
         </td>
       </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="14">Nenhum registro de presença</td></tr>';
+    : '<tr class="empty-row"><td colspan="14">Nenhum registro de presença</td></tr>');
 
-  // Totais por obra/data
-  const dates = [...new Set(DB.presenca.map(p => p.data))];
   const totalsHtml = dates.map(d => {
     const rows = DB.presenca.filter(p => p.data === d);
     return `<div class="kpi-card">
@@ -315,7 +338,7 @@ function renderPresenca() {
       <div style="font-size:13px;margin-top:4px">Total: <b style="color:var(--accent)">${fmt(rows.reduce((a, r) => a + (r.total || 0), 0))}</b></div>
     </div>`;
   }).join('');
-  document.getElementById('pres-totais').innerHTML = totalsHtml || '<p style="color:var(--text3)">—</p>';
+  safeSetInner('pres-totais', totalsHtml || '<p style="color:var(--text3)">—</p>');
 }
 
 // ==================== TAREFAS ====================
@@ -323,14 +346,13 @@ function renderTarefas() {
   const total = DB.tarefas.length;
   const conc = DB.tarefas.filter(t => t.status === 'Concluída').length;
   const atra = DB.tarefas.filter(t => t.status === 'Atrasada').length;
-  document.getElementById('tar-kpi').innerHTML = `
+  safeSetInner('tar-kpi', `
     <div class="kpi-card"><div class="kpi-label">Total Tarefas</div><div class="kpi-val">${total}</div></div>
     <div class="kpi-card"><div class="kpi-label">Concluídas</div><div class="kpi-val green">${conc}</div></div>
     <div class="kpi-card"><div class="kpi-label">Atrasadas</div><div class="kpi-val ${atra > 0 ? 'red' : 'green'}">${atra}</div></div>
     <div class="kpi-card"><div class="kpi-label">Em Andamento</div><div class="kpi-val blue">${DB.tarefas.filter(t => t.status === 'Em andamento').length}</div></div>
-  `;
-  const tbody = document.getElementById('tar-tbody');
-  tbody.innerHTML = DB.tarefas.length
+  `);
+  safeSetInner('tar-tbody', DB.tarefas.length
     ? DB.tarefas.map((t, i) => `<tr>
         <td><span class="cod">${t.cod}</span></td><td>${t.obra}</td><td>${t.etapa}</td><td>${t.frente}</td>
         <td>${t.desc}</td><td>${t.resp}</td><td>${statusBadge(t.prior)}</td>
@@ -347,13 +369,12 @@ function renderTarefas() {
            </div>
         </td>
       </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="12">Nenhuma tarefa cadastrada</td></tr>';
+    : '<tr class="empty-row"><td colspan="12">Nenhuma tarefa cadastrada</td></tr>');
 }
 
 // ==================== ESTOQUE ====================
 function renderEstoque() {
-  const tbody = document.getElementById('est-tbody');
-  tbody.innerHTML = DB.estoque.length
+  safeSetInner('est-tbody', DB.estoque.length
     ? DB.estoque.map((e, i) => {
       const saldo = calcSaldo(e);
       const s = estoqueStatus(e);
@@ -369,13 +390,12 @@ function renderEstoque() {
           </td>
         </tr>`;
     }).join('')
-    : '<tr class="empty-row"><td colspan="12">Nenhum item no estoque</td></tr>';
+    : '<tr class="empty-row"><td colspan="12">Nenhum item no estoque</td></tr>');
 }
 
 // ==================== MOV. ESTOQUE ====================
 function renderMovEstoque() {
-  const tbody = document.getElementById('movest-tbody');
-  tbody.innerHTML = DB.movEstoque.length
+  safeSetInner('movest-tbody', DB.movEstoque.length
     ? DB.movEstoque.map((m, i) => `<tr>
         <td>${fmtDate(m.data)}</td><td><span class="cod">${m.codMat}</span></td><td>${m.mat}</td>
         <td>${m.obra}</td>
@@ -388,13 +408,12 @@ function renderMovEstoque() {
           <button class="btn btn-danger btn-sm" onclick="deleteItem('movEstoque',${i})">🗑</button>
         </td>
       </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="14">Nenhuma movimentação registrada</td></tr>';
+    : '<tr class="empty-row"><td colspan="14">Nenhuma movimentação registrada</td></tr>');
 }
 
 // ==================== COMPRAS ====================
 function renderCompras() {
-  const tbody = document.getElementById('compras-tbody');
-  tbody.innerHTML = DB.compras.length
+  safeSetInner('compras-tbody', DB.compras.length
     ? DB.compras.map((c, i) => `<tr>
         <td><span class="cod">${c.num}</span></td><td>${fmtDate(c.data)}</td><td>${c.obra}</td>
         <td>${c.mat}</td><td>${c.qtd}</td><td>${c.unid}</td>
@@ -406,8 +425,9 @@ function renderCompras() {
           <button class="btn btn-danger btn-sm" onclick="deleteItem('compras',${i})">🗑</button>
         </td>
       </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="12">Nenhuma compra registrada</td></tr>';
+    : '<tr class="empty-row"><td colspan="12">Nenhuma compra registrada</td></tr>');
 }
+
 
 // ==================== FINANCEIRO ====================
 function renderFinanceiro() {
@@ -472,10 +492,9 @@ function renderFinanceiro() {
   <div class="fin-card"><div class="fin-card-label">Total Geral Realizado</div><div class="fin-card-val">${fmt(totalReal)}</div></div>
   <div class="fin-card"><div class="fin-card-label">Diferença Total</div><div class="fin-card-val" style="color:${totalReal - totalPrev > 0 ? 'var(--red)' : 'var(--green)'}">${fmt(totalReal - totalPrev)}</div></div>`;
   
-  document.getElementById('fin-summary').innerHTML = sumHtml;
+  safeSetInner('fin-summary', sumHtml);
 
-  const tbody = document.getElementById('fin-tbody');
-  tbody.innerHTML = allFin.length
+  safeSetInner('fin-tbody', allFin.length
     ? allFin.map(f => {
       const diff = f.real - f.prev;
       
@@ -496,13 +515,13 @@ function renderFinanceiro() {
           <td>${editBtn}${delBtn}</td>
         </tr>`;
     }).join('')
-    : '<tr class="empty-row"><td colspan="13">Nenhum lançamento financeiro ou Custo Mapeado</td></tr>';
+    : '<tr class="empty-row"><td colspan="13">Nenhum lançamento financeiro ou Custo Mapeado</td></tr>');
 }
+
 
 // ==================== ORÇAMENTO ====================
 function renderOrcamento() {
-  const tbody = document.getElementById('orc-tbody');
-  tbody.innerHTML = DB.orcamento.length
+  safeSetInner('orc-tbody', DB.orcamento.length
     ? DB.orcamento.map((o, i) => {
       const diff = (o.vtotal || 0) - (o.vreal || 0);
       const pexec = o.vtotal > 0 ? ((o.vreal || 0) / o.vtotal * 100).toFixed(1) : 0;
@@ -519,13 +538,13 @@ function renderOrcamento() {
           </td>
         </tr>`;
     }).join('')
-    : '<tr class="empty-row"><td colspan="12">Nenhum item de orçamento</td></tr>';
+    : '<tr class="empty-row"><td colspan="12">Nenhum item de orçamento</td></tr>');
 }
+
 
 // ==================== MEDIÇÃO ====================
 function renderMedicao() {
-  const tbody = document.getElementById('med-tbody');
-  tbody.innerHTML = DB.medicao.length
+  safeSetInner('med-tbody', DB.medicao.length
     ? DB.medicao.map((m, i) => {
       const av = m.qprev > 0 ? (m.qreal / m.qprev) : 0;
       return `<tr>
@@ -548,30 +567,40 @@ function renderMedicao() {
           </td>
         </tr>`;
     }).join('')
-    : '<tr class="empty-row"><td colspan="13">Nenhuma medição registrada</td></tr>';
+    : '<tr class="empty-row"><td colspan="13">Nenhuma medição registrada</td></tr>');
+}
+
+// Helper functions for safe DOM manipulation
+function safeSetValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value;
+}
+
+function safeSetStyle(id, property, value) {
+  const el = document.getElementById(id);
+  if (el) el.style[property] = value;
 }
 
 // ==================== ADMINISTRAÇÃO ====================
 function renderAdmin() {
   if (DB.config) {
     const cfg = DB.config;
-    document.getElementById('cfg-empresa').value = cfg.nomeEmpresa || '';
-    document.getElementById('cfg-cor-prim').value = cfg.corPrimaria || '#f59e0b';
-    document.getElementById('cfg-cor-side').value = cfg.corSidebar || '#161b27';
-    document.getElementById('cfg-cor-text').value = cfg.corMenu || '#94a3b8';
-    document.getElementById('cfg-tema').value = cfg.tema || 'dark';
-    document.getElementById('cfg-slug').value = cfg.slug || '';
-    document.getElementById('cfg-logo-url').value = cfg.logoUrl || '';
+    safeSetValue('cfg-empresa', cfg.nomeEmpresa || '');
+    safeSetValue('cfg-cor-prim', cfg.corPrimaria || '#f59e0b');
+    safeSetValue('cfg-cor-side', cfg.corSidebar || '#161b27');
+    safeSetValue('cfg-cor-text', cfg.corMenu || '#94a3b8');
+    safeSetValue('cfg-tema', cfg.tema || 'dark');
+    safeSetValue('cfg-slug', cfg.slug || '');
+    safeSetValue('cfg-logo-url', cfg.logoUrl || '');
     
     if (cfg.logoUrl) {
-        const preview = document.getElementById('cfg-logo-preview');
-        preview.style.display = 'block';
-        preview.querySelector('img').src = cfg.logoUrl;
+        safeSetStyle('cfg-logo-preview', 'display', 'block');
+        const previewImg = document.querySelector('#cfg-logo-preview img');
+        if (previewImg) previewImg.src = cfg.logoUrl;
     }
   }
 
-  const tbody = document.getElementById('usuarios-tbody');
-  tbody.innerHTML = (DB.usuarios && DB.usuarios.length)
+  safeSetInner('usuarios-tbody', (DB.usuarios && DB.usuarios.length)
     ? DB.usuarios.map((u, i) => `<tr>
         <td><b>${u.email || u.username}</b></td><td>${u.name}</td>
         <td><span class="badge ${u.role === 'admin' ? 'badge-red' : u.role === 'engenheiro' ? 'badge-blue' : u.role === 'pendente' ? 'badge-orange' : 'badge-green'}">${u.role.toUpperCase()}</span></td>
@@ -580,9 +609,12 @@ function renderAdmin() {
            <button class="btn btn-danger btn-sm" onclick="deleteUsuario(${i})">🗑</button>
         </td>
       </tr>`).join('')
-    : '<tr><td colspan="4">Erro ao carregar usuários.</td></tr>';
+    : '<tr><td colspan="4">Erro ao carregar usuários.</td></tr>');
 
-  // ==================== FOTOS (RELATÓRIO FOTOGRÁFICO) ====================
+  renderBilling();
+}
+
+// ==================== FOTOS (RELATÓRIO FOTOGRÁFICO) ====================
 function renderFotos() {
   const obraFilter = document.getElementById('fotos-obra-filter');
   const selectedObra = obraFilter ? obraFilter.value : '';
@@ -651,25 +683,23 @@ function renderFotos() {
 }
 
 // SaaS: Render Billing Info
+function renderBilling() {
   if (DB.config) {
     const limitObras = DB.config.limiteObras || 2;
     const limitTrab = DB.config.limiteTrabalhadores || 10;
     const isPro = limitObras > 5; // Lógica simples de exemplo
 
-    const planName = document.getElementById('plan-name');
-    const lObras = document.getElementById('limit-obras');
-    const lTrab = document.getElementById('limit-trab');
-    const btnUpgrade = document.getElementById('btn-upgrade');
-
-    if (planName) planName.textContent = isPro ? 'PLANO PRO ⭐' : 'PLANO INICIAL';
-    if (lObras) lObras.textContent = limitObras === 99 ? 'Ilimitado' : limitObras;
-    if (lTrab) lTrab.textContent = limitTrab === 99 ? 'Ilimitado' : limitTrab;
+    safeSetText('plan-name', isPro ? 'PLANO PRO ⭐' : 'PLANO INICIAL');
+    safeSetText('limit-obras', limitObras === 99 ? 'Ilimitado' : limitObras);
+    safeSetText('limit-trab', limitTrab === 99 ? 'Ilimitado' : limitTrab);
     
+    const btnUpgrade = document.getElementById('btn-upgrade');
     if (btnUpgrade) {
       btnUpgrade.style.display = isPro ? 'none' : 'block';
     }
   }
 }
+
 
 async function startStripeCheckout() {
   const user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
@@ -1040,7 +1070,8 @@ function calcAvanco() {
 }
 
 // ==================== SAVE FUNCTIONS ====================
-function saveObra() {
+async function saveObra() {
+
   const cod = document.getElementById('ob-cod').value.trim();
   if (!cod) { toast('Informe o código da obra', 'error'); return; }
   // Verifica unicidade do código (exceto ao editar o próprio registro)
@@ -1072,7 +1103,7 @@ function saveObra() {
     DB.obras.push(data);
     toast('Obra cadastrada!');
   }
-  closeModal('modal-obra'); renderObras(); renderDashboard(); persistDB(); 
+  closeModal('modal-obra'); await persistDB(); renderObras(); renderDashboard(); 
 }
 
 async function editObra(idx) {
@@ -1093,7 +1124,8 @@ async function editObra(idx) {
   document.getElementById('ob-obs').value = o.obs;
 }
 
-function saveTrabalhador() {
+async function saveTrabalhador() {
+
   const cod = document.getElementById('tr-cod').value.trim();
   if (!cod) { toast('Informe o código', 'error'); return; }
   // Verifica unicidade do código
@@ -1125,7 +1157,7 @@ function saveTrabalhador() {
     DB.trabalhadores.push(data);
     toast('Trabalhador cadastrado!');
   }
-  closeModal('modal-trabalhador'); renderTrabalhadores(); persistDB();
+  closeModal('modal-trabalhador'); await persistDB(); renderTrabalhadores(); 
 }
 
 async function editTrabalhador(idx) {
@@ -1146,7 +1178,8 @@ async function editTrabalhador(idx) {
   document.getElementById('tr-admissao').value = t.admissao;
 }
 
-function savePresenca() {
+async function savePresenca() {
+
   const tsel = document.getElementById('pr-trab').value;
   const t = DB.trabalhadores.find(x => x.cod === tsel);
   const data = {
@@ -1178,7 +1211,7 @@ function savePresenca() {
     DB.presenca.push(data);
     toast('Presença registrada!');
   }
-  closeModal('modal-presenca'); renderPresenca(); renderFinanceiro(); renderDashboard(); persistDB();
+  closeModal('modal-presenca'); await persistDB(); renderPresenca(); renderFinanceiro(); renderDashboard(); 
 }
 
 async function editPresenca(idx) {
@@ -1220,7 +1253,8 @@ async function editPresenca(idx) {
   togglePresenca();
 }
 
-function saveTarefa() {
+async function saveTarefa() {
+
   const data = {
     cod: document.getElementById('tf-cod').value,
     obra: document.getElementById('tf-obra').value,
@@ -1244,7 +1278,7 @@ function saveTarefa() {
     DB.tarefas.push(data);
     toast('Tarefa criada!');
   }
-  closeModal('modal-tarefa'); renderTarefas(); persistDB();
+  closeModal('modal-tarefa'); await persistDB(); renderTarefas(); 
 }
 
 async function editTarefa(idx) {
@@ -1274,7 +1308,8 @@ async function editTarefa(idx) {
   document.getElementById('tf-obs').value = t.obs || '';
 }
 
-function saveEstoque() {
+async function saveEstoque() {
+
   const data = {
     cod: document.getElementById('es-cod').value,
     mat: document.getElementById('es-mat').value,
@@ -1296,7 +1331,7 @@ function saveEstoque() {
     DB.estoque.push(data);
     toast('Item de estoque cadastrado!');
   }
-  closeModal('modal-estoque'); renderEstoque(); persistDB();
+  closeModal('modal-estoque'); await persistDB(); renderEstoque(); 
 }
 
 async function editEstoque(idx) {
@@ -1313,7 +1348,8 @@ async function editEstoque(idx) {
   document.getElementById('es-obs').value = e.obs || '';
 }
 
-function saveMovEstoque() {
+async function saveMovEstoque() {
+
   const codMat = document.getElementById('mv-mat').value;
   const e = DB.estoque.find(x => x.cod === codMat);
   const tipo = document.getElementById('mv-tipo').value;
@@ -1342,7 +1378,7 @@ function saveMovEstoque() {
     DB.movEstoque.push(data);
     toast('Movimentação registrada!');
   }
-  closeModal('modal-movest'); renderMovEstoque(); persistDB();
+  closeModal('modal-movest'); await persistDB(); renderMovEstoque(); 
 }
 
 async function editMovEstoque(idx) {
@@ -1364,7 +1400,8 @@ async function editMovEstoque(idx) {
   document.getElementById('mv-obs').value = m.obs || '';
 }
 
-function saveCompra() {
+async function saveCompra() {
+
   const data = {
     num: document.getElementById('cp-num').value,
     data: document.getElementById('cp-data').value,
@@ -1389,7 +1426,7 @@ function saveCompra() {
     DB.compras.push(data);
     toast('Compra registrada!');
   }
-  closeModal('modal-compra'); renderCompras(); persistDB();
+  closeModal('modal-compra'); await persistDB(); renderCompras(); 
 }
 
 async function editCompra(idx) {
@@ -1413,7 +1450,8 @@ async function editCompra(idx) {
   document.getElementById('cp-obs').value = c.obs || '';
 }
 
-function saveFinanceiro() {
+async function saveFinanceiro() {
+
   const prev = parseFloat(document.getElementById('fn-prev').value) || 0;
   const real = parseFloat(document.getElementById('fn-real').value) || 0;
   const data = {
@@ -1436,7 +1474,7 @@ function saveFinanceiro() {
     DB.financeiro.push(data);
     toast('Lançamento financeiro salvo!');
   }
-  closeModal('modal-financeiro'); renderFinanceiro(); renderDashboard(); persistDB();
+  closeModal('modal-financeiro'); await persistDB(); renderFinanceiro(); renderDashboard(); 
 }
 
 async function editFinanceiro(idx) {
@@ -1457,7 +1495,8 @@ async function editFinanceiro(idx) {
   document.getElementById('fn-obs').value = f.obs || '';
 }
 
-function saveOrcamento() {
+async function saveOrcamento() {
+
   const qtd = parseFloat(document.getElementById('oc-qtd').value) || 0;
   const vunit = parseFloat(document.getElementById('oc-vunit').value) || 0;
   const data = {
@@ -1479,7 +1518,7 @@ function saveOrcamento() {
     DB.orcamento.push(data);
     toast('Item de orçamento salvo!');
   }
-  closeModal('modal-orcamento'); renderOrcamento(); persistDB();
+  closeModal('modal-orcamento'); await persistDB(); renderOrcamento(); 
 }
 
 async function editOrcamento(idx) {
@@ -1496,7 +1535,8 @@ async function editOrcamento(idx) {
   document.getElementById('oc-obs').value = o.obs || '';
 }
 
-function saveMedicao() {
+async function saveMedicao() {
+
   const qprev = parseFloat(document.getElementById('md-qprev').value) || 0;
   const qreal = parseFloat(document.getElementById('md-qreal').value) || 0;
   const vunit = parseFloat(document.getElementById('md-vunit').value) || 0;
@@ -1522,7 +1562,7 @@ function saveMedicao() {
     DB.medicao.push(data);
     toast('Medição salva!');
   }
-  closeModal('modal-medicao'); renderMedicao(); renderFinanceiro(); renderDashboard(); persistDB();
+  closeModal('modal-medicao'); await persistDB(); renderMedicao && renderMedicao(); renderFinanceiro && renderFinanceiro(); renderDashboard && renderDashboard();
 }
 
 async function editMedicao(idx) {
