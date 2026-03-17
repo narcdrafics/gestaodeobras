@@ -214,6 +214,10 @@ const subdomainContextPromise = (async function initSubdomainContext() {
 })();
 
 function persistDB() {
+  if (!dbRef || CURRENT_TENANT_ID === 'MASTER_SYSTEM') {
+     console.warn('Persistência ignorada: Contexto Master ou Base não inicializada.');
+     return Promise.resolve();
+  }
   DB = ensureSchema(DB);
   return dbRef.set(DB).catch(err => {
     console.error('Falha ao salvar na nuvem:', err);

@@ -123,28 +123,11 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
         // Remove convite após uso
         await firebase.database().ref(`invites/${sanitizedEmail}`).remove();
       } else {
-        // Fluxo Dono de Empresa: Cria novo Tenant
-        const tenantId = uid;
-        userProfile = {
-          uid,
-          email,
-          name: Name,
-          role: 'admin',
-          tenantId: tenantId
-        };
-
-        // Inicializa o Tenant vazio (ou com config básica) se for novo
-        const tenantRef = firebase.database().ref(`tenants/${tenantId}`);
-        const tenantSnap = await tenantRef.once('value');
-        await tenantRef.set({
-          config: {
-            nomeEmpresa: 'Minha Empresa',
-            corPrimaria: '#f59e0b',
-            limiteObras: 2,
-            limiteTrabalhadores: 10
-          },
-          usuarios: [{ email, name: Name, role: 'admin' }]
-        });
+        // SaaS: Auto-onboarding desativado para evitar recriação de empresas deletadas
+        await firebase.auth().signOut();
+        sessionStorage.removeItem('gestaoUser');
+        showLoginError('Esta conta não possui uma empresa vinculada. Entre em contato com o suporte.');
+        return;
       }
       // Salva o perfil global vinculado ao tenantId
       await profileRef.set(userProfile);
