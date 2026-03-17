@@ -1692,6 +1692,14 @@ async function saveNewTenant() {
             nomeEmpresa: nome
         });
 
+        // 3. Espelhar slug no nó público (para leitura antes do login)
+        const slugValue = nome.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        await firebase.database().ref(`tenants_public/${tenantId}`).set({
+            slug: slugValue,
+            nomeEmpresa: nome,
+            corPrimaria: '#f59e0b'
+        });
+
         toast('Empresa criada! O dono já pode logar com seu e-mail.');
         closeModal();
         renderSuperAdmin();

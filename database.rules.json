@@ -11,9 +11,13 @@
       ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       ".write": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$tenantId": {
-        ".read": "auth != null && root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId",
-        ".write": "auth != null && root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId"
+        ".read": "auth != null && (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
+        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
       }
+    },
+    "tenants_public": {
+      ".read": true,
+      ".write": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'"
     },
     "invites": {
       ".read": "auth != null",

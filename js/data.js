@@ -68,8 +68,20 @@ function detectSubdomain() {
 async function loadTenantBySlug(slug) {
   if (!slug) return null;
   try {
-    // Busca no nó 'tenants' quem tem o slug correspondente
-    // Nota: Recomenda-se no Firebase criar um índice por 'slug'
+    // Tenta primeiro leitura pública (nó tenants_public)
+    const pubSnap = await firebase.database().ref('tenants_public')
+      .orderByChild('slug')
+      .equalTo(slug)
+      .once('value');
+    
+    const pubTenants = pubSnap.val();
+    if (pubTenants) {
+      const tenantId = Object.keys(pubTenants)[0];
+      const pub = pubTenants[tenantId];
+      return { id: tenantId, data: { config: pub } };
+    }
+
+    // Fallback: Busca diretamente no nó tenants (requer autenticação)
     const snapshot = await firebase.database().ref('tenants')
       .orderByChild('config/slug')
       .equalTo(slug)
@@ -81,7 +93,7 @@ async function loadTenantBySlug(slug) {
       return { id: tenantId, data: tenants[tenantId] };
     }
   } catch (e) {
-    console.error('Erro ao buscar tenant por slug:', e);
+    console.warn('Aviso ao buscar tenant por slug (pode ser normal antes do login):', e.code || e.message);
   }
   return null;
 }
@@ -214,8 +226,9 @@ const subdomainContextPromise = (async function initSubdomainContext() {
 })();
 
 function persistDB() {
-  if (!dbRef || CURRENT_TENANT_ID === 'MASTER_SYSTEM') {
-     console.warn('Persistência ignorada: Contexto Master ou Base não inicializada.');
+  const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+  if (!dbRef || sessionUser.role === 'super_admin') {
+     console.warn('Persistência ignorada: dbRef não inicializado ou Super Admin.');
      return Promise.resolve();
   }
   DB = ensureSchema(DB);
