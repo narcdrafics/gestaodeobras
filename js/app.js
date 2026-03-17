@@ -1754,6 +1754,12 @@ async function handleFileUpload(input, previewId, urlInputId) {
     const file = input.files[0];
     if (!file) return;
 
+    if (typeof firebase.storage !== 'function') {
+        console.error('Firebase Storage SDK not loaded!');
+        toast('Erro: SDK de Storage não carregado no navegador.', 'error');
+        return;
+    }
+
     const user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
     const tid = user.tenantId || 'global';
     
@@ -1761,23 +1767,40 @@ async function handleFileUpload(input, previewId, urlInputId) {
     
     try {
         const storageRef = firebase.storage().ref();
-        const fileName = `${Date.now()}_${file.name}`;
+        const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
         const fileRef = storageRef.child(`tenants/${tid}/evidencias/${fileName}`);
         
-        await fileRef.put(file);
+        const metadata = { contentType: file.type };
+        await fileRef.put(file, metadata);
         const url = await fileRef.getDownloadURL();
         
-        document.getElementById(urlInputId).value = url;
+        safeSetValue(urlInputId, url);
         const preview = document.getElementById(previewId);
-        preview.style.display = 'block';
-        preview.querySelector('img').src = url;
+        if (preview) {
+            preview.style.display = 'block';
+            const img = preview.querySelector('img');
+            if (img) img.src = url;
+        }
         
         toast('Foto enviada com sucesso!');
     } catch (err) {
-        console.error(err);
-        toast('Erro ao enviar foto.', 'error');
+        console.error('Upload Error:', err);
+        let errorMsg = 'Erro ao enviar foto.';
+        
+        if (err.code === 'storage/unauthorized') {
+            errorMsg = 'Erro: Sem permissão (Regras do Storage).';
+        } else if (err.code === 'storage/quota-exceeded') {
+            errorMsg = 'Erro: Limite de armazenamento atingido.';
+        } else if (err.code === 'storage/canceled') {
+            errorMsg = 'Upload cancelado.';
+        } else if (err.code === 'storage/unknown') {
+            errorMsg = 'Erro desconhecido no Firebase Storage.';
+        }
+        
+        toast(`${errorMsg} (${err.code || 'Check console'})`, 'error');
     }
 }
+
 
 function openLightbox(url) {
     let lb = document.getElementById('lightbox-container');
