@@ -199,7 +199,7 @@ function loadTheme(externalCfg) {
 }
 
 // SaaS: Inicialização de contexto por subdomínio (antes do login)
-(async function initSubdomainContext() {
+const subdomainContextPromise = (async function initSubdomainContext() {
   const slug = detectSubdomain();
   if (slug) {
     const tenant = await loadTenantBySlug(slug);
@@ -207,8 +207,10 @@ function loadTheme(externalCfg) {
       console.log('Contexto de subdomínio detectado:', slug);
       CURRENT_TENANT_ID = tenant.id; // Vincula o ID do tenant detectado
       loadTheme(tenant.data.config);
+      return tenant;
     }
   }
+  return null;
 })();
 
 function persistDB() {

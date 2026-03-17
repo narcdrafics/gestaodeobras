@@ -198,7 +198,12 @@ function checkAuth() {
   const isLoginPage = window.location.pathname.endsWith('login.html') || /\/login(?:\.html)?$/i.test(window.location.pathname);
   const isAdminLoginPage = window.location.pathname.endsWith('admin-login.html') || /\/admin-login(?:\.html)?$/i.test(window.location.pathname);
 
-  firebase.auth().onAuthStateChanged((user) => {
+  firebase.auth().onAuthStateChanged(async (user) => {
+    // SaaS: Aguarda o contexto de subdomínio ser carregado (se houver) para evitar race conditions
+    if (typeof subdomainContextPromise !== 'undefined') {
+      await subdomainContextPromise;
+    }
+
     if (user) {
       const userStr = sessionStorage.getItem('gestaoUser');
       if (userStr) {
