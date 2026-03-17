@@ -1,0 +1,19 @@
+<div class="page-header">
+  <div class="page-title">Relatório Fotográfico <small>Evidências de Obra</small></div>
+</div>
+
+<div class="table-wrap" style="padding: 20px;">
+  <div class="table-toolbar" style="border-bottom: none; padding: 0 0 20px 0;">
+    <h3>Galeria de Fotos</h3>
+    <div class="toolbar-right">
+      <select class="form-control" style="width:200px" id="fotos-obra-filter" onchange="renderFotos()">
+        <option value="">Todas as obras</option>
+      </select>
+      <button class="btn btn-secondary" onclick="renderFotos()">🔄 Atualizar</button>
+    </div>
+  </div>
+
+  <div id="fotos-grid" class="photo-gallery-grid">
+    <!-- Fotos renderizadas aqui -->
+  </div>
+</div>
