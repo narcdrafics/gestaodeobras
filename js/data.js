@@ -21,7 +21,7 @@ const firebaseConfig = {
   authDomain: "controle-obras-c889d.firebaseapp.com",
   databaseURL: "https://controle-obras-c889d-default-rtdb.firebaseio.com",
   projectId: "controle-obras-c889d",
-  storageBucket: "controle-obras-c889d.appspot.com",
+  storageBucket: "controle-obras-c889d.firebasestorage.app",
   messagingSenderId: "570296468947",
   appId: "1:570296468947:web:fff3403f8fbb72225d1b26",
   measurementId: "G-KVPEMVBXTY"
