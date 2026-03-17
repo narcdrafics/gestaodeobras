@@ -82,7 +82,7 @@ function renderPage(id) {
 
 // ==================== DASHBOARD ====================
 function renderDashboard() {
-  const obrasAtivas = DB.obras.filter(o => o.status === 'Em andamento').length;
+  const obrasAtivas = DB.obras.filter(o => ['Em andamento', 'Planejada'].includes(o.status)).length;
   const tarefasAtrasadas = DB.tarefas.filter(t => t.status === 'Atrasada').length;
   const estoquesBaixos = DB.estoque.filter(e => ['BAIXO', 'CRÍTICO'].includes(estoqueStatus(e))).length;
   const comprasAguardando = DB.compras.filter(c => c.status === 'Aguardando').length;
@@ -1004,7 +1004,7 @@ function saveObra() {
     DB.obras.push(data);
     toast('Obra cadastrada!');
   }
-  closeModal('modal-obra'); renderObras(); persistDB(); 
+  closeModal('modal-obra'); renderObras(); renderDashboard(); persistDB(); 
 }
 
 async function editObra(idx) {
