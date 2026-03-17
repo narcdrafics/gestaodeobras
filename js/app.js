@@ -729,13 +729,40 @@ async function saveMasterTenant() {
 }
 
 async function deleteTenant(tid) {
-  if (!confirm(`TEM CERTEZA? Isso deletará todos os dados da empresa ${tid} permanentemente!`)) return;
+  if (!confirm(`TEM CERTEZA? Isso deletará todos os dados da empresa ${tid}, PERFIS de usuários e CONVITES permanentemente!`)) return;
+  
+  toast('Limpando dados da empresa...', 'success');
+  
   try {
-      await firebase.database().ref(`tenants/${tid}`).remove();
-      toast('Empresa removida com sucesso!');
+      // 1. Buscar Perfis Vinculados
+      const profilesSnap = await firebase.database().ref('profiles').orderByChild('tenantId').equalTo(tid).once('value');
+      const profiles = profilesSnap.val() || {};
+      
+      // 2. Buscar Convites Vinculados
+      const invitesSnap = await firebase.database().ref('invites').orderByChild('tenantId').equalTo(tid).once('value');
+      const invites = invitesSnap.val() || {};
+
+      // 3. Preparar Delecção em Massa (Multi-Path Update)
+      const updates = {};
+      updates[`tenants/${tid}`] = null;
+      
+      Object.keys(profiles).forEach(uid => {
+          updates[`profiles/${uid}`] = null;
+      });
+      
+      Object.keys(invites).forEach(emailKey => {
+          updates[`invites/${emailKey}`] = null;
+      });
+
+      // 4. Executar Limpeza
+      await firebase.database().ref().update(updates);
+      
+      toast('Empresa e acessos removidos com sucesso!');
+      toast('Lembre-se: remova os e-mails da aba "Authentication" manualmente no Firebase.', 'orange');
       renderSuperAdmin();
   } catch (err) {
-      toast('Erro ao remover empresa.', 'error');
+      console.error('Erro ao deletar tenant:', err);
+      toast('Erro ao remover empresa e dependências.', 'error');
   }
 }
 
