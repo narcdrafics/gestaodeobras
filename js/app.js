@@ -1754,11 +1754,23 @@ async function handleFileUpload(input, previewId, urlInputId) {
     const file = input.files[0];
     if (!file) return;
 
+    // Log para depuração inicial
+    console.log('Iniciando Upload:', { name: file.name, size: file.size, type: file.type });
+
     if (typeof firebase.storage !== 'function') {
         console.error('Firebase Storage SDK not loaded!');
-        toast('Erro: SDK de Storage não carregado no navegador.', 'error');
+        toast('Erro: SDK de Storage não carregado.', 'error');
         return;
     }
+
+    // Verifica se o bucket está configurado
+    const bucket = firebase.app().options.storageBucket;
+    if (!bucket) {
+        console.error('Storage Bucket não configurado no firebaseConfig!');
+        toast('Erro: Bucket de Storage não configurado.', 'error');
+        return;
+    }
+    console.log('Usando Bucket:', bucket);
 
     const user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
     const tid = user.tenantId || 'global';
@@ -1766,13 +1778,29 @@ async function handleFileUpload(input, previewId, urlInputId) {
     toast('Enviando foto...', 'success');
     
     try {
-        const storageRef = firebase.storage().ref();
+        const storage = firebase.storage();
+        const storageRef = storage.ref();
         const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-        const fileRef = storageRef.child(`tenants/${tid}/evidencias/${fileName}`);
+        const filePath = `tenants/${tid}/evidencias/${fileName}`;
+        const fileRef = storageRef.child(filePath);
         
+        console.log('Caminho do Arquivo:', filePath);
+
         const metadata = { contentType: file.type };
-        await fileRef.put(file, metadata);
+        const uploadTask = fileRef.put(file, metadata);
+
+        // Acompanhamento de progresso opcional (para debug futuro)
+        uploadTask.on('state_changed', 
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                console.log('Upload is ' + progress + '% done');
+            }, 
+            (error) => { throw error; }
+        );
+
+        await uploadTask;
         const url = await fileRef.getDownloadURL();
+        console.log('Upload concluído! URL:', url);
         
         safeSetValue(urlInputId, url);
         const preview = document.getElementById(previewId);
@@ -1784,22 +1812,23 @@ async function handleFileUpload(input, previewId, urlInputId) {
         
         toast('Foto enviada com sucesso!');
     } catch (err) {
-        console.error('Upload Error:', err);
+        console.error('Upload Error Completo:', err);
         let errorMsg = 'Erro ao enviar foto.';
         
         if (err.code === 'storage/unauthorized') {
-            errorMsg = 'Erro: Sem permissão (Regras do Storage).';
+            errorMsg = 'Erro de Permissão (Confirme as Regras do Storage).';
         } else if (err.code === 'storage/quota-exceeded') {
-            errorMsg = 'Erro: Limite de armazenamento atingido.';
-        } else if (err.code === 'storage/canceled') {
-            errorMsg = 'Upload cancelado.';
+            errorMsg = 'Limite de armazenamento atingido.';
+        } else if (err.code === 'storage/retry-limit-exceeded') {
+            errorMsg = 'Tempo limite excedido. Verifique sua conexão ou se o Storage está ativo.';
         } else if (err.code === 'storage/unknown') {
             errorMsg = 'Erro desconhecido no Firebase Storage.';
         }
         
-        toast(`${errorMsg} (${err.code || 'Check console'})`, 'error');
+        toast(`${errorMsg} (${err.code || 'Ver console'})`, 'error');
     }
 }
+
 
 
 function openLightbox(url) {
