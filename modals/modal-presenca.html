@@ -1,28 +1,52 @@
-<div class="modal-header"><span class="modal-title">✅ Lançar Presença</span><button class="modal-close" onclick="closeModal('modal-presenca')">×</button></div>
+<div class="modal-header"><span class="modal-title">✅ Lançar Presença</span><button class="modal-close"
+    onclick="closeModal('modal-presenca')">×</button></div>
 <div class="form-grid">
-  <div class="form-group"><label class="form-label">Data *</label><input type="date" class="form-control" id="pr-data"></div>
-  <div class="form-group"><label class="form-label">Obra *</label><select class="form-control" id="pr-obra"></select></div>
-  <div class="form-group"><label class="form-label">Trabalhador *</label><select class="form-control" id="pr-trab" onchange="fillTrabInfo()"></select></div>
-  <div class="form-group"><label class="form-label">Função</label><input class="form-control" id="pr-funcao" readonly></div>
-  <div class="form-group"><label class="form-label">Frente Serviço</label><input class="form-control" id="pr-frente" placeholder="Alvenaria"></div>
+  <div class="form-group"><label class="form-label">Data *</label><input type="date" class="form-control" id="pr-data">
+  </div>
+  <div class="form-group"><label class="form-label">Obra *</label><select class="form-control" id="pr-obra"></select>
+  </div>
+  <div class="form-group"><label class="form-label">Trabalhador *</label><select class="form-control" id="pr-trab"
+      onchange="fillTrabInfo()"></select></div>
+  <div class="form-group"><label class="form-label">Função</label><input class="form-control" id="pr-funcao" readonly>
+  </div>
+  <div class="form-group"><label class="form-label">Frente Serviço</label><input class="form-control" id="pr-frente"
+      placeholder="Alvenaria"></div>
   <div class="form-group"><label class="form-label">Presença</label>
     <select class="form-control" id="pr-presenca" onchange="togglePresenca()">
-      <option>Presente</option><option>Falta</option><option>Meio período</option></select></div>
-  <div class="form-group" id="pr-entrada-grp"><label class="form-label">Entrada</label><input type="time" class="form-control" id="pr-entrada" value="07:00"></div>
-  <div class="form-group" id="pr-saida-grp"><label class="form-label">Saída</label><input type="time" class="form-control" id="pr-saida" value="17:00" onchange="calcPresenca()"></div>
-  <div class="form-group"><label class="form-label">H. Normais</label><input type="number" step="0.5" class="form-control" id="pr-hnorm" onchange="calcTotalManual()"></div>
-  <div class="form-group"><label class="form-label">H. Extra</label><input type="number" step="0.5" class="form-control" id="pr-hextra" onchange="calcTotalManual()"></div>
-  <div class="form-group"><label class="form-label">Diária (R$)</label><input type="number" class="form-control" id="pr-diaria" readonly></div>
-  <div class="form-group"><label class="form-label">Total Dia (R$)</label><input type="number" step="0.01" class="form-control" id="pr-total"></div>
-  <div class="form-group"><label class="form-label">Almoçou na Obra?</label>
-    <select class="form-control" id="pr-almoco">
-      <option value="Não">Não</option><option value="Sim">Sim</option>
+      <option>Presente</option>
+      <option>Falta</option>
+      <option>Meio período</option>
     </select>
   </div>
-  <div class="form-group form-full"><label class="form-label">Justif. Falta / Obs.</label><input class="form-control" id="pr-obs"></div>
+  <div class="form-group" id="pr-entrada-grp"><label class="form-label">Entrada</label><input type="time"
+      class="form-control" id="pr-entrada" value="07:00"></div>
+  <div class="form-group" id="pr-saida-grp"><label class="form-label">Saída</label><input type="time"
+      class="form-control" id="pr-saida" value="17:00" onchange="calcPresenca()"></div>
+  <div class="form-group"><label class="form-label">H. Normais</label><input type="number" step="0.5"
+      class="form-control" id="pr-hnorm" onchange="calcTotalManual()"></div>
+  <div class="form-group"><label class="form-label">H. Extra</label><input type="number" step="0.5" class="form-control"
+      id="pr-hextra" onchange="calcTotalManual()"></div>
+  <div class="form-group"><label class="form-label">Diária (R$)</label><input type="number" class="form-control"
+      id="pr-diaria" readonly></div>
+  <div class="form-group"><label class="form-label">Total Dia (R$)</label><input type="number" step="0.01"
+      class="form-control" id="pr-total"></div>
+  <div class="form-group"><label class="form-label">Almoçou na Obra?</label>
+    <select class="form-control" id="pr-almoco">
+      <option value="Não">Não</option>
+      <option value="Sim">Sim</option>
+    </select>
+  </div>
+  <div class="form-group form-full"><label class="form-label">Justif. Falta / Obs.</label><input class="form-control"
+      id="pr-obs"></div>
   <div class="form-group"><label class="form-label">Status Pgto</label>
-    <select class="form-control" id="pr-pgto-status"><option>Pendente</option><option>Pago</option><option>Atrasado</option></select></div>
-  <div class="form-group"><label class="form-label">Lançado por</label><input class="form-control" id="pr-lancador" placeholder="Mestre João"></div>
+    <select class="form-control" id="pr-pgto-status">
+      <option>Pendente</option>
+      <option>Pago</option>
+      <option>Atrasado</option>
+    </select>
+  </div>
+  <div class="form-group"><label class="form-label">Lançado por</label><input class="form-control" id="pr-lancador"
+      placeholder="Mestre João"></div>
 </div>
 <div class="modal-footer">
   <button class="btn btn-secondary" onclick="closeModal('modal-presenca')">Cancelar</button>
