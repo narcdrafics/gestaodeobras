@@ -327,6 +327,7 @@ function renderPresenca() {
         <td>${p.nome}</td><td>${p.funcao}</td><td>${p.frente}</td>
         <td>${p.entrada || '—'}</td><td>${p.saida || '—'}</td>
         <td>${p.hnorm || 0}h</td><td>${p.hextra || 0}h</td>
+        <td><span class="badge ${p.almoco === 'Sim' ? 'bg-success' : 'bg-secondary'}">${p.almoco || 'Não'}</span></td>
         <td>${statusBadge(p.presenca)}</td>
         <td>${fmt(p.diaria)}</td><td><b>${fmt(p.total)}</b></td>
         <td>${p.lancador}</td>
@@ -335,7 +336,30 @@ function renderPresenca() {
           <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${i})">🗑</button>
         </td>
       </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="14">Nenhum registro de presença</td></tr>');
+    : '<tr class="empty-row"><td colspan="15">Nenhum registro de presença</td></tr>');
+
+  // Consolidação de Almoços por Obra
+  const almocosHtml = DB.obras.map(o => {
+    const hojeAlmoco = DB.presenca.filter(p => p.obra === o.cod && p.data === today && p.almoco === 'Sim').length;
+    
+    // Almoços na semana atual
+    const todayObj = new Date();
+    const startOfWeek = new Date(todayObj);
+    startOfWeek.setDate(todayObj.getDate() - todayObj.getDay());
+    const strWeek = startOfWeek.toISOString().split('T')[0];
+    
+    const semanaAlmoco = DB.presenca.filter(p => p.obra === o.cod && p.data >= strWeek && p.data <= today && p.almoco === 'Sim').length;
+    
+    if (hojeAlmoco === 0 && semanaAlmoco === 0) return '';
+    
+    return `<div class="kpi-card">
+      <div class="kpi-label">${o.nome}</div>
+      <div style="font-size:20px; font-weight:bold; color:var(--accent); margin: 8px 0;">${hojeAlmoco} <small style="font-size:12px; font-weight:normal; color:var(--text3)">almoços hoje</small></div>
+      <div style="font-size:13px; color:var(--text2)">Total na semana: <b>${semanaAlmoco}</b></div>
+    </div>`;
+  }).join('');
+  
+  safeSetInner('pres-almocos', almocosHtml || '<p style="color:var(--text3); padding: 8px;">Nenhum almoço registrado hoje ou nesta semana.</p>');
 
   const totalsHtml = dates.map(d => {
     const rows = DB.presenca.filter(p => p.data === d);
@@ -1207,6 +1231,7 @@ async function savePresenca() {
     diaria: parseFloat(document.getElementById('pr-diaria').value) || 0,
     total: parseFloat(document.getElementById('pr-total').value) || 0,
     pgtoStatus: document.getElementById('pr-pgto-status').value,
+    almoco: document.getElementById('pr-almoco').value,
     lancador: document.getElementById('pr-lancador').value,
     hrLanc: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     obs: document.getElementById('pr-obs').value
@@ -1252,13 +1277,15 @@ async function editPresenca(idx) {
   document.getElementById('pr-hnorm').value = p.hnorm;
   document.getElementById('pr-hextra').value = p.hextra;
   document.getElementById('pr-presenca').value = p.presenca;
-  document.getElementById('pr-obs').value = p.justif || p.obs;
+  document.getElementById('pr-almoco').value = p.almoco || 'Não';
+  document.getElementById('pr-obs').value = p.justif || p.obs || '';
   document.getElementById('pr-diaria').value = p.diaria;
   document.getElementById('pr-total').value = p.total;
   document.getElementById('pr-pgto-status').value = p.pgtoStatus || 'Pendente';
   document.getElementById('pr-lancador').value = p.lancador;
   togglePresenca();
 }
+
 
 async function saveTarefa() {
 
