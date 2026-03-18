@@ -81,19 +81,23 @@ async function loadTenantBySlug(slug) {
       return { id: tenantId, data: { config: pub } };
     }
 
-    // Fallback: Busca diretamente no nó tenants (requer autenticação)
-    const snapshot = await firebase.database().ref('tenants')
-      .orderByChild('config/slug')
-      .equalTo(slug)
-      .once('value');
-    
-    const tenants = snapshot.val();
-    if (tenants) {
-      const tenantId = Object.keys(tenants)[0];
-      return { id: tenantId, data: tenants[tenantId] };
+    // Fallback: Busca diretamente no nó tenants (apenas se estiver autenticado para evitar Permission Denied)
+    if (firebase.auth().currentUser) {
+      const snapshot = await firebase.database().ref('tenants')
+        .orderByChild('config/slug')
+        .equalTo(slug)
+        .once('value');
+      
+      const tenants = snapshot.val();
+      if (tenants) {
+        const tenantId = Object.keys(tenants)[0];
+        return { id: tenantId, data: tenants[tenantId] };
+      }
     }
   } catch (e) {
-    console.warn('Aviso ao buscar tenant por slug (pode ser normal antes do login):', e.code || e.message);
+    if (e.code !== 'PERMISSION_DENIED') {
+        console.warn('Aviso ao buscar tenant por slug:', e.code || e.message);
+    }
   }
   return null;
 }
