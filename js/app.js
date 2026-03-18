@@ -240,6 +240,11 @@ function renderDashboard() {
     const cSemanal = tabObj.filter(f => f.data >= strSemana && f.data <= today).reduce((a, f) => a + f.v, 0);
     const cMensal = tabObj.filter(f => f.data >= strMes && f.data <= today).reduce((a, f) => a + f.v, 0);
     
+    // Diárias por Obra (específico)
+    const dSemanal = DB.presenca
+      .filter(p => p.obra === o.cod && p.data >= strSemana && p.data <= today)
+      .reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
+    
     const pct = o.orc > 0 ? (realizado / o.orc * 100).toFixed(1) : 0;
     
     return `<tr>
@@ -247,12 +252,14 @@ function renderDashboard() {
       <td>${statusBadge(o.status)}</td>
       <td>${o.mestre}</td>
       <td>${fmt(o.orc)}</td>
+      <td><b style="color:var(--blue)">${fmt(dSemanal)}</b></td>
       <td><b style="color:var(--accent)">${fmt(cSemanal)}</b></td>
       <td><b style="color:var(--orange)">${fmt(cMensal)}</b></td>
       <td>${fmt(realizado)}</td>
       <td>${pct}%</td>
       <td>${tarefas.filter(t => t.status === 'Concluída').length}/${tarefas.length} concluídas</td>
     </tr>`;
+
   }).join('');
   const updEl = document.getElementById('dash-updated');
   if (updEl) updEl.textContent = 'Atualizado: ' + new Date().toLocaleString('pt-BR');
