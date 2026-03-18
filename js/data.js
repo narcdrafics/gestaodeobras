@@ -21,7 +21,7 @@ const firebaseConfig = {
   authDomain: "controle-obras-c889d.firebaseapp.com",
   databaseURL: "https://controle-obras-c889d-default-rtdb.firebaseio.com",
   projectId: "controle-obras-c889d",
-  storageBucket: "controle-obras-c889d.appspot.com",
+  storageBucket: "controle-obras-c889d.firebasestorage.app",
   messagingSenderId: "570296468947",
   appId: "1:570296468947:web:fff3403f8fbb72225d1b26",
   measurementId: "G-KVPEMVBXTY"
@@ -31,9 +31,10 @@ if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 
-const dbRef = firebase.database().ref('gestaoObrasDBv2');
+let dbRef = null;
 let DB = JSON.parse(JSON.stringify(staticDB));
 let isFirstLoad = true;
+let CURRENT_TENANT_ID = null; // SaaS: Armazena o ID do tenant detectado por subdomínio
 
 function ensureSchema(db) {
   const safe = db && typeof db === 'object' ? db : {};
@@ -52,6 +53,51 @@ function ensureSchema(db) {
   return safe;
 }
 
+// ==================== SUBDOMAIN & SAAS CONTEXT ====================
+function detectSubdomain() {
+  const host = window.location.hostname;
+  const parts = host.split('.');
+  
+  // Evita detectar 'www' ou 'localhost' como subdomínio de cliente
+  if (parts.length > 2 && parts[0] !== 'www') {
+    return parts[0];
+  }
+  return null;
+}
+
+async function loadTenantBySlug(slug) {
+  if (!slug) return null;
+  try {
+    // Tenta primeiro leitura pública (nó tenants_public)
+    const pubSnap = await firebase.database().ref('tenants_public')
+      .orderByChild('slug')
+      .equalTo(slug)
+      .once('value');
+    
+    const pubTenants = pubSnap.val();
+    if (pubTenants) {
+      const tenantId = Object.keys(pubTenants)[0];
+      const pub = pubTenants[tenantId];
+      return { id: tenantId, data: { config: pub } };
+    }
+
+    // Fallback: Busca diretamente no nó tenants (requer autenticação)
+    const snapshot = await firebase.database().ref('tenants')
+      .orderByChild('config/slug')
+      .equalTo(slug)
+      .once('value');
+    
+    const tenants = snapshot.val();
+    if (tenants) {
+      const tenantId = Object.keys(tenants)[0];
+      return { id: tenantId, data: tenants[tenantId] };
+    }
+  } catch (e) {
+    console.warn('Aviso ao buscar tenant por slug (pode ser normal antes do login):', e.code || e.message);
+  }
+  return null;
+}
+
 function loadLegacyLocalIfAny() {
   try {
     const oldLocal = localStorage.getItem('gestaoObraDB');
@@ -62,8 +108,31 @@ function loadLegacyLocalIfAny() {
   }
 }
 
-function initDB() {
+let _currentTenantId = null;
+let _isPersisting = false;
+// Super Admin: tenant ativo selecionado para operações de escrita
+let superAdminActiveTenant = null; // { id, nome, dbRef }
+
+function initDB(tenantId) {
+  if (!tenantId) {
+    console.error('initDB chamado sem tenantId');
+    return;
+  }
+  // Evita registrar multiplos listeners para o mesmo tenant
+  if (_currentTenantId === tenantId && dbRef) {
+    console.log('initDB ignorado: tenant ja inicializado:', tenantId);
+    return;
+  }
+  // Remove listener anterior se existir
+  if (dbRef) {
+    dbRef.off('value');
+  }
+  _currentTenantId = tenantId;
+  dbRef = firebase.database().ref('tenants/' + tenantId);
+  
   dbRef.on('value', (snapshot) => {
+    // Ignora updates do Firebase enquanto uma persistencia local esta em andamento
+    if (_isPersisting) return;
     const data = snapshot.val();
 
     if (data) {
@@ -120,22 +189,105 @@ function processCloudUpdate() {
   }
 }
 
-function loadTheme() {
-  if (DB && DB.config) {
-    document.documentElement.style.setProperty('--accent', DB.config.corPrimaria || '#f59e0b');
+function loadTheme(externalCfg) {
+  const cfg = externalCfg || (DB && DB.config);
+  if (cfg) {
+    const root = document.documentElement;
+    
+    // 1. Aplica cores principais
+    root.style.setProperty('--accent', cfg.corPrimaria || '#f59e0b');
+    if (cfg.corSidebar) root.style.setProperty('--sb-bg', cfg.corSidebar);
+    if (cfg.corMenu) root.style.setProperty('--sb-text', cfg.corMenu);
+    if (cfg.corSidebar) root.style.setProperty('--sb-active-bg', 'rgba(255,255,255,0.05)');
+
+    // 2. Aplica Tema (Light/Dark)
+    if (cfg.tema === 'light') {
+        document.body.classList.add('light-mode');
+    } else {
+        document.body.classList.remove('light-mode');
+    }
+
+    // 3. Aplica Nome da Empresa
     document.querySelectorAll('.app-brand-name').forEach(el => {
-      el.textContent = DB.config.nomeEmpresa || 'GestãoObra';
+      el.textContent = cfg.nomeEmpresa || 'GestãoObra';
     });
+
+    // 4. Aplica Logo ou Fallback
+    const container = document.getElementById('brand-container');
+    if (container) {
+        if (cfg.logoUrl) {
+            container.innerHTML = `
+                <img src="${cfg.logoUrl}" class="header-logo" alt="${cfg.nomeEmpresa}" style="max-height: 40px; width: auto; object-fit: contain;">
+                <span class="app-brand-name" style="margin-left: 8px;">${cfg.nomeEmpresa || 'GestãoObra'}</span>
+            `;
+        } else {
+            container.innerHTML = `<span id="brand-icon">🏗️</span> <span class="app-brand-name">${cfg.nomeEmpresa || 'GestãoObra'}</span>`;
+        }
+    }
   }
 }
 
+// SaaS: Inicialização de contexto por subdomínio (antes do login)
+const subdomainContextPromise = (async function initSubdomainContext() {
+  const slug = detectSubdomain();
+  if (slug) {
+    const tenant = await loadTenantBySlug(slug);
+    if (tenant && tenant.data && tenant.data.config) {
+      console.log('Contexto de subdomínio detectado:', slug);
+      CURRENT_TENANT_ID = tenant.id; // Vincula o ID do tenant detectado
+      loadTheme(tenant.data.config);
+      return tenant;
+    }
+  }
+  return null;
+})();
+
 function persistDB() {
+  const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+
+  // Super Admin com tenant ativo selecionado: salva no tenant escolhido
+  if (sessionUser.role === 'super_admin') {
+    if (!superAdminActiveTenant) {
+      console.warn('Super Admin sem tenant ativo selecionado. Use selectSuperAdminTenant() primeiro.');
+      return Promise.resolve();
+    }
+    const ref = firebase.database().ref('tenants/' + superAdminActiveTenant.id);
+    return ref.set(DB).catch(err => {
+      console.error('Falha ao salvar (Super Admin):', err);
+      if (typeof toast === 'function') toast('Erro ao sincronizar nuvem!', 'error');
+      throw err;
+    });
+  }
+
+  if (!dbRef) {
+    console.warn('Persistencia ignorada: dbRef nao inicializado.');
+    return Promise.resolve();
+  }
   DB = ensureSchema(DB);
-  return dbRef.set(DB).catch(err => {
-    console.error('Falha ao salvar na nuvem:', err);
-    if (typeof toast === 'function') toast('Erro ao sincronizar nuvem!', 'error');
-    throw err;
-  });
+  _isPersisting = true;
+  return dbRef.set(DB)
+    .then(() => {
+      setTimeout(() => { _isPersisting = false; }, 800);
+    })
+    .catch(err => {
+      _isPersisting = false;
+      console.error('Falha ao salvar na nuvem:', err);
+      if (typeof toast === 'function') toast('Erro ao sincronizar nuvem!', 'error');
+      throw err;
+    });
+}
+
+// Carrega o DB de um tenant específico no contexto do Super Admin
+async function loadTenantAsSuperAdmin(tenantId, tenantNome) {
+  const snap = await firebase.database().ref('tenants/' + tenantId).once('value');
+  const data = snap.val();
+  DB = ensureSchema(data || {});
+  superAdminActiveTenant = { id: tenantId, nome: tenantNome };
+  window.dispatchEvent(new CustomEvent('firebaseSync', { detail: DB }));
+  if (typeof renderPage === 'function') {
+    const activePage = document.querySelector('.page.active');
+    if (activePage) renderPage(activePage.id.replace('page-', ''));
+  }
 }
 
 function exportarBackup() {
@@ -177,4 +329,5 @@ function toggleMenu() {
   if (sidebar) sidebar.classList.toggle('open');
 }
 
-initDB();
+// Retirado initDB() automático para SaaS. Será chamado em auth.js após login.
+// initDB();

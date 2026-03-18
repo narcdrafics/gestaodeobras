@@ -14,82 +14,203 @@ function hideLoginError() {
 
 function normalizeUserRecord(user) {
   return {
+    uid: user.uid,
+    tenantId: user.tenantId,
     email: user.email,
     name: user.name || user.email,
     role: user.role || 'admin'
   };
 }
 
+// ================== GOOGLE LOGIN ==================
 function doGoogleLogin() {
   hideLoginError();
-
   const provider = new firebase.auth.GoogleAuthProvider();
   firebase.auth().languageCode = 'pt';
 
   firebase.auth().signInWithPopup(provider).then((result) => {
-    const googleUser = result.user;
-    const email = (googleUser.email || '').trim().toLowerCase();
+    handleAuthSuccess(result.user);
+  }).catch(handleAuthError);
+}
 
-    if (!email) {
-      throw new Error('Conta Google sem e-mail retornado.');
-    }
+// ================== EMAIL LOGIN ==================
+function doEmailLogin() {
+  hideLoginError();
+  const email = document.getElementById('auth-email').value.trim();
+  const pass = document.getElementById('auth-pass').value;
+  if (!email || !pass) { showLoginError('Preencha E-mail e Senha.'); return; }
 
-    let dbUsuarios = Array.isArray(DB?.usuarios) ? DB.usuarios : [];
+  firebase.auth().signInWithEmailAndPassword(email, pass).then((userCredential) => {
+    handleAuthSuccess(userCredential.user);
+  }).catch(handleAuthError);
+}
 
-    const loginRedirect = (userObj) => {
-      const safeUser = normalizeUserRecord(userObj);
-      sessionStorage.setItem('gestaoUser', JSON.stringify(safeUser));
-      window.location.href = 'index.html';
-    };
+// ================== EMAIL SIGNUP ==================
+function doEmailSignup() {
+  hideLoginError();
+  const name = document.getElementById('auth-name').value.trim();
+  const email = document.getElementById('auth-email').value.trim();
+  const pass = document.getElementById('auth-pass').value;
+  if (!name || !email || !pass) { showLoginError('Preencha Nome, E-mail e Senha.'); return; }
+  if (pass.length < 6) { showLoginError('A senha deve ter pelo menos 6 caracteres.'); return; }
 
-    const hasGoogleUsers = dbUsuarios.some(u => u && u.email);
-
-    if (!hasGoogleUsers) {
-      DB.usuarios = [{
-        email,
-        name: googleUser.displayName || 'Administrador',
-        role: 'admin'
-      }];
-
-      Promise.resolve(typeof persistDB === 'function' ? persistDB() : null)
-        .then(() => loginRedirect(DB.usuarios[0]))
-        .catch(() => showLoginError('Falha ao salvar o primeiro usuário administrador.'));
-      return;
-    }
-
-    const user = dbUsuarios.find(x => (x.email || '').trim().toLowerCase() === email);
-    if (user) {
-      loginRedirect(user);
-      return;
-    }
-
-    firebase.auth().signOut().finally(() => {
-      showLoginError(`E-mail não autorizado (${email}). Contate a administração do painel.`);
+  firebase.auth().createUserWithEmailAndPassword(email, pass).then((userCredential) => {
+    // Optionally set display name if needed using Profile Update
+    userCredential.user.updateProfile({ displayName: name }).finally(() => {
+      handleAuthSuccess(userCredential.user, name);
     });
-  }).catch((error) => {
-    console.error(error);
-    if (error.code !== 'auth/popup-closed-by-user') {
-      showLoginError('Falha de comunicação com o Google. Verifique domínio autorizado e configuração do Firebase.');
+  }).catch(handleAuthError);
+}
+
+// ================== CENTRAL AUTH HANDLER ==================
+function handleAuthError(error) {
+  console.error(error);
+  if (error.code === 'auth/popup-closed-by-user') return;
+  if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' ||
+    error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
+    showLoginError('Credenciais inválidas. Tente novamente.');
+  } else if (error.code === 'auth/email-already-in-use') {
+    showLoginError('Este e-mail já está cadastrado. Alterne para a aba "Entrar" e faça login.');
+  } else {
+    showLoginError(error.message || 'Falha de comunicação com o servidor de autenticação.');
+  }
+}
+
+// CONFIGURAÇÃO SAAS MASTER
+const MASTER_EMAIL = 'casaint65@gmail.com'; // Altere para seu e-mail de administrador mestre
+
+async function handleAuthSuccess(firebaseUser, fallbackName) {
+  const email = (firebaseUser.email || '').trim().toLowerCase();
+  const uid = firebaseUser.uid;
+  if (!email) { showLoginError('Conta sem e-mail retornado.'); return; }
+
+  try {
+    // 1. Busca o Perfil Global do Usuário
+    const profileRef = firebase.database().ref(`profiles/${uid}`);
+    const snapshot = await profileRef.once('value');
+    let userProfile = snapshot.val();
+
+    // 1.5 - DETECÇÃO DE SUPER ADMIN (PLATAFORMA)
+    if (email === MASTER_EMAIL) {
+      userProfile = {
+        uid,
+        email,
+        name: firebaseUser.displayName || 'Super Admin',
+        role: 'super_admin',
+        tenantId: 'MASTER_SYSTEM' // ID especial para o sistema
+      };
+      await profileRef.set(userProfile);
     }
-  });
+
+    // 2. Se o perfil não existe, é um novo Cadastro SaaS
+    if (!userProfile) {
+      const Name = firebaseUser.displayName || fallbackName || 'Sem Nome';
+      const sanitizedEmail = email.replace(/\./g, ',');
+
+      // BUSCA CONVITE PENDENTE (SaaS)
+      const inviteSnap = await firebase.database().ref(`invites/${sanitizedEmail}`).once('value');
+      const inviteData = inviteSnap.val();
+
+      if (inviteData) {
+        // Aceita Convite: Vincula à empresa que o convidou
+        userProfile = {
+          uid,
+          email,
+          name: Name,
+          role: inviteData.role || 'engenheiro',
+          tenantId: inviteData.tenantId
+        };
+        // Remove convite após uso
+        await firebase.database().ref(`invites/${sanitizedEmail}`).remove();
+      } else {
+        // SaaS: Auto-onboarding desativado para evitar recriação de empresas deletadas
+        await firebase.auth().signOut();
+        sessionStorage.removeItem('gestaoUser');
+        showLoginError('Esta conta não possui uma empresa vinculada. Entre em contato com o suporte.');
+        return;
+      }
+      // Salva o perfil global vinculado ao tenantId
+      await profileRef.set(userProfile);
+    }
+
+    // 3. Validação Cross-Tenant (Segurança SaaS)
+    if (CURRENT_TENANT_ID && userProfile.tenantId !== CURRENT_TENANT_ID && userProfile.role !== 'super_admin') {
+      await firebase.auth().signOut();
+      sessionStorage.removeItem('gestaoUser');
+      showLoginError('Esta conta não tem acesso a esta empresa/subdomínio.');
+      return;
+    }
+
+    // 4. Login com Sucesso
+    if (userProfile.role === 'pendente') {
+      await firebase.auth().signOut();
+      showLoginError(`Sua conta (${email}) aguarda aprovação do administrador.`);
+      return;
+    }
+
+    // 5. Inicializa o Banco de Dados do Tenant Específico
+    sessionStorage.setItem('gestaoUser', JSON.stringify(userProfile));
+    if (typeof initDB === 'function') initDB(userProfile.tenantId);
+
+    window.location.href = 'index.html';
+
+  } catch (error) {
+    console.error('Erro SaaS Auth:', error);
+    showLoginError('Erro ao processar perfil multi-empresa.');
+  }
 }
 
 function doLogout() {
+  const userStr = sessionStorage.getItem('gestaoUser');
+  let redirectUrl = 'login.html';
+
+  if (userStr) {
+    const user = JSON.parse(userStr);
+    if (user.role === 'super_admin') {
+      redirectUrl = 'admin-login.html';
+    }
+  }
+
   firebase.auth().signOut().finally(() => {
     sessionStorage.removeItem('gestaoUser');
-    window.location.href = 'login.html';
+    window.location.href = redirectUrl;
   });
 }
 
 function checkAuth() {
   const isLoginPage = window.location.pathname.endsWith('login.html') || /\/login(?:\.html)?$/i.test(window.location.pathname);
+  const isAdminLoginPage = window.location.pathname.endsWith('admin-login.html') || /\/admin-login(?:\.html)?$/i.test(window.location.pathname);
 
-  firebase.auth().onAuthStateChanged((user) => {
+  firebase.auth().onAuthStateChanged(async (user) => {
+    // SaaS: Aguarda o contexto de subdomínio ser carregado (se houver) para evitar race conditions
+    if (typeof subdomainContextPromise !== 'undefined') {
+      await subdomainContextPromise;
+    }
+
     if (user) {
       const userStr = sessionStorage.getItem('gestaoUser');
       if (userStr) {
-        const sessionUser = JSON.parse(userStr);
-        if (isLoginPage) {
+        let sessionUser = JSON.parse(userStr);
+
+        // REFORÇO SAAS MASTER: Garante papel mestre mesmo em sessões antigas
+        if (sessionUser.email?.toLowerCase() === MASTER_EMAIL.toLowerCase() && sessionUser.role !== 'super_admin') {
+          sessionUser.role = 'super_admin';
+          sessionUser.tenantId = 'MASTER_SYSTEM';
+          sessionStorage.setItem('gestaoUser', JSON.stringify(sessionUser));
+        }
+
+        // Validação de Tenant por Subdomínio (Segurança SaaS Persistente)
+        if (CURRENT_TENANT_ID && sessionUser.tenantId !== CURRENT_TENANT_ID && sessionUser.role !== 'super_admin') {
+          console.warn('Sessão inválida para este subdomínio. Deslogando...');
+          doLogout();
+          return;
+        }
+
+        // Garante que o DB seja inicializado após refresh
+        if (typeof initDB === 'function' && sessionUser.tenantId) {
+          initDB(sessionUser.tenantId);
+        }
+        if (isLoginPage || isAdminLoginPage) {
           window.location.href = 'index.html';
         } else {
           applyAccessControl(sessionUser);
@@ -97,17 +218,47 @@ function checkAuth() {
         return;
       }
 
-      if (!isLoginPage) {
+      if (!isLoginPage && !isAdminLoginPage) {
         window.location.href = 'login.html';
       }
       return;
     }
 
+    const prevUser = sessionStorage.getItem('gestaoUser');
     sessionStorage.removeItem('gestaoUser');
-    if (!isLoginPage) {
-      window.location.href = 'login.html';
+
+    if (!isLoginPage && !isAdminLoginPage) {
+      let redirectUrl = 'login.html';
+      if (prevUser) {
+        try {
+          const u = JSON.parse(prevUser);
+          if (u.role === 'super_admin') redirectUrl = 'admin-login.html';
+        } catch (e) { }
+      }
+      window.location.href = redirectUrl;
     }
   });
+}
+
+// SaaS: Variável para impedir múltiplas inicializações
+let checkAuthInitialized = false;
+
+function safeCheckAuth() {
+  if (checkAuthInitialized) return;
+  checkAuthInitialized = true;
+  checkAuth();
+}
+
+// SaaS: Dispara verificação automática caso não esteja na index (onde o app.js assume)
+const currPath = window.location.pathname;
+const isIndex = currPath.endsWith('index.html') || /\/$/i.test(currPath) || currPath.endsWith('gestaodeobras/');
+
+if (!isIndex) {
+  if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+    safeCheckAuth();
+  } else {
+    window.addEventListener('load', () => safeCheckAuth());
+  }
 }
 
 function applyAccessControl(user) {
@@ -145,11 +296,19 @@ function setRestrictions(user) {
     } else {
       document.querySelector('.header')?.appendChild(userNameSpan);
     }
+
+    // SaaS: Adiciona botão de logout no final se não existir
+    if (!document.getElementById('btn-logout')) {
+      // Já existe lógica acima, mas garantindo aqui.
+    }
   }
 
   const role = user.role || 'admin';
-  if (role === 'admin') {
+  if (role === 'admin' || role === 'super_admin') {
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+  }
+  if (role === 'super_admin') {
+    document.querySelectorAll('.super-admin-only').forEach(el => el.style.display = '');
   }
 
   let hidePages = [];
@@ -166,16 +325,27 @@ function setRestrictions(user) {
     if (nav) nav.style.display = 'none';
   });
 
-  const activePageStr = document.querySelector('.page.active')?.id.replace('page-', '') || 'dashboard';
-  if (hidePages.includes(activePageStr)) {
-    if (!hidePages.includes('dashboard') && typeof showPage === 'function') showPage('dashboard');
-    else if (!hidePages.includes('obras') && typeof showPage === 'function') showPage('obras');
+  // SaaS: Carrega página inicial automaticamente após aplicar restrições
+  const mainEl = document.getElementById("conteudo-principal");
+  // Verifica se não há uma página ativa injetada
+  const hasPage = mainEl.querySelector('.page');
+
+  if (mainEl && !hasPage && typeof showPage === 'function') {
+    const userStr = sessionStorage.getItem('gestaoUser');
+    const activeUser = userStr ? JSON.parse(userStr) : {};
+
+    if (activeUser.role === 'super_admin') {
+      showPage('super_admin');
+    } else {
+      showPage('dashboard');
+    }
   }
 }
 
 window.addEventListener('firebaseSync', (e) => {
   const db = e.detail;
-  if (window.location.pathname.endsWith('login.html')) return;
+  const cp = window.location.pathname;
+  if (cp.endsWith('login.html') || cp.endsWith('admin-login.html')) return;
 
   const userStr = sessionStorage.getItem('gestaoUser');
   if (!userStr || !db || !Array.isArray(db.usuarios)) return;
@@ -204,3 +374,7 @@ window.addEventListener('firebaseSync', (e) => {
     sessionStorage.setItem('gestaoUser', JSON.stringify(normalizeUserRecord(stillExists)));
   }
 });
+
+// SaaS: Removido disparo automático daqui. Será chamado no final do app.js
+// para garantir que showPage e renderPage já existam.
+// checkAuth();
