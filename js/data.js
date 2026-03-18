@@ -108,46 +108,53 @@ function loadLegacyLocalIfAny() {
   }
 }
 
+let _currentTenantId = null;
+let _isPersisting = false;
+// Super Admin: tenant ativo selecionado para operações de escrita
+let superAdminActiveTenant = null; // { id, nome, dbRef }
+
 function initDB(tenantId) {
   if (!tenantId) {
     console.error('initDB chamado sem tenantId');
     return;
   }
+  // Evita registrar multiplos listeners para o mesmo tenant
+  if (_currentTenantId === tenantId && dbRef) {
+    console.log('initDB ignorado: tenant ja inicializado:', tenantId);
+    return;
+  }
+  // Remove listener anterior se existir
+  if (dbRef) {
+    dbRef.off('value');
+  }
+  _currentTenantId = tenantId;
   dbRef = firebase.database().ref('tenants/' + tenantId);
-  
-  dbRef.on('value', (snapshot) => {
-    const data = snapshot.val();
-
-    if (data) {
-      DB = ensureSchema(data);
-
-      const hasGoogleUsers = DB.usuarios.some(u => u && u.email);
-      if (!hasGoogleUsers) {
-        const recovered = loadLegacyLocalIfAny();
-        const recoveredHasData =
-          recovered.obras.length ||
-          recovered.trabalhadores.length ||
-          recovered.presenca.length ||
-          recovered.tarefas.length ||
-          recovered.estoque.length ||
-          recovered.compras.length ||
-          (recovered.config && recovered.config.nomeEmpresa !== 'GestãoObra');
-
-        if (recoveredHasData) {
-          DB = ensureSchema(recovered);
-        }
-      }
-
-      processCloudUpdate();
-      return;
-    }
-
-    DB = loadLegacyLocalIfAny();
-    processCloudUpdate();
-  }, (error) => {
+  dbRef.on('value', _onFirebaseValue, (error) => {
     console.error('Firebase Read Error:', error);
     if (typeof toast === 'function') toast('Erro ao ler a nuvem!', 'error');
   });
+}
+
+// Handler centralizado do listener Firebase — usado tanto no initDB quanto no _religarListener
+function _onFirebaseValue(snapshot) {
+  const data = snapshot.val();
+  if (data) {
+    DB = ensureSchema(data);
+    const hasGoogleUsers = DB.usuarios.some(u => u && u.email);
+    if (!hasGoogleUsers) {
+      const recovered = loadLegacyLocalIfAny();
+      const recoveredHasData =
+        recovered.obras.length || recovered.trabalhadores.length ||
+        recovered.presenca.length || recovered.tarefas.length ||
+        recovered.estoque.length || recovered.compras.length ||
+        (recovered.config && recovered.config.nomeEmpresa !== 'GestaoObra');
+      if (recoveredHasData) DB = ensureSchema(recovered);
+    }
+    processCloudUpdate();
+    return;
+  }
+  DB = loadLegacyLocalIfAny();
+  processCloudUpdate();
 }
 
 function processCloudUpdate() {
@@ -227,16 +234,64 @@ const subdomainContextPromise = (async function initSubdomainContext() {
 
 function persistDB() {
   const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
-  if (!dbRef || sessionUser.role === 'super_admin') {
-     console.warn('Persistência ignorada: dbRef não inicializado ou Super Admin.');
-     return Promise.resolve();
+
+  // Super Admin com tenant ativo selecionado: salva no tenant escolhido
+  if (sessionUser.role === 'super_admin') {
+    if (!superAdminActiveTenant) {
+      console.warn('Super Admin sem tenant ativo selecionado. Use selectSuperAdminTenant() primeiro.');
+      return Promise.resolve();
+    }
+    const ref = firebase.database().ref('tenants/' + superAdminActiveTenant.id);
+    return ref.set(DB).catch(err => {
+      console.error('Falha ao salvar (Super Admin):', err);
+      if (typeof toast === 'function') toast('Erro ao sincronizar nuvem!', 'error');
+      throw err;
+    });
+  }
+
+  if (!dbRef) {
+    console.warn('Persistencia ignorada: dbRef nao inicializado.');
+    return Promise.resolve();
   }
   DB = ensureSchema(DB);
-  return dbRef.set(DB).catch(err => {
-    console.error('Falha ao salvar na nuvem:', err);
-    if (typeof toast === 'function') toast('Erro ao sincronizar nuvem!', 'error');
-    throw err;
+
+  // Desliga o listener antes de salvar para evitar que o echo do Firebase
+  // sobrescreva o DB local com a versão antiga antes da confirmação
+  dbRef.off('value');
+
+  return dbRef.set(DB)
+    .then(() => {
+      // Religa o listener após confirmação real da escrita
+      _religarListener(_currentTenantId);
+    })
+    .catch(err => {
+      // Religa mesmo em caso de erro
+      _religarListener(_currentTenantId);
+      console.error('Falha ao salvar na nuvem:', err);
+      if (typeof toast === 'function') toast('Erro ao sincronizar nuvem!', 'error');
+      throw err;
+    });
+}
+
+function _religarListener(tenantId) {
+  if (!tenantId || !dbRef) return;
+  dbRef.on('value', _onFirebaseValue, (error) => {
+    console.error('Firebase Read Error (religar):', error);
+    if (typeof toast === 'function') toast('Erro ao ler a nuvem!', 'error');
   });
+}
+
+// Carrega o DB de um tenant específico no contexto do Super Admin
+async function loadTenantAsSuperAdmin(tenantId, tenantNome) {
+  const snap = await firebase.database().ref('tenants/' + tenantId).once('value');
+  const data = snap.val();
+  DB = ensureSchema(data || {});
+  superAdminActiveTenant = { id: tenantId, nome: tenantNome };
+  window.dispatchEvent(new CustomEvent('firebaseSync', { detail: DB }));
+  if (typeof renderPage === 'function') {
+    const activePage = document.querySelector('.page.active');
+    if (activePage) renderPage(activePage.id.replace('page-', ''));
+  }
 }
 
 function exportarBackup() {

@@ -947,6 +947,59 @@ function deleteUsuario(idx) {
 }
 
 // ==================== MODAL UTILS (DYNAMIC FETCH) ====================
+// Super Admin: banner de seleção de empresa dentro do modal
+async function injectSuperAdminTenantBanner(modalContent) {
+  try {
+    const tenantsSnap = await firebase.database().ref('tenants').once('value');
+    const tenants = tenantsSnap.val() || {};
+    const options = Object.entries(tenants)
+      .map(([id, t]) => {
+        const nome = (t.config && t.config.nomeEmpresa) || id;
+        const selected = (superAdminActiveTenant && superAdminActiveTenant.id === id) ? 'selected' : '';
+        return `<option value="${id}" ${selected}>${nome}</option>`;
+      }).join('');
+
+    const banner = document.createElement('div');
+    banner.id = 'sa-tenant-banner';
+    banner.style.cssText = 'background:var(--yellow,#f59e0b22);border:1px solid var(--yellow,#f59e0b);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:13px;';
+    banner.innerHTML = `
+      <span style="font-weight:600;white-space:nowrap">🏢 Empresa:</span>
+      <select id="sa-tenant-select" style="flex:1;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text1);font-size:13px;">
+        <option value="">— Selecione uma empresa —</option>
+        ${options}
+      </select>
+      <button onclick="applySuperAdminTenant()" style="padding:5px 12px;border-radius:6px;background:var(--accent,#f59e0b);color:#fff;border:none;cursor:pointer;font-weight:600;white-space:nowrap">Carregar</button>
+    `;
+    modalContent.insertBefore(banner, modalContent.firstChild);
+
+    // Se já tem tenant ativo, carrega automaticamente sem precisar clicar
+    if (superAdminActiveTenant) {
+      const badge = document.createElement('div');
+      badge.style.cssText = 'font-size:11px;color:var(--green,#22c55e);margin-top:4px;';
+      badge.textContent = `✅ Operando em: ${superAdminActiveTenant.nome}`;
+      banner.appendChild(badge);
+    }
+  } catch(e) {
+    console.error('Erro ao carregar tenants para Super Admin:', e);
+  }
+}
+
+async function applySuperAdminTenant() {
+  const sel = document.getElementById('sa-tenant-select');
+  if (!sel || !sel.value) { toast('Selecione uma empresa!', 'error'); return; }
+  const nome = sel.options[sel.selectedIndex].text;
+  toast('Carregando dados de ' + nome + '...');
+  await loadTenantAsSuperAdmin(sel.value, nome);
+  // Atualiza o badge no banner
+  const banner = document.getElementById('sa-tenant-banner');
+  if (banner) {
+    let badge = banner.querySelector('.sa-badge');
+    if (!badge) { badge = document.createElement('div'); badge.className = 'sa-badge'; badge.style.cssText = 'font-size:11px;color:var(--green,#22c55e);margin-top:4px;'; banner.appendChild(badge); }
+    badge.textContent = '✅ Operando em: ' + nome;
+  }
+  toast('Empresa ' + nome + ' carregada! Agora você pode salvar.', 'success');
+}
+
 async function openModal(id) {
   currentEditIdx = -1; // Reset to "Create New" mode by default. Edit functions will override this after opening.
   
@@ -958,6 +1011,12 @@ async function openModal(id) {
 
   const html = await carregarHTML(`modals/${id}.html`);
   modalContent.innerHTML = html;
+
+  // Super Admin: injeta banner de seleção de empresa no topo do modal
+  const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+  if (sessionUser.role === 'super_admin') {
+    await injectSuperAdminTenantBanner(modalContent);
+  }
 
   // Populate selects
   const m = modalContent;
@@ -1211,12 +1270,20 @@ async function editTrabalhador(idx) {
 }
 
 async function savePresenca() {
+  // Validação dos campos obrigatórios
+  const dataVal = document.getElementById('pr-data').value;
+  const obraVal = document.getElementById('pr-obra').value;
+  const trabVal = document.getElementById('pr-trab').value;
 
-  const tsel = document.getElementById('pr-trab').value;
+  if (!dataVal) { toast('Informe a data!', 'error'); return; }
+  if (!obraVal) { toast('Selecione a obra!', 'error'); return; }
+  if (!trabVal) { toast('Selecione o trabalhador!', 'error'); return; }
+
+  const tsel = trabVal;
   const t = DB.trabalhadores.find(x => x.cod === tsel);
   const data = {
-    data: document.getElementById('pr-data').value,
-    obra: document.getElementById('pr-obra').value,
+    data: dataVal,
+    obra: obraVal,
     trab: tsel,
     nome: t ? t.nome : tsel,
     funcao: document.getElementById('pr-funcao').value,
@@ -1237,14 +1304,27 @@ async function savePresenca() {
     hrLanc: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     obs: document.getElementById('pr-obs').value
   };
+
   if (currentEditIdx >= 0) {
     DB.presenca[currentEditIdx] = data;
-    toast('Presença atualizada!');
   } else {
     DB.presenca.push(data);
-    toast('Presença registrada!');
   }
-  closeModal('modal-presenca'); await persistDB(); renderPresenca(); renderFinanceiro(); renderDashboard(); 
+
+  closeModal('modal-presenca');
+
+  try {
+    await persistDB();
+    toast(currentEditIdx >= 0 ? 'Presença atualizada!' : 'Presença registrada!');
+  } catch (err) {
+    // Mesmo que a nuvem falhe, os dados já estão no DB local em memória
+    console.error('Erro ao persistir presença:', err);
+    toast('Presença salva localmente, mas falhou na nuvem. Tente sincronizar.', 'error');
+  }
+
+  renderPresenca();
+  renderFinanceiro();
+  renderDashboard();
 }
 
 async function editPresenca(idx) {
