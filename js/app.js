@@ -360,7 +360,8 @@ function renderPresenca() {
   }).join('');
   
   safeSetInner('pres-almocos', almocosHtml || '<p style="color:var(--text3); padding: 8px;">Nenhum almoço registrado hoje ou nesta semana.</p>');
-
+  
+  const dates = [...new Set(DB.presenca.map(p => p.data))].sort((a,b) => b.localeCompare(a)).slice(0, 10); // Last 10 days
   const totalsHtml = dates.map(d => {
     const rows = DB.presenca.filter(p => p.data === d);
     return `<div class="kpi-card">
@@ -1285,6 +1286,19 @@ async function editPresenca(idx) {
   document.getElementById('pr-lancador').value = p.lancador;
   togglePresenca();
 }
+
+function togglePresenca() {
+  const v = document.getElementById('pr-presenca').value;
+  const show = v !== 'Falta';
+  safeSetDisplay('pr-entrada-grp', show ? '' : 'none');
+  safeSetDisplay('pr-saida-grp', show ? '' : 'none');
+  safeSetDisplay('pr-almoco-grp', show ? '' : 'none');
+  if (!show) {
+      document.getElementById('pr-total').value = 0;
+      document.getElementById('pr-almoco').value = 'Não';
+  }
+}
+
 
 
 async function saveTarefa() {
