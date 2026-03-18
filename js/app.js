@@ -311,18 +311,25 @@ function renderTrabalhadores() {
 
 // ==================== PRESENÇA ====================
 function renderPresenca() {
-  const hoje = DB.presenca.filter(p => p.data === today);
+  console.log('Iniciando renderPresenca...');
+  const allPres = DB.presenca || [];
+  const validPres = allPres.filter(p => p && p.data);
+  
+  // KPIs de Hoje
+  const hoje = validPres.filter(p => p.data === today);
   const presentes = hoje.filter(p => p.presenca === 'Presente').length;
   const faltas = hoje.filter(p => p.presenca === 'Falta').length;
-  const totalPagar = hoje.reduce((a, p) => a + (p.total || 0), 0);
+  const totalPagar = hoje.reduce((a, p) => a + (Number(p.total) || 0), 0);
   
   safeSetInner('pres-kpi', `
     <div class="kpi-card"><div class="kpi-label">Presentes Hoje</div><div class="kpi-val green">${presentes}</div></div>
     <div class="kpi-card"><div class="kpi-label">Faltas Hoje</div><div class="kpi-val ${faltas > 0 ? 'red' : 'green'}">${faltas}</div></div>
     <div class="kpi-card"><div class="kpi-label">Total a Pagar Hoje</div><div class="kpi-val yellow" style="font-size:20px">${fmt(totalPagar)}</div></div>
   `);
-  safeSetInner('pres-tbody', DB.presenca.length
-    ? DB.presenca.map((p, i) => `<tr>
+
+  // Tabela Principal
+  safeSetInner('pres-tbody', allPres.length
+    ? allPres.map((p, i) => `<tr>
         <td>${fmtDate(p.data)}</td><td><span class="cod">${p.obra}</span></td>
         <td>${p.nome}</td><td>${p.funcao}</td><td>${p.frente}</td>
         <td>${p.entrada || '—'}</td><td>${p.saida || '—'}</td>
@@ -330,7 +337,7 @@ function renderPresenca() {
         <td><span class="badge ${p.almoco === 'Sim' ? 'bg-success' : 'bg-secondary'}">${p.almoco || 'Não'}</span></td>
         <td>${statusBadge(p.presenca)}</td>
         <td>${fmt(p.diaria)}</td><td><b>${fmt(p.total)}</b></td>
-        <td>${p.lancador}</td>
+        <td>${p.lancador || '—'}</td>
         <td>
           <button class="btn btn-secondary btn-sm" onclick="editPresenca(${i})" style="margin-right:8px">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${i})">🗑</button>
@@ -339,8 +346,8 @@ function renderPresenca() {
     : '<tr class="empty-row"><td colspan="15">Nenhum registro de presença</td></tr>');
 
   // Consolidação de Almoços por Obra
-  const almocosHtml = DB.obras.map(o => {
-    const hojeAlmoco = DB.presenca.filter(p => p.obra === o.cod && p.data === today && p.almoco === 'Sim').length;
+  const almocosHtml = (DB.obras || []).map(o => {
+    const hojeAlmoco = validPres.filter(p => p.obra === o.cod && p.data === today && p.almoco === 'Sim').length;
     
     // Almoços na semana atual
     const todayObj = new Date();
@@ -348,7 +355,7 @@ function renderPresenca() {
     startOfWeek.setDate(todayObj.getDate() - todayObj.getDay());
     const strWeek = startOfWeek.toISOString().split('T')[0];
     
-    const semanaAlmoco = DB.presenca.filter(p => p.obra === o.cod && p.data >= strWeek && p.data <= today && p.almoco === 'Sim').length;
+    const semanaAlmoco = validPres.filter(p => p.obra === o.cod && p.data >= strWeek && p.data <= today && p.almoco === 'Sim').length;
     
     if (hojeAlmoco === 0 && semanaAlmoco === 0) return '';
     
@@ -362,10 +369,10 @@ function renderPresenca() {
   safeSetInner('pres-almocos', almocosHtml || '<p style="color:var(--text3); padding: 8px;">Nenhum almoço registrado hoje ou nesta semana.</p>');
   
   // Totalizadores por Data (Últimos 10 registros de datas distintas)
-  const validPres = (DB.presenca || []).filter(p => p && p.data);
-  const dates = [...new Set(validPres.map(p => p.data))].sort((a,b) => b.localeCompare(a)).slice(0, 10);
-  
-  const totalsHtml = dates.map(d => {
+  const uniqueDates = [...new Set(validPres.map(p => p.data))].sort((a,b) => b.localeCompare(a)).slice(0, 10);
+  console.log('Datas para totalizadores:', uniqueDates);
+
+  const totalsHtml = uniqueDates.map(d => {
     const rows = validPres.filter(p => p.data === d);
     const dayTotal = rows.reduce((a, r) => a + (Number(r.total) || 0), 0);
     return `<div class="kpi-card">
@@ -376,6 +383,7 @@ function renderPresenca() {
   }).join('');
   
   safeSetInner('pres-totais', totalsHtml || '<p style="color:var(--text3); padding: 8px;">Nenhum dado para consolidar fechamento.</p>');
+  console.log('renderPresenca concluído.');
 }
 
 // ==================== TAREFAS ====================
