@@ -22,7 +22,10 @@
     },
     "invites": {
       ".read": "auth != null",
-      ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || !newData.exists())"
+      ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/role').val() === 'admin')",
+      "$email": {
+        ".write": "auth != null && !newData.exists()"
+      }
     }
   }
 }
