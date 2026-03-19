@@ -80,9 +80,10 @@ function handleAuthError(error) {
 const MASTER_EMAIL = 'casaint65@gmail.com'; // Altere para seu e-mail de administrador mestre
 
 async function handleAuthSuccess(firebaseUser, fallbackName) {
-  const email = (firebaseUser.email || '').trim().toLowerCase();
+  const extractedEmail = firebaseUser.email || (firebaseUser.providerData && firebaseUser.providerData[0] && firebaseUser.providerData[0].email);
+  const email = (extractedEmail || '').trim().toLowerCase();
   const uid = firebaseUser.uid;
-  if (!email) { showLoginError('Conta sem e-mail retornado.'); return; }
+  if (!email) { showLoginError('Google falhou em fornecer seu E-mail. Tente fazer login usando "E-mail e Senha" normais ou troque de conta Google.'); return; }
 
   try {
     // 1. Busca o Perfil Global do Usuário
