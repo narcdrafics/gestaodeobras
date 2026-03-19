@@ -801,14 +801,17 @@ async function renderSuperAdmin() {
   const totalUsersEl = document.getElementById('master-total-users');
 
   try {
-    // Busca todos os Tenants e Perfis de uma vez (Visão Global)
-    const [tenantsSnap, profilesSnap] = await Promise.all([
+    // Busca todos os Tenants, Perfis e Convites Pendentes de uma vez (Visão Global)
+    const [tenantsSnap, profilesSnap, invitesSnap] = await Promise.all([
       firebase.database().ref('tenants').once('value'),
-      firebase.database().ref('profiles').once('value')
+      firebase.database().ref('profiles').once('value'),
+      firebase.database().ref('invites').once('value')
     ]);
 
     const tenants = tenantsSnap.val() || {};
     const profiles = profilesSnap.val() || {};
+    const invites = invitesSnap.val() || {};
+    window.globalInvitesDataCache = invites;
 
     const tenantIds = Object.keys(tenants);
     const profileList = Object.values(profiles);
@@ -819,15 +822,23 @@ async function renderSuperAdmin() {
     tbody.innerHTML = tenantIds.map(tid => {
         const t = tenants[tid];
         const config = t.config || {};
-        // Busca o admin principal (geralmente quem tem o mesmo ID do tenant ou é o primeiro da lista)
-        const admin = profileList.find(p => p.tenantId === tid && p.role === 'admin') || { email: 'N/A' };
+        // Busca o admin principal no nó Profilies
+        const adminProfile = profileList.find(p => p.tenantId === tid && p.role === 'admin');
+        let displayEmail = adminProfile ? adminProfile.email : 'N/A';
+        
+        // Se o cliente ainda não se cadastrou (Perfil não existe), procura no nó Invites para exibir como "Pendente"
+        const invitesData = window.globalInvitesDataCache || {}; // Necessita do fetch de convites acima
+        if (!adminProfile) {
+            const pendingKey = Object.keys(invitesData).find(k => invitesData[k].tenantId === tid && invitesData[k].role === 'admin');
+            if (pendingKey) displayEmail = pendingKey.replace(/,/g, '.') + ' <span style="font-size:10px; color:var(--orange)">(Convite)</span>';
+        }
         
         return `<tr>
             <td>
                 <div style="font-weight:600">${config.nomeEmpresa || 'Sem Nome'}</div>
                 <div style="font-size:10px; opacity:0.6">${tid}</div>
             </td>
-            <td>${admin.email}</td>
+            <td>${displayEmail}</td>
             <td>${config.limiteObras || 2}</td>
             <td>${config.limiteTrabalhadores || 10}</td>
             <td>
