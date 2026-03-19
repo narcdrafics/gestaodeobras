@@ -86,9 +86,10 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
   if (!email) { showLoginError('Google falhou em fornecer seu E-mail. Tente fazer login usando "E-mail e Senha" normais ou troque de conta Google.'); return; }
 
   try {
-    // 1. Busca o Perfil Global do Usuário
+    console.log('[AuthTrace] 1. Buscando perfil:', uid);
     const profileRef = firebase.database().ref(`profiles/${uid}`);
     const snapshot = await profileRef.once('value');
+    console.log('[AuthTrace] Perfil retornado:', snapshot.val());
     let userProfile = snapshot.val();
 
     // 1.5 - DETECÇÃO DE SUPER ADMIN (PLATAFORMA)
@@ -108,9 +109,11 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       const Name = firebaseUser.displayName || fallbackName || 'Sem Nome';
       const sanitizedEmail = email.replace(/\./g, ',');
 
+      console.log('[AuthTrace] 2. Buscando convite para:', sanitizedEmail);
       // BUSCA CONVITE PENDENTE (SaaS)
       const inviteSnap = await firebase.database().ref(`invites/${sanitizedEmail}`).once('value');
       const inviteData = inviteSnap.val();
+      console.log('[AuthTrace] Convite retornado:', inviteData);
 
       if (inviteData) {
         // Aceita Convite: Vincula à empresa que o convidou
@@ -130,8 +133,10 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
         showLoginError('Esta conta não possui uma empresa vinculada. Entre em contato com o suporte.');
         return;
       }
+      console.log('[AuthTrace] 3. Salvando novo perfil vinculado a:', userProfile.tenantId);
       // Salva o perfil global vinculado ao tenantId
       await profileRef.set(userProfile);
+      console.log('[AuthTrace] Perfil salvo com sucesso.');
     }
 
     // 3. Validação Cross-Tenant (Segurança SaaS)
