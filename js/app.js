@@ -369,20 +369,26 @@ function renderPresenca() {
   safeSetInner('pres-almocos', almocosHtml || '<p style="color:var(--text3); padding: 8px;">Nenhum almoço registrado hoje ou nesta semana.</p>');
   
   // Totalizadores por Data (Últimos 10 registros de datas distintas)
-  const uniqueDates = [...new Set(validPres.map(p => p.data))].sort((a,b) => b.localeCompare(a)).slice(0, 10);
-  console.log('Datas para totalizadores:', uniqueDates);
+  try {
+    const uniqueDates = [...new Set(validPres.map(p => p.data))].sort((a,b) => String(b).localeCompare(String(a))).slice(0, 10);
+    console.log('Datas para totalizadores:', uniqueDates);
 
-  const totalsHtml = uniqueDates.map(d => {
-    const rows = validPres.filter(p => p.data === d);
-    const dayTotal = rows.reduce((a, r) => a + (Number(r.total) || 0), 0);
-    return `<div class="kpi-card">
-      <div class="kpi-label">${fmtDate(d)}</div>
-      <div style="font-size:13px;margin-top:4px">Presentes: <b style="color:var(--green)">${rows.filter(r => r.presenca === 'Presente').length}</b> · Faltas: <b style="color:var(--red)">${rows.filter(r => r.presenca === 'Falta').length}</b></div>
-      <div style="font-size:13px;margin-top:4px">Total: <b style="color:var(--accent)">${fmt(dayTotal)}</b></div>
-    </div>`;
-  }).join('');
+    const totalsHtml = uniqueDates.map(d => {
+      const rows = validPres.filter(p => p.data === d);
+      const dayTotal = rows.reduce((a, r) => a + (Number(r.total) || 0), 0);
+      return `<div class="kpi-card">
+        <div class="kpi-label">${fmtDate(d)}</div>
+        <div style="font-size:13px;margin-top:4px">Presentes: <b style="color:var(--green)">${rows.filter(r => r.presenca === 'Presente').length}</b> · Faltas: <b style="color:var(--red)">${rows.filter(r => r.presenca === 'Falta').length}</b></div>
+        <div style="font-size:13px;margin-top:4px">Total: <b style="color:var(--accent)">${fmt(dayTotal)}</b></div>
+      </div>`;
+    }).join('');
+    
+    safeSetInner('pres-totais', totalsHtml || '<p style="color:var(--text3); padding: 8px;">Nenhum dado para consolidar fechamento.</p>');
+  } catch (err) {
+    console.error('Erro ao renderizar totalizadores de presença:', err);
+    safeSetInner('pres-totais', '<p style="color:var(--red); padding: 8px;">Falha ao processar os dados do fechamento. Erro relatado no console (F12).</p>');
+  }
   
-  safeSetInner('pres-totais', totalsHtml || '<p style="color:var(--text3); padding: 8px;">Nenhum dado para consolidar fechamento.</p>');
   console.log('renderPresenca concluído.');
 }
 
