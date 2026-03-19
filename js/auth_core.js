@@ -156,7 +156,7 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
 
   } catch (error) {
     console.error('Erro SaaS Auth:', error);
-    showLoginError('Erro ao processar perfil multi-empresa.');
+    showLoginError('Erro Crítico: ' + (error.message || error) + ' | Tente novamente.');
   }
 }
 
