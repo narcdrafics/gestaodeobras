@@ -389,6 +389,28 @@ function renderPresenca() {
     safeSetInner('pres-totais', '<p style="color:var(--red); padding: 8px;">Falha ao processar os dados do fechamento. Erro relatado no console (F12).</p>');
   }
   
+  // Pagamentos Pendentes da Semana (Por Obra)
+  const pendentesHtml = (DB.obras || []).map(o => {
+    const todayObj2 = new Date();
+    const startOfWeek2 = new Date(todayObj2);
+    startOfWeek2.setDate(todayObj2.getDate() - todayObj2.getDay());
+    const strWeek2 = startOfWeek2.toISOString().split('T')[0];
+    
+    const pPendentes = validPres.filter(p => p.obra === o.cod && p.data >= strWeek2 && p.data <= today && p.pgtoStatus === 'Pendente' && Number(p.total) > 0);
+    
+    if (pPendentes.length === 0) return '';
+    
+    const somaPendente = pPendentes.reduce((a, r) => a + (Number(r.total) || 0), 0);
+    
+    return `<div class="kpi-card">
+      <div class="kpi-label">${o.cod} — ${o.nome}</div>
+      <div style="font-size:20px; font-weight:bold; color:var(--red); margin: 8px 0;">${fmt(somaPendente)}</div>
+      <div style="font-size:13px; color:var(--text2)">${pPendentes.length} pendências salariais na semana</div>
+    </div>`;
+  }).join('');
+  
+  safeSetInner('pres-pgto-pendentes', pendentesHtml || '<p style="color:var(--green); padding: 8px; font-weight: 500;">✅ Nenhum pagamento pendente para esta semana.</p>');
+
   console.log('renderPresenca concluído.');
 }
 
