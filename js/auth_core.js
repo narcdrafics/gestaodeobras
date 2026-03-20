@@ -195,24 +195,21 @@ function checkAuth() {
 
     if (user) {
       const userStr = sessionStorage.getItem('gestaoUser');
-      if (userStr) {
+      if (userStr && userStr !== 'undefined') {
         let sessionUser = JSON.parse(userStr);
 
-        // REFORÇO SAAS MASTER: Garante papel mestre mesmo em sessões antigas
         if (sessionUser.email?.toLowerCase() === MASTER_EMAIL.toLowerCase() && sessionUser.role !== 'super_admin') {
           sessionUser.role = 'super_admin';
           sessionUser.tenantId = 'MASTER_SYSTEM';
           sessionStorage.setItem('gestaoUser', JSON.stringify(sessionUser));
         }
 
-        // Validação de Tenant por Subdomínio (Segurança SaaS Persistente)
         if (CURRENT_TENANT_ID && sessionUser.tenantId !== CURRENT_TENANT_ID && sessionUser.role !== 'super_admin') {
           console.warn('Sessão inválida para este subdomínio. Deslogando...');
           doLogout();
           return;
         }
 
-        // Garante que o DB seja inicializado após refresh
         if (typeof initDB === 'function' && sessionUser.tenantId) {
           initDB(sessionUser.tenantId);
         }
@@ -224,6 +221,31 @@ function checkAuth() {
         return;
       }
 
+      // NO sessionStorage BUT VALID FIREBASE AUTO-SSO TOKEN EXISTS
+      // We must reconstruct the session from RTDB:
+      try {
+        const profileSnap = await firebase.database().ref(`profiles/${user.uid}`).once('value');
+        const userProfile = profileSnap.val();
+        if (userProfile) {
+          if (CURRENT_TENANT_ID && userProfile.tenantId !== CURRENT_TENANT_ID && userProfile.role !== 'super_admin') {
+            await firebase.auth().signOut();
+            doLogout();
+            return;
+          }
+          sessionStorage.setItem('gestaoUser', JSON.stringify(userProfile));
+          if (isLoginPage) {
+            window.location.href = 'index.html';
+          } else {
+            if (typeof initDB === 'function' && userProfile.tenantId) { initDB(userProfile.tenantId); }
+            applyAccessControl(userProfile);
+          }
+          return;
+        }
+      } catch (e) {
+        console.error('Falha ao reidratar a sessão:', e);
+      }
+
+      // Se falhar tudo:
       if (!isLoginPage && !isAdminLoginPage) {
         window.location.href = 'login.html';
       }
@@ -259,12 +281,10 @@ function safeCheckAuth() {
 const currPath = window.location.pathname;
 const isIndex = currPath.endsWith('index.html') || /\/$/i.test(currPath) || currPath.endsWith('gestaodeobras/');
 
-if (!isIndex) {
-  if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-    safeCheckAuth();
-  } else {
-    window.addEventListener('load', () => safeCheckAuth());
-  }
+if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+  safeCheckAuth();
+} else {
+  window.addEventListener('load', () => safeCheckAuth());
 }
 
 function applyAccessControl(user) {
