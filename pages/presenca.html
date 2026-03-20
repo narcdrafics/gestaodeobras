@@ -7,11 +7,14 @@
   <div class="table-toolbar">
     <h3>Registros de Presença</h3>
     <div class="toolbar-right" style="display:flex;gap:10px;align-items:center;">
+      <select id="pres-group-select" class="form-control" style="width:auto;padding:8px;border-radius:6px;font-size:13px" onchange="if(typeof renderPresenca==='function')renderPresenca()">
+        <option value="trab" selected>Agrupar por Peão</option>
+        <option value="obra">Agrupar por Obra</option>
+        <option value="">Sem Agrupamento (Plana)</option>
+      </select>
       <select id="pres-sort-select" class="form-control" style="width:auto;padding:8px;border-radius:6px;font-size:13px" onchange="if(typeof renderPresenca==='function')renderPresenca()">
-        <option value="data_desc">Data (Mais Recentes)</option>
-        <option value="data_asc">Data (Mais Antigas)</option>
-        <option value="nome_asc">Nome (A-Z)</option>
-        <option value="nome_desc">Nome (Z-A)</option>
+        <option value="data_desc">Data (Recentes)</option>
+        <option value="data_asc">Data (Antigas)</option>
       </select>
       <input class="search-input" placeholder="Buscar..." oninput="filterTable('pres-tbody', this.value, [0,2,3])">
     </div>

@@ -38,7 +38,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603201300';
+const HTML_CACHE_VERSION = '202603201630';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -269,6 +269,15 @@ function renderDashboard() {
   if (updEl) updEl.textContent = 'Atualizado: ' + new Date().toLocaleString('pt-BR');
 }
 
+window.toggleGroup = function(cls, iconId) {
+  const isHidden = document.querySelector('.' + cls)?.style.display === 'none';
+  document.querySelectorAll('.' + cls).forEach(el => {
+     el.style.display = isHidden ? '' : 'none';
+  });
+  const icon = document.getElementById(iconId);
+  if (icon) icon.textContent = isHidden ? '▼' : '▶';
+};
+
 // ==================== OBRAS ====================
 function renderObras() {
   safeSetInner('obras-grid', DB.obras.map(o => {
@@ -341,13 +350,17 @@ function renderPresenca() {
   listForTable.sort((a, b) => {
       if (sortVal === 'data_desc') return String(b.data || '').localeCompare(String(a.data || ''));
       if (sortVal === 'data_asc') return String(a.data || '').localeCompare(String(b.data || ''));
-      if (sortVal === 'nome_asc') return String(a.nome || '').localeCompare(String(b.nome || ''));
-      if (sortVal === 'nome_desc') return String(b.nome || '').localeCompare(String(a.nome || ''));
       return 0;
   });
 
-  safeSetInner('pres-tbody', listForTable.length
-    ? listForTable.map(p => `<tr>
+  const groupSelect = document.getElementById('pres-group-select');
+  const groupMode = groupSelect ? groupSelect.value : 'trab';
+
+  if (listForTable.length === 0) {
+      safeSetInner('pres-tbody', '<tr class="empty-row"><td colspan="15">Nenhum registro de presença</td></tr>');
+  } else if (!groupMode) {
+      // Sem Agrupamento
+      safeSetInner('pres-tbody', listForTable.map(p => `<tr>
         <td>${fmtDate(p.data)}</td><td><span class="cod">${p.obra}</span></td>
         <td>${p.nome}</td><td>${p.funcao}</td><td>${p.frente}</td>
         <td>${p.entrada || '—'}</td><td>${p.saida || '—'}</td>
@@ -360,8 +373,54 @@ function renderPresenca() {
           <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">🗑</button>
         </td>
-      </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="15">Nenhum registro de presença</td></tr>');
+      </tr>`).join(''));
+  } else {
+      // Com Agrupamento (Acordeão)
+      let grouped = {};
+      listForTable.forEach(p => {
+          const g = groupMode === 'trab' ? (p.nome || 'Desconhecido') : (p.obra || 'Desconhecida');
+          if(!grouped[g]) grouped[g] = [];
+          grouped[g].push(p);
+      });
+      
+      const keys = Object.keys(grouped).sort();
+      let tbodyHtml = '';
+      
+      keys.forEach((k, idx) => {
+          const rows = grouped[k];
+          const totalGroup = rows.reduce((a, b) => a + (Number(b.total) || 0), 0);
+          const cls = `grp-pres-${idx}`;
+          const icn = `ico-pres-${idx}`;
+          
+          tbodyHtml += `<tr class="group-header" onclick="toggleGroup('${cls}', '${icn}')" style="cursor:pointer; background:var(--bg3); font-weight:600;">
+            <td colspan="12"><span id="${icn}" style="display:inline-block; width:20px; font-size:12px; color:var(--accent);">▶</span> 
+              <span style="font-size:14px; text-transform:uppercase">${k}</span> 
+              <span class="badge badge-blue" style="margin-left:12px">${rows.length} registros</span>
+            </td>
+            <td colspan="3" style="color:var(--green); font-size:14px; font-weight:bold;">Total: ${fmt(totalGroup)}</td>
+          </tr>`;
+          
+          rows.forEach(p => {
+              tbodyHtml += `<tr class="${cls}" style="display:none; transition: all 0.3s">
+                <td style="padding-left:16px"><span style="color:var(--text3); font-size:10px; margin-right:4px">└</span> ${fmtDate(p.data)}</td>
+                <td><span class="cod">${p.obra}</span></td>
+                <td style="color:var(--text2)">${groupMode==='trab' ? '—' : p.nome}</td>
+                <td>${p.funcao}</td><td>${p.frente}</td>
+                <td>${p.entrada || '—'}</td><td>${p.saida || '—'}</td>
+                <td>${p.hnorm || 0}h</td><td>${p.hextra || 0}h</td>
+                <td><span class="badge ${p.almoco === 'Sim' ? 'bg-success' : 'bg-secondary'}">${p.almoco || 'Não'}</span></td>
+                <td>${statusBadge(p.presenca)}</td>
+                <td>${fmt(p.diaria)}</td><td><b>${fmt(p.total)}</b></td>
+                <td>${p.lancador || '—'}</td>
+                <td>
+                  <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">🗑</button>
+                </td>
+              </tr>`;
+          });
+      });
+      safeSetInner('pres-tbody', tbodyHtml);
+  }
 
   // Consolidação de Almoços por Obra
   const almocosHtml = (DB.obras || []).map(o => {
