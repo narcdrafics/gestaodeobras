@@ -826,6 +826,7 @@ async function renderSuperAdmin() {
     const profiles = profilesSnap.val() || {};
     const invites = invitesSnap.val() || {};
     window.globalInvitesDataCache = invites;
+    window.globalTenantsDataCache = tenants;
 
     const tenantIds = Object.keys(tenants);
     const profileList = Object.values(profiles);
@@ -856,7 +857,7 @@ async function renderSuperAdmin() {
             <td>${config.limiteObras || 2}</td>
             <td>${config.limiteTrabalhadores || 10}</td>
             <td>
-                <button class="btn btn-primary btn-sm" onclick="openMasterTenantModal('${tid}', '${(config.nomeEmpresa || '').replace(/'/g, "\\'")}', '${config.slug || ''}', ${config.limiteObras || 2}, ${config.limiteTrabalhadores || 10})">⚙️ Ajustar</button>
+                <button class="btn btn-primary btn-sm" onclick="openMasterTenantModal('${tid}')">⚙️ Ajustar</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteTenant('${tid}')" style="margin-left: 5px;">🗑</button>
             </td>
         </tr>`;
@@ -886,20 +887,24 @@ async function renderPage(pageId) {
 }
 */
 
-function openMasterTenantModal(tid, nome, slug, lobras, ltrab) {
+function openMasterTenantModal(tid) {
     // Injeta a estrutura limpa no modal principal
     const content = document.getElementById('modal-master-tenant').innerHTML;
     const container = document.getElementById('modal-content');
     container.innerHTML = content;
     
+    // Busca os dados nativos de forma segura no Cache (Ignorando falhas de sintaxe HTML)
+    const tData = (window.globalTenantsDataCache && window.globalTenantsDataCache[tid]) || {};
+    const config = tData.config || {};
+    
     // Alimenta EXCLUSIVAMENTE os inputs dentro da caixa recém-aberta!
     container.querySelector('#mt-tenant-id').value = tid || '';
-    container.querySelector('#mt-old-slug').value = slug || '';
-    container.querySelector('#mt-nome').value = nome || '';
-    container.querySelector('#mt-slug').value = slug || '';
+    container.querySelector('#mt-old-slug').value = config.slug || '';
+    container.querySelector('#mt-nome').value = config.nomeEmpresa || '';
+    container.querySelector('#mt-slug').value = config.slug || '';
     container.querySelector('#mt-email').value = '';
-    container.querySelector('#mt-limite-obras').value = lobras || 0;
-    container.querySelector('#mt-limite-trab').value = ltrab || 0;
+    container.querySelector('#mt-limite-obras').value = config.limiteObras || 0;
+    container.querySelector('#mt-limite-trab').value = config.limiteTrabalhadores || 0;
 
     document.getElementById('modal-container').classList.add('open');
 }
