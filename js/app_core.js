@@ -37,10 +37,14 @@ function nextCod(arr, prefix) {
 // ==================== PAGE NAVIGATION (DYNAMIC FETCH) ====================
 const cachePaginas = {};
 
+// Use a mesma versão dos scripts base para renovar o cache do HTML
+const HTML_CACHE_VERSION = '202603200000';
+
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
   try {
-    const res = await fetch(caminho);
+    const urlComVersionamento = `${caminho}?v=${HTML_CACHE_VERSION}`;
+    const res = await fetch(urlComVersionamento);
     if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
     const html = await res.text();
     cachePaginas[caminho] = html;
