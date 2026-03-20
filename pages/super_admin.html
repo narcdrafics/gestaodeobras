@@ -11,6 +11,14 @@
     <div class="kpi-value" id="master-total-users">0</div>
     <div class="kpi-label">Usuários Totais</div>
   </div>
+  <div class="kpi-card" style="border: 1px solid var(--accent);">
+    <div class="kpi-label" style="font-weight: bold; margin-bottom: 8px;">Segurança da Conta Mestre</div>
+    <div style="display:flex; gap:8px;">
+      <input type="password" id="master-new-password" class="form-control" placeholder="Nova Senha" style="width:100%; border-radius:4px; font-size:13px; border:1px solid var(--border);">
+      <button class="btn btn-primary btn-sm" onclick="changeMasterPassword()">Alterar</button>
+    </div>
+    <div style="font-size:11px; color:var(--text3); margin-top:6px;">Alteração imediata, sem e-mail de confirmação.</div>
+  </div>
 </div>
 
 <div class="table-wrap" style="margin-top: 24px;">
@@ -62,6 +70,11 @@
   <div class="form-group">
     <label>Nome da Empresa</label>
     <input type="text" id="ct-nome" class="form-control" placeholder="Ex: Construtora Silva">
+  </div>
+  <div class="form-group">
+    <label>Subdomínio (Slug)</label>
+    <input type="text" id="ct-slug" class="form-control" placeholder="Ex: construtorasilva (apenas letras minúsculas sem espaço)" style="font-family: monospace;">
+    <small style="color:var(--text3); font-size:11px;">Este nome será usado na URL. Ex: <b>construtorasilva</b>.yuriconstrucao.site</small>
   </div>
   <div class="form-group">
     <label>E-mail do Administrador</label>

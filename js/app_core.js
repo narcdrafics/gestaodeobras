@@ -1894,18 +1894,29 @@ async function saveNewTenant() {
     // Busca dentro do container do modal para evitar pegar o template duplicado
     const modal = document.getElementById('modal-content');
     const nome = modal.querySelector('#ct-nome').value.trim();
+    let slugVal = modal.querySelector('#ct-slug').value.trim().toLowerCase();
     const emailOwner = modal.querySelector('#ct-email').value.trim().toLowerCase();
     const lobras = parseInt(modal.querySelector('#ct-limite-obras').value) || 0;
     const ltrab = parseInt(modal.querySelector('#ct-limite-trab').value) || 0;
 
     if (!nome) return toast('Preencha o nome da empresa.', 'error');
+    if (!slugVal) return toast('Preencha o subdomínio.', 'error');
     if (!emailOwner) return toast('Preencha o e-mail do administrador.', 'error');
     
+    slugVal = slugVal.replace(/[^a-z0-9]/g, '');
+    if (!slugVal) return toast('O subdomínio deve conter letras e números.', 'error');
+
     // Validação básica de e-mail
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(emailOwner)) return toast('Digite um e-mail válido.', 'error');
 
     try {
+        // Verificar se subdomínio já existe
+        const existingSlug = await firebase.database().ref('tenants_public').orderByChild('slug').equalTo(slugVal).once('value');
+        if (existingSlug.exists()) {
+            return toast(`O subdomínio "${slugVal}" já está sendo usado por outra empresa!`, 'error');
+        }
+
         // Gerar um ID único para a nova empresa
         const res = await firebase.database().ref('tenants').push();
         const tenantId = res.key;
@@ -1913,6 +1924,7 @@ async function saveNewTenant() {
         // 1. Criar Configuração Inicial do Tenant
         await firebase.database().ref(`tenants/${tenantId}/config`).set({
             nomeEmpresa: nome,
+            slug: slugVal,
             corPrimaria: '#f59e0b',
             limiteObras: lobras,
             limiteTrabalhadores: ltrab
@@ -1927,9 +1939,8 @@ async function saveNewTenant() {
         });
 
         // 3. Espelhar slug no nó público (para leitura antes do login)
-        const slugValue = nome.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
         await firebase.database().ref(`tenants_public/${tenantId}`).set({
-            slug: slugValue,
+            slug: slugVal,
             nomeEmpresa: nome,
             corPrimaria: '#f59e0b'
         });
@@ -1941,6 +1952,29 @@ async function saveNewTenant() {
         console.error(err);
         toast('Erro ao criar empresa.', 'error');
     }
+}
+
+function changeMasterPassword() {
+    const newVal = document.getElementById('master-new-password')?.value;
+    if (!newVal || newVal.length < 6) {
+        return toast('A nova senha deve ter no mínimo 6 caracteres.', 'error');
+    }
+    const user = firebase.auth().currentUser;
+    if (!user) return toast('Você precisa estar logado para alterar a senha.', 'error');
+    
+    user.updatePassword(newVal)
+        .then(() => {
+            toast('Senha do Mestre alterada com sucesso! Use no próximo login.');
+            document.getElementById('master-new-password').value = '';
+        })
+        .catch(err => {
+            console.error('Erro na senha:', err);
+            if (err.code === 'auth/requires-recent-login') {
+                toast('Sua sessão expirou. Deslogue e logue novamente para redefinir.', 'error');
+            } else {
+                toast('Falha ao alterar senha. ' + err.message, 'error');
+            }
+        });
 }
 
 // ==================== PHOTO MANAGEMENT & LIGHTBOX ====================

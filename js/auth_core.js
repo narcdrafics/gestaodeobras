@@ -76,9 +76,6 @@ function handleAuthError(error) {
   }
 }
 
-// CONFIGURAÇÃO SAAS MASTER
-const MASTER_EMAIL = 'casaint65@gmail.com'; // Altere para seu e-mail de administrador mestre
-
 async function handleAuthSuccess(firebaseUser, fallbackName) {
   const extractedEmail = firebaseUser.email || (firebaseUser.providerData && firebaseUser.providerData[0] && firebaseUser.providerData[0].email);
   const email = (extractedEmail || '').trim().toLowerCase();
@@ -91,18 +88,6 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
     const snapshot = await profileRef.once('value');
     console.log('[AuthTrace] Perfil retornado:', snapshot.val());
     let userProfile = snapshot.val();
-
-    // 1.5 - DETECÇÃO DE SUPER ADMIN (PLATAFORMA)
-    if (email === MASTER_EMAIL) {
-      userProfile = {
-        uid,
-        email,
-        name: firebaseUser.displayName || 'Super Admin',
-        role: 'super_admin',
-        tenantId: 'MASTER_SYSTEM' // ID especial para o sistema
-      };
-      await profileRef.set(userProfile);
-    }
 
     // 2. Se o perfil não existe, é um novo Cadastro SaaS
     if (!userProfile) {
@@ -197,12 +182,6 @@ function checkAuth() {
       const userStr = sessionStorage.getItem('gestaoUser');
       if (userStr && userStr !== 'undefined') {
         let sessionUser = JSON.parse(userStr);
-
-        if (sessionUser.email?.toLowerCase() === MASTER_EMAIL.toLowerCase() && sessionUser.role !== 'super_admin') {
-          sessionUser.role = 'super_admin';
-          sessionUser.tenantId = 'MASTER_SYSTEM';
-          sessionStorage.setItem('gestaoUser', JSON.stringify(sessionUser));
-        }
 
         if (CURRENT_TENANT_ID && sessionUser.tenantId !== CURRENT_TENANT_ID && sessionUser.role !== 'super_admin') {
           console.warn('Sessão inválida para este subdomínio. Deslogando...');
@@ -335,6 +314,18 @@ function setRestrictions(user) {
   }
   if (role === 'super_admin') {
     document.querySelectorAll('.super-admin-only').forEach(el => el.style.display = '');
+    
+    // ISOLAR SUPER ADMIN (Oculta abas de empresas: Obras, Dashboard, Financeiro, etc.)
+    document.querySelectorAll('.nav-item').forEach(el => {
+      if (!el.classList.contains('super-admin-only') && !el.getAttribute('onclick')?.includes('doLogout')) {
+        el.style.display = 'none';
+      }
+    });
+    document.querySelectorAll('.nav-section').forEach(el => {
+      if (!el.classList.contains('super-admin-only') && el.innerText !== 'Acesso') {
+        el.style.display = 'none';
+      }
+    });
   }
 
   let hidePages = [];
