@@ -53,7 +53,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603201940';
+const HTML_CACHE_VERSION = '202603201955';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -249,8 +249,7 @@ function renderDashboard() {
       : '<div style="color:var(--text3);font-size:13px;padding:8px">✅ Nenhum alerta no momento.</div>';
   }
 
-  const tbody = document.getElementById('dash-obras-tbody');
-  tbody.innerHTML = DB.obras.map(o => {
+  safeSetInner('dash-obras-tbody', DB.obras.map(o => {
     const tarefas = DB.tarefas.filter(t => t.obra === o.cod);
     
     // Filtro Financeiro por Obra
@@ -279,7 +278,7 @@ function renderDashboard() {
       <td>${tarefas.filter(t => t.status === 'Concluída').length}/${tarefas.length} concluídas</td>
     </tr>`;
 
-  }).join('');
+  }).join(''));
   const updEl = document.getElementById('dash-updated');
   if (updEl) updEl.textContent = 'Atualizado: ' + new Date().toLocaleString('pt-BR');
 }
