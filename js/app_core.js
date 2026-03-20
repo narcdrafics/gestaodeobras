@@ -38,7 +38,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603200000';
+const HTML_CACHE_VERSION = '202603201220';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -609,6 +609,31 @@ function renderFinanceiro() {
     : '<tr class="empty-row"><td colspan="13">Nenhum lançamento financeiro ou Custo Mapeado</td></tr>');
 }
 
+
+// ==================== EXPORT FUNCTIONS ====================
+function exportarImagemDashboard() {
+  toast('Gerando imagem... Aguarde', 'info');
+  const btnDiv = document.querySelector('.page-header div[style*="align-items: center"]');
+  if (btnDiv) btnDiv.style.display = 'none'; // Esconde barra de botões
+  
+  html2canvas(document.getElementById('conteudo-principal'), {
+     scale: 2, // Maior qualidade (High DPI)
+     useCORS: true,
+     backgroundColor: '#1E1E1E'
+  }).then(canvas => {
+      const imgData = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = imgData;
+      a.download = `Relatorio_Obras_${new Date().toISOString().split('T')[0]}.png`;
+      a.click();
+      if (btnDiv) btnDiv.style.display = 'flex';
+      toast('Imagem gerada! Pronta para WhatsApp.', 'success');
+  }).catch(err => {
+      console.error(err);
+      toast('Falha ao gerar a imagem.', 'error');
+      if (btnDiv) btnDiv.style.display = 'flex';
+  });
+}
 
 // ==================== ORÇAMENTO ====================
 function renderOrcamento() {

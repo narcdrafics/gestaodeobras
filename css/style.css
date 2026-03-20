@@ -356,3 +356,29 @@
   
   /* Photo Preview in Modals */
   .photo-preview img { display: block; width: 100%; margin-top: 10px; border-radius: 8px; border: 1px solid var(--border); }
+
+/* ==================== PRINT & EXPORT MEDIA QUERY ==================== */
+@media print {
+  @page { margin: 1cm; }
+  body { background: #fff !important; color: #000 !important; }
+  .header, .sidebar, .menu-toggle, .btn, .modal-overlay, #toast-container, .page-header button { 
+    display: none !important; 
+  }
+  .layout { grid-template-columns: 1fr !important; }
+  .main { 
+    margin-left: 0 !important; 
+    width: 100% !important; 
+    padding: 0 !important; 
+    overflow: visible !important;
+  }
+  .kpi-card { 
+    break-inside: avoid; 
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+  }
+  table { border-collapse: collapse !important; width: 100% !important; }
+  th, td { border: 1px solid #ddd !important; }
+  .form-control, .input { border: 1px solid #000 !important; }
+  /* Esconde barras de rolagem */
+  ::-webkit-scrollbar { display: none !important; }
+}
