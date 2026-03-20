@@ -89,39 +89,35 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
     console.log('[AuthTrace] Perfil retornado:', snapshot.val());
     let userProfile = snapshot.val();
 
-    // 2. Se o perfil não existe, é um novo Cadastro SaaS
-    if (!userProfile) {
-      const Name = firebaseUser.displayName || fallbackName || 'Sem Nome';
-      const sanitizedEmail = email.replace(/\./g, ',');
+    const sanitizedEmail = email.replace(/\./g, ',');
+    console.log('[AuthTrace] 2. Buscando convite para:', sanitizedEmail);
+    // BUSCA CONVITE PENDENTE (SaaS)
+    const inviteSnap = await firebase.database().ref(`invites/${sanitizedEmail}`).once('value');
+    const inviteData = inviteSnap.val();
+    console.log('[AuthTrace] Convite retornado:', inviteData);
 
-      console.log('[AuthTrace] 2. Buscando convite para:', sanitizedEmail);
-      // BUSCA CONVITE PENDENTE (SaaS)
-      const inviteSnap = await firebase.database().ref(`invites/${sanitizedEmail}`).once('value');
-      const inviteData = inviteSnap.val();
-      console.log('[AuthTrace] Convite retornado:', inviteData);
+    const Name = firebaseUser.displayName || fallbackName || 'Sem Nome';
 
-      if (inviteData) {
-        // Aceita Convite: Vincula à empresa que o convidou
-        userProfile = {
-          uid,
-          email,
-          name: Name,
-          role: inviteData.role || 'engenheiro',
-          tenantId: inviteData.tenantId
-        };
-        // Remove convite após uso
-        await firebase.database().ref(`invites/${sanitizedEmail}`).remove();
-      } else {
-        // SaaS: Auto-onboarding desativado para evitar recriação de empresas deletadas
-        await firebase.auth().signOut();
-        sessionStorage.removeItem('gestaoUser');
-        showLoginError('Esta conta não possui uma empresa vinculada. Entre em contato com o suporte.');
-        return;
-      }
-      console.log('[AuthTrace] 3. Salvando novo perfil vinculado a:', userProfile.tenantId);
-      // Salva o perfil global vinculado ao tenantId
+    if (inviteData) {
+      // Aceita Convite: Vincula à empresa que o convidou (Sobscreve perfil existente se houver)
+      userProfile = {
+        uid,
+        email,
+        name: userProfile?.name || Name,
+        role: inviteData.role || userProfile?.role || 'engenheiro',
+        tenantId: inviteData.tenantId
+      };
+      // Salva o perfil atualizado vinculado ao novo tenantId
       await profileRef.set(userProfile);
-      console.log('[AuthTrace] Perfil salvo com sucesso.');
+      // Remove convite após uso
+      await firebase.database().ref(`invites/${sanitizedEmail}`).remove();
+      console.log('[AuthTrace] Perfil processado via Convite. Tenant:', userProfile.tenantId);
+    } else if (!userProfile) {
+      // SaaS: Auto-onboarding desativado para evitar recriação de empresas deletadas
+      await firebase.auth().signOut();
+      sessionStorage.removeItem('gestaoUser');
+      showLoginError('Esta conta não possui uma empresa vinculada. Entre em contato com o suporte.');
+      return;
     }
 
     // 3. Validação Cross-Tenant (Segurança SaaS)

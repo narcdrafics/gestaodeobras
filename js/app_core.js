@@ -856,7 +856,7 @@ async function renderSuperAdmin() {
             <td>${config.limiteObras || 2}</td>
             <td>${config.limiteTrabalhadores || 10}</td>
             <td>
-                <button class="btn btn-primary btn-sm" onclick="openMasterTenantModal('${tid}', ${config.limiteObras || 2}, ${config.limiteTrabalhadores || 10})">⚙️ Ajustar</button>
+                <button class="btn btn-primary btn-sm" onclick="openMasterTenantModal('${tid}', '${(config.nomeEmpresa || '').replace(/'/g, "\\'")}', '${config.slug || ''}', ${config.limiteObras || 2}, ${config.limiteTrabalhadores || 10})">⚙️ Ajustar</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteTenant('${tid}')" style="margin-left: 5px;">🗑</button>
             </td>
         </tr>`;
@@ -886,8 +886,12 @@ async function renderPage(pageId) {
 }
 */
 
-function openMasterTenantModal(tid, lobras, ltrab) {
+function openMasterTenantModal(tid, nome, slug, lobras, ltrab) {
     document.getElementById('mt-tenant-id').value = tid;
+    document.getElementById('mt-old-slug').value = slug;
+    document.getElementById('mt-nome').value = nome;
+    document.getElementById('mt-slug').value = slug;
+    document.getElementById('mt-email').value = '';
     document.getElementById('mt-limite-obras').value = lobras;
     document.getElementById('mt-limite-trab').value = ltrab;
     
@@ -899,6 +903,10 @@ function openMasterTenantModal(tid, lobras, ltrab) {
     
     // Repopula após injetar no DOM real do modal
     document.getElementById('mt-tenant-id').value = tid;
+    document.getElementById('mt-old-slug').value = slug;
+    document.getElementById('mt-nome').value = nome;
+    document.getElementById('mt-slug').value = slug;
+    document.getElementById('mt-email').value = '';
     document.getElementById('mt-limite-obras').value = lobras;
     document.getElementById('mt-limite-trab').value = ltrab;
 }
@@ -906,21 +914,55 @@ function openMasterTenantModal(tid, lobras, ltrab) {
 async function saveMasterTenant() {
     const modal = document.getElementById('modal-content');
     const tid = modal.querySelector('#mt-tenant-id').value;
+    const oldSlug = modal.querySelector('#mt-old-slug').value;
+    const nome = modal.querySelector('#mt-nome').value.trim();
+    let slugVal = modal.querySelector('#mt-slug').value.trim().toLowerCase();
+    const emailOwner = modal.querySelector('#mt-email').value.trim().toLowerCase();
     const lobras = parseInt(modal.querySelector('#mt-limite-obras').value);
     const ltrab = parseInt(modal.querySelector('#mt-limite-trab').value);
     
     if (isNaN(lobras) || isNaN(ltrab)) return toast('Preencha os limites com números válidos.', 'error');
+    if (!nome) return toast('Preencha o nome da empresa.', 'error');
+    if (!slugVal) return toast('Preencha o subdomínio (slug).', 'error');
+
+    slugVal = slugVal.replace(/[^a-z0-9]/g, '');
+    if (!slugVal) return toast('Subdomínio inválido.', 'error');
     
     try {
-        await firebase.database().ref(`tenants/${tid}/config`).update({
-            limiteObras: lobras,
-            limiteTrabalhadores: ltrab
-        });
-        toast('Limites do cliente atualizados com sucesso!');
+        if (slugVal !== oldSlug) {
+            const existingSlug = await firebase.database().ref('tenants_public').orderByChild('slug').equalTo(slugVal).once('value');
+            if (existingSlug.exists()) {
+                return toast(`O subdomínio "${slugVal}" já está em uso!`, 'error');
+            }
+        }
+
+        const updates = {};
+        updates[`tenants/${tid}/config/nomeEmpresa`] = nome;
+        updates[`tenants/${tid}/config/slug`] = slugVal;
+        updates[`tenants/${tid}/config/limiteObras`] = lobras;
+        updates[`tenants/${tid}/config/limiteTrabalhadores`] = ltrab;
+
+        updates[`tenants_public/${tid}/nomeEmpresa`] = nome;
+        updates[`tenants_public/${tid}/slug`] = slugVal;
+
+        if (emailOwner) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(emailOwner)) return toast('E-mail inválido.', 'error');
+            const sanitizedEmail = emailOwner.replace(/\./g, ',');
+            updates[`invites/${sanitizedEmail}`] = {
+                tenantId: tid,
+                role: 'admin',
+                nomeEmpresa: nome
+            };
+        }
+
+        await firebase.database().ref().update(updates);
+        toast('Empresa salva com sucesso!');
         closeModal();
         renderSuperAdmin();
     } catch (err) {
-        toast('Erro ao atualizar limites.', 'error');
+        console.error(err);
+        toast('Erro ao atualizar empresa.', 'error');
     }
 }
 

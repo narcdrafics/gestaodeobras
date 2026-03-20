@@ -46,17 +46,33 @@
   </table>
 </div>
 
-<!-- Modal para editar limites do cliente -->
+<!-- Modal para editar empresa -->
 <div id="modal-master-tenant" class="modal-content-wrapper" style="display:none">
-  <h3>Editar Limites do Cliente</h3>
+  <h3>Editar Empresa</h3>
   <input type="hidden" id="mt-tenant-id">
+  <input type="hidden" id="mt-old-slug">
   <div class="form-group">
-    <label>Limite de Obras</label>
-    <input type="number" id="mt-limite-obras" class="form-control">
+    <label>Nome da Empresa</label>
+    <input type="text" id="mt-nome" class="form-control">
   </div>
   <div class="form-group">
-    <label>Limite de Trabalhadores</label>
-    <input type="number" id="mt-limite-trab" class="form-control">
+    <label>Subdomínio (Slug)</label>
+    <input type="text" id="mt-slug" class="form-control" style="font-family: monospace;">
+    <small style="color:var(--text3); font-size:11px;">Mudar o slug derruba a URL antiga instantaneamente.</small>
+  </div>
+  <div class="form-group">
+    <label>Forçar Vínculo (E-mail)</label>
+    <input type="email" id="mt-email" class="form-control" placeholder="Envie um usuário já logado pra cá.">
+  </div>
+  <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+    <div class="form-group">
+      <label>Limite Obras</label>
+      <input type="number" id="mt-limite-obras" class="form-control">
+    </div>
+    <div class="form-group">
+      <label>Limite Trabalhadores</label>
+      <input type="number" id="mt-limite-trab" class="form-control">
+    </div>
   </div>
   <div style="margin-top:20px; display:flex; gap:10px;">
     <button class="btn btn-primary" onclick="saveMasterTenant()">Salvar Alterações</button>
