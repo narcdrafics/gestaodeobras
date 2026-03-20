@@ -1209,11 +1209,12 @@ async function openModal(id) {
   if (id === 'modal-presenca') {
     const tsel = document.getElementById('pr-trab');
     if (tsel) {
+      // Pré-carga total antes do filtro
       tsel.innerHTML = DB.trabalhadores.filter(t => t.status === 'Ativo').map(t => `<option value="${t.cod}">${t.nome}</option>`).join('');
       // Auto-preenche apenas ao criar novo (não ao editar)
       if (currentEditIdx === -1) {
         document.getElementById('pr-data').value = today;
-        fillTrabInfo();
+        filterTrabByObra(); // Dispara o filtro inteligente de obras imediatamente ao abrir limpo
         calcPresenca();
       }
     }
@@ -1257,6 +1258,29 @@ function closeModal(id) {
   document.getElementById('modal-container').classList.remove('open');
   const editIdx = document.getElementById('usr-edit-idx');
   if (id === 'modal-usuario' && editIdx) editIdx.value = '-1';
+}
+
+function filterTrabByObra() {
+  const tsel = document.getElementById('pr-trab');
+  const osel = document.getElementById('pr-obra');
+  if (!tsel || !osel) return;
+
+  const obraSelecionada = osel.value;
+  const filtered = DB.trabalhadores.filter(t => {
+      if (t.status !== 'Ativo') return false;
+      if (!t.obras) return false; // Se o campo de obras estiver vazio, esconde
+      return t.obras.includes(obraSelecionada);
+  });
+
+  if (filtered.length === 0) {
+      tsel.innerHTML = '<option value="">Nenhum trabalhador nesta obra</option>';
+      document.getElementById('pr-diaria').value = '';
+      document.getElementById('pr-funcao').value = '';
+  } else {
+      tsel.innerHTML = filtered.map(t => `<option value="${t.cod}">${t.nome}</option>`).join('');
+  }
+  
+  fillTrabInfo(); // Recalcula valores do primeiro trabalhador da lista filtrada
 }
 
 function fillTrabInfo() {
