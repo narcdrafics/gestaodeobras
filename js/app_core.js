@@ -1,7 +1,22 @@
 // ==================== HELPERS ====================
 let currentEditIdx = -1; // Global variable to identify if we are creating new (-1) or editing an existing record.
 
-const fmt = (v) => v != null && !isNaN(v) ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+// ==================== SYSTEM GLOBALS (ANTI-REFERENCE ERROR) ====================
+// Cria 'stubs' para evitar que saves de uma página "crachem" tentando dar reload em UI de outra página
+window.renderDashboard = window.renderDashboard || function(){};
+window.renderObras = window.renderObras || function(){};
+window.renderTrabalhadores = window.renderTrabalhadores || function(){};
+window.renderPresenca = window.renderPresenca || function(){};
+window.renderTarefas = window.renderTarefas || function(){};
+window.renderEstoque = window.renderEstoque || function(){};
+window.renderMovEstoque = window.renderMovEstoque || function(){};
+window.renderCompras = window.renderCompras || function(){};
+window.renderFinanceiro = window.renderFinanceiro || function(){};
+window.renderOrcamento = window.renderOrcamento || function(){};
+window.renderMedicao = window.renderMedicao || function(){};
+window.renderAdmin = window.renderAdmin || function(){};
+
+const fmt = (v) => v != null && !isNaN(v) ? 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
 const fmtPct = (v) => v != null ? (v * 100).toFixed(1) + '%' : '—';
 const fmtDate = (d) => { if (!d) return '—'; const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; };
 const today = new Date().toISOString().split('T')[0];
@@ -1691,6 +1706,32 @@ function togglePresenca() {
       document.getElementById('pr-total').value = 0;
       document.getElementById('pr-almoco').value = 'Não';
   }
+}
+
+function calcMovTotal() {
+  const q = parseFloat(document.getElementById('mv-qtd').value)||0;
+  const v = parseFloat(document.getElementById('mv-vunit').value)||0;
+  document.getElementById('mv-vtotal').value = (q*v).toFixed(2);
+}
+function calcCompraTotal() {
+  const q = parseFloat(document.getElementById('cp-qtd').value)||0;
+  const v = parseFloat(document.getElementById('cp-vunit').value)||0;
+  document.getElementById('cp-vtotal').value = (q*v).toFixed(2);
+}
+function calcFinDiff() {
+  const p = parseFloat(document.getElementById('fn-prev').value)||0;
+  const r = parseFloat(document.getElementById('fn-real').value)||0;
+  document.getElementById('fn-diff').value = (r-p).toFixed(2);
+}
+function calcOrcTotal() {
+  const q = parseFloat(document.getElementById('oc-qtd').value)||0;
+  const v = parseFloat(document.getElementById('oc-vunit').value)||0;
+  document.getElementById('oc-vtotal').value = (q*v).toFixed(2);
+}
+function calcAvanco() {
+  const p = parseFloat(document.getElementById('md-qprev').value)||0;
+  const r = parseFloat(document.getElementById('md-qreal').value)||0;
+  document.getElementById('md-avanco').value = p > 0 ? (r/p*100).toFixed(1) : 0;
 }
 
 
