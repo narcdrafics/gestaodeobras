@@ -1258,26 +1258,65 @@ function calcPresenca() {
   const entrada = document.getElementById('pr-entrada')?.value || '07:00';
   const saida = document.getElementById('pr-saida')?.value || '17:00';
   const presenca = document.getElementById('pr-presenca')?.value;
-  if (presenca === 'Falta') { document.getElementById('pr-total').value = 0; return; }
+  
+  if (presenca === 'Falta') { 
+      document.getElementById('pr-total').value = 0; 
+      document.getElementById('pr-hnorm').value = 0;
+      document.getElementById('pr-hextra').value = 0;
+      return; 
+  }
+
+  const trabCod = document.getElementById('pr-trab')?.value;
+  const trabData = (window.DB && DB.trabalhadores) ? DB.trabalhadores.find(t => t.cod === trabCod) : {};
+  const isInformal = trabData && trabData.vinculo === 'Informal';
+
+  const diaria = parseFloat(document.getElementById('pr-diaria').value) || 0;
+  const valorHora = diaria / 8;
+
+  if (presenca === 'Meio período') {
+      document.getElementById('pr-hnorm').value = 4.0.toFixed(1);
+      document.getElementById('pr-hextra').value = 0.0.toFixed(1);
+      document.getElementById('pr-total').value = (diaria / 2).toFixed(2);
+      return;
+  }
+
   const [eh, em] = entrada.split(':').map(Number);
   const [sh, sm] = saida.split(':').map(Number);
   const hTrabalhadas = Math.max(0, (sh * 60 + sm - eh * 60 - em) / 60);
+
   const hnorm = Math.min(hTrabalhadas, 8);
-  const hextra = Math.max(0, hTrabalhadas - 8);
-  document.getElementById('pr-hnorm').value = Math.min(hTrabalhadas, 8).toFixed(1);
+  const hextra = isInformal ? 0 : Math.max(0, hTrabalhadas - 8);
+
+  document.getElementById('pr-hnorm').value = hnorm.toFixed(1);
   document.getElementById('pr-hextra').value = hextra.toFixed(1);
-  const diaria = parseFloat(document.getElementById('pr-diaria').value) || 0;
-  const valorHora = diaria / 8;
+  
   const total = hTrabalhadas > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
   document.getElementById('pr-total').value = total.toFixed(2);
 }
 
 function calcTotalManual() {
   const hnorm = parseFloat(document.getElementById('pr-hnorm').value) || 0;
-  const hextra = parseFloat(document.getElementById('pr-hextra').value) || 0;
+  let hextra = parseFloat(document.getElementById('pr-hextra').value) || 0;
   const diaria = parseFloat(document.getElementById('pr-diaria').value) || 0;
-  const valorHora = diaria / 8;
-  const total = hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
+  const presenca = document.getElementById('pr-presenca')?.value;
+
+  const trabCod = document.getElementById('pr-trab')?.value;
+  const trabData = (window.DB && DB.trabalhadores) ? DB.trabalhadores.find(t => t.cod === trabCod) : {};
+  const isInformal = trabData && trabData.vinculo === 'Informal';
+
+  if (isInformal) {
+      hextra = 0; // Tranca horas extras de Informais quando ditam manualmente
+      document.getElementById('pr-hextra').value = '0.0';
+  }
+
+  let total = 0;
+  if (presenca === 'Meio período') {
+      total = diaria / 2;
+  } else {
+      const valorHora = diaria / 8;
+      total = hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
+  }
+  
   document.getElementById('pr-total').value = total.toFixed(2);
 }
 
