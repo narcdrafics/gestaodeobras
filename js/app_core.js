@@ -53,7 +53,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603201955';
+const HTML_CACHE_VERSION = '202603202055';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -128,11 +128,11 @@ function renderDashboard() {
   const comprasAguardando = DB.compras.filter(c => c.status === 'Aguardando').length;
   const totalPrev = DB.financeiro.reduce((a, f) => a + (f.prev || 0), 0);
 
-  // Unificação Rápida Financeira Global do Dashboard
+  // Unificação Rápida Financeira Global do Dashboard (Apenas Pendentes)
   let globalFinance = [];
-  DB.financeiro.forEach(f => globalFinance.push({ obra: f.obra, data: f.data, v: parseFloat(f.real) || 0 }));
-  DB.presenca.forEach(p => globalFinance.push({ obra: p.obra, data: p.data, v: parseFloat(p.total) || 0 }));
-  DB.medicao.forEach(m => globalFinance.push({ obra: m.obra, data: m.semana, v: parseFloat(m.vtotal) || 0 }));
+  DB.financeiro.forEach(f => { if (f.status !== 'Pago') globalFinance.push({ obra: f.obra, data: f.data, v: parseFloat(f.real) || 0 }) });
+  DB.presenca.forEach(p => { if (p.pgtoStatus !== 'Pago') globalFinance.push({ obra: p.obra, data: p.data, v: parseFloat(p.total) || 0 }) });
+  DB.medicao.forEach(m => { if (m.pgtoStatus !== 'Pago') globalFinance.push({ obra: m.obra, data: m.semana, v: parseFloat(m.vtotal) || 0 }) });
 
   const totalRealGlobal = globalFinance.reduce((a, f) => a + f.v, 0);
   const pctCusto = totalPrev > 0 ? ((totalRealGlobal / totalPrev) * 100).toFixed(1) : 0;
@@ -149,11 +149,11 @@ function renderDashboard() {
   const strMes = fMes.toISOString().split('T')[0];
 
   const cDiariasSemana = DB.presenca
-    .filter(p => p.data >= strSemana && p.data <= today)
+    .filter(p => p.data >= strSemana && p.data <= today && p.pgtoStatus !== 'Pago')
     .reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
     
   const cEmpreitaSemana = DB.medicao
-    .filter(m => m.semana >= strSemana && m.semana <= today)
+    .filter(m => m.semana >= strSemana && m.semana <= today && m.pgtoStatus !== 'Pago')
     .reduce((a, m) => a + (parseFloat(m.vtotal) || 0), 0);
 
   const kpiGrid = document.getElementById('kpi-grid');
@@ -258,9 +258,9 @@ function renderDashboard() {
     const cSemanal = tabObj.filter(f => f.data >= strSemana && f.data <= today).reduce((a, f) => a + f.v, 0);
     const cMensal = tabObj.filter(f => f.data >= strMes && f.data <= today).reduce((a, f) => a + f.v, 0);
     
-    // Diárias por Obra (específico)
+    // Diárias por Obra (específico, não pagos)
     const dSemanal = DB.presenca
-      .filter(p => p.obra === o.cod && p.data >= strSemana && p.data <= today)
+      .filter(p => p.obra === o.cod && p.data >= strSemana && p.data <= today && p.pgtoStatus !== 'Pago')
       .reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
     
     const pct = o.orc > 0 ? (realizado / o.orc * 100).toFixed(1) : 0;
