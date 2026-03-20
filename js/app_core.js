@@ -53,7 +53,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603201630';
+const HTML_CACHE_VERSION = '202603201940';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -2150,7 +2150,13 @@ function filterTable(tbodyId, query, cols) {
 
 // ==================== TOAST ====================
 function toast(msg, type = 'success') {
-  const c = document.getElementById('toast-container');
+  let c = document.getElementById('toast-container');
+  if (!c) {
+      c = document.createElement('div');
+      c.id = 'toast-container';
+      c.className = 'toast-container';
+      document.body.appendChild(c);
+  }
   const el = document.createElement('div');
   el.className = `toast ${type}`;
   el.innerHTML = `${type === 'success' ? '✅' : '❌'} ${msg}`;
