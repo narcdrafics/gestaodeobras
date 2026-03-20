@@ -950,6 +950,9 @@ async function deleteTenant(tid) {
           updates[`invites/${emailKey}`] = null;
       });
 
+      // Libera o subdomínio/slug público para reutilização
+      updates[`tenants_public/${tid}`] = null;
+
       // 4. Executar Limpeza
       await firebase.database().ref().update(updates);
       
