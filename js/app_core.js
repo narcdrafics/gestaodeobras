@@ -1268,7 +1268,8 @@ function filterTrabByObra() {
   const obraSelecionada = osel.value;
   const filtered = DB.trabalhadores.filter(t => {
       if (t.status !== 'Ativo') return false;
-      if (!t.obras) return false; // Se o campo de obras estiver vazio, esconde
+      // Retorna true se a string estiver vazia (Obreiro livre/recém-cadastrado) ou se possuir a tag da Obra
+      if (!t.obras || t.obras.trim() === '') return true; 
       return t.obras.includes(obraSelecionada);
   });
 
@@ -1526,6 +1527,12 @@ async function savePresenca() {
 
   const tsel = trabVal;
   const t = DB.trabalhadores.find(x => x.cod === tsel);
+  
+  // Vínculo Automático: Se o peão não estiver engajado na Obra em sua ficha local, anexa a tag!
+  if (t && (!t.obras || !t.obras.includes(obraVal))) {
+      t.obras = t.obras && t.obras.trim() !== '' ? (t.obras + ", " + obraVal) : obraVal;
+  }
+
   const data = {
     data: dataVal,
     obra: obraVal,
