@@ -887,28 +887,21 @@ async function renderPage(pageId) {
 */
 
 function openMasterTenantModal(tid, nome, slug, lobras, ltrab) {
-    document.getElementById('mt-tenant-id').value = tid;
-    document.getElementById('mt-old-slug').value = slug;
-    document.getElementById('mt-nome').value = nome;
-    document.getElementById('mt-slug').value = slug;
-    document.getElementById('mt-email').value = '';
-    document.getElementById('mt-limite-obras').value = lobras;
-    document.getElementById('mt-limite-trab').value = ltrab;
-    
-    // Mostra o modal de forma simples (injetando no container de modais)
+    // Injeta a estrutura limpa no modal principal
     const content = document.getElementById('modal-master-tenant').innerHTML;
     const container = document.getElementById('modal-content');
     container.innerHTML = content;
-    document.getElementById('modal-container').classList.add('open');
     
-    // Repopula após injetar no DOM real do modal
-    document.getElementById('mt-tenant-id').value = tid;
-    document.getElementById('mt-old-slug').value = slug;
-    document.getElementById('mt-nome').value = nome;
-    document.getElementById('mt-slug').value = slug;
-    document.getElementById('mt-email').value = '';
-    document.getElementById('mt-limite-obras').value = lobras;
-    document.getElementById('mt-limite-trab').value = ltrab;
+    // Alimenta EXCLUSIVAMENTE os inputs dentro da caixa recém-aberta!
+    container.querySelector('#mt-tenant-id').value = tid || '';
+    container.querySelector('#mt-old-slug').value = slug || '';
+    container.querySelector('#mt-nome').value = nome || '';
+    container.querySelector('#mt-slug').value = slug || '';
+    container.querySelector('#mt-email').value = '';
+    container.querySelector('#mt-limite-obras').value = lobras || 0;
+    container.querySelector('#mt-limite-trab').value = ltrab || 0;
+
+    document.getElementById('modal-container').classList.add('open');
 }
 
 async function saveMasterTenant() {
