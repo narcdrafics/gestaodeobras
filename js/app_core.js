@@ -815,11 +815,12 @@ async function startStripeCheckout() {
 // ==================== SUPER ADMIN (MASTER) ====================
 async function renderSuperAdmin() {
   const tbody = document.getElementById('master-tenants-tbody');
+  const tbodyUsers = document.getElementById('master-users-tbody');
   const totalTenantsEl = document.getElementById('master-total-tenants');
   const totalUsersEl = document.getElementById('master-total-users');
 
   try {
-    // Busca todos os Tenants, Perfis e Convites Pendentes de uma vez (Visão Global)
+    // Busca todos os Tenants, Perfis e Convites de uma vez (Visão Global)
     const [tenantsSnap, profilesSnap, invitesSnap] = await Promise.all([
       firebase.database().ref('tenants').once('value'),
       firebase.database().ref('profiles').once('value'),
@@ -866,6 +867,37 @@ async function renderSuperAdmin() {
             </td>
         </tr>`;
     }).join('');
+
+    if (tbodyUsers) {
+        // Ordena usuários pelo nome ou e-mail
+        profileList.sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || ''));
+        
+        tbodyUsers.innerHTML = profileList.map(p => {
+            let nomeEmp = 'Sem Vínculo / Mestre';
+            let extraInfo = '';
+            
+            if (p.tenantId !== 'MASTER_SYSTEM') {
+                const t = tenants[p.tenantId] || {};
+                const config = t.config || {};
+                nomeEmp = config.nomeEmpresa || 'Empresa Excluída/Não Encontrada';
+                const slugTxt = config.slug ? `(<b>${config.slug}</b>)` : '';
+                extraInfo = `<div style="font-size:10px; opacity:0.6">ID: ${p.tenantId} ${slugTxt}</div>`;
+            }
+
+            return `<tr>
+                <td><div style="font-weight:600">${p.name || 'Sem Nome'}</div></td>
+                <td>${p.email || 'N/A'}</td>
+                <td><span class="badge badge-gray">${(p.role || '').toUpperCase()}</span></td>
+                <td>
+                    <div style="font-weight:600">${nomeEmp}</div>
+                    ${extraInfo}
+                </td>
+                <td>
+                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser('${p.uid}')">🗑️ Excluir</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
 
   } catch (err) {
     console.error('Erro Super Admin:', err);
@@ -1007,6 +1039,18 @@ async function deleteTenant(tid) {
       console.error('Erro ao deletar tenant:', err);
       toast('Erro ao remover empresa e dependências.', 'error');
   }
+}
+
+async function deleteGlobalUser(uid) {
+    if (!confirm('Deseja realmente excluir este perfil da base do sistema? (Você ainda terá que excluí-lo no painel Firebase Auth para bloqueio total)')) return;
+    try {
+        await firebase.database().ref(`profiles/${uid}`).remove();
+        toast('Perfil do Usuário Removido com sucesso!');
+        renderSuperAdmin();
+    } catch(e) {
+        toast('Erro ao remover usuário.', 'error');
+        console.error(e);
+    }
 }
 
 function salvarConfiguracoes() {
