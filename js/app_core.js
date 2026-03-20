@@ -38,7 +38,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603201220';
+const HTML_CACHE_VERSION = '202603201300';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -1578,6 +1578,9 @@ async function editPresenca(idx) {
   const p = DB.presenca[idx];
   document.getElementById('pr-data').value = p.data;
   document.getElementById('pr-obra').value = p.obra;
+  
+  // Dispara o filtro inteligente programaticamente antes de resgatar o valor do trabalhador
+  filterTrabByObra();
   
   // Seleciona trabalhador pelo COD salvo
   const trSelect = document.getElementById('pr-trab');
