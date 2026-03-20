@@ -327,9 +327,23 @@ function renderPresenca() {
     <div class="kpi-card"><div class="kpi-label">Total a Pagar Hoje</div><div class="kpi-val yellow" style="font-size:20px">${fmt(totalPagar)}</div></div>
   `);
 
-  // Tabela Principal
-  safeSetInner('pres-tbody', allPres.length
-    ? allPres.map((p, i) => `<tr>
+  // Ordenação e Tabela Principal
+  const sortSelect = document.getElementById('pres-sort-select');
+  const sortVal = sortSelect ? sortSelect.value : 'data_desc'; // O Padrão é data decrescente
+
+  let listForTable = allPres.map((p, i) => (p ? { ...p, _idx: i } : null)).filter(p => p !== null);
+  
+  // Realiza o Sort Seguro
+  listForTable.sort((a, b) => {
+      if (sortVal === 'data_desc') return String(b.data || '').localeCompare(String(a.data || ''));
+      if (sortVal === 'data_asc') return String(a.data || '').localeCompare(String(b.data || ''));
+      if (sortVal === 'nome_asc') return String(a.nome || '').localeCompare(String(b.nome || ''));
+      if (sortVal === 'nome_desc') return String(b.nome || '').localeCompare(String(a.nome || ''));
+      return 0;
+  });
+
+  safeSetInner('pres-tbody', listForTable.length
+    ? listForTable.map(p => `<tr>
         <td>${fmtDate(p.data)}</td><td><span class="cod">${p.obra}</span></td>
         <td>${p.nome}</td><td>${p.funcao}</td><td>${p.frente}</td>
         <td>${p.entrada || '—'}</td><td>${p.saida || '—'}</td>
@@ -339,8 +353,8 @@ function renderPresenca() {
         <td>${fmt(p.diaria)}</td><td><b>${fmt(p.total)}</b></td>
         <td>${p.lancador || '—'}</td>
         <td>
-          <button class="btn btn-secondary btn-sm" onclick="editPresenca(${i})" style="margin-right:8px">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${i})">🗑</button>
+          <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">🗑</button>
         </td>
       </tr>`).join('')
     : '<tr class="empty-row"><td colspan="15">Nenhum registro de presença</td></tr>');
