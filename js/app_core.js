@@ -66,7 +66,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211640';
+const HTML_CACHE_VERSION = '202603211645';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -610,7 +610,7 @@ function renderMovEstoque() {
     ? DB.movEstoque.map((m, i) => `<tr>
         <td>${fmtDate(m.data)}</td><td><span class="cod">${m.codMat}</span></td><td>${m.mat}</td>
         <td>${m.obra}</td>
-        <td><span class="badge ${m.tipo === 'Entrada' ? 'badge-green' : 'badge-orange'}">${m.tipo}</span></td>
+        <td><span class="badge ${m.tipo === 'Entrada' ? 'badge-green' : m.tipo === 'Saída' ? 'badge-orange' : m.tipo.includes('Entrada') ? 'badge-blue' : 'badge-purple'}">${m.tipo}</span></td>
         <td>${m.qtd}</td><td>${m.frente || '—'}</td><td>${m.retirado || '—'}</td>
         <td>${m.autor || '—'}</td><td>${m.nf || '—'}</td>
         <td>${fmt(m.vunit)}</td><td>${fmt(m.vtotal)}</td><td>${m.obs || '—'}</td>
@@ -1828,6 +1828,12 @@ function calcAvanco() {
   document.getElementById('md-avanco').value = p > 0 ? (r/p*100).toFixed(1) : 0;
 }
 
+window.toggleDestinoMov = function() {
+  const t = document.getElementById('mv-tipo').value;
+  const grp = document.getElementById('grp-mv-destino');
+  if (grp) grp.style.display = t === 'Transferência' ? 'block' : 'none';
+};
+
 
 
 async function saveTarefa() {
@@ -1926,36 +1932,95 @@ async function editEstoque(idx) {
 }
 
 async function saveMovEstoque() {
-
   const codMat = document.getElementById('mv-mat').value;
-  const e = DB.estoque.find(x => x.cod === codMat);
+  let e = DB.estoque.find(x => x.cod === codMat);
   const tipo = document.getElementById('mv-tipo').value;
   const qtd = parseFloat(document.getElementById('mv-qtd').value) || 0;
-  if (e) {
-    if (tipo === 'Entrada') e.entrada += qtd;
-    else { if (qtd > calcSaldo(e)) { toast('Qtd. maior que saldo!', 'error'); return; } e.saida += qtd; }
-  }
-  const data = {
-    data: document.getElementById('mv-data').value,
-    codMat, mat: document.getElementById('mv-matname').value,
-    obra: document.getElementById('mv-obra').value,
-    tipo, qtd,
-    frente: document.getElementById('mv-frente').value,
-    retirado: document.getElementById('mv-retirado').value,
-    autor: document.getElementById('mv-autor').value,
-    nf: document.getElementById('mv-nf').value,
-    vunit: parseFloat(document.getElementById('mv-vunit').value) || 0,
-    vtotal: parseFloat(document.getElementById('mv-vtotal').value) || 0,
-    obs: document.getElementById('mv-obs').value
-  };
-  if (currentEditIdx >= 0) {
-    DB.movEstoque[currentEditIdx] = data;
-    toast('Movimentação atualizada!');
+  
+  const obraOrigem = document.getElementById('mv-obra').value;
+  const obraDestino = document.getElementById('mv-destino-obra') ? document.getElementById('mv-destino-obra').value : '';
+  const matName = document.getElementById('mv-matname').value;
+
+  if (tipo === 'Transferência') {
+     if (!obraDestino || obraOrigem === obraDestino) {
+        toast('Selecione uma Obra Destino diferente da Origem!', 'error');
+        return;
+     }
+     
+     // 1. Dar baixa na Origem
+     if (e) {
+        if (qtd > calcSaldo(e)) { toast('Qtd. maior que saldo na Origem!', 'error'); return; }
+        e.saida += qtd;
+     }
+
+     // 2. Localizar/Criar no Destino
+     let eDest = DB.estoque.find(x => x.obra === obraDestino && x.mat === e.mat && x.unid === e.unid);
+     if (!eDest) {
+        eDest = { 
+           cod: 'MAT-' + Date.now() + Math.floor(Math.random()*1000), 
+           mat: e.mat, unid: e.unid, obra: obraDestino, 
+           min: e.min || 0, entrada: 0, saida: 0, custo: e.custo || 0, obs: 'Transferido.' 
+        };
+        DB.estoque.push(eDest);
+     }
+     eDest.entrada += qtd;
+
+     // 3. Registrar Movimento de SAÍDA (Origem)
+     const dataSaida = {
+        data: document.getElementById('mv-data').value,
+        codMat, mat: matName,
+        obra: obraOrigem,
+        tipo: 'Transferência (Saída)', qtd,
+        frente: document.getElementById('mv-frente').value,
+        retirado: document.getElementById('mv-retirado').value,
+        autor: document.getElementById('mv-autor').value,
+        nf: document.getElementById('mv-nf').value,
+        vunit: parseFloat(document.getElementById('mv-vunit').value) || 0,
+        vtotal: parseFloat(document.getElementById('mv-vtotal').value) || 0,
+        obs: 'Destino: ' + obraDestino + '. ' + document.getElementById('mv-obs').value
+     };
+     DB.movEstoque.push(dataSaida);
+
+     // 4. Registrar Movimento de ENTRADA (Destino)
+     const dataEntrada = {
+        ...dataSaida,
+        tipo: 'Transferência (Entrada)',
+        obra: obraDestino,
+        codMat: eDest.cod,
+        obs: 'Origem: ' + obraOrigem + '. ' + document.getElementById('mv-obs').value
+     };
+     DB.movEstoque.push(dataEntrada);
+
+     toast('Transferência Dupla registrada!');
   } else {
-    DB.movEstoque.push(data);
-    toast('Movimentação registrada!');
+     // Normal Entrada/Saida Logic
+     if (e) {
+       if (tipo === 'Entrada') e.entrada += qtd;
+       else { if (qtd > calcSaldo(e)) { toast('Qtd. maior que saldo!', 'error'); return; } e.saida += qtd; }
+     }
+     const data = {
+        data: document.getElementById('mv-data').value,
+        codMat, mat: matName,
+        obra: obraOrigem,
+        tipo, qtd,
+        frente: document.getElementById('mv-frente').value,
+        retirado: document.getElementById('mv-retirado').value,
+        autor: document.getElementById('mv-autor').value,
+        nf: document.getElementById('mv-nf').value,
+        vunit: parseFloat(document.getElementById('mv-vunit').value) || 0,
+        vtotal: parseFloat(document.getElementById('mv-vtotal').value) || 0,
+        obs: document.getElementById('mv-obs').value
+     };
+     if (currentEditIdx >= 0) {
+        DB.movEstoque[currentEditIdx] = data;
+        toast('Movimentação atualizada!');
+     } else {
+        DB.movEstoque.push(data);
+        toast('Movimentação registrada!');
+     }
   }
-  closeModal('modal-movest'); await persistDB(); renderMovEstoque(); 
+
+  closeModal('modal-movest'); await persistDB(); renderMovEstoque(); renderEstoque();
 }
 
 async function editMovEstoque(idx) {
@@ -1966,7 +2031,15 @@ async function editMovEstoque(idx) {
   document.getElementById('mv-mat').value = m.codMat;
   document.getElementById('mv-matname').value = m.mat;
   document.getElementById('mv-obra').value = m.obra;
-  document.getElementById('mv-tipo').value = m.tipo;
+  
+  if (m.tipo.includes('Transferência')) {
+    document.getElementById('mv-tipo').value = 'Transferência';
+    window.toggleDestinoMov();
+  } else {
+    document.getElementById('mv-tipo').value = m.tipo;
+    window.toggleDestinoMov();
+  }
+  
   document.getElementById('mv-qtd').value = m.qtd;
   document.getElementById('mv-frente').value = m.frente;
   document.getElementById('mv-retirado').value = m.retirado;
