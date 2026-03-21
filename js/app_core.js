@@ -48,6 +48,14 @@ function uiEmptyState(message, subMessage, icon, actionText, actionFn) {
   </tr>`;
 }
 
+function obName(cStr) {
+  if(!cStr) return '—';
+  return cStr.split(',').map(c => {
+    const o = DB.obras.find(x => x.cod === c.trim());
+    return o ? `<b>${o.nome}</b>` : c.trim();
+  }).join(', ');
+}
+
 function calcSaldo(item) { return (item.entrada || 0) - (item.saida || 0); }
 function estoqueStatus(item) {
   const saldo = calcSaldo(item);
@@ -66,7 +74,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211655';
+const HTML_CACHE_VERSION = '202603211710';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -373,7 +381,7 @@ function renderTrabalhadores() {
         <td><span class="cod">${t.cod}</span></td><td><b>${t.nome}</b></td>
         <td>${t.cpf || '—'}</td><td>${t.funcao || '—'}</td>
         <td>${t.vinculo || '—'}</td><td>${t.equipe || '—'}</td>
-        <td>${t.obras || '—'}</td><td>${fmt(t.diaria)}</td>
+        <td>${obName(t.obras)}</td><td>${fmt(t.diaria)}</td>
         <td>${statusBadge(t.status)}</td>
         <td>
           <button class="btn btn-secondary btn-sm" onclick="editTrabalhador(${i})" style="margin-right:8px">✏️</button>
@@ -422,8 +430,9 @@ function renderPresenca() {
   } else if (!groupMode) {
       // Sem Agrupamento
       safeSetInner('pres-tbody', listForTable.map(p => `<tr>
-        <td>${fmtDate(p.data)}</td><td><span class="cod">${p.obra}</span></td>
-        <td>${p.nome}</td><td>${p.funcao}</td><td>${p.frente}</td>
+        <td>${fmtDate(p.data)}</td><td>${obName(p.obra)}</td>
+        <td>${p.frente || '—'}</td><td><span class="cod">${p.trab}</span></td>
+        <td><b>${p.nome}</b></td><td>${p.funcao}</td>
         <td>${p.entrada || '—'}</td><td>${p.saida || '—'}</td>
         <td>${p.hnorm || 0}h</td><td>${p.hextra || 0}h</td>
         <td><span class="badge ${p.almoco === 'Sim' ? 'bg-success' : 'bg-secondary'}">${p.almoco || 'Não'}</span></td>
@@ -464,7 +473,7 @@ function renderPresenca() {
           rows.forEach(p => {
               tbodyHtml += `<tr class="${cls}" style="display:none; transition: all 0.3s">
                 <td style="padding-left:16px"><span style="color:var(--text3); font-size:10px; margin-right:4px">└</span> ${fmtDate(p.data)}</td>
-                <td><span class="cod">${p.obra}</span></td>
+                <td>${obName(p.obra)}</td>
                 <td style="color:var(--text2)">${groupMode==='trab' ? '—' : p.nome}</td>
                 <td>${p.funcao}</td><td>${p.frente}</td>
                 <td>${p.entrada || '—'}</td><td>${p.saida || '—'}</td>
@@ -565,9 +574,9 @@ function renderTarefas() {
   `);
   safeSetInner('tar-tbody', DB.tarefas.length
     ? DB.tarefas.map((t, i) => `<tr>
-        <td><span class="cod">${t.cod}</span></td><td>${t.obra}</td><td>${t.etapa}</td><td>${t.frente}</td>
-        <td>${t.desc}</td><td>${t.resp}</td><td>${statusBadge(t.prior)}</td>
-        <td>${statusBadge(t.status)}</td><td>${fmtDate(t.criacao)}</td><td>${fmtDate(t.prazo)}</td>
+        <td><span class="cod">${t.cod}</span></td><td>${obName(t.obra)}</td><td>${t.etapa}</td><td>${t.frente || '—'}</td>
+        <td><b>${t.desc}</b></td><td>${t.resp}</td>
+        <td>${statusBadge(t.prior)}</td><td>${statusBadge(t.status)}</td><td>${fmtDate(t.criacao)}</td><td>${fmtDate(t.prazo)}</td>
         <td><div style="display:flex;align-items:center;gap:6px">
           <div class="progress-bar"><div class="progress-fill" style="width:${t.perc || 0}%;background:${t.perc >= 100 ? 'var(--green)' : t.status === 'Atrasada' ? 'var(--red)' : 'var(--accent2)'}"></div></div>
           <span style="font-size:12px">${t.perc || 0}%</span>
@@ -591,7 +600,7 @@ function renderEstoque() {
       const s = estoqueStatus(e);
       return `<tr>
           <td><span class="cod">${e.cod}</span></td><td>${e.mat}</td><td>${e.unid}</td>
-          <td>${e.obra}</td><td>${e.min}</td><td>${e.entrada}</td><td>${e.saida}</td>
+          <td>${obName(e.obra)}</td><td>${e.min}</td><td>${e.entrada}</td><td>${e.saida}</td>
           <td><b style="color:${saldo <= e.min ? 'var(--red)' : saldo <= e.min * 1.5 ? 'var(--orange)' : 'var(--green)'}">${saldo}</b></td>
           <td>${fmt(e.custo)}</td><td>${fmt(saldo * e.custo)}</td>
           <td>${statusBadge(s)}</td>
@@ -609,7 +618,7 @@ function renderMovEstoque() {
   safeSetInner('movest-tbody', DB.movEstoque.length
     ? DB.movEstoque.map((m, i) => `<tr>
         <td>${fmtDate(m.data)}</td><td><span class="cod">${m.codMat}</span></td><td>${m.mat}</td>
-        <td>${m.obra}</td>
+        <td>${obName(m.obra)}</td>
         <td><span class="badge ${m.tipo === 'Entrada' ? 'badge-green' : m.tipo === 'Saída' ? 'badge-orange' : m.tipo.includes('Entrada') ? 'badge-blue' : 'badge-purple'}">${m.tipo}</span></td>
         <td>${m.qtd}</td><td>${m.frente || '—'}</td><td>${m.retirado || '—'}</td>
         <td>${m.autor || '—'}</td><td>${m.nf || '—'}</td>
@@ -626,9 +635,9 @@ function renderMovEstoque() {
 function renderCompras() {
   safeSetInner('compras-tbody', DB.compras.length
     ? DB.compras.map((c, i) => `<tr>
-        <td><span class="cod">${c.num}</span></td><td>${fmtDate(c.data)}</td><td>${c.obra}</td>
-        <td>${c.mat}</td><td>${c.qtd}</td><td>${c.unid}</td>
-        <td>${statusBadge(c.status)}</td><td>${c.forn || '—'}</td>
+        <td><b>${c.num}</b></td><td>${fmtDate(c.data)}</td>
+        <td>${obName(c.obra)}</td><td><span class="cod">${c.mat}</span></td><td>${c.qtd} ${c.unid}</td>
+        <td>${statusBadge(c.status)}</td><td>${c.forn}</td>
         <td>${fmt(c.vtotal)}</td><td>${fmtDate(c.prazo)}</td>
         <td>${c.conf || '—'}</td>
         <td>
@@ -718,8 +727,8 @@ function renderFinanceiro() {
       if(f.source === 'fin') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">🗑</button>`;
       
       return `<tr>
-          <td>${fmtDate(f.data)}</td><td>${f.obra}</td><td>${f.etapa}</td><td>${f.tipo}</td>
-          <td>${f.desc}</td><td>${f.forn}</td>
+          <td>${fmtDate(f.data)}</td><td>${obName(f.obra)}</td><td>${f.etapa}</td><td>${f.tipo}</td>
+          <td><b>${f.desc}</b></td><td>${f.forn}</td>
           <td>${fmt(f.prev)}</td><td>${fmt(f.real)}</td>
           <td style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
           <td>${f.pgto}</td><td>${statusBadge(f.status)}</td><td>${f.nf}</td>
@@ -762,9 +771,8 @@ function renderOrcamento() {
       const diff = (o.vtotal || 0) - (o.vreal || 0);
       const pexec = o.vtotal > 0 ? ((o.vreal || 0) / o.vtotal * 100).toFixed(1) : 0;
       return `<tr>
-          <td>${o.obra}</td><td>${o.etapa}</td><td>${o.tipo}</td><td>${o.desc}</td>
-          <td>${o.qtd}</td><td>${o.unid}</td>
-          <td>${fmt(o.vunit)}</td><td>${fmt(o.vtotal)}</td>
+          <td>${obName(o.obra)}</td><td>${o.etapa}</td><td>${o.tipo}</td><td>${o.desc}</td>
+          <td>${o.unidade}</td><td>${o.qtd}</td><td>${fmt(o.vunit)}</td><td>${fmt(o.vtotal)}</td>
           <td>${fmt(o.vreal)}</td>
           <td style="color:${diff < 0 ? 'var(--red)' : 'var(--text)'}">${fmt(diff)}</td>
           <td>${pexec}%</td>
@@ -784,8 +792,8 @@ function renderMedicao() {
     ? DB.medicao.map((m, i) => {
       const av = m.qprev > 0 ? (m.qreal / m.qprev) : 0;
       return `<tr>
-          <td>${fmtDate(m.semana)}</td><td>${m.obra}</td><td>${m.etapa}</td>
-          <td>${m.frente}</td><td>${m.equipe}</td><td>${m.servico}</td>
+          <td>${fmtDate(m.semana)}</td><td>${obName(m.obra)}</td><td>${m.etapa}</td>
+          <td>${m.desc}</td><td>${m.forn}</td><td>${m.servico}</td>
           <td>${m.unid}</td><td>${m.qprev}</td><td>${m.qreal}</td>
           <td>${fmt(m.vtotal || 0)}</td>
           <td><div style="display:flex;align-items:center;gap:6px">
