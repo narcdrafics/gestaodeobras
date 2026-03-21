@@ -131,11 +131,59 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       await firebase.database().ref(`invites/${sanitizedEmail}`).remove();
       console.log('[AuthTrace] Perfil processado via Convite. Tenant:', userProfile.tenantId);
     } else if (!userProfile) {
-      // SaaS: Auto-onboarding desativado para evitar recriação de empresas deletadas
-      await firebase.auth().signOut();
-      sessionStorage.removeItem('gestaoUser');
-      showLoginError('Esta conta não possui uma empresa vinculada. Entre em contato com o suporte.');
-      return;
+      // AUTO-ONBOARDING / FREE TRIAL (Self Serve)
+      console.log('[AuthTrace] Usuário novo detectado. Auto-Onboarding iniciado.');
+      
+      const slugBase = email.split('@')[0].replace(/[^a-z0-9]/g, '');
+      const numAuto = Math.floor(Math.random() * 900) + 100;
+      const tenantId = slugBase + numAuto; // Cria "joao123" pra garantir unicidade
+      
+      const newTenant = {
+          nomeEmpresa: Name !== 'Sem Nome' ? Name + " Engenharia" : "Minha Empresa",
+          slug: tenantId,
+          emailAdmin: email,
+          status: 'ativo',
+          plano: 'free_trial', // <-----------
+          webhookCriacao: Date.now(),
+          corPrimaria: '#3b82f6',
+          limiteObras: 1, // Plano gratuito básico
+          limiteTrabalhadores: 5
+      };
+      
+      try {
+          // Salva Estrutura da Construtora no Banco
+          await firebase.database().ref(`tenants/${tenantId}`).set(newTenant);
+          await firebase.database().ref(`tenants_public/${tenantId}`).set({
+              slug: tenantId,
+              nomeEmpresa: newTenant.nomeEmpresa,
+              corPrimaria: newTenant.corPrimaria
+          });
+          
+          // Salva no Painel Global Master
+          await firebase.database().ref(`users/${sanitizedEmail}`).set({
+              tenantId: tenantId,
+              role: 'admin',
+              nome: Name,
+              origem: 'self_signup'
+          });
+
+          // Conecta o Usuário Fisicamente à Nova Bolha
+          userProfile = {
+              uid,
+              email,
+              name: Name,
+              role: 'admin',
+              tenantId: tenantId
+          };
+          await profileRef.set(userProfile);
+          console.log('[AuthTrace] Bolha Criada. Tenant Free Trial:', tenantId);
+      } catch (err) {
+          console.error('[AuthTrace] Erro de BD no Auto-Onboarding:', err);
+          await firebase.auth().signOut();
+          sessionStorage.removeItem('gestaoUser');
+          showLoginError('Erro de segurança ao criar Trial. O Servidor da Google recusou a criação. Deploy do Firebase Rules foi feito?');
+          return;
+      }
     }
 
     // 3. Validação Cross-Tenant (Segurança SaaS)
