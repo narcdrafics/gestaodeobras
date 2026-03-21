@@ -20,6 +20,13 @@
       ".read": true,
       ".write": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'"
     },
+    "users": {
+      ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
+      ".write": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
+      "$email": {
+        ".read": "auth != null"
+      }
+    },
     "invites": {
       ".read": "auth != null",
       ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/role').val() === 'admin')",
