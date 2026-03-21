@@ -74,7 +74,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211755';
+const HTML_CACHE_VERSION = '202603211762';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -2494,24 +2494,30 @@ async function saveNewTenant() {
         const tenantId = res.key;
 
         // 1. Criar Configuração Inicial do Tenant
-        await firebase.database().ref(`tenants/${tenantId}/config`).set({
+        await firebase.database().ref(`tenants/${slugVal}`).set({
             nomeEmpresa: nome,
             slug: slugVal,
+            emailAdmin: emailOwner,
+            status: 'ativo',
+            plano: 'start',
+            webhookCriacao: Date.now(),
             corPrimaria: '#f59e0b',
             limiteObras: lobras,
             limiteTrabalhadores: ltrab
         });
 
-        // 2. Criar Convite para que o dono ao logar caia nesta empresa
         const sanitizedEmail = emailOwner.replace(/\./g, ',');
-        await firebase.database().ref(`invites/${sanitizedEmail}`).set({
-            tenantId: tenantId,
+
+        // 2. Inserir no Novo Título Global (Painel Mestre e Passaporte)
+        await firebase.database().ref(`users/${sanitizedEmail}`).set({
+            tenantId: slugVal,
             role: 'admin',
-            nomeEmpresa: nome
+            nome: nome,
+            origem: 'super_admin_manual'
         });
 
-        // 3. Espelhar slug no nó público (para leitura antes do login)
-        await firebase.database().ref(`tenants_public/${tenantId}`).set({
+        // 3. Espelhar slug no nó público (para leitura da logo antes do login)
+        await firebase.database().ref(`tenants_public/${slugVal}`).set({
             slug: slugVal,
             nomeEmpresa: nome,
             corPrimaria: '#f59e0b'
