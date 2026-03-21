@@ -143,6 +143,21 @@ function initDB(tenantId) {
 function _onFirebaseValue(snapshot) {
   const data = snapshot.val();
   if (data) {
+    
+    // SaaS: Trava de Inadimplência e Bloqueios
+    if (data.status === 'bloqueado_pagamento') {
+       alert('⚠️ Sua assinatura SaaS está suspensa por falta de pagamento. O sistema foi bloqueado para proteção dos dados.\n\nPor favor, entre em contato com o Suporte (WhatsApp).');
+       if (typeof doLogout === 'function') doLogout();
+       return;
+    }
+    
+    // SaaS: Trava de Tempo do Free Trial (30 dias)
+    if (data.plano === 'free_trial' && data.trialExpiracao && Date.now() > data.trialExpiracao) {
+       alert('⏰ O seu período de Teste Grátis de 30 dias chegou ao fim!\n\nEsperamos que tenha gostado do sistema. Para continuar usando o Gestão de Obras, assine um de nossos planos.');
+       if (typeof doLogout === 'function') doLogout();
+       return;
+    }
+
     DB = ensureSchema(data);
     const hasGoogleUsers = DB.usuarios.some(u => u && u.email);
     if (!hasGoogleUsers) {

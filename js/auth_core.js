@@ -138,13 +138,17 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       const numAuto = Math.floor(Math.random() * 900) + 100;
       const tenantId = slugBase + numAuto; // Cria "joao123" pra garantir unicidade
       
+      const dataCriacao = Date.now();
+      const trigintaDiasMs = 30 * 24 * 60 * 60 * 1000;
+      
       const newTenant = {
           nomeEmpresa: Name !== 'Sem Nome' ? Name + " Engenharia" : "Minha Empresa",
           slug: tenantId,
           emailAdmin: email,
           status: 'ativo',
-          plano: 'free_trial', // <-----------
-          webhookCriacao: Date.now(),
+          plano: 'free_trial', 
+          webhookCriacao: dataCriacao,
+          trialExpiracao: dataCriacao + trigintaDiasMs, // <--- Validade 30 dias inserida
           corPrimaria: '#3b82f6',
           limiteObras: 1, // Plano gratuito básico
           limiteTrabalhadores: 5
