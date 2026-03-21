@@ -74,7 +74,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211803';
+const HTML_CACHE_VERSION = '202603211830';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -929,40 +929,74 @@ function renderFotos() {
 // SaaS: Render Billing Info
 function renderBilling() {
   if (DB.config) {
-    const limitObras = DB.config.limiteObras || 2;
-    const limitTrab = DB.config.limiteTrabalhadores || 10;
-    const isPro = limitObras > 5; // Lógica simples de exemplo
+    const limitObras = DB.config.limiteObras || 1;
+    const limitTrab = DB.config.limiteTrabalhadores || 5;
+    
+    // Novo motor baseado no Plano Real do usuário (via DB central)
+    const isPro = DB.plano && DB.plano !== 'free_trial';
+    
+    let planText = isPro ? 'PLANO PRO ⭐' : 'PLANO INICIAL (Teste Grátis)';
+    
+    // Calcula dias restantes se for trial
+    let diasRestantes = 0;
+    if (!isPro && DB.trialExpiracao) {
+        const diffMs = DB.trialExpiracao - Date.now();
+        diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        if (diasRestantes < 0) diasRestantes = 0;
+    }
 
-    safeSetText('plan-name', isPro ? 'PLANO PRO ⭐' : 'PLANO INICIAL');
+    // Injeta visual de dias restantes progressivo
+    const timerElem = document.getElementById('trial-timer-display');
+    if (!isPro && DB.trialExpiracao) {
+        if (!timerElem) {
+            const painel = document.getElementById('plan-name').parentNode;
+            painel.insertAdjacentHTML('afterend', `
+              <div id="trial-timer-display" style="background:#fff3cd; color:#b45309; padding:10px 12px; border-radius:6px; margin: 12px 0; font-size:13px; font-weight:600; border:1px solid #fde68a; display:flex; align-items:center; gap:8px;">
+                <span style="font-size:18px;">⏳</span> 
+                <span>Faltam <b id="trial-days" style="color:var(--danger)">${diasRestantes}</b> dias para acabar o seu Teste Grátis.</span>
+              </div>
+            `);
+        } else {
+            timerElem.style.display = 'flex';
+            document.getElementById('trial-days').innerText = diasRestantes;
+        }
+    } else if (timerElem) {
+        timerElem.style.display = 'none'; // Se for Pro, esconde a barra de Trial
+    }
+
+    safeSetText('plan-name', planText);
     safeSetText('limit-obras', limitObras === 99 ? 'Ilimitado' : limitObras);
     safeSetText('limit-trab', limitTrab === 99 ? 'Ilimitado' : limitTrab);
     
     const btnUpgrade = document.getElementById('btn-upgrade');
     if (btnUpgrade) {
-      btnUpgrade.style.display = isPro ? 'none' : 'block';
+      if (isPro) {
+          btnUpgrade.textContent = "✅ Assinatura Premium Ativada";
+          btnUpgrade.style.background = "var(--success)";
+          btnUpgrade.style.borderColor = "var(--success)";
+          btnUpgrade.onclick = null; // Tira o link de pagamento
+          btnUpgrade.style.pointerEvents = "none";
+      } else {
+          btnUpgrade.textContent = "⭐ Assinar Plano Pro Agora";
+          btnUpgrade.style.background = "#6366f1";
+          btnUpgrade.style.borderColor = "#6366f1";
+          btnUpgrade.style.pointerEvents = "auto";
+      }
+      btnUpgrade.style.display = 'block';
     }
   }
 }
 
-
 async function startStripeCheckout() {
   const user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
-  if (!user.tenantId) return toast('Erro: Tenant não identificado.', 'error');
+  if (!user.tenantId) return toast('Erro: Conta não identificada.', 'error');
 
-  toast('Iniciando Checkout Stripe...', 'success');
-  
-  // Aqui viria a lógica de criar a session no Firebase
-  // para a extensão do Stripe capturar.
-  // firebase.database().ref(`tenants/${user.tenantId}/checkout_sessions`).push({ ... });
+  toast('Abrindo Checkout Seguro da Kiwify...', 'success');
   
   setTimeout(() => {
-    alert('Nesta demonstração, imagine que você foi redirecionado para o Stripe.\n\nSimulando sucesso de pagamento...');
-    // Simulando o que o Webhook do Stripe faria:
-    DB.config.limiteObras = 99;
-    DB.config.limiteTrabalhadores = 99;
-    persistDB();
-    renderAdmin();
-  }, 2000);
+    // Redirecionamento real para a Kiwify na aba principal (usando o link do checkout)
+    window.open('https://pay.kiwify.com.br/agsRolp?afid=QKdqqQt6', '_blank');
+  }, 1000);
 }
 
 // ==================== SUPER ADMIN (MASTER) ====================
