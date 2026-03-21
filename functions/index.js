@@ -25,18 +25,25 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
     functions.logger.info("📡 Webhook Acionado. Payload Recebido:", payload);
 
     /**
-     * ESTRUTURA PADRÃO ESPERADA (Adapte conforme Hotmart/Asaas):
-     * {
-     *    "event": "PAYMENT_RECEIVED", ou "CANCELED"
-     *    "customer_email": "tony@construtora.com",
-     *    "customer_name": "Tony Construções",
-     *    "status": "paid" // "refunded" "overdue"
-     * }
+     * ESTRUTURA DA KIWIFY:
+     * order_status: "approved", "refunded", "chargeback"
+     * Customer: { email: "...", full_name: "..." }
      */
 
-    const status = payload.status || 'paid';
-    const email = payload.customer_email || payload.email;
-    const nome = payload.customer_name || payload.nome || "Empresa " + Date.now();
+    // Adaptação flexível para mapear Kiwify, Asaas ou Genérico
+    const status = payload.order_status || payload.status || 'paid';
+    
+    // Mapeia E-mail e Nome
+    let email = payload.email || payload.customer_email;
+    let nome = payload.nome || payload.customer_name;
+
+    // Se vier da Kiwify, extrai de "Customer"
+    if (payload.Customer) {
+        email = email || payload.Customer.email;
+        nome = nome || payload.Customer.full_name;
+    }
+    
+    nome = nome || "Empresa " + Date.now();
 
     if (!email) {
        console.error("Payload não continha E-mail");
@@ -45,7 +52,7 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
 
     const db = admin.database();
 
-    // =============== CENÁRIO 1: DINHEIRO ENTROU (CRIAR TENANT) ===============
+    // =============== CENÁRIO 1: DINHEIRO ENTROU (CRIAR TENANT OU PROMOVER) ===============
     if (status === 'paid' || status === 'approved') {
        
        // 1. Gera um slug temporário e único
