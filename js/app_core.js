@@ -53,7 +53,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211340';
+const HTML_CACHE_VERSION = '202603211515';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -101,7 +101,30 @@ function renderPage(id) {
 
 function safeSetInner(id, html) {
   const el = document.getElementById(id);
-  if (el) el.innerHTML = html;
+  if (el) {
+    el.innerHTML = html;
+    if (el.tagName === 'TBODY') {
+      setTimeout(() => autoBindTableLabels(el), 10);
+    }
+  }
+}
+
+function autoBindTableLabels(tbody) {
+  try {
+    const table = tbody.closest('table');
+    if (!table) return;
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+    if (!headers.length) return;
+    Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+      Array.from(tr.children).forEach((td, i) => {
+        if (headers[i] && !td.hasAttribute('data-label')) {
+          td.setAttribute('data-label', headers[i]);
+        }
+      });
+    });
+  } catch (e) {
+    console.error('AutoBind Error', e);
+  }
 }
 
 function safeSetText(id, text) {
