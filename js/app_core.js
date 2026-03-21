@@ -37,6 +37,17 @@ function statusBadge(s) {
   return `<span class="badge ${cls}">${s || '—'}</span>`;
 }
 
+function uiEmptyState(message, subMessage, icon, actionText, actionFn) {
+  return `<tr class="empty-row" style="background:transparent;border:none;box-shadow:none;">
+   <td colspan="100%" style="text-align:center;padding:48px 20px;border:none;background:transparent;">
+       <div style="font-size:48px;margin-bottom:12px;opacity:0.9;">${icon}</div>
+       <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px;">${message}</div>
+       <div style="font-size:13px;color:var(--text3);margin-bottom:20px;max-width:300px;margin-left:auto;margin-right:auto;text-wrap:balance;">${subMessage}</div>
+       ${actionText ? `<button class="btn btn-primary" onclick="${actionFn}" style="margin:0 auto;">${actionText}</button>` : ''}
+   </td>
+  </tr>`;
+}
+
 function calcSaldo(item) { return (item.entrada || 0) - (item.saida || 0); }
 function estoqueStatus(item) {
   const saldo = calcSaldo(item);
@@ -55,7 +66,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211600';
+const HTML_CACHE_VERSION = '202603211625';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -359,15 +370,17 @@ function renderObras() {
 function renderTrabalhadores() {
   safeSetInner('trab-tbody', DB.trabalhadores.length
     ? DB.trabalhadores.map((t, i) => `<tr>
-        <td><span class="cod">${t.cod}</span></td><td>${t.nome}</td><td>${t.cpf}</td>
-        <td>${t.funcao}</td><td>${statusBadge(t.vinculo)}</td><td>${t.obras}</td>
-        <td>${fmt(t.diaria)}</td><td>${t.pgto}</td><td>${statusBadge(t.status)}</td>
+        <td><span class="cod">${t.cod}</span></td><td><b>${t.nome}</b></td>
+        <td>${t.cpf || '—'}</td><td>${t.funcao || '—'}</td>
+        <td>${t.vinculo || '—'}</td><td>${t.equipe || '—'}</td>
+        <td>${t.obras || '—'}</td><td>${fmt(t.diaria)}</td>
+        <td>${statusBadge(t.status)}</td>
         <td>
           <button class="btn btn-secondary btn-sm" onclick="editTrabalhador(${i})" style="margin-right:8px">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteItem('trabalhadores',${i})">🗑</button>
         </td>
       </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="10">Nenhum trabalhador cadastrado</td></tr>');
+    : uiEmptyState('Sem Trabalhadores', 'Cadastre o primeiro pedreiro, mestre ou servente para começar.', '👷‍♂️', 'Adicionar Trabalhador', 'openModal(\'modal-trab\')'));
 }
 
 // ==================== PRESENÇA ====================
@@ -405,7 +418,7 @@ function renderPresenca() {
   const groupMode = groupSelect ? groupSelect.value : 'trab';
 
   if (listForTable.length === 0) {
-      safeSetInner('pres-tbody', '<tr class="empty-row"><td colspan="15">Nenhum registro de presença</td></tr>');
+      safeSetInner('pres-tbody', uiEmptyState('Folha em Branco', 'Ninguém bateu ponto hoje. Inicie o lançamento diário da obra.', '✅', 'Lançar Presença', 'openModal(\'modal-presenca\')'));
   } else if (!groupMode) {
       // Sem Agrupamento
       safeSetInner('pres-tbody', listForTable.map(p => `<tr>
@@ -567,7 +580,7 @@ function renderTarefas() {
            </div>
         </td>
       </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="12">Nenhuma tarefa cadastrada</td></tr>');
+    : uiEmptyState('Nenhuma Tarefa', 'O cronograma está limpo. Crie uma atividade para a equipe focar.', '📋', 'Nova Tarefa', 'openModal(\'modal-tarefa\')'));
 }
 
 // ==================== ESTOQUE ====================
@@ -588,7 +601,7 @@ function renderEstoque() {
           </td>
         </tr>`;
     }).join('')
-    : '<tr class="empty-row"><td colspan="12">Nenhum item no estoque</td></tr>');
+    : uiEmptyState('Estoque Zerado', 'Cadastre cimento, areia ou ferramentas no almoxarifado virtual.', '📦', 'Cadastrar Material', 'openModal(\'modal-estoque\')'));
 }
 
 // ==================== MOV. ESTOQUE ====================
@@ -606,7 +619,7 @@ function renderMovEstoque() {
           <button class="btn btn-danger btn-sm" onclick="deleteItem('movEstoque',${i})">🗑</button>
         </td>
       </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="14">Nenhuma movimentação registrada</td></tr>');
+    : uiEmptyState('Sem Movimentações', 'O depósito não teve entradas ou saídas de materiais ainda.', '🔄', 'Registrar Movimento', 'openModal(\'modal-mov-estoque\')'));
 }
 
 // ==================== COMPRAS ====================
@@ -623,7 +636,7 @@ function renderCompras() {
           <button class="btn btn-danger btn-sm" onclick="deleteItem('compras',${i})">🗑</button>
         </td>
       </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="12">Nenhuma compra registrada</td></tr>');
+    : uiEmptyState('Nenhuma Compra', 'Crie um pedido de material novo para acompanhar as entregas dos fornecedores.', '🛒', 'Novo Pedido', 'openModal(\'modal-compra\')'));
 }
 
 
@@ -713,7 +726,7 @@ function renderFinanceiro() {
           <td>${editBtn}${delBtn}</td>
         </tr>`;
     }).join('')
-    : '<tr class="empty-row"><td colspan="13">Nenhum lançamento financeiro ou Custo Mapeado</td></tr>');
+    : uiEmptyState('Financeiro Limpo', 'Suas contas a pagar, recebimentos e extratos aparecerão agrupados aqui.', '💰', 'Lançar Custo ou Receita', 'openModal(\'modal-financeiro\')'));
 }
 
 
@@ -761,7 +774,7 @@ function renderOrcamento() {
           </td>
         </tr>`;
     }).join('')
-    : '<tr class="empty-row"><td colspan="12">Nenhum item de orçamento</td></tr>');
+    : uiEmptyState('Sem Orçamento', 'Crie as linhas de custo planejado para comparar com o real na tela do Painel.', '📐', 'Criar Linha Orçamentária', 'openModal(\'modal-orcamento\')'));
 }
 
 
@@ -790,7 +803,7 @@ function renderMedicao() {
           </td>
         </tr>`;
     }).join('')
-    : '<tr class="empty-row"><td colspan="13">Nenhuma medição registrada</td></tr>');
+    : uiEmptyState('Sem Medições', 'Acompanhe o avanço das empreiteiras e os laudos dos terceirizados.', '📏', 'Lançar Medição', 'openModal(\'modal-medicao\')'));
 }
 
 // Helper functions for safe DOM manipulation
