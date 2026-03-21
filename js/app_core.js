@@ -53,7 +53,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603202055';
+const HTML_CACHE_VERSION = '202603202120';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -1624,6 +1624,7 @@ async function savePresenca() {
     diaria: parseFloat(document.getElementById('pr-diaria').value) || 0,
     total: parseFloat(document.getElementById('pr-total').value) || 0,
     pgtoStatus: document.getElementById('pr-pgto-status').value,
+    valpago: parseFloat(document.getElementById('pr-valpago').value) || 0,
     almoco: document.getElementById('pr-almoco').value,
     lancador: document.getElementById('pr-lancador').value,
     hrLanc: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
@@ -1640,7 +1641,9 @@ async function savePresenca() {
 
   try {
     await persistDB();
-    toast(currentEditIdx >= 0 ? 'Presença atualizada!' : 'Presença registrada!');
+    let tmsg = currentEditIdx >= 0 ? 'Presença atualizada!' : 'Presença registrada!';
+    if(data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.total - data.valpago).toFixed(2).replace('.',',')}`;
+    toast(tmsg);
   } catch (err) {
     // Mesmo que a nuvem falhe, os dados já estão no DB local em memória
     console.error('Erro ao persistir presença:', err);
@@ -1691,8 +1694,10 @@ async function editPresenca(idx) {
   document.getElementById('pr-diaria').value = p.diaria;
   document.getElementById('pr-total').value = p.total;
   document.getElementById('pr-pgto-status').value = p.pgtoStatus || 'Pendente';
+  document.getElementById('pr-valpago').value = p.valpago || '';
   document.getElementById('pr-lancador').value = p.lancador;
   togglePresenca();
+  toggleParcial('pr');
 }
 
 function togglePresenca() {
@@ -1706,6 +1711,32 @@ function togglePresenca() {
       document.getElementById('pr-almoco').value = 'Não';
   }
 }
+
+window.toggleParcial = function(prefix) {
+   let statusSel = document.getElementById(prefix === 'fn' ? 'fn-status' : prefix + '-pgto-status');
+   const isParcial = statusSel && statusSel.value === 'Parcial';
+   const grp = document.getElementById(prefix + '-parcial-grp');
+   const msg = document.getElementById(prefix + '-parcial-msg');
+   if(grp) grp.style.display = isParcial ? '' : 'none';
+   if(msg) msg.style.display = isParcial ? '' : 'none';
+   if(isParcial) window.calcParcial(prefix);
+};
+
+window.calcParcial = function(prefix) {
+   let total = 0;
+   let valPago = parseFloat(document.getElementById(prefix + '-valpago').value) || 0;
+   if(prefix === 'fn') total = parseFloat(document.getElementById('fn-real').value) || parseFloat(document.getElementById('fn-prev').value) || 0;
+   if(prefix === 'md') total = parseFloat(document.getElementById('md-vtotal').value) || 0;
+   if(prefix === 'pr') total = parseFloat(document.getElementById('pr-total').value) || 0;
+   
+   let faltante = total - valPago;
+   const msg = document.getElementById(prefix + '-parcial-msg');
+   if(msg) {
+      if(faltante > 0) msg.textContent = `Aviso: Falta Pagar R$ ${faltante.toFixed(2).replace('.',',')}`;
+      else if(faltante < 0) msg.textContent = `Aviso: Cuidado, excede o total (R$ ${Math.abs(faltante).toFixed(2).replace('.',',')})`;
+      else msg.textContent = 'Aviso: Totalmente quitado.';
+   }
+};
 
 function calcMovTotal() {
   const q = parseFloat(document.getElementById('mv-qtd').value)||0;
@@ -1946,15 +1977,20 @@ async function saveFinanceiro() {
     prev, real,
     pgto: document.getElementById('fn-pgto').value,
     status: document.getElementById('fn-status').value,
+    valpago: parseFloat(document.getElementById('fn-valpago').value) || 0,
     nf: document.getElementById('fn-nf').value,
     obs: document.getElementById('fn-obs').value
   };
   if (currentEditIdx >= 0) {
     DB.financeiro[currentEditIdx] = data;
-    toast('Lançamento financeiro atualizado!');
+    let tmsg = 'Lançamento financeiro atualizado!';
+    if(data.status === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.real > 0 ? data.real - data.valpago : data.prev - data.valpago).toFixed(2).replace('.',',')}`;
+    toast(tmsg);
   } else {
     DB.financeiro.push(data);
-    toast('Lançamento financeiro salvo!');
+    let tmsg = 'Lançamento financeiro salvo!';
+    if(data.status === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.real > 0 ? data.real - data.valpago : data.prev - data.valpago).toFixed(2).replace('.',',')}`;
+    toast(tmsg);
   }
   closeModal('modal-financeiro'); await persistDB(); renderFinanceiro(); renderDashboard(); 
 }
@@ -1973,8 +2009,10 @@ async function editFinanceiro(idx) {
   document.getElementById('fn-real').value = f.real;
   document.getElementById('fn-pgto').value = f.pgto;
   document.getElementById('fn-status').value = f.status;
+  document.getElementById('fn-valpago').value = f.valpago || '';
   document.getElementById('fn-nf').value = f.nf;
   document.getElementById('fn-obs').value = f.obs || '';
+  toggleParcial('fn');
 }
 
 async function saveOrcamento() {
@@ -2034,15 +2072,20 @@ async function saveMedicao() {
     vunit, vtotal: qreal * vunit,
     retr: document.getElementById('md-retr').value,
     pgtoStatus: document.getElementById('md-pgto-status').value,
+    valpago: parseFloat(document.getElementById('md-valpago').value) || 0,
     photoUrl: document.getElementById('md-photo-url').value || '',
     obs: document.getElementById('md-obs').value
   };
   if (currentEditIdx >= 0) {
     DB.medicao[currentEditIdx] = data;
-    toast('Medição atualizada!');
+    let tmsg = 'Medição atualizada!';
+    if(data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.vtotal - data.valpago).toFixed(2).replace('.',',')}`;
+    toast(tmsg);
   } else {
     DB.medicao.push(data);
-    toast('Medição salva!');
+    let tmsg = 'Medição salva!';
+    if(data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.vtotal - data.valpago).toFixed(2).replace('.',',')}`;
+    toast(tmsg);
   }
   closeModal('modal-medicao'); await persistDB(); renderMedicao && renderMedicao(); renderFinanceiro && renderFinanceiro(); renderDashboard && renderDashboard();
 }
@@ -2064,7 +2107,9 @@ async function editMedicao(idx) {
   document.getElementById('md-vtotal').value = m.vtotal || 0;
   document.getElementById('md-retr').value = m.retr;
   document.getElementById('md-pgto-status').value = m.pgtoStatus || 'Pendente';
+  document.getElementById('md-valpago').value = m.valpago || '';
   document.getElementById('md-photo-url').value = m.photoUrl || '';
+  toggleParcial('md');
   const preview = document.getElementById('md-photo-preview');
   if (m.photoUrl) {
       preview.style.display = 'block';
