@@ -51,7 +51,9 @@
   <div class="form-group"><label class="form-label">Lançado por</label><input class="form-control" id="pr-lancador"
       placeholder="Mestre João"></div>
 </div>
-<div class="modal-footer">
+<div class="modal-footer" style="flex-wrap: wrap;">
   <button class="btn btn-secondary" onclick="closeModal('modal-presenca')">Cancelar</button>
-  <button class="btn btn-primary" onclick="savePresenca()">Salvar</button>
+  <div style="flex-grow:1"></div>
+  <button class="btn btn-secondary" style="border:1px solid var(--primary); color:var(--primary); background:transparent" onclick="savePresenca(true)">Salvar e Adicionar Próximo</button>
+  <button class="btn btn-primary" onclick="savePresenca()">Salvar Fechando</button>
 </div>

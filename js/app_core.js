@@ -53,7 +53,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211235';
+const HTML_CACHE_VERSION = '202603211340';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -1597,7 +1597,7 @@ async function editTrabalhador(idx) {
   document.getElementById('tr-admissao').value = t.admissao;
 }
 
-async function savePresenca() {
+async function savePresenca(keepOpen = false) {
   // Validação dos campos obrigatórios
   const dataVal = document.getElementById('pr-data').value;
   const obraVal = document.getElementById('pr-obra').value;
@@ -1646,7 +1646,24 @@ async function savePresenca() {
     DB.presenca.push(data);
   }
 
-  closeModal('modal-presenca');
+  if (keepOpen) {
+    document.getElementById('pr-trab').value = '';
+    document.getElementById('pr-funcao').value = '';
+    document.getElementById('pr-presenca').value = 'Presente';
+    document.getElementById('pr-hnorm').value = '';
+    document.getElementById('pr-hextra').value = '';
+    document.getElementById('pr-diaria').value = '';
+    document.getElementById('pr-total').value = '';
+    document.getElementById('pr-valpago').value = '';
+    document.getElementById('pr-pgto-status').value = 'Pendente';
+    document.getElementById('pr-obs').value = '';
+    if (document.getElementById('pr-parcial-grp')) document.getElementById('pr-parcial-grp').style.display = 'none';
+    if (document.getElementById('pr-parcial-msg')) document.getElementById('pr-parcial-msg').style.display = 'none';
+    currentEditIdx = -1;
+    togglePresenca();
+  } else {
+    closeModal('modal-presenca');
+  }
 
   try {
     await persistDB();
