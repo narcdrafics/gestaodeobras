@@ -6,6 +6,8 @@ let currentEditIdx = -1; // Global variable to identify if we are creating new (
 window.renderDashboard = window.renderDashboard || function(){};
 window.renderObras = window.renderObras || function(){};
 window.renderTrabalhadores = window.renderTrabalhadores || function(){};
+
+
 window.renderPresenca = window.renderPresenca || function(){};
 window.renderTarefas = window.renderTarefas || function(){};
 window.renderEstoque = window.renderEstoque || function(){};
@@ -53,7 +55,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211515';
+const HTML_CACHE_VERSION = '202603211530';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -2463,6 +2465,11 @@ function openLightbox(url) {
 
 function closeLightbox() {
     document.getElementById('lightbox-container').classList.remove('open');
+}
+
+// SaaS: Inicialização garantida após carregamento estrito de todos os componentes de Interface Visual.
+if (typeof checkAuth === 'function') {
+  checkAuth();
 }
 
 

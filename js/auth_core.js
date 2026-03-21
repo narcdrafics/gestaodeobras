@@ -256,10 +256,12 @@ function safeCheckAuth() {
 const currPath = window.location.pathname;
 const isIndex = currPath.endsWith('index.html') || /\/$/i.test(currPath) || currPath.endsWith('gestaodeobras/');
 
-if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-  safeCheckAuth();
-} else {
-  window.addEventListener('load', () => safeCheckAuth());
+if (!isIndex) {
+  if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+    safeCheckAuth();
+  } else {
+    window.addEventListener('load', () => safeCheckAuth());
+  }
 }
 
 function applyAccessControl(user) {
