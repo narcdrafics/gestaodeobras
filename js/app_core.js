@@ -53,7 +53,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603202120';
+const HTML_CACHE_VERSION = '202603211235';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -128,11 +128,11 @@ function renderDashboard() {
   const comprasAguardando = DB.compras.filter(c => c.status === 'Aguardando').length;
   const totalPrev = DB.financeiro.reduce((a, f) => a + (f.prev || 0), 0);
 
-  // Unificação Rápida Financeira Global do Dashboard (Apenas Pendentes)
+  // Unificação Rápida Financeira Global do Dashboard (Apenas Pendentes subtraindo Parcial)
   let globalFinance = [];
-  DB.financeiro.forEach(f => { if (f.status !== 'Pago') globalFinance.push({ obra: f.obra, data: f.data, v: parseFloat(f.real) || 0 }) });
-  DB.presenca.forEach(p => { if (p.pgtoStatus !== 'Pago') globalFinance.push({ obra: p.obra, data: p.data, v: parseFloat(p.total) || 0 }) });
-  DB.medicao.forEach(m => { if (m.pgtoStatus !== 'Pago') globalFinance.push({ obra: m.obra, data: m.semana, v: parseFloat(m.vtotal) || 0 }) });
+  DB.financeiro.forEach(f => { if (f.status !== 'Pago') globalFinance.push({ obra: f.obra, data: f.data, v: Math.max(0, (parseFloat(f.real) || parseFloat(f.prev) || 0) - (f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0)) }) });
+  DB.presenca.forEach(p => { if (p.pgtoStatus !== 'Pago') globalFinance.push({ obra: p.obra, data: p.data, v: Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)) }) });
+  DB.medicao.forEach(m => { if (m.pgtoStatus !== 'Pago') globalFinance.push({ obra: m.obra, data: m.semana, v: Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0)) }) });
 
   const totalRealGlobal = globalFinance.reduce((a, f) => a + f.v, 0);
   const pctCusto = totalPrev > 0 ? ((totalRealGlobal / totalPrev) * 100).toFixed(1) : 0;
@@ -150,11 +150,11 @@ function renderDashboard() {
 
   const cDiariasSemana = DB.presenca
     .filter(p => p.data >= strSemana && p.data <= today && p.pgtoStatus !== 'Pago')
-    .reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
+    .reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
     
   const cEmpreitaSemana = DB.medicao
     .filter(m => m.semana >= strSemana && m.semana <= today && m.pgtoStatus !== 'Pago')
-    .reduce((a, m) => a + (parseFloat(m.vtotal) || 0), 0);
+    .reduce((a, m) => a + Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0)), 0);
 
   const kpiGrid = document.getElementById('kpi-grid');
   if (kpiGrid) {
@@ -177,15 +177,15 @@ function renderDashboard() {
   DB.tarefas.filter(t => t.status === 'Atrasada').forEach(t => alerts.push({ tipo: 'TAREFA ATRASADA', obra: t.obra, desc: `${t.desc} — prazo: ${fmtDate(t.prazo)}`, resp: t.resp, prior: 'alto' }));
   DB.compras.filter(c => c.status === 'Aguardando').forEach(c => alerts.push({ tipo: 'COMPRA PENDENTE', obra: c.obra, desc: `${c.mat} — ${fmt(c.vtotal)}`, resp: 'Gestor', prior: 'medio' }));
 
-  // Pagamentos pendentes — 1 card consolidado por tipo
-  const pDiarias = DB.presenca.filter(p => p.total > 0 && ['Pendente', 'Atrasado'].includes(p.pgtoStatus || 'Pendente'));
+  // Pagamentos pendentes — 1 card consolidado por tipo (ou por profissional em Empreitas)
+  const pDiarias = DB.presenca.filter(p => p.total > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(p.pgtoStatus || 'Pendente'));
   if (pDiarias.length > 0) {
-    const totalD = pDiarias.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
+    const totalD = pDiarias.reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
     const temAtrasadoD = pDiarias.some(p => p.pgtoStatus === 'Atrasado');
     alerts.push({
       tipo: 'DIÁRIAS PENDENTES',
       obra: `${pDiarias.length} diária(s) em aberto`,
-      desc: `Total a pagar: ${fmt(totalD)} — Clique para ver na aba Presença`,
+      desc: `Falta pagar: ${fmt(totalD)} — Clique para ver na aba Presença`,
       resp: 'Financeiro',
       prior: temAtrasadoD ? 'alto' : 'medio',
       action: "showPage('presenca')"
@@ -194,15 +194,24 @@ function renderDashboard() {
 
   const pMedicao = DB.medicao.filter(m => m.vtotal > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(m.pgtoStatus || 'Pendente'));
   if (pMedicao.length > 0) {
-    const totalM = pMedicao.reduce((a, m) => a + (parseFloat(m.vtotal) || 0), 0);
-    const temAtrasadoM = pMedicao.some(m => m.pgtoStatus === 'Atrasado');
-    alerts.push({
-      tipo: 'EMPREITAS PENDENTES',
-      obra: `${pMedicao.length} medição(ões) em aberto`,
-      desc: `Total a pagar: ${fmt(totalM)} — Clique para ver na aba Medição`,
-      resp: 'Financeiro',
-      prior: temAtrasadoM ? 'alto' : 'medio',
-      action: "showPage('medicao')"
+    const medPorEquipe = {};
+    pMedicao.forEach(m => {
+       const eq = m.equipe || 'Equipe Terceira';
+       if (!medPorEquipe[eq]) medPorEquipe[eq] = { count: 0, total: 0, atrasado: false };
+       medPorEquipe[eq].count++;
+       medPorEquipe[eq].total += Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0));
+       if (m.pgtoStatus === 'Atrasado') medPorEquipe[eq].atrasado = true;
+    });
+
+    Object.keys(medPorEquipe).forEach(eq => {
+       alerts.push({
+         tipo: 'EMPREITAS PENDENTES',
+         obra: `${eq} — ${medPorEquipe[eq].count} registro(s)`,
+         desc: `Falta pagar: ${fmt(medPorEquipe[eq].total)} — Clique para ver na aba Medição`,
+         resp: 'Financeiro',
+         prior: medPorEquipe[eq].atrasado ? 'alto' : 'medio',
+         action: "showPage('medicao')"
+       });
     });
   }
 
@@ -211,12 +220,12 @@ function renderDashboard() {
     return val > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(f.status || 'Pendente');
   });
   if (pFin.length > 0) {
-    const totalF = pFin.reduce((a, f) => a + (f.real > 0 ? f.real : f.prev), 0);
+    const totalF = pFin.reduce((a, f) => a + Math.max(0, (f.real > 0 ? f.real : f.prev) - (f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0)), 0);
     const temAtrasadoF = pFin.some(f => f.status === 'Atrasado');
     alerts.push({
       tipo: 'PAGAMENTOS FINANCEIRO',
-      obra: `${pFin.length} lançamento(s) em aberto`,
-      desc: `Total a pagar: ${fmt(totalF)} — Clique para ver no Financeiro`,
+      obra: `${pFin.length} lançamento(s) pendente(s)`,
+      desc: `Falta pagar: ${fmt(totalF)} — Clique para gerir`,
       resp: 'Financeiro',
       prior: temAtrasadoF ? 'alto' : 'medio',
       action: "showPage('financeiro')"
@@ -261,7 +270,7 @@ function renderDashboard() {
     // Diárias por Obra (específico, não pagos)
     const dSemanal = DB.presenca
       .filter(p => p.obra === o.cod && p.data >= strSemana && p.data <= today && p.pgtoStatus !== 'Pago')
-      .reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
+      .reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
     
     const pct = o.orc > 0 ? (realizado / o.orc * 100).toFixed(1) : 0;
     
