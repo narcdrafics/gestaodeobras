@@ -66,7 +66,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211645';
+const HTML_CACHE_VERSION = '202603211655';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -356,7 +356,7 @@ function renderObras() {
   }).join(''));
 
   safeSetInner('obras-tbody', DB.obras.map((o, i) => `<tr>
-    <td><span class="cod">${o.cod}</span></td><td>${o.nome}</td><td>${o.tipo}</td>
+    <td><b>${o.nome}</b></td><td><span class="cod">${o.cod}</span></td><td>${o.tipo}</td>
     <td>${statusBadge(o.status)}</td><td>${fmtDate(o.inicio)}</td><td>${fmtDate(o.prazo)}</td>
     <td>${fmt(o.orc)}</td><td>${o.mestre}</td><td>${o.cliente}</td>
     <td>
