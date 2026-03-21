@@ -174,7 +174,6 @@ function processCloudUpdate() {
         if (typeof checkAuth === 'function') checkAuth();
       }, { once: true });
     }
-    return;
   }
 
   const activePage = document.querySelector('.page.active');
