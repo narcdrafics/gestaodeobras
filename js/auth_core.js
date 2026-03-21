@@ -90,16 +90,34 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
     let userProfile = snapshot.val();
 
     const sanitizedEmail = email.replace(/\./g, ',');
-    console.log('[AuthTrace] 2. Buscando convite para:', sanitizedEmail);
-    // BUSCA CONVITE PENDENTE (SaaS)
+    
+    // BUSCA USUÁRIO GLOBAL MASTER (Compradores provindos do Webhook Onboarding)
+    console.log('[AuthTrace] 2. Buscando Master User para:', sanitizedEmail);
+    const globalSnap = await firebase.database().ref(`users/${sanitizedEmail}`).once('value');
+    const globalData = globalSnap.val();
+
+    console.log('[AuthTrace] 3. Buscando convite para:', sanitizedEmail);
+    // BUSCA CONVITE PENDENTE (SaaS Operários/Engenheiros)
     const inviteSnap = await firebase.database().ref(`invites/${sanitizedEmail}`).once('value');
     const inviteData = inviteSnap.val();
     console.log('[AuthTrace] Convite retornado:', inviteData);
 
     const Name = firebaseUser.displayName || fallbackName || 'Sem Nome';
 
-    if (inviteData) {
-      // Aceita Convite: Vincula à empresa que o convidou (Sobscreve perfil existente se houver)
+    if (globalData) {
+      // Aceita Dono de Obra (Webhook Automação Database)
+      userProfile = {
+        uid,
+        email,
+        name: userProfile?.name || globalData.nome || Name,
+        role: globalData.role || userProfile?.role || 'admin',
+        tenantId: globalData.tenantId
+      };
+      await profileRef.set(userProfile);
+      console.log('[AuthTrace] Novo Perfil Criado via Global DB. Tenant:', userProfile.tenantId);
+      
+    } else if (inviteData) {
+      // Aceita Convite Simples: Vincula à empresa que o convidou
       userProfile = {
         uid,
         email,
