@@ -66,7 +66,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211625';
+const HTML_CACHE_VERSION = '202603211640';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -380,7 +380,7 @@ function renderTrabalhadores() {
           <button class="btn btn-danger btn-sm" onclick="deleteItem('trabalhadores',${i})">🗑</button>
         </td>
       </tr>`).join('')
-    : uiEmptyState('Sem Trabalhadores', 'Cadastre o primeiro pedreiro, mestre ou servente para começar.', '👷‍♂️', 'Adicionar Trabalhador', 'openModal(\'modal-trab\')'));
+    : uiEmptyState('Sem Trabalhadores', 'Cadastre o primeiro pedreiro, mestre ou servente para começar.', '👷‍♂️', 'Adicionar Trabalhador', 'openModal(\'modal-trabalhador\')'));
 }
 
 // ==================== PRESENÇA ====================
@@ -619,7 +619,7 @@ function renderMovEstoque() {
           <button class="btn btn-danger btn-sm" onclick="deleteItem('movEstoque',${i})">🗑</button>
         </td>
       </tr>`).join('')
-    : uiEmptyState('Sem Movimentações', 'O depósito não teve entradas ou saídas de materiais ainda.', '🔄', 'Registrar Movimento', 'openModal(\'modal-mov-estoque\')'));
+    : uiEmptyState('Sem Movimentações', 'O depósito não teve entradas ou saídas de materiais ainda.', '🔄', 'Registrar Movimento', 'openModal(\'modal-movest\')'));
 }
 
 // ==================== COMPRAS ====================
