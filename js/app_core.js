@@ -2442,55 +2442,7 @@ function closeLightbox() {
     document.getElementById('lightbox-container').classList.remove('open');
 }
 
-window.shareScreen = async function() {
-  const el = document.getElementById('conteudo-principal');
-  if (!el) return;
-  toast('📸 Gerando imagem... Aguarde um segundo', 'info');
-  
-  const oldOv = el.style.overflow;
-  const oldH = el.style.height;
-  el.style.overflow = 'visible';
-  el.style.height = 'auto';
 
-  try {
-    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#f4f5f7' });
-    
-    el.style.overflow = oldOv;
-    el.style.height = oldH;
-
-    canvas.toBlob(async (blob) => {
-      const file = new File([blob], `RelatorioObras_${new Date().toISOString().split('T')[0]}.png`, { type: 'image/png' });
-      
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({
-             title: 'Relatório Gestão Obras',
-             text: 'Segue relatório atualizado extraído do sistema.',
-             files: [file]
-          });
-          toast('Pronto para envio!');
-        } catch (e) {
-             console.log('Share cancelado', e);
-        }
-      } else {
-         const url = URL.createObjectURL(blob);
-         const a = document.createElement('a');
-         a.href = url;
-         a.download = file.name;
-         document.body.appendChild(a);
-         a.click();
-         document.body.removeChild(a);
-         URL.revokeObjectURL(url);
-         toast('Extrato Salvo! Anexe-o no WhatsApp Web.');
-      }
-    }, 'image/png');
-  } catch (err) {
-    console.error('Erro shareScreen:', err);
-    toast('Falha ao gerar o Extrato.', 'error');
-    el.style.overflow = oldOv;
-    el.style.height = oldH;
-  }
-};
 
 
 
