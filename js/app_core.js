@@ -74,7 +74,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211710';
+const HTML_CACHE_VERSION = '202603211725';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -1840,6 +1840,94 @@ window.toggleDestinoMov = function() {
   const t = document.getElementById('mv-tipo').value;
   const grp = document.getElementById('grp-mv-destino');
   if (grp) grp.style.display = t === 'Transferência' ? 'block' : 'none';
+};
+
+// ==================== LOTE DE PAGAMENTO (FOLHA) ====================
+window.lotePendentes = [];
+
+window.prepareLotePgto = async function() {
+  await openModal('modal-lote');
+  const saldos = {};
+  DB.presenca.filter(p => p.pgtoStatus !== 'Pago').forEach(p => {
+     // Identificador único (idealmente código do trab, senão foca no nome base)
+     const key = p.trab || (p.nome + '-' + p.funcao);
+     if(!saldos[key]) {
+        saldos[key] = {
+           chave: key, nome: p.nome, funcao: p.funcao,
+           diarias: 0, valor: 0, indices: []
+        };
+     }
+     
+     let devido = (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0);
+     if (devido > 0) {
+        saldos[key].diarias += 1;
+        saldos[key].valor += devido;
+        saldos[key].indices.push(p); 
+     }
+  });
+
+  window.lotePendentes = Object.values(saldos).sort((a,b) => b.valor - a.valor);
+  renderLoteTbody();
+};
+
+window.renderLoteTbody = function() {
+  const tbody = document.getElementById('lote-tbody');
+  if(!tbody) return;
+  if(lotePendentes.length === 0) {
+     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;">🎉 Nenhuma diária pendente! Toda a folha já está quitada.</td></tr>';
+     document.getElementById('lote-total-sel').textContent = 'R$ 0,00';
+     return;
+  }
+
+  tbody.innerHTML = lotePendentes.map((item, i) => `<tr>
+    <td style="text-align:center"><input type="checkbox" class="ck-lote-item" value="${i}" onchange="updateLoteTotal()" style="transform:scale(1.2)"></td>
+    <td><b>${item.nome}</b> <small style="color:var(--text3)">(${item.funcao})</small></td>
+    <td style="text-align:center"><span class="badge badge-gray">${item.diarias}</span></td>
+    <td style="text-align:right">Dinheiro/Pix</td>
+    <td style="text-align:right; font-weight:bold; color:var(--red)">${fmt(item.valor)}</td>
+  </tr>`).join('');
+  
+  updateLoteTotal();
+};
+
+window.toggleLoteAll = function(el) {
+  const cks = document.querySelectorAll('.ck-lote-item');
+  cks.forEach(ck => ck.checked = el.checked);
+  updateLoteTotal();
+};
+
+window.updateLoteTotal = function() {
+  const cks = document.querySelectorAll('.ck-lote-item:checked');
+  let total = 0;
+  cks.forEach(ck => {
+     const item = lotePendentes[parseInt(ck.value)];
+     if(item) total += item.valor;
+  });
+  const el = document.getElementById('lote-total-sel');
+  if(el) el.textContent = fmt(total);
+};
+
+window.processLotePgto = async function() {
+  const cks = document.querySelectorAll('.ck-lote-item:checked');
+  if(cks.length === 0) { toast('Nenhum trabalhador selecionado!', 'error'); return; }
+  
+  cks.forEach(ck => {
+     const item = lotePendentes[parseInt(ck.value)];
+     if(item) {
+        item.indices.forEach(p => {
+           p.pgtoStatus = 'Pago';
+           p.valpago = p.total;
+        });
+     }
+  });
+
+  toast(`${cks.length} pagamentos realizados com sucesso!`);
+  closeModal('modal-lote');
+  await persistDB();
+  
+  renderPresenca();
+  renderFinanceiro();
+  renderDashboard();
 };
 
 
