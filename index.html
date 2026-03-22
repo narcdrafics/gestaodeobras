@@ -1,142 +1,293 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sistema de Gestão de Obra</title>
-<!-- TESTE DE DEPLOY AUTOMATICO: 2026-03-21 15:15 -->
-<link rel="stylesheet" href="css/style.css?v=202603212000">
-<!-- Firebase App (the core Firebase SDK) -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<!-- Firebase Realtime Database -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-<!-- Firebase Auth -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-<!-- Firebase Storage -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
-<!-- HTML2Canvas for Snapshot Exports -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GestãoObra — O Controle Absoluto do seu Canteiro de Obras</title>
+  <link rel="stylesheet" href="css/style.css?v=202603212050">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --lp-bg: #09090b;
+      --lp-text: #fafafa;
+      --lp-accent: #6366f1;
+      --lp-zinc: #27272a;
+    }
+    body {
+      background: var(--lp-bg);
+      color: var(--lp-text);
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    /* NAV */
+    nav {
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 20px;
+      letter-spacing: -0.5px;
+    }
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+    }
+    .nav-links a {
+      color: #a1a1aa;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: #fff; }
+    
+    /* HERO */
+    .hero {
+      padding: 100px 0 120px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: 64px;
+      line-height: 1.1;
+      font-weight: 800;
+      letter-spacing: -2px;
+      margin-bottom: 24px;
+      background: linear-gradient(to bottom, #fff 0%, #a1a1aa 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      font-size: 20px;
+      color: #a1a1aa;
+      max-width: 700px;
+      margin: 0 auto 40px;
+    }
+    .cta-group {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+    }
+    .btn-hero {
+      padding: 14px 32px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    
+    /* MOCKUP AREA */
+    .dashboard-preview {
+      margin-top: 80px;
+      position: relative;
+    }
+    .dashboard-preview img {
+      width: 100%;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+    }
+    .glow {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.15), transparent 70%);
+      z-index: -1;
+    }
+    
+    /* FEATURES */
+    .features { padding: 100px 0; }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      margin-top: 60px;
+    }
+    .feature-card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      padding: 32px;
+      border-radius: 16px;
+      transition: transform 0.2s;
+    }
+    .feature-card:hover { transform: translateY(-8px); }
+    .feature-card .icon { font-size: 32px; margin-bottom: 20px; }
+    .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+    .feature-card p { font-size: 14px; color: #71717a; }
+    
+    /* PRICING */
+    .pricing { 
+        padding-bottom: 120px;
+        text-align: center;
+    }
+    .price-card {
+        background: #18181b;
+        border: 2px solid var(--lp-accent);
+        border-radius: 20px;
+        padding: 48px;
+        max-width: 400px;
+        margin: 60px auto 0;
+        position: relative;
+    }
+    .price-card .tag {
+        position: absolute;
+        top: -15px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--lp-accent);
+        padding: 4px 16px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+    .price-val { font-size: 56px; font-weight: 800; letter-spacing: -2px; margin: 20px 0; }
+    .price-val small { font-size: 16px; font-weight: 400; color: #71717a; }
+    
+    ul.check-list {
+        list-style: none;
+        text-align: left;
+        margin: 32px 0;
+    }
+    ul.check-list li {
+        margin-bottom: 12px;
+        display: flex;
+        gap: 12px;
+        font-size: 15px;
+        color: #a1a1aa;
+    }
+    ul.check-list li::before { content: '✓'; color: var(--lp-accent); font-weight: 900; }
+
+    /* FOOTER */
+    footer {
+        padding: 60px 0;
+        border-top: 1px solid rgba(255,255,255,0.05);
+        text-align: center;
+        color: #52525b;
+        font-size: 14px;
+    }
+
+    @media(max-width: 768px) {
+      .hero h1 { font-size: 40px; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+    }
+  </style>
 </head>
 <body>
 
-<!-- HEADER -->
-<header class="header">
-  <div class="header-brand" id="app-logo-area">
-    <button class="menu-toggle" onclick="toggleMenu()">☰</button>
-    <div id="brand-container" style="display:flex; align-items:center; gap:8px">
-       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
-       <span class="app-brand-name">GestãoObra</span>
+  <nav class="container">
+    <div class="logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+      <span>GestãoObra</span>
     </div>
-  </div>
-  <div style="display:flex; align-items:center; gap:10px">
-    <button onclick="shareScreen()" style="background:var(--accent); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:13px; cursor:pointer; font-weight:600; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s;">📤 Compartilhar</button>
-    <div class="header-date" id="header-date"></div>
-  </div>
-</header>
+    <div class="nav-links">
+      <a href="#features">Recursos</a>
+      <a href="#precos">Preços</a>
+      <a href="login.html">Entrar</a>
+      <a href="login.html#signup" class="btn btn-primary" style="padding: 10px 20px">Testar Grátis</a>
+    </div>
+  </nav>
 
-<div class="layout">
-<!-- SIDEBAR -->
-<nav class="sidebar">
-  <div class="nav-section">Principal</div>
-  <div class="nav-item active" onclick="showPage('dashboard')"><span class="ico">📊</span> Dashboard</div>
+  <header class="hero container">
+    <div class="glow"></div>
+    <h1>Pare de Perder Dinheiro <br>entre Tijolos e Planilhas.</h1>
+    <p>O sistema definitivo para engenheiros e empreiteiros que querem controle absoluto de estoque, finanças e cronograma sem complicação.</p>
+    <div class="cta-group">
+      <a href="login.html#signup" class="btn btn-primary btn-hero">Começar Teste Grátis</a>
+      <a href="https://pay.kiwify.com.br/UeoKVpn" class="btn btn-secondary btn-hero">Comprar Versão PRO</a>
+    </div>
 
-  <div class="nav-section" onclick="toggleGroup('grp-op', 'ic-op')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
-    <span>Operação</span>
-    <span id="ic-op" style="font-size:12px; color:var(--text3)">▼</span>
-  </div>
-  <div class="nav-item grp-op" onclick="showPage('obras')"><span class="ico">🏗️</span> Obras</div>
-  <div class="nav-item grp-op" onclick="showPage('tarefas')"><span class="ico">📋</span> Tarefas</div>
-  <div class="nav-item grp-op" onclick="showPage('trabalhadores')"><span class="ico">👷</span> Trabalhadores</div>
+    <div class="dashboard-preview">
+      <img src="img/dashboard-mockup.png" alt="GestãoObra Dashboard Preview" id="dashboard-mock">
+    </div>
+  </header>
 
-  <div class="nav-section" onclick="toggleGroup('grp-prod', 'ic-prod')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
-    <span>Produção (Canteiro)</span>
-    <span id="ic-prod" style="font-size:12px; color:var(--text3)">▼</span>
-  </div>
-  <div class="nav-item grp-prod" onclick="showPage('presenca')"><span class="ico">✅</span> Presença (Ponto)</div>
-  <div class="nav-item grp-prod" onclick="showPage('medicao')"><span class="ico">📏</span> Medições (Empreitas)</div>
-  <div class="nav-item grp-prod" onclick="showPage('fotos')"><span class="ico">📸</span> Galeria de Fotos</div>
+  <section id="features" class="features container">
+    <div style="text-align:center">
+      <h2 style="font-size:32px; letter-spacing:-1px">Construído por quem entende de obra.</h2>
+      <p style="color:#71717a">Tudo que você precisa em uma única aba.</p>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="icon">📦</div>
+        <h3>Fim do Desperdício</h3>
+        <p>Controle rigoroso de estoque e movimentação de materiais. Saiba exatamente para onde foi cada saco de cimento.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">👷</div>
+        <h3>Gestão de Equipes</h3>
+        <p>Controle diário de presenças, diárias e pagamentos semanais. Evite passivos trabalhistas com históricos claros.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">💰</div>
+        <h3>Financeiro Real</h3>
+        <p>Acompanhe o orçamento previsto vs realizado em tempo real. Identifique gargalos antes que o lucro suma.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📸</div>
+        <h3>Linha do Tempo</h3>
+        <p>Galeria em nuvem com o progresso visual da obra. Preste contas e impressione seus clientes (Dono da Obra).</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📏</div>
+        <h3>Medições Físicas</h3>
+        <p>Controle de tarefas e medições de empreitas. Pague exatamente o que foi executado, nem um centavo a mais.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📱</div>
+        <h3>Sempre com Você</h3>
+        <p>Interface 100% responsiva. Gerencie sua obra de qualquer lugar, direto do celular no canteiro.</p>
+      </div>
+    </div>
+  </section>
 
-  <div class="nav-section" onclick="toggleGroup('grp-sup', 'ic-sup')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
-    <span>Suprimentos</span>
-    <span id="ic-sup" style="font-size:12px; color:var(--text3)">▼</span>
-  </div>
-  <div class="nav-item grp-sup" onclick="showPage('estoque')"><span class="ico">📦</span> Estoque Central</div>
-  <div class="nav-item grp-sup" onclick="showPage('movEstoque')"><span class="ico">🔄</span> Movimentações</div>
+  <section id="precos" class="pricing container">
+    <h2 style="font-size:32px; letter-spacing:-1px">Simples como deve ser.</h2>
+    <div class="price-card">
+      <div class="tag">Mais Popular</div>
+      <h3>Plano Profissional</h3>
+      <div class="price-val">R$ 97 <small>/ mês</small></div>
+      <p style="font-size: 14px; color: #71717a">Tenha o controle total do seu negócio agora.</p>
+      
+      <ul class="check-list">
+        <li>Obras Ilimitadas</li>
+        <li>Controle de Estoque e Compras</li>
+        <li>Gestão Financeira Completa</li>
+        <li>Relatórios em Tempo Real</li>
+        <li>Suporte Prioritário</li>
+      </ul>
+      
+      <a href="https://pay.kiwify.com.br/UeoKVpn" class="btn btn-primary" style="width:100%; padding: 14px; font-size:16px;">Assinar Agora</a>
+      <p style="margin-top:20px; font-size:12px; color:#52525b">Ou comece o <a href="login.html#signup" style="color:#71717a">Teste Grátis de 30 dias</a></p>
+    </div>
+  </section>
 
-  <div class="nav-section" onclick="toggleGroup('grp-fin', 'ic-fin')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
-    <span>Escritório</span>
-    <span id="ic-fin" style="font-size:12px; color:var(--text3)">▼</span>
-  </div>
-  <div class="nav-item grp-fin" onclick="showPage('orcamento')"><span class="ico">📐</span> Orçamento Previsto</div>
-  <div class="nav-item grp-fin" onclick="showPage('compras')"><span class="ico">🛒</span> Compras e Pedidos</div>
-  <div class="nav-item grp-fin" onclick="showPage('financeiro')"><span class="ico">💰</span> Fechamento Financeiro</div>
+  <footer class="container">
+    <p>&copy; 2026 GestãoObra. Todos os direitos reservados.</p>
+    <div style="margin-top:10px">
+      <a href="login.html" style="color:#52525b; text-decoration:none; margin:0 10px">Login</a>
+      <a href="admin-login.html" style="color:#52525b; text-decoration:none; margin:0 10px">Admin</a>
+    </div>
+  </footer>
 
-  <div class="nav-section admin-only" style="display:none">Sistema</div>
-  <div class="nav-item admin-only" style="display:none" onclick="showPage('admin')"><span class="ico">⚙️</span> Administração</div>
-
-  <div class="nav-section super-admin-only" style="display:none">SaaS Master</div>
-  <div class="nav-item super-admin-only" style="display:none" onclick="showPage('super_admin')"><span class="ico">👑</span> Painel Master</div>
-  
-  <div class="nav-section">Acesso</div>
-  <div class="nav-item" onclick="doLogout()"><span class="ico">🚪</span> Sair do Sistema</div>
-</nav>
-
-<!-- DYNAMIC MAIN CONTENT -->
-<main class="main" id="conteudo-principal">
-  <!-- O HTML das páginas virá para cá via JS -->
-</main>
-</div><!-- /layout -->
-
-<!-- MODAL CONTAINER -->
-<div class="modal-overlay" id="modal-container">
-  <div class="modal" id="modal-content">
-    <!-- O HTML dos modais virá para cá via JS -->
-  </div>
-</div>
-
-<!-- TOAST CONTAINER -->
-<div class="toast-container" id="toast-container"></div>
-
-<script>
-window.shareScreen = async function() {
-  const el = document.getElementById('conteudo-principal');
-  if (!el) return;
-  if(typeof toast === 'function') toast('📸 Gerando extrato visual...', 'info');
-  
-  const oldOv = el.style.overflow;
-  const oldH = el.style.height;
-  el.style.overflow = 'visible';
-  el.style.height = 'auto';
-
-  try {
-    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#f4f5f7' });
-    el.style.overflow = oldOv; el.style.height = oldH;
-
-    canvas.toBlob(async (blob) => {
-      const file = new File([blob], `RelatorioObras_${new Date().toISOString().split('T')[0]}.png`, { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({ title: 'Relatório', text: 'Segue extrato do sistema.', files: [file] });
-          if(typeof toast === 'function') toast('Pronto!');
-        } catch (e) {
-          console.log('Share error', e);
-        }
-      } else {
-         const url = URL.createObjectURL(blob); const a = document.createElement('a');
-         a.href = url; a.download = file.name; document.body.appendChild(a); a.click();
-         a.remove(); URL.revokeObjectURL(url);
-         if(typeof toast === 'function') toast('Imagem Salva! Anexe-a no PC.');
-      }
-    }, 'image/png');
-  } catch (err) {
-    el.style.overflow = oldOv; el.style.height = oldH;
-    if(typeof toast === 'function') toast('Erro ao compilar visual.', 'error');
-  }
-};
-</script>
-
-<script src="js/data_core.js?v=202603212050"></script>
-<script src="js/auth_core.js?v=202603212050"></script>
-<script src="js/app_core.js?v=202603212050"></script>
+  <script>
+    // Placeholder image swap once generated
+    function updateMockup(url) {
+      document.getElementById('dashboard-mock').src = url;
+    }
+  </script>
 </body>
 </html>

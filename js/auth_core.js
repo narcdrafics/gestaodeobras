@@ -209,7 +209,7 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
     sessionStorage.setItem('gestaoUser', JSON.stringify(userProfile));
     if (typeof initDB === 'function') initDB(userProfile.tenantId);
 
-    window.location.href = 'index.html';
+    window.location.href = 'app.html';
 
   } catch (error) {
     console.error('Erro SaaS Auth:', error);
@@ -259,7 +259,7 @@ function checkAuth() {
           initDB(sessionUser.tenantId);
         }
         if (isLoginPage || isAdminLoginPage) {
-          window.location.href = 'index.html';
+          window.location.href = 'app.html';
         } else {
           applyAccessControl(sessionUser);
         }
@@ -279,7 +279,7 @@ function checkAuth() {
           }
           sessionStorage.setItem('gestaoUser', JSON.stringify(userProfile));
           if (isLoginPage) {
-            window.location.href = 'index.html';
+            window.location.href = 'app.html';
           } else {
             if (typeof initDB === 'function' && userProfile.tenantId) { initDB(userProfile.tenantId); }
             applyAccessControl(userProfile);
@@ -322,11 +322,12 @@ function safeCheckAuth() {
   checkAuth();
 }
 
-// SaaS: Dispara verificação automática caso não esteja na index (onde o app.js assume)
+// SaaS: Dispara verificação automática caso esteja no app.html (proteção de rota)
 const currPath = window.location.pathname;
-const isIndex = currPath.endsWith('index.html') || /\/$/i.test(currPath) || currPath.endsWith('gestaodeobras/');
+const isApp = currPath.endsWith('app.html');
+const isIndex = currPath.endsWith('index.html') || /\/$/i.test(currPath);
 
-if (!isIndex) {
+if (isApp) {
   if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
     safeCheckAuth();
   } else {

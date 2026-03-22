@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Gestão de Obra</title>
+<!-- TESTE DE DEPLOY AUTOMATICO: 2026-03-21 15:15 -->
+<link rel="stylesheet" href="css/style.css?v=202603212000">
+<!-- Firebase App (the core Firebase SDK) -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<!-- Firebase Realtime Database -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<!-- Firebase Auth -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<!-- Firebase Storage -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<!-- HTML2Canvas for Snapshot Exports -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-brand" id="app-logo-area">
+    <button class="menu-toggle" onclick="toggleMenu()">☰</button>
+    <div id="brand-container" style="display:flex; align-items:center; gap:8px">
+       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+       <span class="app-brand-name">GestãoObra</span>
+    </div>
+  </div>
+  <div style="display:flex; align-items:center; gap:10px">
+    <button onclick="shareScreen()" style="background:var(--accent); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:13px; cursor:pointer; font-weight:600; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s;">📤 Compartilhar</button>
+    <div class="header-date" id="header-date"></div>
+  </div>
+</header>
+
+<div class="layout">
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="nav-section">Principal</div>
+  <div class="nav-item active" onclick="showPage('dashboard')"><span class="ico">📊</span> Dashboard</div>
+
+  <div class="nav-section" onclick="toggleGroup('grp-op', 'ic-op')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
+    <span>Operação</span>
+    <span id="ic-op" style="font-size:12px; color:var(--text3)">▼</span>
+  </div>
+  <div class="nav-item grp-op" onclick="showPage('obras')"><span class="ico">🏗️</span> Obras</div>
+  <div class="nav-item grp-op" onclick="showPage('tarefas')"><span class="ico">📋</span> Tarefas</div>
+  <div class="nav-item grp-op" onclick="showPage('trabalhadores')"><span class="ico">👷</span> Trabalhadores</div>
+
+  <div class="nav-section" onclick="toggleGroup('grp-prod', 'ic-prod')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
+    <span>Produção (Canteiro)</span>
+    <span id="ic-prod" style="font-size:12px; color:var(--text3)">▼</span>
+  </div>
+  <div class="nav-item grp-prod" onclick="showPage('presenca')"><span class="ico">✅</span> Presença (Ponto)</div>
+  <div class="nav-item grp-prod" onclick="showPage('medicao')"><span class="ico">📏</span> Medições (Empreitas)</div>
+  <div class="nav-item grp-prod" onclick="showPage('fotos')"><span class="ico">📸</span> Galeria de Fotos</div>
+
+  <div class="nav-section" onclick="toggleGroup('grp-sup', 'ic-sup')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
+    <span>Suprimentos</span>
+    <span id="ic-sup" style="font-size:12px; color:var(--text3)">▼</span>
+  </div>
+  <div class="nav-item grp-sup" onclick="showPage('estoque')"><span class="ico">📦</span> Estoque Central</div>
+  <div class="nav-item grp-sup" onclick="showPage('movEstoque')"><span class="ico">🔄</span> Movimentações</div>
+
+  <div class="nav-section" onclick="toggleGroup('grp-fin', 'ic-fin')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
+    <span>Escritório</span>
+    <span id="ic-fin" style="font-size:12px; color:var(--text3)">▼</span>
+  </div>
+  <div class="nav-item grp-fin" onclick="showPage('orcamento')"><span class="ico">📐</span> Orçamento Previsto</div>
+  <div class="nav-item grp-fin" onclick="showPage('compras')"><span class="ico">🛒</span> Compras e Pedidos</div>
+  <div class="nav-item grp-fin" onclick="showPage('financeiro')"><span class="ico">💰</span> Fechamento Financeiro</div>
+
+  <div class="nav-section admin-only" style="display:none">Sistema</div>
+  <div class="nav-item admin-only" style="display:none" onclick="showPage('admin')"><span class="ico">⚙️</span> Administração</div>
+
+  <div class="nav-section super-admin-only" style="display:none">SaaS Master</div>
+  <div class="nav-item super-admin-only" style="display:none" onclick="showPage('super_admin')"><span class="ico">👑</span> Painel Master</div>
+  
+  <div class="nav-section">Acesso</div>
+  <div class="nav-item" onclick="doLogout()"><span class="ico">🚪</span> Sair do Sistema</div>
+</nav>
+
+<!-- DYNAMIC MAIN CONTENT -->
+<main class="main" id="conteudo-principal">
+  <!-- O HTML das páginas virá para cá via JS -->
+</main>
+</div><!-- /layout -->
+
+<!-- MODAL CONTAINER -->
+<div class="modal-overlay" id="modal-container">
+  <div class="modal" id="modal-content">
+    <!-- O HTML dos modais virá para cá via JS -->
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+window.shareScreen = async function() {
+  const el = document.getElementById('conteudo-principal');
+  if (!el) return;
+  if(typeof toast === 'function') toast('📸 Gerando extrato visual...', 'info');
+  
+  const oldOv = el.style.overflow;
+  const oldH = el.style.height;
+  el.style.overflow = 'visible';
+  el.style.height = 'auto';
+
+  try {
+    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#f4f5f7' });
+    el.style.overflow = oldOv; el.style.height = oldH;
+
+    canvas.toBlob(async (blob) => {
+      const file = new File([blob], `RelatorioObras_${new Date().toISOString().split('T')[0]}.png`, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ title: 'Relatório', text: 'Segue extrato do sistema.', files: [file] });
+          if(typeof toast === 'function') toast('Pronto!');
+        } catch (e) {
+          console.log('Share error', e);
+        }
+      } else {
+         const url = URL.createObjectURL(blob); const a = document.createElement('a');
+         a.href = url; a.download = file.name; document.body.appendChild(a); a.click();
+         a.remove(); URL.revokeObjectURL(url);
+         if(typeof toast === 'function') toast('Imagem Salva! Anexe-a no PC.');
+      }
+    }, 'image/png');
+  } catch (err) {
+    el.style.overflow = oldOv; el.style.height = oldH;
+    if(typeof toast === 'function') toast('Erro ao compilar visual.', 'error');
+  }
+};
+</script>
+
+<script src="js/data_core.js?v=202603212050"></script>
+<script src="js/auth_core.js?v=202603212050"></script>
+<script src="js/app_core.js?v=202603212050"></script>
+</body>
+</html>
