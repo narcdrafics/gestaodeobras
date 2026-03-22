@@ -841,10 +841,24 @@ function generateAuditReport() {
   const orc = DB.orcamento.filter(o => o.obra === obraCod);
   const fin = DB.financeiro.filter(f => f.obra === obraCod);
   const med = DB.medicao.filter(m => m.obra === obraCod);
+  const com = DB.compras.filter(c => c.obra === obraCod && (c.status === 'Entregue' || c.status === 'Pago'));
   
-  // Summing Budgeted vs Realized
-  let totalPrev = orc.reduce((a, b) => a + (b.vtotal || 0), 0);
-  let totalReal = fin.reduce((a, b) => a + (b.real || 0), 0);
+  // Categorization Logic
+  const isMat = (t) => ['Material', 'Custo Direto (Material)', 'Insumos', 'Equipamento'].includes(t);
+  const isMao = (t) => ['Mão de Obra', 'Mão de obra própria', 'Empreiteiro', 'Serviços', 'Adiantamento'].includes(t);
+
+  let prevMat = orc.filter(o => isMat(o.tipo)).reduce((a, b) => a + (b.vtotal || 0), 0);
+  let prevMao = orc.filter(o => isMao(o.tipo)).reduce((a, b) => a + (b.vtotal || 0), 0);
+  let prevOut = orc.filter(o => !isMat(o.tipo) && !isMao(o.tipo)).reduce((a, b) => a + (b.vtotal || 0), 0);
+
+  let realMat = fin.filter(f => isMat(f.tipo)).reduce((a, b) => a + (b.real || 0), 0);
+  realMat += com.reduce((a, b) => a + (b.vtotal || 0), 0); // Compras are always material
+
+  let realMao = fin.filter(f => isMao(f.tipo)).reduce((a, b) => a + (b.real || 0), 0);
+  realMao += med.reduce((a, b) => a + (parseFloat(b.vtotal) || 0), 0); // Medicao is always labor/service
+
+  let totalPrev = prevMat + prevMao + prevOut;
+  let totalReal = realMat + realMao;
 
   let html = `
     <div id="print-area" style="padding: 40px; background: white; color: #1e293b; font-family: 'IBM Plex Sans', sans-serif; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
@@ -859,18 +873,46 @@ function generateAuditReport() {
         </div>
       </div>
 
+      <!-- Resumo Geral -->
       <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px;">
         <div style="padding:15px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0">
-          <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Total Previsto</label>
-          <div style="font-size:20px; font-weight:700; color:#0f172a">${fmt(totalPrev)}</div>
-        </div>
-        <div style="padding:15px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0">
-          <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Total Investido (Real)</label>
+          <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Investimento Total</label>
           <div style="font-size:20px; font-weight:700; color:#0f172a">${fmt(totalReal)}</div>
+          <small style="color:#64748b">de ${fmt(totalPrev)} planejado</small>
         </div>
         <div style="padding:15px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0">
-          <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Saldo/Diferença</label>
+          <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Economia / Excesso</label>
           <div style="font-size:20px; font-weight:700; color:${totalReal > totalPrev ? '#ef4444' : '#10b981'}">${fmt(totalPrev - totalReal)}</div>
+        </div>
+        <div style="padding:15px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0">
+          <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Status Financeiro</label>
+          <div style="font-size:20px; font-weight:700; color:#0f172a">${((totalReal/totalPrev)*100).toFixed(1)}%</div>
+        </div>
+      </div>
+
+      <!-- Divisão por Categoria -->
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; background: #fff; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+        <div>
+          <h4 style="margin:0 0 15px 0; color:#475569; display:flex; align-items:center; gap:8px"><span style="font-size:20px">📦</span> MATERIAIS E INSUMOS</h4>
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+            <span style="font-size:13px; color:#64748b">Gasto Realizado</span>
+            <span style="font-size:14px; font-weight:700">${fmt(realMat)}</span>
+          </div>
+          <div style="height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden; margin-bottom:8px">
+            <div style="width:${Math.min(100, (realMat/prevMat)*100)}%; height:100%; background:#6366f1"></div>
+          </div>
+          <p style="margin:0; font-size:11px; color:#94a3b8">Previsto em orçamento: ${fmt(prevMat)}</p>
+        </div>
+        <div>
+          <h4 style="margin:0 0 15px 0; color:#475569; display:flex; align-items:center; gap:8px"><span style="font-size:20px">👷</span> MÃO DE OBRA E SERVIÇOS</h4>
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+            <span style="font-size:13px; color:#64748b">Gasto Realizado</span>
+            <span style="font-size:14px; font-weight:700">${fmt(realMao)}</span>
+          </div>
+          <div style="height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden; margin-bottom:8px">
+            <div style="width:${Math.min(100, (realMao/prevMao)*100)}%; height:100%; background:#10b981"></div>
+          </div>
+          <p style="margin:0; font-size:11px; color:#94a3b8">Previsto em orçamento: ${fmt(prevMao)}</p>
         </div>
       </div>
 
@@ -887,13 +929,13 @@ function generateAuditReport() {
         `).join('')}
       </div>
 
-      <h3 style="border-left: 4px solid var(--accent); padding-left: 10px; margin-bottom: 15px; font-size:18px">Extrato de Pagamentos Realizados</h3>
+      <h3 style="border-left: 4px solid var(--accent); padding-left: 10px; margin-bottom: 15px; font-size:18px">Extrato de Pagamentos Auditos</h3>
       <table style="width:100%; border-collapse: collapse; font-size:12px">
         <thead>
           <tr style="background:#f1f5f9; text-align:left">
             <th style="padding:10px; border-bottom:2px solid #e2e8f0">Data</th>
             <th style="padding:10px; border-bottom:2px solid #e2e8f0">Descrição</th>
-            <th style="padding:10px; border-bottom:2px solid #e2e8f0">Beneficiário</th>
+            <th style="padding:10px; border-bottom:2px solid #e2e8f0">Tipo</th>
             <th style="padding:10px; border-bottom:2px solid #e2e8f0; text-align:right">Valor</th>
           </tr>
         </thead>
@@ -902,8 +944,16 @@ function generateAuditReport() {
             <tr>
               <td style="padding:8px; border-bottom:1px solid #f1f5f9">${fmtDate(f.data)}</td>
               <td style="padding:8px; border-bottom:1px solid #f1f5f9">${f.desc}</td>
-              <td style="padding:8px; border-bottom:1px solid #f1f5f9">${f.forn}</td>
+              <td style="padding:8px; border-bottom:1px solid #f1f5f9"><span style="color:#64748b; font-size:10px; text-transform:uppercase">${f.tipo}</span></td>
               <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right"><b>${fmt(f.real)}</b></td>
+            </tr>
+          `).join('')}
+          ${com.map(c => `
+            <tr>
+              <td style="padding:8px; border-bottom:1px solid #f1f5f9">${fmtDate(c.data)}</td>
+              <td style="padding:8px; border-bottom:1px solid #f1f5f9">${c.mat} (Ref: ${c.num})</td>
+              <td style="padding:8px; border-bottom:1px solid #f1f5f9"><span style="color:#64748b; font-size:10px; text-transform:uppercase">MATERIAL</span></td>
+              <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right"><b>${fmt(c.vtotal)}</b></td>
             </tr>
           `).join('')}
         </tbody>
