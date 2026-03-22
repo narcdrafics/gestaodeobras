@@ -1175,7 +1175,7 @@ function renderBilling() {
   }
 }
 
-async function startStripeCheckout() {
+async function startKiwifyCheckout() {
   const user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
   if (!user.tenantId) return toast('Erro: Conta não identificada.', 'error');
 
