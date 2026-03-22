@@ -1123,7 +1123,7 @@ function renderBilling() {
     // Novo motor baseado no Plano Real do usuário (via DB central)
     const isPro = DB.plano && DB.plano !== 'free_trial';
 
-    let planText = isPro ? 'PLANO PRO ⭐' : 'PLANO INICIAL (Teste Grátis)';
+    let planText = isPro ? (DB.plano === 'pro_anual' ? 'PLANO PRO ANUAL ⭐' : 'PLANO PRO MENSAL ⭐') : 'PLANO INICIAL (Teste Grátis)';
 
     // Calcula dias restantes se for trial
     let diasRestantes = 0;
@@ -1135,6 +1135,8 @@ function renderBilling() {
 
     // Injeta visual de dias restantes progressivo
     const timerElem = document.getElementById('trial-timer-display');
+    const subInfoElem = document.getElementById('subscription-info');
+
     if (!isPro && DB.trialExpiracao) {
       if (!timerElem) {
         const painel = document.getElementById('plan-name').parentNode;
@@ -1146,10 +1148,25 @@ function renderBilling() {
             `);
       } else {
         timerElem.style.display = 'flex';
-        document.getElementById('trial-days').innerText = diasRestantes;
+        const tDays = document.getElementById('trial-days');
+        if(tDays) tDays.innerText = diasRestantes;
       }
-    } else if (timerElem) {
-      timerElem.style.display = 'none'; // Se for Pro, esconde a barra de Trial
+      if(subInfoElem) subInfoElem.innerHTML = '';
+    } else {
+      if(timerElem) timerElem.style.display = 'none';
+      
+      // Se for PRO, injeta informações da assinatura
+      if(isPro && subInfoElem) {
+        subInfoElem.innerHTML = `
+          <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--green); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+            <div style="color: var(--green); font-weight: 600; font-size: 13px; margin-bottom: 4px;">Assinatura Ativa ✅</div>
+            <div style="font-size: 12px; opacity: 0.8;">
+               ${DB.planoVencimento ? `Próxima cobrança: <b>${fmtDate(DB.planoVencimento)}</b>` : 'Renovação automática ativada.'}
+            </div>
+            <div style="font-size: 11px; opacity: 0.6; margin-top: 5px;">Status: Pagamento em dia</div>
+          </div>
+        `;
+      }
     }
 
     safeSetText('plan-name', planText);
@@ -1157,18 +1174,23 @@ function renderBilling() {
     safeSetText('limit-trab', limitTrab === 99 ? 'Ilimitado' : limitTrab);
 
     const btnUpgrade = document.getElementById('btn-upgrade');
+    const footerText = document.getElementById('billing-footer-text');
+
     if (btnUpgrade) {
       if (isPro) {
-        btnUpgrade.textContent = "✅ Assinatura Premium Ativada";
-        btnUpgrade.style.background = "var(--success)";
-        btnUpgrade.style.borderColor = "var(--success)";
-        btnUpgrade.onclick = null; // Tira o link de pagamento
-        btnUpgrade.style.pointerEvents = "none";
+        btnUpgrade.textContent = "⚙️ Suporte e Cancelamento";
+        btnUpgrade.style.background = "var(--bg3)";
+        btnUpgrade.style.borderColor = "var(--border)";
+        btnUpgrade.style.color = "var(--text2)";
+        btnUpgrade.onclick = () => window.open('https://wa.me/5511999999999?text=Olá, preciso de ajuda com minha assinatura do Obra Real.', '_blank');
+        if(footerText) footerText.style.display = 'none';
       } else {
         btnUpgrade.textContent = "⭐ Assinar Plano Pro Agora";
         btnUpgrade.style.background = "#6366f1";
         btnUpgrade.style.borderColor = "#6366f1";
-        btnUpgrade.style.pointerEvents = "auto";
+        btnUpgrade.style.color = "#fff";
+        btnUpgrade.onclick = () => startKiwifyCheckout();
+        if(footerText) footerText.style.display = 'block';
       }
       btnUpgrade.style.display = 'block';
     }
