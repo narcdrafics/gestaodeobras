@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pagamento Aprovado - GestãoObra</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'IBM Plex Sans', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-image: radial-gradient(circle at top right, rgba(99, 102, 241, 0.1), transparent 400px), 
+                              radial-gradient(circle at bottom left, rgba(245, 158, 11, 0.05), transparent 300px);
+        }
+
+        .thank-you-card {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 48px 40px;
+            width: 100%;
+            max-width: 460px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        @keyframes slideUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin: 0 auto 24px auto;
+            border: 2px solid rgba(16, 185, 129, 0.3);
+            animation: scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.3s both;
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0 0 12px 0;
+            color: var(--text);
+            letter-spacing: -0.5px;
+        }
+
+        p {
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--text2);
+            margin: 0 0 32px 0;
+        }
+
+        .btn-access {
+            display: inline-block;
+            background: var(--accent);
+            color: #fff;
+            text-decoration: none;
+            padding: 14px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .btn-access:hover {
+            background: #4f46e5;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(99, 102, 241, 0.4);
+        }
+        
+        .receipt-box {
+            background: var(--bg);
+            border: 1px dashed var(--border);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 13px;
+            color: var(--text2);
+            text-align: left;
+        }
+        .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .receipt-row:last-child {
+            margin-bottom: 0;
+            padding-top: 8px;
+            border-top: 1px solid var(--border);
+            font-weight: 600;
+            color: var(--text);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="thank-you-card">
+        <div class="success-icon">✓</div>
+        <h1>Pagamento Aprovado!</h1>
+        <p>A sua assinatura do <strong>GestãoObra PRO</strong> foi ativada com sucesso. Os limites da sua conta já foram destravados em nossos servidores.</p>
+        
+        <div class="receipt-box">
+            <div class="receipt-row">
+                <span>Produto:</span>
+                <span style="color:var(--text)">Licença PRO Irrestrita</span>
+            </div>
+            <div class="receipt-row">
+                <span>Status da Conta:</span>
+                <span style="color:#10b981; font-weight:600">Ativa e Liberada</span>
+            </div>
+        </div>
+
+        <a href="login.html" class="btn-access">Acessar Meu Painel Agora ➔</a>
+        <p style="font-size: 12px; margin-top: 24px; margin-bottom: 0; opacity: 0.5;">A nota fiscal e o recibo foram enviados para o seu e-mail de compra.</p>
+    </div>
+
+</body>
+</html>
