@@ -789,7 +789,7 @@ function renderOrcamento() {
       const pexec = o.vtotal > 0 ? ((o.vreal || 0) / o.vtotal * 100).toFixed(1) : 0;
       return `<tr>
           <td>${obName(o.obra)}</td><td>${o.etapa}</td><td>${o.tipo}</td><td>${o.desc}</td>
-          <td>${o.qtd}</td><td>${o.unid || '—'}</td><td>${fmt(o.vunit)}</td><td>${fmt(o.vtotal)}</td>
+          <td>${o.unid || '—'}</td><td>${o.qtd}</td><td>${fmt(o.vunit)}</td><td>${fmt(o.vtotal)}</td>
           <td>${fmt(o.vreal)}</td>
           <td style="color:${diff < 0 ? 'var(--red)' : 'var(--text)'}">${fmt(diff)}</td>
           <td>${pexec}%</td>
