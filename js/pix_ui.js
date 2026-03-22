@@ -17,6 +17,13 @@ async function initiatePixPayment(source, idx) {
         receiver = t ? t.nome : p.nome;
         pixKey = t ? t.pixkey : '';
         description = `DIARIA ${p.data} ${p.nome}`;
+    } else if (source === 'lote') {
+        const item = window.lotePendentes[idx];
+        const t = DB.trabalhadores.find(x => x.cod === item.chave);
+        amount = item.valor;
+        receiver = item.nome;
+        pixKey = t ? t.pixkey : '';
+        description = `FOLHA ${item.diarias} DIARIAS - ${item.nome}`;
     } else if (source === 'med') {
         const m = DB.medicao[idx];
         amount = m.vtotal;
@@ -62,6 +69,15 @@ async function confirmPixPaid() {
     
     if (source === 'pre') {
         DB.presenca[idx].pgtoStatus = 'Pago';
+    } else if (source === 'lote') {
+        const item = window.lotePendentes[idx];
+        item.indices.forEach(p => {
+            p.pgtoStatus = 'Pago';
+            p.valpago = p.total;
+        });
+        // Remove do lote para não pagar duas vezes
+        window.lotePendentes.splice(idx, 1);
+        renderLoteTbody(); 
     } else if (source === 'med') {
         DB.medicao[idx].pgtoStatus = 'Pago';
     } else if (source === 'fin') {

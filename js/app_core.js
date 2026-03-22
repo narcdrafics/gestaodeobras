@@ -1940,6 +1940,9 @@ window.renderLoteTbody = function() {
     <td style="text-align:center"><span class="badge badge-gray">${item.diarias}</span></td>
     <td style="text-align:right">Dinheiro/Pix</td>
     <td style="text-align:right; font-weight:bold; color:var(--red)">${fmt(item.valor)}</td>
+    <td style="text-align:center">
+      <button class="btn btn-success btn-sm" onclick="initiatePixPayment('lote', ${i})" title="Pagar via PIX" style="background:var(--green); border-color:var(--green);">💸</button>
+    </td>
   </tr>`).join('');
   
   updateLoteTotal();
