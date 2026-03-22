@@ -738,13 +738,18 @@ function renderFinanceiro() {
       let delBtn = '';
       if(f.source === 'fin') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">🗑</button>`;
       
+      let payBtn = '';
+      if (f.status !== 'Pago') {
+        payBtn = `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('${f.source}', ${f.idx})" style="margin-right:8px; background:var(--green); border-color:var(--green);" title="Pagar via PIX">💸</button>`;
+      }
+      
       return `<tr>
           <td>${fmtDate(f.data)}</td><td>${getNome(f.obra)}</td><td>${f.etapa}</td><td>${f.tipo}</td>
           <td><b>${f.desc}</b></td><td>${f.forn}</td>
           <td>${fmt(f.prev)}</td><td>${fmt(f.real)}</td>
           <td style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
           <td>${f.pgto}</td><td>${statusBadge(f.status)}</td><td>${f.nf}</td>
-          <td>${editBtn}${delBtn}</td>
+          <td>${payBtn}${editBtn}${delBtn}</td>
         </tr>`;
     }).join('')
     : uiEmptyState('Financeiro Limpo', 'Suas contas a pagar, recebimentos e extratos aparecerão agrupados aqui.', '💰', 'Lançar Custo ou Receita', 'openModal(\'modal-financeiro\')'));
@@ -1651,6 +1656,8 @@ async function saveTrabalhador() {
     obras: document.getElementById('tr-obras').value,
     diaria: parseFloat(document.getElementById('tr-diaria').value) || 0,
     pgto: document.getElementById('tr-pgto').value,
+    pixtipo: document.getElementById('tr-pixtipo').value,
+    pixkey: document.getElementById('tr-pixkey').value,
     contato: document.getElementById('tr-contato').value,
     status: document.getElementById('tr-status').value,
     admissao: document.getElementById('tr-admissao').value
@@ -1683,8 +1690,10 @@ async function editTrabalhador(idx) {
   document.getElementById('tr-equipe').value = t.equipe;
   document.getElementById('tr-obras').value = t.obras;
   document.getElementById('tr-diaria').value = t.diaria;
-  document.getElementById('tr-pgto').value = t.pgto;
-  document.getElementById('tr-contato').value = t.contato;
+  document.getElementById('tr-pgto').value = t.pgto || 'PIX';
+  document.getElementById('tr-pixtipo').value = t.pixtipo || 'cpf';
+  document.getElementById('tr-pixkey').value = t.pixkey || '';
+  document.getElementById('tr-contato').value = t.contato || '';
   document.getElementById('tr-status').value = t.status;
   document.getElementById('tr-admissao').value = t.admissao;
 }
@@ -2205,6 +2214,7 @@ async function saveCompra() {
     forn: document.getElementById('cp-forn').value,
     vunit: parseFloat(document.getElementById('cp-vunit').value) || 0,
     vtotal: parseFloat(document.getElementById('cp-vtotal').value) || 0,
+    pixkey: document.getElementById('cp-pixkey').value,
     vorc: parseFloat(document.getElementById('cp-vorc').value) || 0,
     prazo: document.getElementById('cp-prazo').value,
     receb: document.getElementById('cp-receb').value,
@@ -2235,6 +2245,7 @@ async function editCompra(idx) {
   document.getElementById('cp-forn').value = c.forn;
   document.getElementById('cp-vunit').value = c.vunit;
   document.getElementById('cp-vtotal').value = c.vtotal;
+  document.getElementById('cp-pixkey').value = c.pixkey || '';
   document.getElementById('cp-vorc').value = c.vorc;
   document.getElementById('cp-prazo').value = c.prazo;
   document.getElementById('cp-receb').value = c.receb;
