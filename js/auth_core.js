@@ -448,7 +448,7 @@ window.addEventListener('firebaseSync', (e) => {
     if (!dbHasGoogleUsers) {
       db.usuarios = [activeUser];
       if (typeof DB !== 'undefined') DB.usuarios = db.usuarios;
-      if (typeof persistDB === 'function') persistDB();
+      // persistDB() removido: evita que o sistema re-escreva o banco ao detectar exclusões
     } else {
       doLogout();
     }

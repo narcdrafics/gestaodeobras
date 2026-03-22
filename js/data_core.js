@@ -249,7 +249,10 @@ const subdomainContextPromise = (async function initSubdomainContext() {
   return null;
 })();
 
+let _isSaving = false;
+
 function persistDB() {
+  if (_isSaving) return Promise.resolve();
   const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
 
   // Super Admin com tenant ativo selecionado: salva no tenant escolhido
@@ -258,18 +261,23 @@ function persistDB() {
       console.warn('Super Admin sem tenant ativo selecionado. Use selectSuperAdminTenant() primeiro.');
       return Promise.resolve();
     }
+    _isSaving = true;
     const ref = firebase.database().ref('tenants/' + superAdminActiveTenant.id);
-    return ref.set(DB).catch(err => {
-      console.error('Falha ao salvar (Super Admin):', err);
-      if (typeof toast === 'function') toast('Erro ao sincronizar nuvem!', 'error');
-      throw err;
-    });
+    return ref.set(DB)
+      .finally(() => { _isSaving = false; })
+      .catch(err => {
+        console.error('Falha ao salvar (Super Admin):', err);
+        if (typeof toast === 'function') toast('Erro ao sincronizar nuvem!', 'error');
+        throw err;
+      });
   }
 
   if (!dbRef) {
     console.warn('Persistencia ignorada: dbRef nao inicializado.');
     return Promise.resolve();
   }
+  
+  _isSaving = true;
   DB = ensureSchema(DB);
 
   // Desliga o listener antes de salvar para evitar que o echo do Firebase
@@ -287,6 +295,9 @@ function persistDB() {
       console.error('Falha ao salvar na nuvem:', err);
       if (typeof toast === 'function') toast('Erro ao sincronizar nuvem!', 'error');
       throw err;
+    })
+    .finally(() => {
+      _isSaving = false;
     });
 }
 
