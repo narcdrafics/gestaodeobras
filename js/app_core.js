@@ -1293,7 +1293,7 @@ async function renderSuperAdmin() {
                     ${extraInfo}
                 </td>
                 <td>
-                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser('${p.uid}')">🗑️ Excluir</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser('${p.uid}', '${p.email}', '${p.tenantId}')">🗑️ Excluir</button>
                 </td>
             </tr>`;
       }).join('');
@@ -1555,14 +1555,23 @@ async function deleteTenant(tid) {
   }
 }
 
-async function deleteGlobalUser(uid) {
-  if (!confirm('Deseja realmente excluir este perfil da base do sistema? (Você ainda terá que excluí-lo no painel Firebase Auth para bloqueio total)')) return;
+async function deleteGlobalUser(uid, email, tid) {
+  if (!confirm(`Deseja realmente EXCLUIR TOTALMENTE o acesso de ${email || uid}?\n(Isso removerá o Perfil e as Credenciais Master)`)) return;
+  
   try {
-    await firebase.database().ref(`profiles/${uid}`).remove();
-    toast('Perfil do Usuário Removido com sucesso!');
+    const updates = {};
+    if (uid) updates[`profiles/${uid}`] = null;
+    if (email) {
+      const sanitized = email.trim().toLowerCase().replace(/\./g, ',');
+      updates[`users/${sanitized}`] = null;
+    }
+    
+    await firebase.database().ref().update(updates);
+    
+    toast('Usuário e Credenciais removidos com sucesso!');
     renderSuperAdmin();
   } catch (e) {
-    toast('Erro ao remover usuário.', 'error');
+    toast('Erro ao remover usuário completo.', 'error');
     console.error(e);
   }
 }
