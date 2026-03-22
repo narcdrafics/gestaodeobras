@@ -1299,9 +1299,49 @@ async function renderSuperAdmin() {
       }).join('');
     }
 
+    // Chama a auditoria de Webhooks
+    renderWebhookLogs();
+
   } catch (err) {
     console.error('Erro Super Admin:', err);
     tbody.innerHTML = '<tr><td colspan="5">Erro de permissão ou conexão.</td></tr>';
+  }
+}
+
+async function renderWebhookLogs() {
+  const tbody = document.getElementById('webhook-logs-tbody');
+  if (!tbody) return;
+
+  try {
+    const snap = await firebase.database().ref('webhook_debug').limitToLast(15).once('value');
+    const logs = snap.val() || {};
+    const items = Object.values(logs).sort((a,b) => b.timestamp - a.timestamp);
+
+    if (items.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; opacity:0.6;">Nenhum evento registrado ainda.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = items.map(log => {
+      const p = log.payload || {};
+      const status = (p.order_status || p.status || 'N/A').toUpperCase();
+      const email = p.email || (p.Customer && p.Customer.email) || 'N/A';
+      const tenantId = p.external_id || p.external_reference || 'N/A';
+      const result = log.result || 'Pendente/Processado';
+      const dateStr = new Date(log.timestamp).toLocaleString('pt-BR');
+
+      return `<tr style="font-size:12px;">
+        <td>${dateStr}</td>
+        <td><span class="badge ${status === 'APPROVED' || status === 'PAID' ? 'badge-green' : 'badge-gray'}">${status}</span></td>
+        <td>${email}</td>
+        <td><code>${tenantId}</code></td>
+        <td style="color:${result.includes('Success') ? 'var(--green)' : 'var(--text3)'}">${result}</td>
+      </tr>`;
+    }).join('');
+
+  } catch (e) {
+    console.error('Erro ao listar logs:', e);
+    tbody.innerHTML = '<tr><td colspan="5">Falha ao carregar logs.</td></tr>';
   }
 }
 

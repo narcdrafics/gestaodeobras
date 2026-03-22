@@ -22,6 +22,16 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
 
   try {
     const payload = req.body;
+    const db = admin.database();
+    
+    // LOG DE AUDITORIA: Salva a tentativa de recebimento para o Saul ver no banco
+    const logId = Date.now();
+    await db.ref(`webhook_debug/${logId}`).set({
+        timestamp: admin.database.ServerValue.TIMESTAMP,
+        payload: payload,
+        method: req.method
+    });
+
     functions.logger.info("📡 Webhook Acionado. Payload Receive:", JSON.stringify(payload));
 
     // Mapeamento Flexível Kiwify / Asaas / Genérico
@@ -36,18 +46,14 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
         email = email || customerObj.email;
         nome = nome || customerObj.full_name || customerObj.name;
     }
-    
-    // External ID (Onde enviamos o TenantID no checkout)
-    const tenantIdFromRef = payload.external_id || payload.external_reference || payload.ref;
 
     functions.logger.info(`🔍 Processando: Email=${email}, TenantID=${tenantIdFromRef}, Status=${status}`);
 
     if (!email && !tenantIdFromRef) {
        functions.logger.error("❌ Erro: Payload sem identificação (E-mail ou ID)");
+       await db.ref(`webhook_debug/${logId}/result`).set("Error: Missing identification");
        return res.status(400).send('Falta identificação do cliente.');
     }
-
-    const db = admin.database();
 
     // =============== CENÁRIO 1: PAGAMENTO APROVADO ===============
     if (status === 'approved' || status === 'paid' || status === 'active') {
@@ -102,12 +108,16 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
           });
        }
 
+       await db.ref(`webhook_debug/${logId}/result`).set(`Success: Promoted ${slugFinal}`);
        return res.status(200).send(`✅ Sucesso: Plano ativado para [${slugFinal}]`);
     }
 
     // =============== CENÁRIO 2: FALHA / REEMBOLSO / CANCELAMENTO ===============
     else if (['refunded', 'chargeback', 'canceled', 'overdue', 'expired'].includes(status)) {
-       if (!tenantIdFromRef && !email) return res.status(200).send('Sem ID para bloqueio.');
+       if (!tenantIdFromRef && !email) {
+          await db.ref(`webhook_debug/${logId}/result`).set("Skipped: No ID for block");
+          return res.status(200).send('Sem ID para bloqueio.');
+       }
        
        let targetTenantId = tenantIdFromRef;
        if (!targetTenantId && email) {
@@ -119,14 +129,19 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
        if (targetTenantId) {
           functions.logger.warn(`🚫 Bloqueando tenant por status: ${status} -> ${targetTenantId}`);
           await db.ref(`tenants/${targetTenantId}/status`).set('bloqueado_pagamento');
+          await db.ref(`webhook_debug/${logId}/result`).set(`Blocked: ${targetTenantId}`);
           return res.status(200).send(`Bloqueio aplicado ao tenant: ${targetTenantId}`);
        }
     }
 
+    await db.ref(`webhook_debug/${logId}/result`).set(`Processed: ${status} (No action)`);
     return res.status(200).send(`Recebido: ${status} (Nenhuma ação necessária)`);
 
   } catch (err) {
     functions.logger.error("💥 CRASH NO WEBHOOK:", err.message);
+    if(admin.apps.length) {
+       await admin.database().ref(`webhook_debug/${Date.now()}`).set({ error: err.message, stack: err.stack });
+    }
     return res.status(500).send("Internal Error.");
   }
 });

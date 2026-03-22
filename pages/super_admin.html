@@ -133,3 +133,29 @@
     <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
   </div>
 </div>
+
+<div class="table-wrap" style="margin-top: 24px; border-top: 2px solid var(--accent); padding-top: 20px;">
+  <div class="table-toolbar">
+    <h3>🔍 Auditoria de Webhooks (Kiwify/Checkout)</h3>
+    <div class="toolbar-right">
+       <button class="btn btn-secondary btn-sm" onclick="renderWebhookLogs()">🔄 Atualizar Logs</button>
+    </div>
+  </div>
+  <p style="font-size: 12px; color: var(--text3); margin-bottom: 12px;">Monitore aqui se as notificações de pagamento estão chegando da Kiwify.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Data/Hora</th>
+        <th>Status Evento</th>
+        <th>E-mail</th>
+        <th>Tenant ID</th>
+        <th>Resultado Processamento</th>
+      </tr>
+    </thead>
+    <tbody id="webhook-logs-tbody">
+      <tr>
+        <td colspan="5">Clique em "Atualizar Logs" para carregar as últimas atividades.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
