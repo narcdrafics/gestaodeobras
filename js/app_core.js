@@ -1906,15 +1906,15 @@ window.prepareLotePgto = async function() {
   DB.presenca.filter(p => p.pgtoStatus !== 'Pago').forEach(p => {
      // Identificador único (idealmente código do trab, senão foca no nome base)
      const key = p.trab || (p.nome + '-' + p.funcao);
-     if(!saldos[key]) {
-        saldos[key] = {
-           chave: key, nome: p.nome, funcao: p.funcao,
-           diarias: 0, valor: 0, indices: []
-        };
-     }
      
      let devido = (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0);
      if (devido > 0) {
+        if(!saldos[key]) {
+           saldos[key] = {
+              chave: key, nome: p.nome, funcao: p.funcao,
+              diarias: 0, valor: 0, indices: []
+           };
+        }
         saldos[key].diarias += 1;
         saldos[key].valor += devido;
         saldos[key].indices.push(p); 
