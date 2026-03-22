@@ -250,7 +250,7 @@ const subdomainContextPromise = (async function initSubdomainContext() {
       document.body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding:20px">
         <h1 style="color:#ef4444;margin-bottom:10px">❌ Empresa Inexistente ou URL Incorreta</h1>
         <p style="color:#cbd5e1;max-width:500px">O subdomínio <b>${slug}</b> não está vinculado a nenhuma empresa no sistema. Por favor, verifique se a URL da sua empresa está correta ou contrate um plano.</p>
-        <p style="color:#94a3b8;font-size:12px;margin-top:20px">GestãoObra SaaS Security</p>
+        <p style="color:#94a3b8;font-size:12px;margin-top:20px">Obra Real SaaS Security</p>
       </div>`;
       throw new Error('Tenant não encontrado para este subdomínio.');
     }
