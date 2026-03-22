@@ -74,7 +74,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211865';
+const HTML_CACHE_VERSION = '202603212050';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -231,10 +231,10 @@ function renderDashboard() {
     alerts.push({
       tipo: 'DIÁRIAS PENDENTES',
       obra: `${pDiarias.length} diária(s) em aberto`,
-      desc: `Falta pagar: ${fmt(totalD)} — Clique para ver na aba Presença`,
+      desc: `Falta pagar: ${fmt(totalD)} — Clique para abrir o caixa`,
       resp: 'Financeiro',
       prior: temAtrasadoD ? 'alto' : 'medio',
-      action: "showPage('presenca')"
+      action: "showPage('financeiro')"
     });
   }
 
@@ -253,10 +253,10 @@ function renderDashboard() {
        alerts.push({
          tipo: 'EMPREITAS PENDENTES',
          obra: `${eq} — ${medPorEquipe[eq].count} registro(s)`,
-         desc: `Falta pagar: ${fmt(medPorEquipe[eq].total)} — Clique para ver na aba Medição`,
+         desc: `Falta pagar: ${fmt(medPorEquipe[eq].total)} — Clique para abrir o caixa`,
          resp: 'Financeiro',
          prior: medPorEquipe[eq].atrasado ? 'alto' : 'medio',
-         action: "showPage('medicao')"
+         action: "showPage('financeiro')"
        });
     });
   }
@@ -696,23 +696,33 @@ function renderFinanceiro() {
   // Sort: Mais recentes primeiro
   allFin.sort((a, b) => new Date(b.data) - new Date(a.data));
 
-  // Summary by obra
-  const obras = [...new Set(allFin.map(f => f.obra))];
-  let sumHtml = '';
+  // Summary by obra otimizado em O(N)
+  const sumsByObra = {};
   let totalPrev = 0, totalReal = 0;
-  obras.forEach(ob => {
-    const rows = allFin.filter(f => f.obra === ob);
-    const p = rows.reduce((a, r) => a + (r.prev || 0), 0);
-    const r = rows.reduce((a, r) => a + (r.real || 0), 0);
-    totalPrev += p; totalReal += r;
-    sumHtml += `<div class="fin-card"><div class="fin-card-label">${ob} — Previsto</div><div class="fin-card-val">${fmt(p)}</div></div>
-    <div class="fin-card"><div class="fin-card-label">${ob} — Realizado</div><div class="fin-card-val" style="color:${r > p ? 'var(--red)' : 'var(--green)'}">${fmt(r)}</div></div>
-    <div class="fin-card"><div class="fin-card-label">${ob} — Diferença</div><div class="fin-card-val" style="color:${r - p > 0 ? 'var(--red)' : 'var(--green)'}">${fmt(r - p)}</div></div>`;
+  allFin.forEach(f => {
+    const cod = f.obra || 'Geral';
+    if (!sumsByObra[cod]) sumsByObra[cod] = { prev: 0, real: 0 };
+    sumsByObra[cod].prev += (f.prev || 0);
+    sumsByObra[cod].real += (f.real || 0);
+    totalPrev += (f.prev || 0);
+    totalReal += (f.real || 0);
+  });
+
+  const getNome = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
+
+  let sumHtml = '';
+  Object.keys(sumsByObra).forEach(cod => {
+    const obNameStr = getNome(cod);
+    const p = sumsByObra[cod].prev;
+    const r = sumsByObra[cod].real;
+    sumHtml += `<div class="fin-card"><div class="fin-card-label">${obNameStr} — Previsto</div><div class="fin-card-val">${fmt(p)}</div></div>
+    <div class="fin-card"><div class="fin-card-label">${obNameStr} — Realizado</div><div class="fin-card-val" style="color:${r > p ? 'var(--red)' : 'var(--text)'}">${fmt(r)}</div></div>
+    <div class="fin-card"><div class="fin-card-label">${obNameStr} — Diferença</div><div class="fin-card-val" style="color:${r > p ? 'var(--red)' : 'var(--green)'}">${fmt(r - p)}</div></div>`;
   });
   
-  sumHtml += `<div class="fin-card"><div class="fin-card-label">Total Geral Previsto</div><div class="fin-card-val">${fmt(totalPrev)}</div></div>
-  <div class="fin-card"><div class="fin-card-label">Total Geral Realizado</div><div class="fin-card-val">${fmt(totalReal)}</div></div>
-  <div class="fin-card"><div class="fin-card-label">Diferença Total</div><div class="fin-card-val" style="color:${totalReal - totalPrev > 0 ? 'var(--red)' : 'var(--green)'}">${fmt(totalReal - totalPrev)}</div></div>`;
+  sumHtml += `<div class="fin-card"><div class="fin-card-label" style="color:var(--accent)">Total Geral Prev.</div><div class="fin-card-val">${fmt(totalPrev)}</div></div>
+  <div class="fin-card"><div class="fin-card-label" style="color:var(--accent)">Total Geral Real.</div><div class="fin-card-val">${fmt(totalReal)}</div></div>
+  <div class="fin-card"><div class="fin-card-label" style="color:var(--accent)">Diferença Total</div><div class="fin-card-val" style="color:${totalReal > totalPrev ? 'var(--red)' : 'var(--green)'}">${fmt(totalReal - totalPrev)}</div></div>`;
   
   safeSetInner('fin-summary', sumHtml);
 
@@ -729,7 +739,7 @@ function renderFinanceiro() {
       if(f.source === 'fin') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">🗑</button>`;
       
       return `<tr>
-          <td>${fmtDate(f.data)}</td><td>${obName(f.obra)}</td><td>${f.etapa}</td><td>${f.tipo}</td>
+          <td>${fmtDate(f.data)}</td><td>${getNome(f.obra)}</td><td>${f.etapa}</td><td>${f.tipo}</td>
           <td><b>${f.desc}</b></td><td>${f.forn}</td>
           <td>${fmt(f.prev)}</td><td>${fmt(f.real)}</td>
           <td style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
