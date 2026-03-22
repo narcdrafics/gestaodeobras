@@ -468,3 +468,24 @@ window.addEventListener('firebaseSync', (e) => {
 // SaaS: Removido disparo automático daqui. Será chamado no final do app.js
 // para garantir que showPage e renderPage já existam.
 // checkAuth();
+
+/**
+ * FUNÇÃO DE BOOTSTRAP (Executar no console do navegador se perder o acesso Master)
+ * Uso: bootstrapSuperAdmin('seu@email.com')
+ */
+window.bootstrapSuperAdmin = async function(email) {
+  if (!email) return console.error('Informe o e-mail');
+  const sanitized = email.trim().toLowerCase().replace(/\./g, ',');
+  try {
+    await firebase.database().ref(`users/${sanitized}`).update({
+      role: 'super_admin',
+      tenantId: 'MASTER_SYSTEM',
+      nome: 'Administrador Mestre',
+      origem: 'bootstrap_manual'
+    });
+    console.log(`%c ✅ SUCESSO! O e-mail ${email} agora é Super Admin.`, 'color: #22c55e; font-weight: bold; font-size: 14px;');
+    console.log('Faça logout e login novamente para aplicar.');
+  } catch (e) {
+    console.error('Falha no Bootstrap:', e);
+  }
+};

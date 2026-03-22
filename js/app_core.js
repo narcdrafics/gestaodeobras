@@ -1301,6 +1301,9 @@ async function renderSuperAdmin() {
 
     // Chama a auditoria de Webhooks
     renderWebhookLogs();
+    
+    // Chama a gestão de Super Admins
+    renderMasterUsers();
 
   } catch (err) {
     console.error('Erro Super Admin:', err);
@@ -1342,6 +1345,77 @@ async function renderWebhookLogs() {
   } catch (e) {
     console.error('Erro ao listar logs:', e);
     tbody.innerHTML = '<tr><td colspan="5">Falha ao carregar logs.</td></tr>';
+  }
+}
+
+async function renderMasterUsers() {
+  const tbody = document.getElementById('master-admins-tbody');
+  if (!tbody) return;
+
+  try {
+    const snap = await firebase.database().ref('users').once('value');
+    const allUsers = snap.val() || {};
+    const masters = Object.entries(allUsers)
+      .filter(([email, data]) => data.role === 'super_admin')
+      .map(([email, data]) => ({ email: email.replace(/,/g, '.'), ...data }));
+
+    tbody.innerHTML = masters.map(m => `
+      <tr>
+        <td>
+           <b>${m.nome || 'Sem Nome'}</b><br>
+           <small style="opacity:0.6">${m.email}</small>
+        </td>
+        <td><span class="badge badge-gray">${m.origem || 'N/A'}</span></td>
+        <td>
+           <button class="btn btn-danger btn-sm" onclick="deleteMasterUser('${m.email}')">🗑️</button>
+        </td>
+      </tr>
+    `).join('');
+
+  } catch (e) {
+    console.error('Erro ao renderizar mestres:', e);
+    tbody.innerHTML = '<tr><td colspan="3">Sem permissão para listar mestres.</td></tr>';
+  }
+}
+
+async function addMasterUser() {
+  const emailInput = document.getElementById('new-master-email');
+  const email = emailInput?.value.trim().toLowerCase();
+  if (!email) return toast('Informe o e-mail do novo Super Admin.', 'error');
+  
+  if (!confirm(`Deseja realmente dar acesso TOTAL e GLOBAL para ${email}?`)) return;
+
+  try {
+    const sanitized = email.replace(/\./g, ',');
+    await firebase.database().ref(`users/${sanitized}`).update({
+      role: 'super_admin',
+      tenantId: 'MASTER_SYSTEM',
+      nome: 'Administrador Mestre',
+      origem: 'painel_master'
+    });
+    toast(`Sucesso! ${email} agora é Super Admin.`);
+    emailInput.value = '';
+    renderMasterUsers();
+  } catch (e) {
+    console.error('Erro ao adicionar mestre:', e);
+    toast('Erro ao autorizar novo mestre.', 'error');
+  }
+}
+
+async function deleteMasterUser(email) {
+  const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+  if (email === sessionUser.email) return toast('Você não pode remover seu próprio acesso master!', 'error');
+
+  if (!confirm(`Deseja REMOVER o acesso global de ${email}?`)) return;
+
+  try {
+    const sanitized = email.replace(/\./g, ',');
+    await firebase.database().ref(`users/${sanitized}/role`).set('admin');
+    toast(`Acesso master removido de ${email}.`);
+    renderMasterUsers();
+  } catch (e) {
+    console.error('Erro ao remover mestre:', e);
+    toast('Erro ao remover acesso master.', 'error');
   }
 }
 

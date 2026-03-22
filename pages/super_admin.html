@@ -12,13 +12,35 @@
     <div class="kpi-label">Usuários Totais</div>
   </div>
   <div class="kpi-card" style="border: 1px solid var(--accent);">
-    <div class="kpi-label" style="font-weight: bold; margin-bottom: 8px;">Segurança da Conta Mestre</div>
+    <div class="kpi-label" style="font-weight: bold; margin-bottom: 8px;">👑 Master: Segurança</div>
     <div style="display:flex; gap:8px;">
       <input type="password" id="master-new-password" class="form-control" placeholder="Nova Senha" style="width:100%; border-radius:4px; font-size:13px; border:1px solid var(--border);">
       <button class="btn btn-primary btn-sm" onclick="changeMasterPassword()">Alterar</button>
     </div>
-    <div style="font-size:11px; color:var(--text3); margin-top:6px;">Alteração imediata, sem e-mail de confirmação.</div>
   </div>
+</div>
+
+<div class="table-wrap" style="margin-top: 24px; border:1px solid var(--accent);">
+  <div class="table-toolbar">
+    <h3>👑 Gestão de Administradores Mestre (Super Admins)</h3>
+    <div class="toolbar-right">
+       <input type="email" id="new-master-email" class="form-control form-control-sm" placeholder="e-mail@novo.com" style="width:200px; display:inline-block; margin-right:8px;">
+       <button class="btn btn-primary btn-sm" onclick="addMasterUser()">+ Autorizar Mestre</button>
+    </div>
+  </div>
+  <p style="font-size: 11px; color: var(--text3); margin-bottom: 10px;">Estes usuários têm acesso TOTAL a todas as empresas e configurações globais.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Nome / E-mail</th>
+        <th>Origem</th>
+        <th style="width:100px;">Ações</th>
+      </tr>
+    </thead>
+    <tbody id="master-admins-tbody">
+      <tr><td colspan="3">Carregando lista de mestres...</td></tr>
+    </tbody>
+  </table>
 </div>
 
 <div class="table-wrap" style="margin-top: 24px;">
