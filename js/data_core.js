@@ -1,6 +1,6 @@
 const staticDB = {
   config: {
-    nomeEmpresa: 'GestãoObra',
+    nomeEmpresa: 'Obra Real',
     corPrimaria: '#f59e0b'
   },
   usuarios: [],
@@ -217,7 +217,7 @@ function loadTheme(externalCfg) {
 
     // 3. Aplica Nome da Empresa
     document.querySelectorAll('.app-brand-name').forEach(el => {
-      el.textContent = cfg.nomeEmpresa || 'GestãoObra';
+      el.textContent = cfg.nomeEmpresa || 'Obra Real';
     });
 
     // 4. Aplica Logo ou Fallback
@@ -226,10 +226,10 @@ function loadTheme(externalCfg) {
         if (cfg.logoUrl) {
             container.innerHTML = `
                 <img src="${cfg.logoUrl}" class="header-logo" alt="${cfg.nomeEmpresa}" style="max-height: 40px; width: auto; object-fit: contain;">
-                <span class="app-brand-name" style="margin-left: 8px;">${cfg.nomeEmpresa || 'GestãoObra'}</span>
+                <span class="app-brand-name" style="margin-left: 8px;">${cfg.nomeEmpresa || 'Obra Real'}</span>
             `;
         } else {
-            container.innerHTML = `<span id="brand-icon">🏗️</span> <span class="app-brand-name">${cfg.nomeEmpresa || 'GestãoObra'}</span>`;
+            container.innerHTML = `<span id="brand-icon">🏗️</span> <span class="app-brand-name">${cfg.nomeEmpresa || 'Obra Real'}</span>`;
         }
     }
   }
