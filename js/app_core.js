@@ -783,15 +783,36 @@ function exportarImagemDashboard() {
 
 // ==================== ORÇAMENTO ====================
 function renderOrcamento() {
+  // Mapa de gastos reais por Obra + Etapa
+  const realCosts = {};
+  DB.financeiro.forEach(f => {
+    if (f.status === 'Pago' || f.status === 'Parcial') {
+      const key = `${f.obra}|${f.etapa}`;
+      const val = (parseFloat(f.real) || 0);
+      realCosts[key] = (realCosts[key] || 0) + val;
+    }
+  });
+  // Adiciona gastos de compras entregues ou pagas
+  DB.compras.forEach(c => {
+    if (['Entregue', 'Pago', 'Pedido Feito'].includes(c.status)) {
+      const key = `${c.obra}|${c.etapa || 'Material'}`; 
+      realCosts[key] = (realCosts[key] || 0) + (parseFloat(c.vtotal) || 0);
+    }
+  });
+
   safeSetInner('orc-tbody', DB.orcamento.length
     ? DB.orcamento.map((o, i) => {
-      const diff = (o.vtotal || 0) - (o.vreal || 0);
-      const pexec = o.vtotal > 0 ? ((o.vreal || 0) / o.vtotal * 100).toFixed(1) : 0;
+      const key = `${o.obra}|${o.etapa}`;
+      const vreal = realCosts[key] || 0;
+      const vtotal = parseFloat(o.vtotal) || 0;
+      const diff = vtotal - vreal;
+      const pexec = vtotal > 0 ? ((vreal / vtotal) * 100).toFixed(1) : 0;
+      
       return `<tr>
           <td>${obName(o.obra)}</td><td>${o.etapa}</td><td>${o.tipo}</td><td>${o.desc}</td>
-          <td>${o.unid || '—'}</td><td>${o.qtd}</td><td>${fmt(o.vunit)}</td><td>${fmt(o.vtotal)}</td>
-          <td>${fmt(o.vreal)}</td>
-          <td style="color:${diff < 0 ? 'var(--red)' : 'var(--text)'}">${fmt(diff)}</td>
+          <td>${o.unid || '—'}</td><td>${o.qtd}</td><td>${fmt(o.vunit)}</td><td>${fmt(vtotal)}</td>
+          <td>${fmt(vreal)}</td>
+          <td style="color:${diff < 0 ? 'var(--red)' : diff > 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
           <td>${pexec}%</td>
           <td>
             <button class="btn btn-secondary btn-sm" onclick="editOrcamento(${i})" style="margin-right:8px">✏️</button>
@@ -2210,6 +2231,7 @@ async function saveCompra() {
     num: document.getElementById('cp-num').value,
     data: document.getElementById('cp-data').value,
     obra: document.getElementById('cp-obra').value,
+    etapa: document.getElementById('cp-etapa').value,
     mat: document.getElementById('cp-mat').value,
     qtd: parseFloat(document.getElementById('cp-qtd').value) || 0,
     unid: document.getElementById('cp-unid').value,
@@ -2241,6 +2263,7 @@ async function editCompra(idx) {
   document.getElementById('cp-num').value = c.num;
   document.getElementById('cp-data').value = c.data;
   document.getElementById('cp-obra').value = c.obra;
+  document.getElementById('cp-etapa').value = c.etapa || '';
   document.getElementById('cp-mat').value = c.mat;
   document.getElementById('cp-qtd').value = c.qtd;
   document.getElementById('cp-unid').value = c.unid;
@@ -2473,11 +2496,16 @@ async function saveUsuario() {
 function deleteItem(table, idx) {
   if (!confirm('Remover este registro?')) return;
   DB[table].splice(idx, 1);
+  persistDB();
   const activePageEl = document.querySelector('.page.active');
   if (activePageEl) {
-    renderPage(activePageEl.id.replace('page-', ''));
+    const pageId = activePageEl.id.replace('page-', '');
+    renderPage(pageId);
+  } else {
+    // Fallback refresh for critical tabs
+    if(table === 'orcamento') renderOrcamento();
+    if(table === 'financeiro') renderFinanceiro();
   }
-  persistDB();
   toast('Removido!');
 }
 
