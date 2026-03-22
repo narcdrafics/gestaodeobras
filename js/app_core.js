@@ -115,7 +115,7 @@ function renderPage(id) {
     presenca: renderPresenca, tarefas: renderTarefas, estoque: renderEstoque,
     movEstoque: renderMovEstoque, compras: renderCompras, financeiro: renderFinanceiro,
     orcamento: renderOrcamento, medicao: renderMedicao, admin: renderAdmin,
-    fotos: renderFotos, super_admin: renderSuperAdmin
+    fotos: renderFotos, super_admin: renderSuperAdmin, relatorios: renderRelatorios
   };
   if (r[id]) r[id]();
 }
@@ -821,6 +821,106 @@ function renderOrcamento() {
         </tr>`;
     }).join('')
     : uiEmptyState('Sem Orçamento', 'Crie as linhas de custo planejado para comparar com o real na tela do Painel.', '📐', 'Criar Linha Orçamentária', 'openModal(\'modal-orcamento\')'));
+}
+
+async function renderRelatorios() {
+  const sel = document.getElementById('rel-obra');
+  if (sel && DB.obras.length > 0) {
+    sel.innerHTML = '<option value="">-- Escolha uma Obra --</option>' + 
+      DB.obras.map(o => `<option value="${o.cod}">${o.nome}</option>`).join('');
+  }
+}
+
+function generateAuditReport() {
+  const obraCod = document.getElementById('rel-obra').value;
+  if (!obraCod) { toast('Selecione uma obra primeiro!', 'error'); return; }
+
+  const obra = DB.obras.find(o => o.cod === obraCod);
+  if (!obra) return;
+
+  const orc = DB.orcamento.filter(o => o.obra === obraCod);
+  const fin = DB.financeiro.filter(f => f.obra === obraCod);
+  const med = DB.medicao.filter(m => m.obra === obraCod);
+  
+  // Summing Budgeted vs Realized
+  let totalPrev = orc.reduce((a, b) => a + (b.vtotal || 0), 0);
+  let totalReal = fin.reduce((a, b) => a + (b.real || 0), 0);
+
+  let html = `
+    <div id="print-area" style="padding: 40px; background: white; color: #1e293b; font-family: 'IBM Plex Sans', sans-serif; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px;">
+        <div>
+          <h1 style="margin:0; font-size:28px; color:var(--accent)">LAUDO DE VISTORIA E AUDITORIA</h1>
+          <p style="margin:5px 0; color:#64748b; font-weight:500;">Obra: ${obra.nome} (${obra.cod})</p>
+        </div>
+        <div style="text-align:right">
+          <p style="margin:0; font-size:14px; font-weight:600">Obra Real — Gestão Pro</p>
+          <p style="margin:0; font-size:12px; color:#64748b">${new Date().toLocaleDateString('pt-BR')}</p>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px;">
+        <div style="padding:15px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0">
+          <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Total Previsto</label>
+          <div style="font-size:20px; font-weight:700; color:#0f172a">${fmt(totalPrev)}</div>
+        </div>
+        <div style="padding:15px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0">
+          <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Total Investido (Real)</label>
+          <div style="font-size:20px; font-weight:700; color:#0f172a">${fmt(totalReal)}</div>
+        </div>
+        <div style="padding:15px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0">
+          <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Saldo/Diferença</label>
+          <div style="font-size:20px; font-weight:700; color:${totalReal > totalPrev ? '#ef4444' : '#10b981'}">${fmt(totalPrev - totalReal)}</div>
+        </div>
+      </div>
+
+      <h3 style="border-left: 4px solid var(--accent); padding-left: 10px; margin-bottom: 15px; font-size:18px">Evidências de Campo (Medições)</h3>
+      <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 30px;">
+        ${med.map(m => `
+          <div style="border: 1px solid #e2e8f0; border-radius:8px; overflow:hidden">
+            ${m.photoUrl ? `<img src="${m.photoUrl}" style="width:100%; height:150px; object-fit:cover; display:block">` : '<div style="height:150px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#94a3b8">Sem foto</div>'}
+            <div style="padding:10px; font-size:12px">
+              <b>${m.servico}</b><br>
+              <span style="color:#64748b">Fase: ${m.etapa} | Data: ${fmtDate(m.semana)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+
+      <h3 style="border-left: 4px solid var(--accent); padding-left: 10px; margin-bottom: 15px; font-size:18px">Extrato de Pagamentos Realizados</h3>
+      <table style="width:100%; border-collapse: collapse; font-size:12px">
+        <thead>
+          <tr style="background:#f1f5f9; text-align:left">
+            <th style="padding:10px; border-bottom:2px solid #e2e8f0">Data</th>
+            <th style="padding:10px; border-bottom:2px solid #e2e8f0">Descrição</th>
+            <th style="padding:10px; border-bottom:2px solid #e2e8f0">Beneficiário</th>
+            <th style="padding:10px; border-bottom:2px solid #e2e8f0; text-align:right">Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${fin.filter(f => f.status==='Pago').map(f => `
+            <tr>
+              <td style="padding:8px; border-bottom:1px solid #f1f5f9">${fmtDate(f.data)}</td>
+              <td style="padding:8px; border-bottom:1px solid #f1f5f9">${f.desc}</td>
+              <td style="padding:8px; border-bottom:1px solid #f1f5f9">${f.forn}</td>
+              <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right"><b>${fmt(f.real)}</b></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <div style="margin-top:50px; text-align:center; border-top: 1px dashed #cbd5e1; padding-top: 30px; font-size:12px; color:#94a3b8">
+        Documento gerado eletronicamente em conformidade com os registros de canteiro do Obra Real.<br>
+        Relatório para fins de vistoria e acompanhamento técnico interno.
+      </div>
+    </div>
+    <div style="margin-top:20px; text-align:center">
+      <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir Laudo / Salvar PDF</button>
+      <button class="btn btn-secondary" onclick="renderRelatorios()" style="margin-left:10px">🔙 Voltar</button>
+    </div>
+  `;
+  
+  safeSetInner('rel-preview-area', html);
 }
 
 
