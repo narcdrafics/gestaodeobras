@@ -789,7 +789,7 @@ function renderOrcamento() {
       const pexec = o.vtotal > 0 ? ((o.vreal || 0) / o.vtotal * 100).toFixed(1) : 0;
       return `<tr>
           <td>${obName(o.obra)}</td><td>${o.etapa}</td><td>${o.tipo}</td><td>${o.desc}</td>
-          <td>${o.unidade}</td><td>${o.qtd}</td><td>${fmt(o.vunit)}</td><td>${fmt(o.vtotal)}</td>
+          <td>${o.qtd}</td><td>${o.unid || '—'}</td><td>${fmt(o.vunit)}</td><td>${fmt(o.vtotal)}</td>
           <td>${fmt(o.vreal)}</td>
           <td style="color:${diff < 0 ? 'var(--red)' : 'var(--text)'}">${fmt(diff)}</td>
           <td>${pexec}%</td>
@@ -2306,6 +2306,13 @@ async function editFinanceiro(idx) {
   document.getElementById('fn-nf').value = f.nf;
   document.getElementById('fn-obs').value = f.obs || '';
   toggleParcial('fn');
+}
+
+function calcOrcTotal() {
+  const q = parseFloat(document.getElementById('oc-qtd').value) || 0;
+  const u = parseFloat(document.getElementById('oc-vunit').value) || 0;
+  const target = document.getElementById('oc-vtotal');
+  if (target) target.value = (q * u).toFixed(2);
 }
 
 async function saveOrcamento() {
