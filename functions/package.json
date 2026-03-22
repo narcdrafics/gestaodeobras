@@ -1,5 +1,5 @@
 {
-  "name": "gestao-obras-webhook",
+  "name": "obra-real-webhook",
   "version": "1.0.0",
   "description": "Cloud Functions para cobrança e automação de SaaS",
   "engines": {

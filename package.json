@@ -1,0 +1,13 @@
+{
+  "name": "obra-real",
+  "version": "1.1.0",
+  "description": "Obra Real - Gestão Profissional de Obras",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "echo 'Building static assets...'",
+    "start": "echo 'Starting static server...'"
+  },
+  "private": true
+}
