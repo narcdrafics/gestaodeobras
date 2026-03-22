@@ -1,134 +1,169 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SuperAdmin - Obra Real Master</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=202603212100">
-<!-- Firebase App (the core Firebase SDK) -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<!-- Firebase Realtime Database -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-<!-- Firebase Auth -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
-<style>
-  body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
-  }
-  .login-card {
-    background: var(--bg2);
-    border: 1px solid var(--accent); /* Bordar com a cor de destaque para Admin */
-    border-radius: 12px;
-    padding: 40px;
-    width: 380px;
-    box-shadow: 0 0 50px rgba(245, 158, 11, 0.1);
-    text-align: center;
-    animation: fadeIn 0.4s ease-out;
-  }
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .login-brand {
-    font-size: 26px;
-    font-weight: 700;
-    margin-bottom: 24px;
-    letter-spacing: -0.5px;
-  }
-  .login-brand span { color: var(--accent); }
-  .login-form {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    text-align: left;
-  }
-  .btn-login {
-    width: 100%;
-    justify-content: center;
-    padding: 12px;
-    font-size: 15px;
-    margin-top: 8px;
-    font-weight: 600;
-  }
-  .error-msg {
-    color: var(--red);
-    font-size: 13px;
-    background: rgba(239,68,68,0.1);
-    padding: 10px;
-    border-radius: 6px;
-    border: 1px solid rgba(239,68,68,0.2);
-    display: none;
-    text-align: center;
-  }
-  .back-to-client {
-     margin-top: 20px;
-     font-size: 12px;
-     color: var(--text3);
-     text-decoration: none;
-     transition: color 0.2s;
-  }
-  .back-to-client:hover {
-     color: var(--accent);
-  }
-</style>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SuperAdmin - Obra Real Master</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=202603212100">
+  <!-- Firebase App (the core Firebase SDK) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <!-- Firebase Realtime Database -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <!-- Firebase Auth -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+    }
+
+    .login-card {
+      background: var(--bg2);
+      border: 1px solid var(--accent);
+      /* Bordar com a cor de destaque para Admin */
+      border-radius: 12px;
+      padding: 40px;
+      width: 380px;
+      box-shadow: 0 0 50px rgba(245, 158, 11, 0.1);
+      text-align: center;
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .login-brand {
+      font-size: 26px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      letter-spacing: -0.5px;
+    }
+
+    .login-brand span {
+      color: var(--accent);
+    }
+
+    .login-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      text-align: left;
+    }
+
+    .btn-login {
+      width: 100%;
+      justify-content: center;
+      padding: 12px;
+      font-size: 15px;
+      margin-top: 8px;
+      font-weight: 600;
+    }
+
+    .error-msg {
+      color: var(--red);
+      font-size: 13px;
+      background: rgba(239, 68, 68, 0.1);
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      display: none;
+      text-align: center;
+    }
+
+    .back-to-client {
+      margin-top: 20px;
+      font-size: 12px;
+      color: var(--text3);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .back-to-client:hover {
+      color: var(--accent);
+    }
+  </style>
 </head>
+
 <body>
 
-<div class="login-card">
-  <div class="login-brand" style="margin-bottom: 8px;">👑 <span>SaaS Master</span></div>
-  <p style="color:var(--accent); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:24px;">Controle Total da Plataforma</p>
-  <p style="color:var(--text2);font-size:14px;margin-bottom:28px;">Acesso Restrito ao Administrador Mestre</p>
-  
-  <div class="login-form">
-    <div id="login-error" class="error-msg"></div>
+  <div class="login-card">
+    <div class="login-brand" style="margin-bottom: 8px;">👑 <span>SaaS Master</span></div>
+    <p
+      style="color:var(--accent); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:24px;">
+      Controle Total da Plataforma</p>
+    <p style="color:var(--text2);font-size:14px;margin-bottom:28px;">Acesso Restrito ao Administrador Mestre</p>
 
-    <div class="form-group" style="text-align:left;">
-      <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block;">E-mail do Administrador</label>
-      <input type="email" id="auth-email" class="form-control" placeholder="admin@sistema.com" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box;">
+    <div class="login-form">
+      <div id="login-error" class="error-msg"></div>
+
+      <div class="form-group" style="text-align:left;">
+        <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block;">E-mail do
+          Administrador</label>
+        <input type="email" id="auth-email" class="form-control" placeholder="admin@sistema.com"
+          style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box;">
+      </div>
+      <div class="form-group" style="text-align:left; position: relative;">
+        <label class="form-label"
+          style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block;">Senha</label>
+        <input type="password" id="auth-pass" class="form-control" placeholder="••••••••"
+          style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box;">
+        <span id="toggle-pass"
+          style="position: absolute; right: 10px; bottom: 8px; cursor: pointer; opacity: 0.6; font-size: 14px;"
+          onclick="togglePassword()">👁️</span>
+      </div>
+
+      <button type="button" id="btn-action" class="btn btn-primary btn-login" onclick="doEmailLogin()"
+        style="margin-top:10px;">Entrar no Painel Master</button>
+
+      <div
+        style="margin:15px 0; color:var(--text3); font-size:13px; display:flex; align-items:center; text-align:center;">
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+        <span style="padding:0 10px;">OU</span>
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+      </div>
+
+      <button type="button" class="btn btn-primary btn-login" onclick="doGoogleLogin()"
+        style="display:flex;align-items:center;justify-content:center;gap:12px;background:#fff;color:#333;border:1px solid #ddd;font-size:15px;padding:12px;margin-top:0;">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:20px;height:20px"
+          alt="G">
+        <span>Acessar com Google</span>
+      </button>
     </div>
-    <div class="form-group" style="text-align:left; position: relative;">
-      <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block;">Senha</label>
-      <input type="password" id="auth-pass" class="form-control" placeholder="••••••••" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box;">
-      <span id="toggle-pass" style="position: absolute; right: 10px; bottom: 8px; cursor: pointer; opacity: 0.6; font-size: 14px;" onclick="togglePassword()">👁️</span>
-    </div>
 
-    <button type="button" id="btn-action" class="btn btn-primary btn-login" onclick="doEmailLogin()" style="margin-top:10px;">Entrar no Painel Master</button>
-
-    <div style="margin:15px 0; color:var(--text3); font-size:13px; display:flex; align-items:center; text-align:center;">
-      <div style="flex:1;height:1px;background:var(--border);"></div>
-      <span style="padding:0 10px;">OU</span>
-      <div style="flex:1;height:1px;background:var(--border);"></div>
-    </div>
-
-    <button type="button" class="btn btn-primary btn-login" onclick="doGoogleLogin()" style="display:flex;align-items:center;justify-content:center;gap:12px;background:#fff;color:#333;border:1px solid #ddd;font-size:15px;padding:12px;margin-top:0;">
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:20px;height:20px" alt="G">
-      <span>Acessar com Google</span>
-    </button>
+    <a href="login.html" class="back-to-client">← Voltar para login de clientes</a>
   </div>
 
-  <a href="login.html" class="back-to-client">← Voltar para login de clientes</a>
-</div>
-
-<script src="js/data_core.js?v=202603212100"></script>
-<script src="js/auth_core.js?v=202603212100"></script>
-<script>
-  function togglePassword() {
-    const input = document.getElementById('auth-pass');
-    const toggle = document.getElementById('toggle-pass');
-    if (input.type === 'password') {
-      input.type = 'text';
-      toggle.textContent = '🙈';
-    } else {
-      input.type = 'password';
-      toggle.textContent = '👁️';
+  <script src="js/data_core.js?v=202603212100"></script>
+  <script src="js/auth_core.js?v=202603212100"></script>
+  <script>
+    function togglePassword() {
+      const input = document.getElementById('auth-pass');
+      const toggle = document.getElementById('toggle-pass');
+      if (input.type === 'password') {
+        input.type = 'text';
+        toggle.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        toggle.textContent = '👁️';
+      }
     }
-  }
-</script>
+  </script>
 </body>
+
 </html>
