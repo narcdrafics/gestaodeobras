@@ -45,51 +45,65 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
     
     nome = nome || "Empresa " + Date.now();
 
-    if (!email) {
-       console.error("Payload não continha E-mail");
-       return res.status(400).send('Falta E-mail do Cliente');
+    if (!email && !payload.external_id) {
+       console.error("Payload não continha E-mail nem External ID");
+       return res.status(400).send('Falta E-mail ou ID do Cliente');
     }
 
+    const tenantIdFromRef = payload.external_id;
     const db = admin.database();
 
     // =============== CENÁRIO 1: DINHEIRO ENTROU (CRIAR TENANT OU PROMOVER) ===============
     if (status === 'paid' || status === 'approved') {
        
-       // 1. Gera um slug temporário e único
-       let slugOriginal = nome.toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, '');
-       if(slugOriginal.length < 3) slugOriginal = 'empresa' + Math.floor(Math.random()*100);
-       let slugFinal = slugOriginal;
+       let slugFinal = tenantIdFromRef;
 
-       let exists = (await db.ref(`tenants/${slugFinal}`).once('value')).exists();
-       let salt = 1;
-       while(exists) {
-          slugFinal = slugOriginal + salt;
-          exists = (await db.ref(`tenants/${slugFinal}`).once('value')).exists();
-          salt++;
+       // Se não temos um external_id, tentamos achar por e-mail ou criamos novo
+       if (!slugFinal) {
+          const safeEmail = email.replace(/\./g, ',');
+          const userSnap = await db.ref(`users/${safeEmail}`).once('value');
+          if (userSnap.exists()) {
+             slugFinal = userSnap.val().tenantId;
+          }
        }
 
-       // 2. Injeta o Tenant no Database Master
-       await db.ref(`tenants/${slugFinal}`).set({
+       // Se ainda não temos slug (novo cliente real), geramos um
+       if (!slugFinal) {
+           let slugOriginal = nome.toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, '');
+           if(slugOriginal.length < 3) slugOriginal = 'empresa' + Math.floor(Math.random()*100);
+           slugFinal = slugOriginal;
+
+           let exists = (await db.ref(`tenants/${slugFinal}`).once('value')).exists();
+           let salt = 1;
+           while(exists) {
+              slugFinal = slugOriginal + salt;
+              exists = (await db.ref(`tenants/${slugFinal}`).once('value')).exists();
+              salt++;
+           }
+       }
+
+       // 2. Atualiza ou Injeta o Tenant (Promove para PRO)
+       await db.ref(`tenants/${slugFinal}`).update({
           nome: nome,
           emailAdmin: email,
           status: 'ativo',
-          plano: 'premium',
-          webhookCriacao: admin.database.ServerValue.TIMESTAMP,
-          limiteObras: 5,
-          limiteTrab: 50
+          plano: 'premium', // Ou use payload.product_name se quiser dinâmico
+          vencimentoPlano: admin.database.ServerValue.TIMESTAMP + (31 * 24 * 60 * 60 * 1000), // Exemplo: +31 dias
+          webhookUpdate: admin.database.ServerValue.TIMESTAMP,
+          limiteObras: 99, // Upgrade para Pro
+          limiteTrab: 99
        });
 
-       // 3. Cadastra o cara no dicionário Global de Usuários (Users Core)
-       // Transforma e-mail mari@ex.com em mari_ex_com (Firebase Keys não aceitam ponto)
+       // 3. Garante que o usuário está vinculado
        const safeEmail = email.replace(/\./g, ',');
-       await db.ref(`users/${safeEmail}`).set({
+       await db.ref(`users/${safeEmail}`).update({
           tenantId: slugFinal,
           role: 'admin',
           nome: nome,
           origem: 'webhook'
        });
 
-       return res.status(200).send(`✅ Tenant [${slugFinal}] providenciado com sucesso.`);
+       return res.status(200).send(`✅ Tenant [${slugFinal}] promovido/criado com sucesso.`);
     }
 
     // =============== CENÁRIO 2: CALOTE OU CANCELED (BLOQUEAR TENANT) ===============
