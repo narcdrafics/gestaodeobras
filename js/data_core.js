@@ -159,20 +159,11 @@ function _onFirebaseValue(snapshot) {
     }
 
     DB = ensureSchema(data);
-    const hasGoogleUsers = DB.usuarios.some(u => u && u.email);
-    if (!hasGoogleUsers) {
-      const recovered = loadLegacyLocalIfAny();
-      const recoveredHasData =
-        recovered.obras.length || recovered.trabalhadores.length ||
-        recovered.presenca.length || recovered.tarefas.length ||
-        recovered.estoque.length || recovered.compras.length ||
-        (recovered.config && recovered.config.nomeEmpresa !== 'GestaoObra');
-      if (recoveredHasData) DB = ensureSchema(recovered);
-    }
     processCloudUpdate();
     return;
   }
-  DB = loadLegacyLocalIfAny();
+  // Se não houver dados no Firebase para este tenant, inicializa vazio e NÃO tenta recuperar localmente (evita Ghost Data de outros tenants)
+  DB = ensureSchema({});
   processCloudUpdate();
 }
 
