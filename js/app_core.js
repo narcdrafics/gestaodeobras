@@ -3,22 +3,22 @@ let currentEditIdx = -1; // Global variable to identify if we are creating new (
 
 // ==================== SYSTEM GLOBALS (ANTI-REFERENCE ERROR) ====================
 // Cria 'stubs' para evitar que saves de uma página "crachem" tentando dar reload em UI de outra página
-window.renderDashboard = window.renderDashboard || function(){};
-window.renderObras = window.renderObras || function(){};
-window.renderTrabalhadores = window.renderTrabalhadores || function(){};
+window.renderDashboard = window.renderDashboard || function () { };
+window.renderObras = window.renderObras || function () { };
+window.renderTrabalhadores = window.renderTrabalhadores || function () { };
 
 
-window.renderPresenca = window.renderPresenca || function(){};
-window.renderTarefas = window.renderTarefas || function(){};
-window.renderEstoque = window.renderEstoque || function(){};
-window.renderMovEstoque = window.renderMovEstoque || function(){};
-window.renderCompras = window.renderCompras || function(){};
-window.renderFinanceiro = window.renderFinanceiro || function(){};
-window.renderOrcamento = window.renderOrcamento || function(){};
-window.renderMedicao = window.renderMedicao || function(){};
-window.renderAdmin = window.renderAdmin || function(){};
+window.renderPresenca = window.renderPresenca || function () { };
+window.renderTarefas = window.renderTarefas || function () { };
+window.renderEstoque = window.renderEstoque || function () { };
+window.renderMovEstoque = window.renderMovEstoque || function () { };
+window.renderCompras = window.renderCompras || function () { };
+window.renderFinanceiro = window.renderFinanceiro || function () { };
+window.renderOrcamento = window.renderOrcamento || function () { };
+window.renderMedicao = window.renderMedicao || function () { };
+window.renderAdmin = window.renderAdmin || function () { };
 
-const fmt = (v) => v != null && !isNaN(v) ? 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+const fmt = (v) => v != null && !isNaN(v) ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 const fmtPct = (v) => v != null ? (v * 100).toFixed(1) + '%' : '—';
 const fmtDate = (d) => { if (!d) return '—'; const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; };
 const today = new Date().toISOString().split('T')[0];
@@ -49,7 +49,7 @@ function uiEmptyState(message, subMessage, icon, actionText, actionFn) {
 }
 
 function obName(cStr) {
-  if(!cStr) return '—';
+  if (!cStr) return '—';
   return cStr.split(',').map(c => {
     const o = DB.obras.find(x => x.cod === c.trim());
     return o ? `<b>${o.nome}</b>` : c.trim();
@@ -180,7 +180,7 @@ function renderDashboard() {
 
   const totalRealGlobal = globalFinance.reduce((a, f) => a + f.v, 0);
   const pctCusto = totalPrev > 0 ? ((totalRealGlobal / totalPrev) * 100).toFixed(1) : 0;
-  
+
   const hoje = DB.presenca.filter(p => p.data === today);
   const presPresente = hoje.filter(p => p.presenca === 'Presente').length;
   const presTotal = hoje.length;
@@ -195,7 +195,7 @@ function renderDashboard() {
   const cDiariasSemana = DB.presenca
     .filter(p => p.data >= strSemana && p.data <= today && p.pgtoStatus !== 'Pago')
     .reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
-    
+
   const cEmpreitaSemana = DB.medicao
     .filter(m => m.semana >= strSemana && m.semana <= today && m.pgtoStatus !== 'Pago')
     .reduce((a, m) => a + Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0)), 0);
@@ -242,22 +242,22 @@ function renderDashboard() {
   if (pMedicao.length > 0) {
     const medPorEquipe = {};
     pMedicao.forEach(m => {
-       const eq = m.equipe || 'Equipe Terceira';
-       if (!medPorEquipe[eq]) medPorEquipe[eq] = { count: 0, total: 0, atrasado: false };
-       medPorEquipe[eq].count++;
-       medPorEquipe[eq].total += Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0));
-       if (m.pgtoStatus === 'Atrasado') medPorEquipe[eq].atrasado = true;
+      const eq = m.equipe || 'Equipe Terceira';
+      if (!medPorEquipe[eq]) medPorEquipe[eq] = { count: 0, total: 0, atrasado: false };
+      medPorEquipe[eq].count++;
+      medPorEquipe[eq].total += Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0));
+      if (m.pgtoStatus === 'Atrasado') medPorEquipe[eq].atrasado = true;
     });
 
     Object.keys(medPorEquipe).forEach(eq => {
-       alerts.push({
-         tipo: 'EMPREITAS PENDENTES',
-         obra: `${eq} — ${medPorEquipe[eq].count} registro(s)`,
-         desc: `Falta pagar: ${fmt(medPorEquipe[eq].total)} — Clique para abrir o caixa`,
-         resp: 'Financeiro',
-         prior: medPorEquipe[eq].atrasado ? 'alto' : 'medio',
-         action: "showPage('financeiro')"
-       });
+      alerts.push({
+        tipo: 'EMPREITAS PENDENTES',
+        obra: `${eq} — ${medPorEquipe[eq].count} registro(s)`,
+        desc: `Falta pagar: ${fmt(medPorEquipe[eq].total)} — Clique para abrir o caixa`,
+        resp: 'Financeiro',
+        prior: medPorEquipe[eq].atrasado ? 'alto' : 'medio',
+        action: "showPage('financeiro')"
+      });
     });
   }
 
@@ -279,14 +279,14 @@ function renderDashboard() {
   }
 
   const currentUserStr = sessionStorage.getItem('gestaoUser');
-  if(currentUserStr) {
-     const currentUser = JSON.parse(currentUserStr);
-     if(currentUser.role === 'admin' && DB.usuarios) {
-        const contasPendentes = DB.usuarios.filter(u => u.role === 'pendente');
-        contasPendentes.forEach(pUser => {
-           alerts.push({ tipo: 'NOVO USUÁRIO', obra: 'SISTEMA', desc: `${pUser.name} (${pUser.email}) solicitou acesso.`, resp: 'Admin', prior: 'alto' });
-        });
-     }
+  if (currentUserStr) {
+    const currentUser = JSON.parse(currentUserStr);
+    if (currentUser.role === 'admin' && DB.usuarios) {
+      const contasPendentes = DB.usuarios.filter(u => u.role === 'pendente');
+      contasPendentes.forEach(pUser => {
+        alerts.push({ tipo: 'NOVO USUÁRIO', obra: 'SISTEMA', desc: `${pUser.name} (${pUser.email}) solicitou acesso.`, resp: 'Admin', prior: 'alto' });
+      });
+    }
   }
 
   const alertIcons = { 'ESTOQUE CRÍTICO': '🔴', 'ESTOQUE BAIXO': '🟡', 'TAREFA ATRASADA': '⏰', 'COMPRA PENDENTE': '🛒', 'NOVO USUÁRIO': '👤', 'DIÁRIA PENDENTE': '💸', 'EMPREITA PENDENTE': '🔨', 'PGTO FINANCEIRO': '📄' };
@@ -306,20 +306,20 @@ function renderDashboard() {
 
   safeSetInner('dash-obras-tbody', DB.obras.map(o => {
     const tarefas = DB.tarefas.filter(t => t.obra === o.cod);
-    
+
     // Filtro Financeiro por Obra
     const tabObj = globalFinance.filter(f => f.obra === o.cod);
     const realizado = tabObj.reduce((a, f) => a + f.v, 0);
     const cSemanal = tabObj.filter(f => f.data >= strSemana && f.data <= today).reduce((a, f) => a + f.v, 0);
     const cMensal = tabObj.filter(f => f.data >= strMes && f.data <= today).reduce((a, f) => a + f.v, 0);
-    
+
     // Diárias por Obra (específico, não pagos)
     const dSemanal = DB.presenca
       .filter(p => p.obra === o.cod && p.data >= strSemana && p.data <= today && p.pgtoStatus !== 'Pago')
       .reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
-    
+
     const pct = o.orc > 0 ? (realizado / o.orc * 100).toFixed(1) : 0;
-    
+
     return `<tr>
       <td><span class="cod">${o.cod}</span> ${o.nome}</td>
       <td>${statusBadge(o.status)}</td>
@@ -338,10 +338,10 @@ function renderDashboard() {
   if (updEl) updEl.textContent = 'Atualizado: ' + new Date().toLocaleString('pt-BR');
 }
 
-window.toggleGroup = function(cls, iconId) {
+window.toggleGroup = function (cls, iconId) {
   const isHidden = document.querySelector('.' + cls)?.style.display === 'none';
   document.querySelectorAll('.' + cls).forEach(el => {
-     el.style.display = isHidden ? '' : 'none';
+    el.style.display = isHidden ? '' : 'none';
   });
   const icon = document.getElementById(iconId);
   if (icon) icon.textContent = isHidden ? '▼' : '▶';
@@ -398,13 +398,13 @@ function renderPresenca() {
   console.log('Iniciando renderPresenca...');
   const allPres = DB.presenca || [];
   const validPres = allPres.filter(p => p && p.data);
-  
+
   // KPIs de Hoje
   const hoje = validPres.filter(p => p.data === today);
   const presentes = hoje.filter(p => p.presenca === 'Presente').length;
   const faltas = hoje.filter(p => p.presenca === 'Falta').length;
   const totalPagar = hoje.reduce((a, p) => a + (Number(p.total) || 0), 0);
-  
+
   safeSetInner('pres-kpi', `
     <div class="kpi-card"><div class="kpi-label">Presentes Hoje</div><div class="kpi-val green">${presentes}</div></div>
     <div class="kpi-card"><div class="kpi-label">Faltas Hoje</div><div class="kpi-val ${faltas > 0 ? 'red' : 'green'}">${faltas}</div></div>
@@ -416,22 +416,22 @@ function renderPresenca() {
   const sortVal = sortSelect ? sortSelect.value : 'data_desc'; // O Padrão é data decrescente
 
   let listForTable = allPres.map((p, i) => (p ? { ...p, _idx: i } : null)).filter(p => p !== null);
-  
+
   // Realiza o Sort Seguro
   listForTable.sort((a, b) => {
-      if (sortVal === 'data_desc') return String(b.data || '').localeCompare(String(a.data || ''));
-      if (sortVal === 'data_asc') return String(a.data || '').localeCompare(String(b.data || ''));
-      return 0;
+    if (sortVal === 'data_desc') return String(b.data || '').localeCompare(String(a.data || ''));
+    if (sortVal === 'data_asc') return String(a.data || '').localeCompare(String(b.data || ''));
+    return 0;
   });
 
   const groupSelect = document.getElementById('pres-group-select');
   const groupMode = groupSelect ? groupSelect.value : 'trab';
 
   if (listForTable.length === 0) {
-      safeSetInner('pres-tbody', uiEmptyState('Folha em Branco', 'Ninguém bateu ponto hoje. Inicie o lançamento diário da obra.', '✅', 'Lançar Presença', 'openModal(\'modal-presenca\')'));
+    safeSetInner('pres-tbody', uiEmptyState('Folha em Branco', 'Ninguém bateu ponto hoje. Inicie o lançamento diário da obra.', '✅', 'Lançar Presença', 'openModal(\'modal-presenca\')'));
   } else if (!groupMode) {
-      // Sem Agrupamento
-      safeSetInner('pres-tbody', listForTable.map(p => `<tr>
+    // Sem Agrupamento
+    safeSetInner('pres-tbody', listForTable.map(p => `<tr>
         <td>${fmtDate(p.data)}</td><td>${obName(p.obra)}</td>
         <td>${p.frente || '—'}</td><td><span class="cod">${p.trab}</span></td>
         <td><b>${p.nome}</b></td><td>${p.funcao}</td>
@@ -447,36 +447,36 @@ function renderPresenca() {
         </td>
       </tr>`).join(''));
   } else {
-      // Com Agrupamento (Acordeão)
-      let grouped = {};
-      listForTable.forEach(p => {
-          const g = groupMode === 'trab' ? (p.nome || 'Desconhecido') : (p.obra || 'Desconhecida');
-          if(!grouped[g]) grouped[g] = [];
-          grouped[g].push(p);
-      });
-      
-      const keys = Object.keys(grouped).sort();
-      let tbodyHtml = '';
-      
-      keys.forEach((k, idx) => {
-          const rows = grouped[k];
-          const totalGroup = rows.reduce((a, b) => a + (Number(b.total) || 0), 0);
-          const cls = `grp-pres-${idx}`;
-          const icn = `ico-pres-${idx}`;
-          
-          tbodyHtml += `<tr class="group-header" onclick="toggleGroup('${cls}', '${icn}')" style="cursor:pointer; background:var(--bg3); font-weight:600;">
+    // Com Agrupamento (Acordeão)
+    let grouped = {};
+    listForTable.forEach(p => {
+      const g = groupMode === 'trab' ? (p.nome || 'Desconhecido') : (p.obra || 'Desconhecida');
+      if (!grouped[g]) grouped[g] = [];
+      grouped[g].push(p);
+    });
+
+    const keys = Object.keys(grouped).sort();
+    let tbodyHtml = '';
+
+    keys.forEach((k, idx) => {
+      const rows = grouped[k];
+      const totalGroup = rows.reduce((a, b) => a + (Number(b.total) || 0), 0);
+      const cls = `grp-pres-${idx}`;
+      const icn = `ico-pres-${idx}`;
+
+      tbodyHtml += `<tr class="group-header" onclick="toggleGroup('${cls}', '${icn}')" style="cursor:pointer; background:var(--bg3); font-weight:600;">
             <td colspan="12"><span id="${icn}" style="display:inline-block; width:20px; font-size:12px; color:var(--accent);">▶</span> 
               <span style="font-size:14px; text-transform:uppercase">${k}</span> 
               <span class="badge badge-blue" style="margin-left:12px">${rows.length} registros</span>
             </td>
             <td colspan="3" style="color:var(--green); font-size:14px; font-weight:bold;">Total: ${fmt(totalGroup)}</td>
           </tr>`;
-          
-          rows.forEach(p => {
-              tbodyHtml += `<tr class="${cls}" style="display:none; transition: all 0.3s">
+
+      rows.forEach(p => {
+        tbodyHtml += `<tr class="${cls}" style="display:none; transition: all 0.3s">
                 <td style="padding-left:16px"><span style="color:var(--text3); font-size:10px; margin-right:4px">└</span> ${fmtDate(p.data)}</td>
                 <td>${obName(p.obra)}</td>
-                <td style="color:var(--text2)">${groupMode==='trab' ? '—' : p.nome}</td>
+                <td style="color:var(--text2)">${groupMode === 'trab' ? '—' : p.nome}</td>
                 <td>${p.funcao}</td><td>${p.frente}</td>
                 <td>${p.entrada || '—'}</td><td>${p.saida || '—'}</td>
                 <td>${p.hnorm || 0}h</td><td>${p.hextra || 0}h</td>
@@ -489,37 +489,37 @@ function renderPresenca() {
                   <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">🗑</button>
                 </td>
               </tr>`;
-          });
       });
-      safeSetInner('pres-tbody', tbodyHtml);
+    });
+    safeSetInner('pres-tbody', tbodyHtml);
   }
 
   // Consolidação de Almoços por Obra
   const almocosHtml = (DB.obras || []).map(o => {
     const hojeAlmoco = validPres.filter(p => p.obra === o.cod && p.data === today && p.almoco === 'Sim').length;
-    
+
     // Almoços na semana atual
     const todayObj = new Date();
     const startOfWeek = new Date(todayObj);
     startOfWeek.setDate(todayObj.getDate() - todayObj.getDay());
     const strWeek = startOfWeek.toISOString().split('T')[0];
-    
+
     const semanaAlmoco = validPres.filter(p => p.obra === o.cod && p.data >= strWeek && p.data <= today && p.almoco === 'Sim').length;
-    
+
     if (hojeAlmoco === 0 && semanaAlmoco === 0) return '';
-    
+
     return `<div class="kpi-card">
       <div class="kpi-label">${o.nome}</div>
       <div style="font-size:20px; font-weight:bold; color:var(--accent); margin: 8px 0;">${hojeAlmoco} <small style="font-size:12px; font-weight:normal; color:var(--text3)">almoços hoje</small></div>
       <div style="font-size:13px; color:var(--text2)">Total na semana: <b>${semanaAlmoco}</b></div>
     </div>`;
   }).join('');
-  
+
   safeSetInner('pres-almocos', almocosHtml || '<p style="color:var(--text3); padding: 8px;">Nenhum almoço registrado hoje ou nesta semana.</p>');
-  
+
   // Totalizadores por Data (Últimos 10 registros de datas distintas)
   try {
-    const uniqueDates = [...new Set(validPres.map(p => p.data))].sort((a,b) => String(b).localeCompare(String(a))).slice(0, 10);
+    const uniqueDates = [...new Set(validPres.map(p => p.data))].sort((a, b) => String(b).localeCompare(String(a))).slice(0, 10);
     console.log('Datas para totalizadores:', uniqueDates);
 
     const totalsHtml = uniqueDates.map(d => {
@@ -531,33 +531,33 @@ function renderPresenca() {
         <div style="font-size:13px;margin-top:4px">Total: <b style="color:var(--accent)">${fmt(dayTotal)}</b></div>
       </div>`;
     }).join('');
-    
+
     safeSetInner('pres-totais', totalsHtml || '<p style="color:var(--text3); padding: 8px;">Nenhum dado para consolidar fechamento.</p>');
   } catch (err) {
     console.error('Erro ao renderizar totalizadores de presença:', err);
     safeSetInner('pres-totais', '<p style="color:var(--red); padding: 8px;">Falha ao processar os dados do fechamento. Erro relatado no console (F12).</p>');
   }
-  
+
   // Pagamentos Pendentes da Semana (Por Obra)
   const pendentesHtml = (DB.obras || []).map(o => {
     const todayObj2 = new Date();
     const startOfWeek2 = new Date(todayObj2);
     startOfWeek2.setDate(todayObj2.getDate() - todayObj2.getDay());
     const strWeek2 = startOfWeek2.toISOString().split('T')[0];
-    
+
     const pPendentes = validPres.filter(p => p.obra === o.cod && p.data >= strWeek2 && p.data <= today && p.pgtoStatus === 'Pendente' && Number(p.total) > 0);
-    
+
     if (pPendentes.length === 0) return '';
-    
+
     const somaPendente = pPendentes.reduce((a, r) => a + (Number(r.total) || 0), 0);
-    
+
     return `<div class="kpi-card">
       <div class="kpi-label">${o.cod} — ${o.nome}</div>
       <div style="font-size:20px; font-weight:bold; color:var(--red); margin: 8px 0;">${fmt(somaPendente)}</div>
       <div style="font-size:13px; color:var(--text2)">${pPendentes.length} pendências salariais na semana</div>
     </div>`;
   }).join('');
-  
+
   safeSetInner('pres-pgto-pendentes', pendentesHtml || '<p style="color:var(--green); padding: 8px; font-weight: 500;">✅ Nenhum pagamento pendente para esta semana.</p>');
 
   console.log('renderPresenca concluído.');
@@ -654,7 +654,7 @@ function renderCompras() {
 // ==================== FINANCEIRO ====================
 function renderFinanceiro() {
   let allFin = [];
-  
+
   // 1. Lançamentos Manuais Core
   DB.financeiro.forEach((f, i) => {
     allFin.push({
@@ -719,30 +719,30 @@ function renderFinanceiro() {
     <div class="fin-card"><div class="fin-card-label">${obNameStr} — Realizado</div><div class="fin-card-val" style="color:${r > p ? 'var(--red)' : 'var(--text)'}">${fmt(r)}</div></div>
     <div class="fin-card"><div class="fin-card-label">${obNameStr} — Diferença</div><div class="fin-card-val" style="color:${r > p ? 'var(--red)' : 'var(--green)'}">${fmt(r - p)}</div></div>`;
   });
-  
+
   sumHtml += `<div class="fin-card"><div class="fin-card-label" style="color:var(--accent)">Total Geral Prev.</div><div class="fin-card-val">${fmt(totalPrev)}</div></div>
   <div class="fin-card"><div class="fin-card-label" style="color:var(--accent)">Total Geral Real.</div><div class="fin-card-val">${fmt(totalReal)}</div></div>
   <div class="fin-card"><div class="fin-card-label" style="color:var(--accent)">Diferença Total</div><div class="fin-card-val" style="color:${totalReal > totalPrev ? 'var(--red)' : 'var(--green)'}">${fmt(totalReal - totalPrev)}</div></div>`;
-  
+
   safeSetInner('fin-summary', sumHtml);
 
   safeSetInner('fin-tbody', allFin.length
     ? allFin.map(f => {
       const diff = f.real - f.prev;
-      
+
       let editBtn = '';
-      if(f.source === 'fin') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px">✏️</button>`;
-      else if(f.source === 'med') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editMedicao(${f.idx})" style="margin-right:8px">✏️ Med.</button>`;
-      else if(f.source === 'pre') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editPresenca(${f.idx})" style="margin-right:8px">✏️ Dia.</button>`;
-      
+      if (f.source === 'fin') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px">✏️</button>`;
+      else if (f.source === 'med') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editMedicao(${f.idx})" style="margin-right:8px">✏️ Med.</button>`;
+      else if (f.source === 'pre') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editPresenca(${f.idx})" style="margin-right:8px">✏️ Dia.</button>`;
+
       let delBtn = '';
-      if(f.source === 'fin') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">🗑</button>`;
-      
+      if (f.source === 'fin') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">🗑</button>`;
+
       let payBtn = '';
       if (f.status !== 'Pago') {
         payBtn = `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('${f.source}', ${f.idx})" style="margin-right:8px; background:var(--green); border-color:var(--green);" title="Pagar via PIX">💸</button>`;
       }
-      
+
       return `<tr>
           <td>${fmtDate(f.data)}</td><td>${getNome(f.obra)}</td><td>${f.etapa}</td><td>${f.tipo}</td>
           <td><b>${f.desc}</b></td><td>${f.forn}</td>
@@ -761,23 +761,23 @@ function exportarImagemDashboard() {
   toast('Gerando imagem... Aguarde', 'info');
   const btnDiv = document.querySelector('.page-header div[style*="align-items: center"]');
   if (btnDiv) btnDiv.style.display = 'none'; // Esconde barra de botões
-  
+
   html2canvas(document.getElementById('conteudo-principal'), {
-     scale: 2, // Maior qualidade (High DPI)
-     useCORS: true,
-     backgroundColor: '#1E1E1E'
+    scale: 2, // Maior qualidade (High DPI)
+    useCORS: true,
+    backgroundColor: '#1E1E1E'
   }).then(canvas => {
-      const imgData = canvas.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = imgData;
-      a.download = `Relatorio_Obras_${new Date().toISOString().split('T')[0]}.png`;
-      a.click();
-      if (btnDiv) btnDiv.style.display = 'flex';
-      toast('Imagem gerada! Pronta para WhatsApp.', 'success');
+    const imgData = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = imgData;
+    a.download = `Relatorio_Obras_${new Date().toISOString().split('T')[0]}.png`;
+    a.click();
+    if (btnDiv) btnDiv.style.display = 'flex';
+    toast('Imagem gerada! Pronta para WhatsApp.', 'success');
   }).catch(err => {
-      console.error(err);
-      toast('Falha ao gerar a imagem.', 'error');
-      if (btnDiv) btnDiv.style.display = 'flex';
+    console.error(err);
+    toast('Falha ao gerar a imagem.', 'error');
+    if (btnDiv) btnDiv.style.display = 'flex';
   });
 }
 
@@ -795,7 +795,7 @@ function renderOrcamento() {
   // Adiciona gastos de compras entregues ou pagas
   DB.compras.forEach(c => {
     if (['Entregue', 'Pago', 'Pedido Feito'].includes(c.status)) {
-      const key = `${c.obra}|${c.etapa || 'Material'}`; 
+      const key = `${c.obra}|${c.etapa || 'Material'}`;
       realCosts[key] = (realCosts[key] || 0) + (parseFloat(c.vtotal) || 0);
     }
   });
@@ -807,7 +807,7 @@ function renderOrcamento() {
       const vtotal = parseFloat(o.vtotal) || 0;
       const diff = vtotal - vreal;
       const pexec = vtotal > 0 ? ((vreal / vtotal) * 100).toFixed(1) : 0;
-      
+
       return `<tr>
           <td>${obName(o.obra)}</td><td>${o.etapa}</td><td>${o.tipo}</td><td>${o.desc}</td>
           <td>${o.unid || '—'}</td><td>${o.qtd}</td><td>${fmt(o.vunit)}</td><td>${fmt(vtotal)}</td>
@@ -826,7 +826,7 @@ function renderOrcamento() {
 async function renderRelatorios() {
   const sel = document.getElementById('rel-obra');
   if (sel && DB.obras.length > 0) {
-    sel.innerHTML = '<option value="">-- Escolha uma Obra --</option>' + 
+    sel.innerHTML = '<option value="">-- Escolha uma Obra --</option>' +
       DB.obras.map(o => `<option value="${o.cod}">${o.nome}</option>`).join('');
   }
 }
@@ -842,7 +842,7 @@ function generateAuditReport() {
   const fin = DB.financeiro.filter(f => f.obra === obraCod);
   const med = DB.medicao.filter(m => m.obra === obraCod);
   const com = DB.compras.filter(c => c.obra === obraCod && (c.status === 'Entregue' || c.status === 'Pago'));
-  
+
   // Categorization Logic
   const isMat = (t) => ['Material', 'Custo Direto (Material)', 'Insumos', 'Equipamento'].includes(t);
   const isMao = (t) => ['Mão de Obra', 'Mão de obra própria', 'Empreiteiro', 'Serviços', 'Adiantamento'].includes(t);
@@ -886,7 +886,7 @@ function generateAuditReport() {
         </div>
         <div style="padding:15px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0">
           <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Status Financeiro</label>
-          <div style="font-size:20px; font-weight:700; color:#0f172a">${((totalReal/totalPrev)*100).toFixed(1)}%</div>
+          <div style="font-size:20px; font-weight:700; color:#0f172a">${((totalReal / totalPrev) * 100).toFixed(1)}%</div>
         </div>
       </div>
 
@@ -899,7 +899,7 @@ function generateAuditReport() {
             <span style="font-size:14px; font-weight:700">${fmt(realMat)}</span>
           </div>
           <div style="height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden; margin-bottom:8px">
-            <div style="width:${Math.min(100, (realMat/prevMat)*100)}%; height:100%; background:#6366f1"></div>
+            <div style="width:${Math.min(100, (realMat / prevMat) * 100)}%; height:100%; background:#6366f1"></div>
           </div>
           <p style="margin:0; font-size:11px; color:#94a3b8">Previsto em orçamento: ${fmt(prevMat)}</p>
         </div>
@@ -910,7 +910,7 @@ function generateAuditReport() {
             <span style="font-size:14px; font-weight:700">${fmt(realMao)}</span>
           </div>
           <div style="height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden; margin-bottom:8px">
-            <div style="width:${Math.min(100, (realMao/prevMao)*100)}%; height:100%; background:#10b981"></div>
+            <div style="width:${Math.min(100, (realMao / prevMao) * 100)}%; height:100%; background:#10b981"></div>
           </div>
           <p style="margin:0; font-size:11px; color:#94a3b8">Previsto em orçamento: ${fmt(prevMao)}</p>
         </div>
@@ -940,7 +940,7 @@ function generateAuditReport() {
           </tr>
         </thead>
         <tbody>
-          ${fin.filter(f => f.status==='Pago').map(f => `
+          ${fin.filter(f => f.status === 'Pago').map(f => `
             <tr>
               <td style="padding:8px; border-bottom:1px solid #f1f5f9">${fmtDate(f.data)}</td>
               <td style="padding:8px; border-bottom:1px solid #f1f5f9">${f.desc}</td>
@@ -969,7 +969,7 @@ function generateAuditReport() {
       <button class="btn btn-secondary" onclick="renderRelatorios()" style="margin-left:10px">🔙 Voltar</button>
     </div>
   `;
-  
+
   safeSetInner('rel-preview-area', html);
 }
 
@@ -1024,11 +1024,11 @@ function renderAdmin() {
     safeSetValue('cfg-tema', cfg.tema || 'dark');
     safeSetValue('cfg-slug', cfg.slug || '');
     safeSetValue('cfg-logo-url', cfg.logoUrl || '');
-    
+
     if (cfg.logoUrl) {
-        safeSetStyle('cfg-logo-preview', 'display', 'block');
-        const previewImg = document.querySelector('#cfg-logo-preview img');
-        if (previewImg) previewImg.src = cfg.logoUrl;
+      safeSetStyle('cfg-logo-preview', 'display', 'block');
+      const previewImg = document.querySelector('#cfg-logo-preview img');
+      if (previewImg) previewImg.src = cfg.logoUrl;
     }
   }
 
@@ -1050,7 +1050,7 @@ function renderAdmin() {
 function renderFotos() {
   const obraFilter = document.getElementById('fotos-obra-filter');
   const selectedObra = obraFilter ? obraFilter.value : '';
-  
+
   // Preenche o filter de obras se estiver vazio (apenas uma vez)
   if (obraFilter && obraFilter.options.length === 1) {
     DB.obras.forEach(o => {
@@ -1062,7 +1062,7 @@ function renderFotos() {
   }
 
   let allPhotos = [];
-  
+
   // 1. Coleta das Tarefas
   DB.tarefas.forEach(t => {
     if (t.photoUrl) {
@@ -1119,56 +1119,56 @@ function renderBilling() {
   if (DB.config) {
     const limitObras = DB.config.limiteObras || 1;
     const limitTrab = DB.config.limiteTrabalhadores || 5;
-    
+
     // Novo motor baseado no Plano Real do usuário (via DB central)
     const isPro = DB.plano && DB.plano !== 'free_trial';
-    
+
     let planText = isPro ? 'PLANO PRO ⭐' : 'PLANO INICIAL (Teste Grátis)';
-    
+
     // Calcula dias restantes se for trial
     let diasRestantes = 0;
     if (!isPro && DB.trialExpiracao) {
-        const diffMs = DB.trialExpiracao - Date.now();
-        diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-        if (diasRestantes < 0) diasRestantes = 0;
+      const diffMs = DB.trialExpiracao - Date.now();
+      diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      if (diasRestantes < 0) diasRestantes = 0;
     }
 
     // Injeta visual de dias restantes progressivo
     const timerElem = document.getElementById('trial-timer-display');
     if (!isPro && DB.trialExpiracao) {
-        if (!timerElem) {
-            const painel = document.getElementById('plan-name').parentNode;
-            painel.insertAdjacentHTML('afterend', `
+      if (!timerElem) {
+        const painel = document.getElementById('plan-name').parentNode;
+        painel.insertAdjacentHTML('afterend', `
               <div id="trial-timer-display" style="background:#fff3cd; color:#b45309; padding:10px 12px; border-radius:6px; margin: 12px 0; font-size:13px; font-weight:600; border:1px solid #fde68a; display:flex; align-items:center; gap:8px;">
                 <span style="font-size:18px;">⏳</span> 
                 <span>Faltam <b id="trial-days" style="color:var(--danger)">${diasRestantes}</b> dias para acabar o seu Teste Grátis.</span>
               </div>
             `);
-        } else {
-            timerElem.style.display = 'flex';
-            document.getElementById('trial-days').innerText = diasRestantes;
-        }
+      } else {
+        timerElem.style.display = 'flex';
+        document.getElementById('trial-days').innerText = diasRestantes;
+      }
     } else if (timerElem) {
-        timerElem.style.display = 'none'; // Se for Pro, esconde a barra de Trial
+      timerElem.style.display = 'none'; // Se for Pro, esconde a barra de Trial
     }
 
     safeSetText('plan-name', planText);
     safeSetText('limit-obras', limitObras === 99 ? 'Ilimitado' : limitObras);
     safeSetText('limit-trab', limitTrab === 99 ? 'Ilimitado' : limitTrab);
-    
+
     const btnUpgrade = document.getElementById('btn-upgrade');
     if (btnUpgrade) {
       if (isPro) {
-          btnUpgrade.textContent = "✅ Assinatura Premium Ativada";
-          btnUpgrade.style.background = "var(--success)";
-          btnUpgrade.style.borderColor = "var(--success)";
-          btnUpgrade.onclick = null; // Tira o link de pagamento
-          btnUpgrade.style.pointerEvents = "none";
+        btnUpgrade.textContent = "✅ Assinatura Premium Ativada";
+        btnUpgrade.style.background = "var(--success)";
+        btnUpgrade.style.borderColor = "var(--success)";
+        btnUpgrade.onclick = null; // Tira o link de pagamento
+        btnUpgrade.style.pointerEvents = "none";
       } else {
-          btnUpgrade.textContent = "⭐ Assinar Plano Pro Agora";
-          btnUpgrade.style.background = "#6366f1";
-          btnUpgrade.style.borderColor = "#6366f1";
-          btnUpgrade.style.pointerEvents = "auto";
+        btnUpgrade.textContent = "⭐ Assinar Plano Pro Agora";
+        btnUpgrade.style.background = "#6366f1";
+        btnUpgrade.style.borderColor = "#6366f1";
+        btnUpgrade.style.pointerEvents = "auto";
       }
       btnUpgrade.style.display = 'block';
     }
@@ -1180,7 +1180,7 @@ async function startStripeCheckout() {
   if (!user.tenantId) return toast('Erro: Conta não identificada.', 'error');
 
   toast('Abrindo Checkout Seguro da Kiwify...', 'success');
-  
+
   setTimeout(() => {
     // Redirecionamento real para a Kiwify na aba principal (usando o link do checkout)
     window.open('https://pay.kiwify.com.br/UeoKVpn', '_blank');
@@ -1215,20 +1215,20 @@ async function renderSuperAdmin() {
     if (totalUsersEl) totalUsersEl.textContent = profileList.length;
 
     tbody.innerHTML = tenantIds.map(tid => {
-        const t = tenants[tid];
-        const config = t.config || {};
-        // Busca o admin principal no nó Profilies
-        const adminProfile = profileList.find(p => p.tenantId === tid && p.role === 'admin');
-        let displayEmail = adminProfile ? adminProfile.email : 'N/A';
-        
-        // Se o cliente ainda não se cadastrou (Perfil não existe), procura no nó Invites para exibir como "Pendente"
-        const invitesData = window.globalInvitesDataCache || {}; // Necessita do fetch de convites acima
-        if (!adminProfile) {
-            const pendingKey = Object.keys(invitesData).find(k => invitesData[k].tenantId === tid && invitesData[k].role === 'admin');
-            if (pendingKey) displayEmail = pendingKey.replace(/,/g, '.') + ' <span style="font-size:10px; color:var(--orange)">(Convite)</span>';
-        }
-        
-        return `<tr>
+      const t = tenants[tid];
+      const config = t.config || {};
+      // Busca o admin principal no nó Profilies
+      const adminProfile = profileList.find(p => p.tenantId === tid && p.role === 'admin');
+      let displayEmail = adminProfile ? adminProfile.email : 'N/A';
+
+      // Se o cliente ainda não se cadastrou (Perfil não existe), procura no nó Invites para exibir como "Pendente"
+      const invitesData = window.globalInvitesDataCache || {}; // Necessita do fetch de convites acima
+      if (!adminProfile) {
+        const pendingKey = Object.keys(invitesData).find(k => invitesData[k].tenantId === tid && invitesData[k].role === 'admin');
+        if (pendingKey) displayEmail = pendingKey.replace(/,/g, '.') + ' <span style="font-size:10px; color:var(--orange)">(Convite)</span>';
+      }
+
+      return `<tr>
             <td>
                 <div style="font-weight:600">${config.nomeEmpresa || 'Sem Nome'}</div>
                 <div style="font-size:10px; opacity:0.6">${tid}</div>
@@ -1244,22 +1244,22 @@ async function renderSuperAdmin() {
     }).join('');
 
     if (tbodyUsers) {
-        // Ordena usuários pelo nome ou e-mail
-        profileList.sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || ''));
-        
-        tbodyUsers.innerHTML = profileList.map(p => {
-            let nomeEmp = 'Sem Vínculo / Mestre';
-            let extraInfo = '';
-            
-            if (p.tenantId !== 'MASTER_SYSTEM') {
-                const t = tenants[p.tenantId] || {};
-                const config = t.config || {};
-                nomeEmp = config.nomeEmpresa || 'Empresa Excluída/Não Encontrada';
-                const slugTxt = config.slug ? `(<b>${config.slug}</b>)` : '';
-                extraInfo = `<div style="font-size:10px; opacity:0.6">ID: ${p.tenantId} ${slugTxt}</div>`;
-            }
+      // Ordena usuários pelo nome ou e-mail
+      profileList.sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || ''));
 
-            return `<tr>
+      tbodyUsers.innerHTML = profileList.map(p => {
+        let nomeEmp = 'Sem Vínculo / Mestre';
+        let extraInfo = '';
+
+        if (p.tenantId !== 'MASTER_SYSTEM') {
+          const t = tenants[p.tenantId] || {};
+          const config = t.config || {};
+          nomeEmp = config.nomeEmpresa || 'Empresa Excluída/Não Encontrada';
+          const slugTxt = config.slug ? `(<b>${config.slug}</b>)` : '';
+          extraInfo = `<div style="font-size:10px; opacity:0.6">ID: ${p.tenantId} ${slugTxt}</div>`;
+        }
+
+        return `<tr>
                 <td><div style="font-weight:600">${p.name || 'Sem Nome'}</div></td>
                 <td>${p.email || 'N/A'}</td>
                 <td><span class="badge badge-gray">${(p.role || '').toUpperCase()}</span></td>
@@ -1271,7 +1271,7 @@ async function renderSuperAdmin() {
                     <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser('${p.uid}')">🗑️ Excluir</button>
                 </td>
             </tr>`;
-        }).join('');
+      }).join('');
     }
 
   } catch (err) {
@@ -1299,133 +1299,133 @@ async function renderPage(pageId) {
 */
 
 function openMasterTenantModal(tid) {
-    // Injeta a estrutura limpa no modal principal
-    const content = document.getElementById('modal-master-tenant').innerHTML;
-    const container = document.getElementById('modal-content');
-    container.innerHTML = content;
-    
-    // Busca os dados nativos de forma segura no Cache (Ignorando falhas de sintaxe HTML)
-    const tData = (window.globalTenantsDataCache && window.globalTenantsDataCache[tid]) || {};
-    const config = tData.config || {};
-    
-    // Alimenta EXCLUSIVAMENTE os inputs dentro da caixa recém-aberta!
-    container.querySelector('#mt-tenant-id').value = tid || '';
-    container.querySelector('#mt-old-slug').value = config.slug || '';
-    container.querySelector('#mt-nome').value = config.nomeEmpresa || '';
-    container.querySelector('#mt-slug').value = config.slug || '';
-    container.querySelector('#mt-email').value = '';
-    container.querySelector('#mt-limite-obras').value = config.limiteObras || 0;
-    container.querySelector('#mt-limite-trab').value = config.limiteTrabalhadores || 0;
+  // Injeta a estrutura limpa no modal principal
+  const content = document.getElementById('modal-master-tenant').innerHTML;
+  const container = document.getElementById('modal-content');
+  container.innerHTML = content;
 
-    document.getElementById('modal-container').classList.add('open');
+  // Busca os dados nativos de forma segura no Cache (Ignorando falhas de sintaxe HTML)
+  const tData = (window.globalTenantsDataCache && window.globalTenantsDataCache[tid]) || {};
+  const config = tData.config || {};
+
+  // Alimenta EXCLUSIVAMENTE os inputs dentro da caixa recém-aberta!
+  container.querySelector('#mt-tenant-id').value = tid || '';
+  container.querySelector('#mt-old-slug').value = config.slug || '';
+  container.querySelector('#mt-nome').value = config.nomeEmpresa || '';
+  container.querySelector('#mt-slug').value = config.slug || '';
+  container.querySelector('#mt-email').value = '';
+  container.querySelector('#mt-limite-obras').value = config.limiteObras || 0;
+  container.querySelector('#mt-limite-trab').value = config.limiteTrabalhadores || 0;
+
+  document.getElementById('modal-container').classList.add('open');
 }
 
 async function saveMasterTenant() {
-    const modal = document.getElementById('modal-content');
-    const tid = modal.querySelector('#mt-tenant-id').value;
-    const oldSlug = modal.querySelector('#mt-old-slug').value;
-    const nome = modal.querySelector('#mt-nome').value.trim();
-    let slugVal = modal.querySelector('#mt-slug').value.trim().toLowerCase();
-    const emailOwner = modal.querySelector('#mt-email').value.trim().toLowerCase();
-    const lobras = parseInt(modal.querySelector('#mt-limite-obras').value);
-    const ltrab = parseInt(modal.querySelector('#mt-limite-trab').value);
-    
-    if (isNaN(lobras) || isNaN(ltrab)) return toast('Preencha os limites com números válidos.', 'error');
-    if (!nome) return toast('Preencha o nome da empresa.', 'error');
-    if (!slugVal) return toast('Preencha o subdomínio (slug).', 'error');
+  const modal = document.getElementById('modal-content');
+  const tid = modal.querySelector('#mt-tenant-id').value;
+  const oldSlug = modal.querySelector('#mt-old-slug').value;
+  const nome = modal.querySelector('#mt-nome').value.trim();
+  let slugVal = modal.querySelector('#mt-slug').value.trim().toLowerCase();
+  const emailOwner = modal.querySelector('#mt-email').value.trim().toLowerCase();
+  const lobras = parseInt(modal.querySelector('#mt-limite-obras').value);
+  const ltrab = parseInt(modal.querySelector('#mt-limite-trab').value);
 
-    slugVal = slugVal.replace(/[^a-z0-9]/g, '');
-    if (!slugVal) return toast('Subdomínio inválido.', 'error');
-    
-    try {
-        if (slugVal !== oldSlug) {
-            const existingSlug = await firebase.database().ref('tenants_public').orderByChild('slug').equalTo(slugVal).once('value');
-            if (existingSlug.exists()) {
-                return toast(`O subdomínio "${slugVal}" já está em uso!`, 'error');
-            }
-        }
+  if (isNaN(lobras) || isNaN(ltrab)) return toast('Preencha os limites com números válidos.', 'error');
+  if (!nome) return toast('Preencha o nome da empresa.', 'error');
+  if (!slugVal) return toast('Preencha o subdomínio (slug).', 'error');
 
-        const updates = {};
-        updates[`tenants/${tid}/config/nomeEmpresa`] = nome;
-        updates[`tenants/${tid}/config/slug`] = slugVal;
-        updates[`tenants/${tid}/config/limiteObras`] = lobras;
-        updates[`tenants/${tid}/config/limiteTrabalhadores`] = ltrab;
+  slugVal = slugVal.replace(/[^a-z0-9]/g, '');
+  if (!slugVal) return toast('Subdomínio inválido.', 'error');
 
-        updates[`tenants_public/${tid}/nomeEmpresa`] = nome;
-        updates[`tenants_public/${tid}/slug`] = slugVal;
-
-        if (emailOwner) {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(emailOwner)) return toast('E-mail inválido.', 'error');
-            const sanitizedEmail = emailOwner.replace(/\./g, ',');
-            updates[`invites/${sanitizedEmail}`] = {
-                tenantId: tid,
-                role: 'admin',
-                nomeEmpresa: nome
-            };
-        }
-
-        await firebase.database().ref().update(updates);
-        toast('Empresa salva com sucesso!');
-        closeModal();
-        renderSuperAdmin();
-    } catch (err) {
-        console.error(err);
-        toast('Erro ao atualizar empresa.', 'error');
+  try {
+    if (slugVal !== oldSlug) {
+      const existingSlug = await firebase.database().ref('tenants_public').orderByChild('slug').equalTo(slugVal).once('value');
+      if (existingSlug.exists()) {
+        return toast(`O subdomínio "${slugVal}" já está em uso!`, 'error');
+      }
     }
+
+    const updates = {};
+    updates[`tenants/${tid}/config/nomeEmpresa`] = nome;
+    updates[`tenants/${tid}/config/slug`] = slugVal;
+    updates[`tenants/${tid}/config/limiteObras`] = lobras;
+    updates[`tenants/${tid}/config/limiteTrabalhadores`] = ltrab;
+
+    updates[`tenants_public/${tid}/nomeEmpresa`] = nome;
+    updates[`tenants_public/${tid}/slug`] = slugVal;
+
+    if (emailOwner) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(emailOwner)) return toast('E-mail inválido.', 'error');
+      const sanitizedEmail = emailOwner.replace(/\./g, ',');
+      updates[`invites/${sanitizedEmail}`] = {
+        tenantId: tid,
+        role: 'admin',
+        nomeEmpresa: nome
+      };
+    }
+
+    await firebase.database().ref().update(updates);
+    toast('Empresa salva com sucesso!');
+    closeModal();
+    renderSuperAdmin();
+  } catch (err) {
+    console.error(err);
+    toast('Erro ao atualizar empresa.', 'error');
+  }
 }
 
 async function deleteTenant(tid) {
   if (!confirm(`TEM CERTEZA? Isso deletará todos os dados da empresa ${tid}, PERFIS de usuários e CONVITES permanentemente!`)) return;
-  
+
   toast('Limpando dados da empresa...', 'success');
-  
+
   try {
-      // 1. Buscar Perfis Vinculados
-      const profilesSnap = await firebase.database().ref('profiles').orderByChild('tenantId').equalTo(tid).once('value');
-      const profiles = profilesSnap.val() || {};
-      
-      // 2. Buscar Convites Vinculados
-      const invitesSnap = await firebase.database().ref('invites').orderByChild('tenantId').equalTo(tid).once('value');
-      const invites = invitesSnap.val() || {};
+    // 1. Buscar Perfis Vinculados
+    const profilesSnap = await firebase.database().ref('profiles').orderByChild('tenantId').equalTo(tid).once('value');
+    const profiles = profilesSnap.val() || {};
 
-      // 3. Preparar Delecção em Massa (Multi-Path Update)
-      const updates = {};
-      updates[`tenants/${tid}`] = null;
-      
-      Object.keys(profiles).forEach(uid => {
-          updates[`profiles/${uid}`] = null;
-      });
-      
-      Object.keys(invites).forEach(emailKey => {
-          updates[`invites/${emailKey}`] = null;
-      });
+    // 2. Buscar Convites Vinculados
+    const invitesSnap = await firebase.database().ref('invites').orderByChild('tenantId').equalTo(tid).once('value');
+    const invites = invitesSnap.val() || {};
 
-      // Libera o subdomínio/slug público para reutilização
-      updates[`tenants_public/${tid}`] = null;
+    // 3. Preparar Delecção em Massa (Multi-Path Update)
+    const updates = {};
+    updates[`tenants/${tid}`] = null;
 
-      // 4. Executar Limpeza
-      await firebase.database().ref().update(updates);
-      
-      toast('Empresa e acessos removidos com sucesso!');
-      toast('Lembre-se: remova os e-mails da aba "Authentication" manualmente no Firebase.', 'orange');
-      renderSuperAdmin();
+    Object.keys(profiles).forEach(uid => {
+      updates[`profiles/${uid}`] = null;
+    });
+
+    Object.keys(invites).forEach(emailKey => {
+      updates[`invites/${emailKey}`] = null;
+    });
+
+    // Libera o subdomínio/slug público para reutilização
+    updates[`tenants_public/${tid}`] = null;
+
+    // 4. Executar Limpeza
+    await firebase.database().ref().update(updates);
+
+    toast('Empresa e acessos removidos com sucesso!');
+    toast('Lembre-se: remova os e-mails da aba "Authentication" manualmente no Firebase.', 'orange');
+    renderSuperAdmin();
   } catch (err) {
-      console.error('Erro ao deletar tenant:', err);
-      toast('Erro ao remover empresa e dependências.', 'error');
+    console.error('Erro ao deletar tenant:', err);
+    toast('Erro ao remover empresa e dependências.', 'error');
   }
 }
 
 async function deleteGlobalUser(uid) {
-    if (!confirm('Deseja realmente excluir este perfil da base do sistema? (Você ainda terá que excluí-lo no painel Firebase Auth para bloqueio total)')) return;
-    try {
-        await firebase.database().ref(`profiles/${uid}`).remove();
-        toast('Perfil do Usuário Removido com sucesso!');
-        renderSuperAdmin();
-    } catch(e) {
-        toast('Erro ao remover usuário.', 'error');
-        console.error(e);
-    }
+  if (!confirm('Deseja realmente excluir este perfil da base do sistema? (Você ainda terá que excluí-lo no painel Firebase Auth para bloqueio total)')) return;
+  try {
+    await firebase.database().ref(`profiles/${uid}`).remove();
+    toast('Perfil do Usuário Removido com sucesso!');
+    renderSuperAdmin();
+  } catch (e) {
+    toast('Erro ao remover usuário.', 'error');
+    console.error(e);
+  }
 }
 
 function salvarConfiguracoes() {
@@ -1438,7 +1438,7 @@ function salvarConfiguracoes() {
   const logoUrl = document.getElementById('cfg-logo-url').value;
 
   if (!DB.config) DB.config = {};
-  
+
   DB.config.nomeEmpresa = emp;
   DB.config.corPrimaria = corPrim;
   DB.config.corSidebar = corSide;
@@ -1446,10 +1446,10 @@ function salvarConfiguracoes() {
   DB.config.tema = tema;
   DB.config.slug = slug;
   DB.config.logoUrl = logoUrl;
-  
+
   // Aplica visualmente em tempo real
   loadTheme();
-  
+
   persistDB();
   toast('Identidade Visual salva e aplicada com sucesso!');
 }
@@ -1511,7 +1511,7 @@ async function injectSuperAdminTenantBanner(modalContent) {
       badge.textContent = `✅ Operando em: ${superAdminActiveTenant.nome}`;
       banner.appendChild(badge);
     }
-  } catch(e) {
+  } catch (e) {
     console.error('Erro ao carregar tenants para Super Admin:', e);
   }
 }
@@ -1534,7 +1534,7 @@ async function applySuperAdminTenant() {
 
 async function openModal(id) {
   currentEditIdx = -1; // Reset to "Create New" mode by default. Edit functions will override this after opening.
-  
+
   const modalContainer = document.getElementById('modal-container');
   const modalContent = document.getElementById('modal-content');
 
@@ -1617,20 +1617,20 @@ function filterTrabByObra() {
 
   const obraSelecionada = osel.value;
   const filtered = DB.trabalhadores.filter(t => {
-      if (t.status !== 'Ativo') return false;
-      // Retorna true se a string estiver vazia (Obreiro livre/recém-cadastrado) ou se possuir a tag da Obra
-      if (!t.obras || t.obras.trim() === '') return true; 
-      return t.obras.includes(obraSelecionada);
+    if (t.status !== 'Ativo') return false;
+    // Retorna true se a string estiver vazia (Obreiro livre/recém-cadastrado) ou se possuir a tag da Obra
+    if (!t.obras || t.obras.trim() === '') return true;
+    return t.obras.includes(obraSelecionada);
   });
 
   if (filtered.length === 0) {
-      tsel.innerHTML = '<option value="">Nenhum trabalhador nesta obra</option>';
-      document.getElementById('pr-diaria').value = '';
-      document.getElementById('pr-funcao').value = '';
+    tsel.innerHTML = '<option value="">Nenhum trabalhador nesta obra</option>';
+    document.getElementById('pr-diaria').value = '';
+    document.getElementById('pr-funcao').value = '';
   } else {
-      tsel.innerHTML = filtered.map(t => `<option value="${t.cod}">${t.nome}</option>`).join('');
+    tsel.innerHTML = filtered.map(t => `<option value="${t.cod}">${t.nome}</option>`).join('');
   }
-  
+
   fillTrabInfo(); // Recalcula valores do primeiro trabalhador da lista filtrada
 }
 
@@ -1658,12 +1658,12 @@ function calcPresenca() {
   const entrada = document.getElementById('pr-entrada')?.value || '07:00';
   const saida = document.getElementById('pr-saida')?.value || '17:00';
   const presenca = document.getElementById('pr-presenca')?.value;
-  
-  if (presenca === 'Falta') { 
-      document.getElementById('pr-total').value = 0; 
-      document.getElementById('pr-hnorm').value = 0;
-      document.getElementById('pr-hextra').value = 0;
-      return; 
+
+  if (presenca === 'Falta') {
+    document.getElementById('pr-total').value = 0;
+    document.getElementById('pr-hnorm').value = 0;
+    document.getElementById('pr-hextra').value = 0;
+    return;
   }
 
   const trabCod = document.getElementById('pr-trab')?.value;
@@ -1674,10 +1674,10 @@ function calcPresenca() {
   const valorHora = diaria / 8;
 
   if (presenca === 'Meio período') {
-      document.getElementById('pr-hnorm').value = 4.0.toFixed(1);
-      document.getElementById('pr-hextra').value = 0.0.toFixed(1);
-      document.getElementById('pr-total').value = (diaria / 2).toFixed(2);
-      return;
+    document.getElementById('pr-hnorm').value = 4.0.toFixed(1);
+    document.getElementById('pr-hextra').value = 0.0.toFixed(1);
+    document.getElementById('pr-total').value = (diaria / 2).toFixed(2);
+    return;
   }
 
   const [eh, em] = entrada.split(':').map(Number);
@@ -1689,7 +1689,7 @@ function calcPresenca() {
 
   document.getElementById('pr-hnorm').value = hnorm.toFixed(1);
   document.getElementById('pr-hextra').value = hextra.toFixed(1);
-  
+
   const total = hTrabalhadas > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
   document.getElementById('pr-total').value = total.toFixed(2);
 }
@@ -1705,18 +1705,18 @@ function calcTotalManual() {
   const isInformal = trabData && trabData.vinculo === 'Informal';
 
   if (isInformal) {
-      hextra = 0; // Tranca horas extras de Informais quando ditam manualmente
-      document.getElementById('pr-hextra').value = '0.0';
+    hextra = 0; // Tranca horas extras de Informais quando ditam manualmente
+    document.getElementById('pr-hextra').value = '0.0';
   }
 
   let total = 0;
   if (presenca === 'Meio período') {
-      total = diaria / 2;
+    total = diaria / 2;
   } else {
-      const valorHora = diaria / 8;
-      total = hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
+    const valorHora = diaria / 8;
+    total = hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
   }
-  
+
   document.getElementById('pr-total').value = total.toFixed(2);
 }
 
@@ -1790,7 +1790,7 @@ async function saveObra() {
     DB.obras.push(data);
     toast('Obra cadastrada!');
   }
-  closeModal('modal-obra'); await persistDB(); renderObras(); renderDashboard(); 
+  closeModal('modal-obra'); await persistDB(); renderObras(); renderDashboard();
 }
 
 async function editObra(idx) {
@@ -1846,7 +1846,7 @@ async function saveTrabalhador() {
     DB.trabalhadores.push(data);
     toast('Trabalhador cadastrado!');
   }
-  closeModal('modal-trabalhador'); await persistDB(); renderTrabalhadores(); 
+  closeModal('modal-trabalhador'); await persistDB(); renderTrabalhadores();
 }
 
 async function editTrabalhador(idx) {
@@ -1881,10 +1881,10 @@ async function savePresenca(keepOpen = false) {
 
   const tsel = trabVal;
   const t = DB.trabalhadores.find(x => x.cod === tsel);
-  
+
   // Vínculo Automático: Se o peão não estiver engajado na Obra em sua ficha local, anexa a tag!
   if (t && (!t.obras || !t.obras.includes(obraVal))) {
-      t.obras = t.obras && t.obras.trim() !== '' ? (t.obras + ", " + obraVal) : obraVal;
+    t.obras = t.obras && t.obras.trim() !== '' ? (t.obras + ", " + obraVal) : obraVal;
   }
 
   const data = {
@@ -1940,7 +1940,7 @@ async function savePresenca(keepOpen = false) {
   try {
     await persistDB();
     let tmsg = currentEditIdx >= 0 ? 'Presença atualizada!' : 'Presença registrada!';
-    if(data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.total - data.valpago).toFixed(2).replace('.',',')}`;
+    if (data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.total - data.valpago).toFixed(2).replace('.', ',')}`;
     toast(tmsg);
   } catch (err) {
     // Mesmo que a nuvem falhe, os dados já estão no DB local em memória
@@ -1959,10 +1959,10 @@ async function editPresenca(idx) {
   const p = DB.presenca[idx];
   document.getElementById('pr-data').value = p.data;
   document.getElementById('pr-obra').value = p.obra;
-  
+
   // Dispara o filtro inteligente programaticamente antes de resgatar o valor do trabalhador
   filterTrabByObra();
-  
+
   // Seleciona trabalhador pelo COD salvo
   const trSelect = document.getElementById('pr-trab');
   if (p.trab) {
@@ -2005,64 +2005,64 @@ function togglePresenca() {
   safeSetDisplay('pr-saida-grp', show ? '' : 'none');
   safeSetDisplay('pr-almoco-grp', show ? '' : 'none');
   if (!show) {
-      document.getElementById('pr-total').value = 0;
-      document.getElementById('pr-almoco').value = 'Não';
+    document.getElementById('pr-total').value = 0;
+    document.getElementById('pr-almoco').value = 'Não';
   }
 }
 
-window.toggleParcial = function(prefix) {
-   let statusSel = document.getElementById(prefix === 'fn' ? 'fn-status' : prefix + '-pgto-status');
-   const isParcial = statusSel && statusSel.value === 'Parcial';
-   const grp = document.getElementById(prefix + '-parcial-grp');
-   const msg = document.getElementById(prefix + '-parcial-msg');
-   if(grp) grp.style.display = isParcial ? '' : 'none';
-   if(msg) msg.style.display = isParcial ? '' : 'none';
-   if(isParcial) window.calcParcial(prefix);
+window.toggleParcial = function (prefix) {
+  let statusSel = document.getElementById(prefix === 'fn' ? 'fn-status' : prefix + '-pgto-status');
+  const isParcial = statusSel && statusSel.value === 'Parcial';
+  const grp = document.getElementById(prefix + '-parcial-grp');
+  const msg = document.getElementById(prefix + '-parcial-msg');
+  if (grp) grp.style.display = isParcial ? '' : 'none';
+  if (msg) msg.style.display = isParcial ? '' : 'none';
+  if (isParcial) window.calcParcial(prefix);
 };
 
-window.calcParcial = function(prefix) {
-   let total = 0;
-   let valPago = parseFloat(document.getElementById(prefix + '-valpago').value) || 0;
-   if(prefix === 'fn') total = parseFloat(document.getElementById('fn-real').value) || parseFloat(document.getElementById('fn-prev').value) || 0;
-   if(prefix === 'md') total = parseFloat(document.getElementById('md-vtotal').value) || 0;
-   if(prefix === 'pr') total = parseFloat(document.getElementById('pr-total').value) || 0;
-   
-   let faltante = total - valPago;
-   const msg = document.getElementById(prefix + '-parcial-msg');
-   if(msg) {
-      if(faltante > 0) msg.textContent = `Aviso: Falta Pagar R$ ${faltante.toFixed(2).replace('.',',')}`;
-      else if(faltante < 0) msg.textContent = `Aviso: Cuidado, excede o total (R$ ${Math.abs(faltante).toFixed(2).replace('.',',')})`;
-      else msg.textContent = 'Aviso: Totalmente quitado.';
-   }
+window.calcParcial = function (prefix) {
+  let total = 0;
+  let valPago = parseFloat(document.getElementById(prefix + '-valpago').value) || 0;
+  if (prefix === 'fn') total = parseFloat(document.getElementById('fn-real').value) || parseFloat(document.getElementById('fn-prev').value) || 0;
+  if (prefix === 'md') total = parseFloat(document.getElementById('md-vtotal').value) || 0;
+  if (prefix === 'pr') total = parseFloat(document.getElementById('pr-total').value) || 0;
+
+  let faltante = total - valPago;
+  const msg = document.getElementById(prefix + '-parcial-msg');
+  if (msg) {
+    if (faltante > 0) msg.textContent = `Aviso: Falta Pagar R$ ${faltante.toFixed(2).replace('.', ',')}`;
+    else if (faltante < 0) msg.textContent = `Aviso: Cuidado, excede o total (R$ ${Math.abs(faltante).toFixed(2).replace('.', ',')})`;
+    else msg.textContent = 'Aviso: Totalmente quitado.';
+  }
 };
 
 function calcMovTotal() {
-  const q = parseFloat(document.getElementById('mv-qtd').value)||0;
-  const v = parseFloat(document.getElementById('mv-vunit').value)||0;
-  document.getElementById('mv-vtotal').value = (q*v).toFixed(2);
+  const q = parseFloat(document.getElementById('mv-qtd').value) || 0;
+  const v = parseFloat(document.getElementById('mv-vunit').value) || 0;
+  document.getElementById('mv-vtotal').value = (q * v).toFixed(2);
 }
 function calcCompraTotal() {
-  const q = parseFloat(document.getElementById('cp-qtd').value)||0;
-  const v = parseFloat(document.getElementById('cp-vunit').value)||0;
-  document.getElementById('cp-vtotal').value = (q*v).toFixed(2);
+  const q = parseFloat(document.getElementById('cp-qtd').value) || 0;
+  const v = parseFloat(document.getElementById('cp-vunit').value) || 0;
+  document.getElementById('cp-vtotal').value = (q * v).toFixed(2);
 }
 function calcFinDiff() {
-  const p = parseFloat(document.getElementById('fn-prev').value)||0;
-  const r = parseFloat(document.getElementById('fn-real').value)||0;
-  document.getElementById('fn-diff').value = (r-p).toFixed(2);
+  const p = parseFloat(document.getElementById('fn-prev').value) || 0;
+  const r = parseFloat(document.getElementById('fn-real').value) || 0;
+  document.getElementById('fn-diff').value = (r - p).toFixed(2);
 }
 function calcOrcTotal() {
-  const q = parseFloat(document.getElementById('oc-qtd').value)||0;
-  const v = parseFloat(document.getElementById('oc-vunit').value)||0;
-  document.getElementById('oc-vtotal').value = (q*v).toFixed(2);
+  const q = parseFloat(document.getElementById('oc-qtd').value) || 0;
+  const v = parseFloat(document.getElementById('oc-vunit').value) || 0;
+  document.getElementById('oc-vtotal').value = (q * v).toFixed(2);
 }
 function calcAvanco() {
-  const p = parseFloat(document.getElementById('md-qprev').value)||0;
-  const r = parseFloat(document.getElementById('md-qreal').value)||0;
-  document.getElementById('md-avanco').value = p > 0 ? (r/p*100).toFixed(1) : 0;
+  const p = parseFloat(document.getElementById('md-qprev').value) || 0;
+  const r = parseFloat(document.getElementById('md-qreal').value) || 0;
+  document.getElementById('md-avanco').value = p > 0 ? (r / p * 100).toFixed(1) : 0;
 }
 
-window.toggleDestinoMov = function() {
+window.toggleDestinoMov = function () {
   const t = document.getElementById('mv-tipo').value;
   const grp = document.getElementById('grp-mv-destino');
   if (grp) grp.style.display = t === 'Transferência' ? 'block' : 'none';
@@ -2071,38 +2071,38 @@ window.toggleDestinoMov = function() {
 // ==================== LOTE DE PAGAMENTO (FOLHA) ====================
 window.lotePendentes = [];
 
-window.prepareLotePgto = async function() {
+window.prepareLotePgto = async function () {
   await openModal('modal-lote');
   const saldos = {};
   DB.presenca.filter(p => p.pgtoStatus !== 'Pago').forEach(p => {
-     // Identificador único (idealmente código do trab, senão foca no nome base)
-     const key = p.trab || (p.nome + '-' + p.funcao);
-     
-     let devido = (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0);
-     if (devido > 0) {
-        if(!saldos[key]) {
-           saldos[key] = {
-              chave: key, nome: p.nome, funcao: p.funcao,
-              diarias: 0, valor: 0, indices: []
-           };
-        }
-        saldos[key].diarias += 1;
-        saldos[key].valor += devido;
-        saldos[key].indices.push(p); 
-     }
+    // Identificador único (idealmente código do trab, senão foca no nome base)
+    const key = p.trab || (p.nome + '-' + p.funcao);
+
+    let devido = (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0);
+    if (devido > 0) {
+      if (!saldos[key]) {
+        saldos[key] = {
+          chave: key, nome: p.nome, funcao: p.funcao,
+          diarias: 0, valor: 0, indices: []
+        };
+      }
+      saldos[key].diarias += 1;
+      saldos[key].valor += devido;
+      saldos[key].indices.push(p);
+    }
   });
 
-  window.lotePendentes = Object.values(saldos).sort((a,b) => b.valor - a.valor);
+  window.lotePendentes = Object.values(saldos).sort((a, b) => b.valor - a.valor);
   renderLoteTbody();
 };
 
-window.renderLoteTbody = function() {
+window.renderLoteTbody = function () {
   const tbody = document.getElementById('lote-tbody');
-  if(!tbody) return;
-  if(lotePendentes.length === 0) {
-     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;">🎉 Nenhuma diária pendente! Toda a folha já está quitada.</td></tr>';
-     document.getElementById('lote-total-sel').textContent = 'R$ 0,00';
-     return;
+  if (!tbody) return;
+  if (lotePendentes.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;">🎉 Nenhuma diária pendente! Toda a folha já está quitada.</td></tr>';
+    document.getElementById('lote-total-sel').textContent = 'R$ 0,00';
+    return;
   }
 
   tbody.innerHTML = lotePendentes.map((item, i) => `<tr>
@@ -2115,45 +2115,45 @@ window.renderLoteTbody = function() {
       <button class="btn btn-success btn-sm" onclick="initiatePixPayment('lote', ${i})" title="Pagar via PIX" style="background:var(--green); border-color:var(--green);">💸</button>
     </td>
   </tr>`).join('');
-  
+
   updateLoteTotal();
 };
 
-window.toggleLoteAll = function(el) {
+window.toggleLoteAll = function (el) {
   const cks = document.querySelectorAll('.ck-lote-item');
   cks.forEach(ck => ck.checked = el.checked);
   updateLoteTotal();
 };
 
-window.updateLoteTotal = function() {
+window.updateLoteTotal = function () {
   const cks = document.querySelectorAll('.ck-lote-item:checked');
   let total = 0;
   cks.forEach(ck => {
-     const item = lotePendentes[parseInt(ck.value)];
-     if(item) total += item.valor;
+    const item = lotePendentes[parseInt(ck.value)];
+    if (item) total += item.valor;
   });
   const el = document.getElementById('lote-total-sel');
-  if(el) el.textContent = fmt(total);
+  if (el) el.textContent = fmt(total);
 };
 
-window.processLotePgto = async function() {
+window.processLotePgto = async function () {
   const cks = document.querySelectorAll('.ck-lote-item:checked');
-  if(cks.length === 0) { toast('Nenhum trabalhador selecionado!', 'error'); return; }
-  
+  if (cks.length === 0) { toast('Nenhum trabalhador selecionado!', 'error'); return; }
+
   cks.forEach(ck => {
-     const item = lotePendentes[parseInt(ck.value)];
-     if(item) {
-        item.indices.forEach(p => {
-           p.pgtoStatus = 'Pago';
-           p.valpago = p.total;
-        });
-     }
+    const item = lotePendentes[parseInt(ck.value)];
+    if (item) {
+      item.indices.forEach(p => {
+        p.pgtoStatus = 'Pago';
+        p.valpago = p.total;
+      });
+    }
   });
 
   toast(`${cks.length} pagamentos realizados com sucesso!`);
   closeModal('modal-lote');
   await persistDB();
-  
+
   renderPresenca();
   renderFinanceiro();
   renderDashboard();
@@ -2186,7 +2186,7 @@ async function saveTarefa() {
     DB.tarefas.push(data);
     toast('Tarefa criada!');
   }
-  closeModal('modal-tarefa'); await persistDB(); renderTarefas(); 
+  closeModal('modal-tarefa'); await persistDB(); renderTarefas();
 }
 
 async function editTarefa(idx) {
@@ -2208,10 +2208,10 @@ async function editTarefa(idx) {
   document.getElementById('tf-photo-url').value = t.photoUrl || '';
   const preview = document.getElementById('tf-photo-preview');
   if (t.photoUrl) {
-      preview.style.display = 'block';
-      preview.querySelector('img').src = t.photoUrl;
+    preview.style.display = 'block';
+    preview.querySelector('img').src = t.photoUrl;
   } else {
-      preview.style.display = 'none';
+    preview.style.display = 'none';
   }
   document.getElementById('tf-obs').value = t.obs || '';
 }
@@ -2230,8 +2230,8 @@ async function saveEstoque() {
     obs: document.getElementById('es-obs').value
   };
   if (currentEditIdx >= 0) {
-    if(DB.estoque[currentEditIdx].saida !== undefined) {
-       data.saida = DB.estoque[currentEditIdx].saida; // preserve existing usage counter
+    if (DB.estoque[currentEditIdx].saida !== undefined) {
+      data.saida = DB.estoque[currentEditIdx].saida; // preserve existing usage counter
     }
     DB.estoque[currentEditIdx] = data;
     toast('Item de estoque atualizado!');
@@ -2239,7 +2239,7 @@ async function saveEstoque() {
     DB.estoque.push(data);
     toast('Item de estoque cadastrado!');
   }
-  closeModal('modal-estoque'); await persistDB(); renderEstoque(); 
+  closeModal('modal-estoque'); await persistDB(); renderEstoque();
 }
 
 async function editEstoque(idx) {
@@ -2261,88 +2261,88 @@ async function saveMovEstoque() {
   let e = DB.estoque.find(x => x.cod === codMat);
   const tipo = document.getElementById('mv-tipo').value;
   const qtd = parseFloat(document.getElementById('mv-qtd').value) || 0;
-  
+
   const obraOrigem = document.getElementById('mv-obra').value;
   const obraDestino = document.getElementById('mv-destino-obra') ? document.getElementById('mv-destino-obra').value : '';
   const matName = document.getElementById('mv-matname').value;
 
   if (tipo === 'Transferência') {
-     if (!obraDestino || obraOrigem === obraDestino) {
-        toast('Selecione uma Obra Destino diferente da Origem!', 'error');
-        return;
-     }
-     
-     // 1. Dar baixa na Origem
-     if (e) {
-        if (qtd > calcSaldo(e)) { toast('Qtd. maior que saldo na Origem!', 'error'); return; }
-        e.saida += qtd;
-     }
+    if (!obraDestino || obraOrigem === obraDestino) {
+      toast('Selecione uma Obra Destino diferente da Origem!', 'error');
+      return;
+    }
 
-     // 2. Localizar/Criar no Destino
-     let eDest = DB.estoque.find(x => x.obra === obraDestino && x.mat === e.mat && x.unid === e.unid);
-     if (!eDest) {
-        eDest = { 
-           cod: 'MAT-' + Date.now() + Math.floor(Math.random()*1000), 
-           mat: e.mat, unid: e.unid, obra: obraDestino, 
-           min: e.min || 0, entrada: 0, saida: 0, custo: e.custo || 0, obs: 'Transferido.' 
-        };
-        DB.estoque.push(eDest);
-     }
-     eDest.entrada += qtd;
+    // 1. Dar baixa na Origem
+    if (e) {
+      if (qtd > calcSaldo(e)) { toast('Qtd. maior que saldo na Origem!', 'error'); return; }
+      e.saida += qtd;
+    }
 
-     // 3. Registrar Movimento de SAÍDA (Origem)
-     const dataSaida = {
-        data: document.getElementById('mv-data').value,
-        codMat, mat: matName,
-        obra: obraOrigem,
-        tipo: 'Transferência (Saída)', qtd,
-        frente: document.getElementById('mv-frente').value,
-        retirado: document.getElementById('mv-retirado').value,
-        autor: document.getElementById('mv-autor').value,
-        nf: document.getElementById('mv-nf').value,
-        vunit: parseFloat(document.getElementById('mv-vunit').value) || 0,
-        vtotal: parseFloat(document.getElementById('mv-vtotal').value) || 0,
-        obs: 'Destino: ' + obraDestino + '. ' + document.getElementById('mv-obs').value
-     };
-     DB.movEstoque.push(dataSaida);
+    // 2. Localizar/Criar no Destino
+    let eDest = DB.estoque.find(x => x.obra === obraDestino && x.mat === e.mat && x.unid === e.unid);
+    if (!eDest) {
+      eDest = {
+        cod: 'MAT-' + Date.now() + Math.floor(Math.random() * 1000),
+        mat: e.mat, unid: e.unid, obra: obraDestino,
+        min: e.min || 0, entrada: 0, saida: 0, custo: e.custo || 0, obs: 'Transferido.'
+      };
+      DB.estoque.push(eDest);
+    }
+    eDest.entrada += qtd;
 
-     // 4. Registrar Movimento de ENTRADA (Destino)
-     const dataEntrada = {
-        ...dataSaida,
-        tipo: 'Transferência (Entrada)',
-        obra: obraDestino,
-        codMat: eDest.cod,
-        obs: 'Origem: ' + obraOrigem + '. ' + document.getElementById('mv-obs').value
-     };
-     DB.movEstoque.push(dataEntrada);
+    // 3. Registrar Movimento de SAÍDA (Origem)
+    const dataSaida = {
+      data: document.getElementById('mv-data').value,
+      codMat, mat: matName,
+      obra: obraOrigem,
+      tipo: 'Transferência (Saída)', qtd,
+      frente: document.getElementById('mv-frente').value,
+      retirado: document.getElementById('mv-retirado').value,
+      autor: document.getElementById('mv-autor').value,
+      nf: document.getElementById('mv-nf').value,
+      vunit: parseFloat(document.getElementById('mv-vunit').value) || 0,
+      vtotal: parseFloat(document.getElementById('mv-vtotal').value) || 0,
+      obs: 'Destino: ' + obraDestino + '. ' + document.getElementById('mv-obs').value
+    };
+    DB.movEstoque.push(dataSaida);
 
-     toast('Transferência Dupla registrada!');
+    // 4. Registrar Movimento de ENTRADA (Destino)
+    const dataEntrada = {
+      ...dataSaida,
+      tipo: 'Transferência (Entrada)',
+      obra: obraDestino,
+      codMat: eDest.cod,
+      obs: 'Origem: ' + obraOrigem + '. ' + document.getElementById('mv-obs').value
+    };
+    DB.movEstoque.push(dataEntrada);
+
+    toast('Transferência Dupla registrada!');
   } else {
-     // Normal Entrada/Saida Logic
-     if (e) {
-       if (tipo === 'Entrada') e.entrada += qtd;
-       else { if (qtd > calcSaldo(e)) { toast('Qtd. maior que saldo!', 'error'); return; } e.saida += qtd; }
-     }
-     const data = {
-        data: document.getElementById('mv-data').value,
-        codMat, mat: matName,
-        obra: obraOrigem,
-        tipo, qtd,
-        frente: document.getElementById('mv-frente').value,
-        retirado: document.getElementById('mv-retirado').value,
-        autor: document.getElementById('mv-autor').value,
-        nf: document.getElementById('mv-nf').value,
-        vunit: parseFloat(document.getElementById('mv-vunit').value) || 0,
-        vtotal: parseFloat(document.getElementById('mv-vtotal').value) || 0,
-        obs: document.getElementById('mv-obs').value
-     };
-     if (currentEditIdx >= 0) {
-        DB.movEstoque[currentEditIdx] = data;
-        toast('Movimentação atualizada!');
-     } else {
-        DB.movEstoque.push(data);
-        toast('Movimentação registrada!');
-     }
+    // Normal Entrada/Saida Logic
+    if (e) {
+      if (tipo === 'Entrada') e.entrada += qtd;
+      else { if (qtd > calcSaldo(e)) { toast('Qtd. maior que saldo!', 'error'); return; } e.saida += qtd; }
+    }
+    const data = {
+      data: document.getElementById('mv-data').value,
+      codMat, mat: matName,
+      obra: obraOrigem,
+      tipo, qtd,
+      frente: document.getElementById('mv-frente').value,
+      retirado: document.getElementById('mv-retirado').value,
+      autor: document.getElementById('mv-autor').value,
+      nf: document.getElementById('mv-nf').value,
+      vunit: parseFloat(document.getElementById('mv-vunit').value) || 0,
+      vtotal: parseFloat(document.getElementById('mv-vtotal').value) || 0,
+      obs: document.getElementById('mv-obs').value
+    };
+    if (currentEditIdx >= 0) {
+      DB.movEstoque[currentEditIdx] = data;
+      toast('Movimentação atualizada!');
+    } else {
+      DB.movEstoque.push(data);
+      toast('Movimentação registrada!');
+    }
   }
 
   closeModal('modal-movest'); await persistDB(); renderMovEstoque(); renderEstoque();
@@ -2356,7 +2356,7 @@ async function editMovEstoque(idx) {
   document.getElementById('mv-mat').value = m.codMat;
   document.getElementById('mv-matname').value = m.mat;
   document.getElementById('mv-obra').value = m.obra;
-  
+
   if (m.tipo.includes('Transferência')) {
     document.getElementById('mv-tipo').value = 'Transferência';
     window.toggleDestinoMov();
@@ -2364,7 +2364,7 @@ async function editMovEstoque(idx) {
     document.getElementById('mv-tipo').value = m.tipo;
     window.toggleDestinoMov();
   }
-  
+
   document.getElementById('mv-qtd').value = m.qtd;
   document.getElementById('mv-frente').value = m.frente;
   document.getElementById('mv-retirado').value = m.retirado;
@@ -2403,7 +2403,7 @@ async function saveCompra() {
     DB.compras.push(data);
     toast('Compra registrada!');
   }
-  closeModal('modal-compra'); await persistDB(); renderCompras(); 
+  closeModal('modal-compra'); await persistDB(); renderCompras();
 }
 
 async function editCompra(idx) {
@@ -2450,15 +2450,15 @@ async function saveFinanceiro() {
   if (currentEditIdx >= 0) {
     DB.financeiro[currentEditIdx] = data;
     let tmsg = 'Lançamento financeiro atualizado!';
-    if(data.status === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.real > 0 ? data.real - data.valpago : data.prev - data.valpago).toFixed(2).replace('.',',')}`;
+    if (data.status === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.real > 0 ? data.real - data.valpago : data.prev - data.valpago).toFixed(2).replace('.', ',')}`;
     toast(tmsg);
   } else {
     DB.financeiro.push(data);
     let tmsg = 'Lançamento financeiro salvo!';
-    if(data.status === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.real > 0 ? data.real - data.valpago : data.prev - data.valpago).toFixed(2).replace('.',',')}`;
+    if (data.status === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.real > 0 ? data.real - data.valpago : data.prev - data.valpago).toFixed(2).replace('.', ',')}`;
     toast(tmsg);
   }
-  closeModal('modal-financeiro'); await persistDB(); renderFinanceiro(); renderDashboard(); 
+  closeModal('modal-financeiro'); await persistDB(); renderFinanceiro(); renderDashboard();
 }
 
 async function editFinanceiro(idx) {
@@ -2502,7 +2502,7 @@ async function saveOrcamento() {
     obs: document.getElementById('oc-obs').value
   };
   if (currentEditIdx >= 0) {
-    if(DB.orcamento[currentEditIdx].vreal !== undefined) {
+    if (DB.orcamento[currentEditIdx].vreal !== undefined) {
       data.vreal = DB.orcamento[currentEditIdx].vreal; // preserve the current progress amount
     }
     DB.orcamento[currentEditIdx] = data;
@@ -2511,7 +2511,7 @@ async function saveOrcamento() {
     DB.orcamento.push(data);
     toast('Item de orçamento salvo!');
   }
-  closeModal('modal-orcamento'); await persistDB(); renderOrcamento(); 
+  closeModal('modal-orcamento'); await persistDB(); renderOrcamento();
 }
 
 async function editOrcamento(idx) {
@@ -2552,12 +2552,12 @@ async function saveMedicao() {
   if (currentEditIdx >= 0) {
     DB.medicao[currentEditIdx] = data;
     let tmsg = 'Medição atualizada!';
-    if(data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.vtotal - data.valpago).toFixed(2).replace('.',',')}`;
+    if (data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.vtotal - data.valpago).toFixed(2).replace('.', ',')}`;
     toast(tmsg);
   } else {
     DB.medicao.push(data);
     let tmsg = 'Medição salva!';
-    if(data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.vtotal - data.valpago).toFixed(2).replace('.',',')}`;
+    if (data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.vtotal - data.valpago).toFixed(2).replace('.', ',')}`;
     toast(tmsg);
   }
   closeModal('modal-medicao'); await persistDB(); renderMedicao && renderMedicao(); renderFinanceiro && renderFinanceiro(); renderDashboard && renderDashboard();
@@ -2585,10 +2585,10 @@ async function editMedicao(idx) {
   toggleParcial('md');
   const preview = document.getElementById('md-photo-preview');
   if (m.photoUrl) {
-      preview.style.display = 'block';
-      preview.querySelector('img').src = m.photoUrl;
+    preview.style.display = 'block';
+    preview.querySelector('img').src = m.photoUrl;
   } else {
-      preview.style.display = 'none';
+    preview.style.display = 'none';
   }
   document.getElementById('md-obs').value = m.obs || '';
 }
@@ -2632,7 +2632,7 @@ async function saveUsuario() {
   const sanitizedEmail = email.replace(/\./g, ',');
   try {
     await firebase.database().ref(`invites/${sanitizedEmail}`).set(userData);
-    
+
     closeModal('modal-usuario');
     renderAdmin();
     persistDB();
@@ -2653,8 +2653,8 @@ function deleteItem(table, idx) {
     renderPage(pageId);
   } else {
     // Fallback refresh for critical tabs
-    if(table === 'orcamento') renderOrcamento();
-    if(table === 'financeiro') renderFinanceiro();
+    if (table === 'orcamento') renderOrcamento();
+    if (table === 'financeiro') renderFinanceiro();
   }
   toast('Removido!');
 }
@@ -2674,10 +2674,10 @@ function filterTable(tbodyId, query, cols) {
 function toast(msg, type = 'success') {
   let c = document.getElementById('toast-container');
   if (!c) {
-      c = document.createElement('div');
-      c.id = 'toast-container';
-      c.className = 'toast-container';
-      document.body.appendChild(c);
+    c = document.createElement('div');
+    c.id = 'toast-container';
+    c.className = 'toast-container';
+    document.body.appendChild(c);
   }
   const el = document.createElement('div');
   el.className = `toast ${type}`;
@@ -2701,203 +2701,203 @@ if (typeof checkAuth === 'function') checkAuth();
 
 // ==================== MASTER SYSTEM LOGIC ====================
 function openNewTenantModal() {
-    const content = document.getElementById('modal-create-tenant').innerHTML;
-    const container = document.getElementById('modal-content');
-    container.innerHTML = content;
-    document.getElementById('modal-container').classList.add('open');
+  const content = document.getElementById('modal-create-tenant').innerHTML;
+  const container = document.getElementById('modal-content');
+  container.innerHTML = content;
+  document.getElementById('modal-container').classList.add('open');
 }
 
 async function saveNewTenant() {
-    // Busca dentro do container do modal para evitar pegar o template duplicado
-    const modal = document.getElementById('modal-content');
-    const nome = modal.querySelector('#ct-nome').value.trim();
-    let slugVal = modal.querySelector('#ct-slug').value.trim().toLowerCase();
-    const emailOwner = modal.querySelector('#ct-email').value.trim().toLowerCase();
-    const lobras = parseInt(modal.querySelector('#ct-limite-obras').value) || 0;
-    const ltrab = parseInt(modal.querySelector('#ct-limite-trab').value) || 0;
+  // Busca dentro do container do modal para evitar pegar o template duplicado
+  const modal = document.getElementById('modal-content');
+  const nome = modal.querySelector('#ct-nome').value.trim();
+  let slugVal = modal.querySelector('#ct-slug').value.trim().toLowerCase();
+  const emailOwner = modal.querySelector('#ct-email').value.trim().toLowerCase();
+  const lobras = parseInt(modal.querySelector('#ct-limite-obras').value) || 0;
+  const ltrab = parseInt(modal.querySelector('#ct-limite-trab').value) || 0;
 
-    if (!nome) return toast('Preencha o nome da empresa.', 'error');
-    if (!slugVal) return toast('Preencha o subdomínio.', 'error');
-    if (!emailOwner) return toast('Preencha o e-mail do administrador.', 'error');
-    
-    slugVal = slugVal.replace(/[^a-z0-9]/g, '');
-    if (!slugVal) return toast('O subdomínio deve conter letras e números.', 'error');
+  if (!nome) return toast('Preencha o nome da empresa.', 'error');
+  if (!slugVal) return toast('Preencha o subdomínio.', 'error');
+  if (!emailOwner) return toast('Preencha o e-mail do administrador.', 'error');
 
-    // Validação básica de e-mail
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailOwner)) return toast('Digite um e-mail válido.', 'error');
+  slugVal = slugVal.replace(/[^a-z0-9]/g, '');
+  if (!slugVal) return toast('O subdomínio deve conter letras e números.', 'error');
 
-    try {
-        // Verificar se subdomínio já existe
-        const existingSlug = await firebase.database().ref('tenants_public').orderByChild('slug').equalTo(slugVal).once('value');
-        if (existingSlug.exists()) {
-            return toast(`O subdomínio "${slugVal}" já está sendo usado por outra empresa!`, 'error');
-        }
+  // Validação básica de e-mail
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(emailOwner)) return toast('Digite um e-mail válido.', 'error');
 
-        // Gerar um ID único para a nova empresa
-        const res = await firebase.database().ref('tenants').push();
-        const tenantId = res.key;
-
-        // 1. Criar Configuração Inicial do Tenant
-        await firebase.database().ref(`tenants/${slugVal}`).set({
-            nomeEmpresa: nome,
-            slug: slugVal,
-            emailAdmin: emailOwner,
-            status: 'ativo',
-            plano: 'start',
-            webhookCriacao: Date.now(),
-            corPrimaria: '#f59e0b',
-            limiteObras: lobras,
-            limiteTrabalhadores: ltrab
-        });
-
-        const sanitizedEmail = emailOwner.replace(/\./g, ',');
-
-        // 2. Inserir no Novo Título Global (Painel Mestre e Passaporte)
-        await firebase.database().ref(`users/${sanitizedEmail}`).set({
-            tenantId: slugVal,
-            role: 'admin',
-            nome: nome,
-            origem: 'super_admin_manual'
-        });
-
-        // 3. Espelhar slug no nó público (para leitura da logo antes do login)
-        await firebase.database().ref(`tenants_public/${slugVal}`).set({
-            slug: slugVal,
-            nomeEmpresa: nome,
-            corPrimaria: '#f59e0b'
-        });
-
-        toast('Empresa criada! O dono já pode logar com seu e-mail.');
-        closeModal();
-        renderSuperAdmin();
-    } catch (err) {
-        console.error(err);
-        toast('Erro ao criar empresa.', 'error');
+  try {
+    // Verificar se subdomínio já existe
+    const existingSlug = await firebase.database().ref('tenants_public').orderByChild('slug').equalTo(slugVal).once('value');
+    if (existingSlug.exists()) {
+      return toast(`O subdomínio "${slugVal}" já está sendo usado por outra empresa!`, 'error');
     }
+
+    // Gerar um ID único para a nova empresa
+    const res = await firebase.database().ref('tenants').push();
+    const tenantId = res.key;
+
+    // 1. Criar Configuração Inicial do Tenant
+    await firebase.database().ref(`tenants/${slugVal}`).set({
+      nomeEmpresa: nome,
+      slug: slugVal,
+      emailAdmin: emailOwner,
+      status: 'ativo',
+      plano: 'start',
+      webhookCriacao: Date.now(),
+      corPrimaria: '#f59e0b',
+      limiteObras: lobras,
+      limiteTrabalhadores: ltrab
+    });
+
+    const sanitizedEmail = emailOwner.replace(/\./g, ',');
+
+    // 2. Inserir no Novo Título Global (Painel Mestre e Passaporte)
+    await firebase.database().ref(`users/${sanitizedEmail}`).set({
+      tenantId: slugVal,
+      role: 'admin',
+      nome: nome,
+      origem: 'super_admin_manual'
+    });
+
+    // 3. Espelhar slug no nó público (para leitura da logo antes do login)
+    await firebase.database().ref(`tenants_public/${slugVal}`).set({
+      slug: slugVal,
+      nomeEmpresa: nome,
+      corPrimaria: '#f59e0b'
+    });
+
+    toast('Empresa criada! O dono já pode logar com seu e-mail.');
+    closeModal();
+    renderSuperAdmin();
+  } catch (err) {
+    console.error(err);
+    toast('Erro ao criar empresa.', 'error');
+  }
 }
 
 function changeMasterPassword() {
-    const newVal = document.getElementById('master-new-password')?.value;
-    if (!newVal || newVal.length < 6) {
-        return toast('A nova senha deve ter no mínimo 6 caracteres.', 'error');
-    }
-    const user = firebase.auth().currentUser;
-    if (!user) return toast('Você precisa estar logado para alterar a senha.', 'error');
-    
-    user.updatePassword(newVal)
-        .then(() => {
-            toast('Senha do Mestre alterada com sucesso! Use no próximo login.');
-            document.getElementById('master-new-password').value = '';
-        })
-        .catch(err => {
-            console.error('Erro na senha:', err);
-            if (err.code === 'auth/requires-recent-login') {
-                toast('Sua sessão expirou. Deslogue e logue novamente para redefinir.', 'error');
-            } else {
-                toast('Falha ao alterar senha. ' + err.message, 'error');
-            }
-        });
+  const newVal = document.getElementById('master-new-password')?.value;
+  if (!newVal || newVal.length < 6) {
+    return toast('A nova senha deve ter no mínimo 6 caracteres.', 'error');
+  }
+  const user = firebase.auth().currentUser;
+  if (!user) return toast('Você precisa estar logado para alterar a senha.', 'error');
+
+  user.updatePassword(newVal)
+    .then(() => {
+      toast('Senha do Mestre alterada com sucesso! Use no próximo login.');
+      document.getElementById('master-new-password').value = '';
+    })
+    .catch(err => {
+      console.error('Erro na senha:', err);
+      if (err.code === 'auth/requires-recent-login') {
+        toast('Sua sessão expirou. Deslogue e logue novamente para redefinir.', 'error');
+      } else {
+        toast('Falha ao alterar senha. ' + err.message, 'error');
+      }
+    });
 }
 
 // ==================== PHOTO MANAGEMENT & LIGHTBOX ====================
 async function handleFileUpload(input, previewId, urlInputId) {
-    const file = input.files[0];
-    if (!file) return;
+  const file = input.files[0];
+  if (!file) return;
 
-    // Log para depuração inicial
-    console.log('Iniciando Upload:', { name: file.name, size: file.size, type: file.type });
+  // Log para depuração inicial
+  console.log('Iniciando Upload:', { name: file.name, size: file.size, type: file.type });
 
-    if (typeof firebase.storage !== 'function') {
-        console.error('Firebase Storage SDK not loaded!');
-        toast('Erro: SDK de Storage não carregado.', 'error');
-        return;
+  if (typeof firebase.storage !== 'function') {
+    console.error('Firebase Storage SDK not loaded!');
+    toast('Erro: SDK de Storage não carregado.', 'error');
+    return;
+  }
+
+  // Verifica se o bucket está configurado
+  const bucket = firebase.app().options.storageBucket;
+  if (!bucket) {
+    console.error('Storage Bucket não configurado no firebaseConfig!');
+    toast('Erro: Bucket de Storage não configurado.', 'error');
+    return;
+  }
+  console.log('Usando Bucket:', bucket);
+
+  const user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+  const tid = user.tenantId || 'global';
+
+  toast('Enviando foto...', 'success');
+
+  try {
+    const storage = firebase.storage();
+    const storageRef = storage.ref();
+    const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+    const filePath = `tenants/${tid}/evidencias/${fileName}`;
+    const fileRef = storageRef.child(filePath);
+
+    console.log('Caminho do Arquivo:', filePath);
+
+    const metadata = { contentType: file.type };
+    const uploadTask = fileRef.put(file, metadata);
+
+    // Acompanhamento de progresso opcional (para debug futuro)
+    uploadTask.on('state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log('Upload is ' + progress + '% done');
+      },
+      (error) => { throw error; }
+    );
+
+    await uploadTask;
+    const url = await fileRef.getDownloadURL();
+    console.log('Upload concluído! URL:', url);
+
+    safeSetValue(urlInputId, url);
+    const preview = document.getElementById(previewId);
+    if (preview) {
+      preview.style.display = 'block';
+      const img = preview.querySelector('img');
+      if (img) img.src = url;
     }
 
-    // Verifica se o bucket está configurado
-    const bucket = firebase.app().options.storageBucket;
-    if (!bucket) {
-        console.error('Storage Bucket não configurado no firebaseConfig!');
-        toast('Erro: Bucket de Storage não configurado.', 'error');
-        return;
+    toast('Foto enviada com sucesso!');
+  } catch (err) {
+    console.error('Upload Error Completo:', err);
+    let errorMsg = 'Erro ao enviar foto.';
+
+    if (err.code === 'storage/unauthorized') {
+      errorMsg = 'Erro de Permissão (Confirme as Regras do Storage).';
+    } else if (err.code === 'storage/quota-exceeded') {
+      errorMsg = 'Limite de armazenamento atingido.';
+    } else if (err.code === 'storage/retry-limit-exceeded') {
+      errorMsg = 'Tempo limite excedido. Verifique sua conexão ou se o Storage está ativo.';
+    } else if (err.code === 'storage/unknown') {
+      errorMsg = 'Erro desconhecido no Firebase Storage.';
     }
-    console.log('Usando Bucket:', bucket);
 
-    const user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
-    const tid = user.tenantId || 'global';
-    
-    toast('Enviando foto...', 'success');
-    
-    try {
-        const storage = firebase.storage();
-        const storageRef = storage.ref();
-        const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-        const filePath = `tenants/${tid}/evidencias/${fileName}`;
-        const fileRef = storageRef.child(filePath);
-        
-        console.log('Caminho do Arquivo:', filePath);
-
-        const metadata = { contentType: file.type };
-        const uploadTask = fileRef.put(file, metadata);
-
-        // Acompanhamento de progresso opcional (para debug futuro)
-        uploadTask.on('state_changed', 
-            (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                console.log('Upload is ' + progress + '% done');
-            }, 
-            (error) => { throw error; }
-        );
-
-        await uploadTask;
-        const url = await fileRef.getDownloadURL();
-        console.log('Upload concluído! URL:', url);
-        
-        safeSetValue(urlInputId, url);
-        const preview = document.getElementById(previewId);
-        if (preview) {
-            preview.style.display = 'block';
-            const img = preview.querySelector('img');
-            if (img) img.src = url;
-        }
-        
-        toast('Foto enviada com sucesso!');
-    } catch (err) {
-        console.error('Upload Error Completo:', err);
-        let errorMsg = 'Erro ao enviar foto.';
-        
-        if (err.code === 'storage/unauthorized') {
-            errorMsg = 'Erro de Permissão (Confirme as Regras do Storage).';
-        } else if (err.code === 'storage/quota-exceeded') {
-            errorMsg = 'Limite de armazenamento atingido.';
-        } else if (err.code === 'storage/retry-limit-exceeded') {
-            errorMsg = 'Tempo limite excedido. Verifique sua conexão ou se o Storage está ativo.';
-        } else if (err.code === 'storage/unknown') {
-            errorMsg = 'Erro desconhecido no Firebase Storage.';
-        }
-        
-        toast(`${errorMsg} (${err.code || 'Ver console'})`, 'error');
-    }
+    toast(`${errorMsg} (${err.code || 'Ver console'})`, 'error');
+  }
 }
 
 
 
 function openLightbox(url) {
-    let lb = document.getElementById('lightbox-container');
-    if (!lb) {
-        lb = document.createElement('div');
-        lb.id = 'lightbox-container';
-        lb.className = 'lightbox-overlay';
-        lb.onclick = closeLightbox;
-        lb.innerHTML = `<div class="lightbox-content"><img src=""><span class="lightbox-close">×</span></div>`;
-        document.body.appendChild(lb);
-    }
-    lb.querySelector('img').src = url;
-    lb.classList.add('open');
+  let lb = document.getElementById('lightbox-container');
+  if (!lb) {
+    lb = document.createElement('div');
+    lb.id = 'lightbox-container';
+    lb.className = 'lightbox-overlay';
+    lb.onclick = closeLightbox;
+    lb.innerHTML = `<div class="lightbox-content"><img src=""><span class="lightbox-close">×</span></div>`;
+    document.body.appendChild(lb);
+  }
+  lb.querySelector('img').src = url;
+  lb.classList.add('open');
 }
 
 function closeLightbox() {
-    document.getElementById('lightbox-container').classList.remove('open');
+  document.getElementById('lightbox-container').classList.remove('open');
 }
 
 // SaaS: Inicialização garantida após carregamento estrito de todos os componentes de Interface Visual.
