@@ -1206,7 +1206,8 @@ async function startKiwifyCheckout() {
   setTimeout(() => {
     // Redirecionamento real para a Kiwify na aba principal (usando o link do checkout)
     // Passamos o email para pré-preenchimento e o tenantId como external_id para vinculação segura no webhook
-    const checkoutUrl = `https://pay.kiwify.com.br/UeoKVpn?email=${encodeURIComponent(user.email || '')}&external_id=${user.tenantId}`;
+    const userEmail = user.email || user.username || '';
+    const checkoutUrl = `https://pay.kiwify.com.br/UeoKVpn?email=${encodeURIComponent(userEmail)}&external_id=${user.tenantId}`;
     window.open(checkoutUrl, '_blank');
   }, 1000);
 }

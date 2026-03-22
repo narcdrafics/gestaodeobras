@@ -22,55 +22,53 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
 
   try {
     const payload = req.body;
-    functions.logger.info("📡 Webhook Acionado. Payload Recebido:", payload);
+    functions.logger.info("📡 Webhook Acionado. Payload Receive:", JSON.stringify(payload));
 
-    /**
-     * ESTRUTURA DA KIWIFY:
-     * order_status: "approved", "refunded", "chargeback"
-     * Customer: { email: "...", full_name: "..." }
-     */
-
-    // Adaptação flexível para mapear Kiwify, Asaas ou Genérico
-    const status = payload.order_status || payload.status || 'paid';
+    // Mapeamento Flexível Kiwify / Asaas / Genérico
+    const status = (payload.order_status || payload.status || '').toLowerCase();
     
-    // Mapeia E-mail e Nome
+    // Extração de E-mail (Kiwify usa objeto Customer ou customer)
     let email = payload.email || payload.customer_email;
     let nome = payload.nome || payload.customer_name;
+    const customerObj = payload.Customer || payload.customer;
 
-    // Se vier da Kiwify, extrai de "Customer"
-    if (payload.Customer) {
-        email = email || payload.Customer.email;
-        nome = nome || payload.Customer.full_name;
+    if (customerObj) {
+        email = email || customerObj.email;
+        nome = nome || customerObj.full_name || customerObj.name;
     }
     
-    nome = nome || "Empresa " + Date.now();
+    // External ID (Onde enviamos o TenantID no checkout)
+    const tenantIdFromRef = payload.external_id || payload.external_reference || payload.ref;
 
-    if (!email && !payload.external_id) {
-       console.error("Payload não continha E-mail nem External ID");
-       return res.status(400).send('Falta E-mail ou ID do Cliente');
+    functions.logger.info(`🔍 Processando: Email=${email}, TenantID=${tenantIdFromRef}, Status=${status}`);
+
+    if (!email && !tenantIdFromRef) {
+       functions.logger.error("❌ Erro: Payload sem identificação (E-mail ou ID)");
+       return res.status(400).send('Falta identificação do cliente.');
     }
 
-    const tenantIdFromRef = payload.external_id;
     const db = admin.database();
 
-    // =============== CENÁRIO 1: DINHEIRO ENTROU (CRIAR TENANT OU PROMOVER) ===============
-    if (status === 'paid' || status === 'approved') {
+    // =============== CENÁRIO 1: PAGAMENTO APROVADO ===============
+    if (status === 'approved' || status === 'paid' || status === 'active') {
        
        let slugFinal = tenantIdFromRef;
 
-       // Se não temos um external_id, tentamos achar por e-mail ou criamos novo
-       if (!slugFinal) {
-          const safeEmail = email.replace(/\./g, ',');
-          const userSnap = await db.ref(`users/${safeEmail}`).once('value');
+       // Fallback: Se não veio o ID, tenta achar o Tenant pelo e-mail do usuário
+       if (!slugFinal && email) {
+          const safeEmailSearch = email.replace(/\./g, ',');
+          const userSnap = await db.ref(`users/${safeEmailSearch}`).once('value');
           if (userSnap.exists()) {
              slugFinal = userSnap.val().tenantId;
+             functions.logger.info(`🔗 Tenant localizado via e-mail: ${slugFinal}`);
           }
        }
 
-       // Se ainda não temos slug (novo cliente real), geramos um
+       // Se ainda não temos ID (Novo Cadastro vindo direto da Kiwify)
        if (!slugFinal) {
-           let slugOriginal = nome.toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, '');
-           if(slugOriginal.length < 3) slugOriginal = 'empresa' + Math.floor(Math.random()*100);
+           functions.logger.info("✨ Criando novo Tenant para novo cliente.");
+           let slugOriginal = (nome || 'empresa').toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, '');
+           if(slugOriginal.length < 3) slugOriginal = 'empresa' + Math.floor(Math.random()*1000);
            slugFinal = slugOriginal;
 
            let exists = (await db.ref(`tenants/${slugFinal}`).once('value')).exists();
@@ -82,51 +80,53 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
            }
        }
 
-       // 2. Atualiza ou Injeta o Tenant (Promove para PRO)
+       // 2. Upgrade do Tenant para PRO
+       functions.logger.info(`🚀 Fazendo upgrade do tenant: ${slugFinal}`);
        await db.ref(`tenants/${slugFinal}`).update({
-          nome: nome,
-          emailAdmin: email,
           status: 'ativo',
-          plano: 'premium', // Ou use payload.product_name se quiser dinâmico
-          vencimentoPlano: admin.database.ServerValue.TIMESTAMP + (31 * 24 * 60 * 60 * 1000), // Exemplo: +31 dias
-          webhookUpdate: admin.database.ServerValue.TIMESTAMP,
-          limiteObras: 99, // Upgrade para Pro
-          limiteTrab: 99
+          plano: 'premium', 
+          vencimentoPlano: admin.database.ServerValue.TIMESTAMP + (32 * 24 * 60 * 60 * 1000), 
+          ultimaAtualizacaoWebhook: admin.database.ServerValue.TIMESTAMP,
+          "config/limiteObras": 99,
+          "config/limiteTrabalhadores": 99
        });
 
-       // 3. Garante que o usuário está vinculado
-       const safeEmail = email.replace(/\./g, ',');
-       await db.ref(`users/${safeEmail}`).update({
-          tenantId: slugFinal,
-          role: 'admin',
-          nome: nome,
-          origem: 'webhook'
-       });
+       // 3. Vincular/Atualizar Usuário se tiver e-mail
+       if (email) {
+          const safeEmail = email.replace(/\./g, ',');
+          await db.ref(`users/${safeEmail}`).update({
+             tenantId: slugFinal,
+             role: 'admin',
+             nome: nome || 'Administrador',
+             lastPayment: admin.database.ServerValue.TIMESTAMP
+          });
+       }
 
-       return res.status(200).send(`✅ Tenant [${slugFinal}] promovido/criado com sucesso.`);
+       return res.status(200).send(`✅ Sucesso: Plano ativado para [${slugFinal}]`);
     }
 
-    // =============== CENÁRIO 2: CALOTE OU CANCELED (BLOQUEAR TENANT) ===============
-    else if (status === 'overdue' || status === 'canceled' || status === 'refunded' || status === 'chargeback') {
+    // =============== CENÁRIO 2: FALHA / REEMBOLSO / CANCELAMENTO ===============
+    else if (['refunded', 'chargeback', 'canceled', 'overdue', 'expired'].includes(status)) {
+       if (!tenantIdFromRef && !email) return res.status(200).send('Sem ID para bloqueio.');
        
-       const safeEmail = email.replace(/\./g, ',');
-       const userSnap = await db.ref(`users/${safeEmail}`).once('value');
-       
-       if (userSnap.exists()) {
-          const tId = userSnap.val().tenantId;
-          // Pune o caloteiro travando a conta toda.
-          await db.ref(`tenants/${tId}/status`).set('bloqueado_pagamento');
-          return res.status(200).send(`🚫 Assinatura [${tId}] suspensa por inadimplência/cancelamento.`);
-       } else {
-          return res.status(200).send(`⚠️ Nenhum usuário achado para bloqueio: ${email}`);
+       let targetTenantId = tenantIdFromRef;
+       if (!targetTenantId && email) {
+          const safeEmail = email.replace(/\./g, ',');
+          const uSnap = await db.ref(`users/${safeEmail}`).once('value');
+          if (uSnap.exists()) targetTenantId = uSnap.val().tenantId;
+       }
+
+       if (targetTenantId) {
+          functions.logger.warn(`🚫 Bloqueando tenant por status: ${status} -> ${targetTenantId}`);
+          await db.ref(`tenants/${targetTenantId}/status`).set('bloqueado_pagamento');
+          return res.status(200).send(`Bloqueio aplicado ao tenant: ${targetTenantId}`);
        }
     }
 
-    // Outros cenários...
-    return res.status(200).send('Processado (Sem Ação Necessária).');
+    return res.status(200).send(`Recebido: ${status} (Nenhuma ação necessária)`);
 
   } catch (err) {
-    functions.logger.error("ERRO GRAVE NO WEBHOOK", err);
-    return res.status(500).send("Cloud Function Error.");
+    functions.logger.error("💥 CRASH NO WEBHOOK:", err.message);
+    return res.status(500).send("Internal Error.");
   }
 });
