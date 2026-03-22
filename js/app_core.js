@@ -74,7 +74,7 @@ function nextCod(arr, prefix) {
 const cachePaginas = {};
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603211830';
+const HTML_CACHE_VERSION = '202603211843';
 
 async function carregarHTML(caminho) {
   if (cachePaginas[caminho]) return cachePaginas[caminho];
@@ -995,7 +995,7 @@ async function startStripeCheckout() {
   
   setTimeout(() => {
     // Redirecionamento real para a Kiwify na aba principal (usando o link do checkout)
-    window.open('https://pay.kiwify.com.br/agsRolp?afid=QKdqqQt6', '_blank');
+    window.open('https://pay.kiwify.com.br/UeoKVpn', '_blank');
   }, 1000);
 }
 
