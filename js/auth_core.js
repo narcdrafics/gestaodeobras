@@ -437,6 +437,10 @@ window.addEventListener('firebaseSync', (e) => {
   if (!userStr || !db || !Array.isArray(db.usuarios)) return;
 
   const activeUser = JSON.parse(userStr);
+  
+  // SUPER ADMIN EXCEPTION: O administrador mestre não precisa estar na lista de usuários de cada tenant
+  if (activeUser.role === 'super_admin') return;
+
   const stillExists = db.usuarios.find(u => (u.email || '').trim().toLowerCase() === (activeUser.email || '').trim().toLowerCase());
 
   if (!stillExists) {
