@@ -1774,16 +1774,17 @@ function closeModal(id) {
 function filterTrabByObra() {
   const tsel = document.getElementById('pr-trab');
   const osel = document.getElementById('pr-obra');
+  const listaMassa = document.getElementById('pr-lista-trabs-massa');
   if (!tsel || !osel) return;
 
   const obraSelecionada = osel.value;
   const filtered = DB.trabalhadores.filter(t => {
     if (t.status !== 'Ativo') return false;
-    // Retorna true se a string estiver vazia (Obreiro livre/recém-cadastrado) ou se possuir a tag da Obra
     if (!t.obras || t.obras.trim() === '') return true;
     return t.obras.includes(obraSelecionada);
   });
 
+  // 1. Popula Select Individual
   if (filtered.length === 0) {
     tsel.innerHTML = '<option value="">Nenhum trabalhador nesta obra</option>';
     document.getElementById('pr-diaria').value = '';
@@ -1792,12 +1793,37 @@ function filterTrabByObra() {
     tsel.innerHTML = filtered.map(t => `<option value="${t.cod}">${t.nome}</option>`).join('');
   }
 
-  fillTrabInfo(); // Recalcula valores do primeiro trabalhador da lista filtrada
+  // 2. Popula Lista de Checkboxes para Modo Massa
+  if (listaMassa) {
+    listaMassa.innerHTML = filtered.length > 0 
+      ? filtered.map(t => `
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; background: rgba(var(--accent-rgb), 0.03); padding: 5px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
+            <input type="checkbox" class="pr-massa-check" value="${t.cod}">
+            <span style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.nome}</span>
+          </label>
+        `).join('')
+      : '<p style="font-size: 12px; color: var(--text3); padding: 5px;">Nenhum funcionário ativo na obra.</p>';
+  }
+
+  fillTrabInfo(); 
 }
 
 function fillTrabInfo() {
   const sel = document.getElementById('pr-trab').value;
   const t = DB.trabalhadores.find(x => x.cod === sel);
+  
+  // Regra SaaS: Informal não tem Hora Extra
+  const hExtGrp = document.getElementById('pr-hextra-grp');
+  const isInformal = t && t.vinculo === 'Informal';
+  
+  if (hExtGrp) {
+    // Esconde o grupo de hora extra se for informal
+    hExtGrp.style.display = isInformal ? 'none' : '';
+    if (isInformal) {
+      document.getElementById('pr-hextra').value = 0;
+    }
+  }
+
   if (t) {
     document.getElementById('pr-funcao').value = t.funcao;
     document.getElementById('pr-diaria').value = t.diaria;
@@ -2033,51 +2059,65 @@ async function editTrabalhador(idx) {
 
 async function savePresenca(keepOpen = false) {
   // Validação dos campos obrigatórios
+  const modoMassa = document.querySelector('input[name="pr-modo"]:checked')?.value === 'massa';
   const dataVal = document.getElementById('pr-data').value;
   const obraVal = document.getElementById('pr-obra').value;
-  const trabVal = document.getElementById('pr-trab').value;
-
+  
   if (!dataVal) { toast('Informe a data!', 'error'); return; }
   if (!obraVal) { toast('Selecione a obra!', 'error'); return; }
-  if (!trabVal) { toast('Selecione o trabalhador!', 'error'); return; }
 
-  const tsel = trabVal;
-  const t = DB.trabalhadores.find(x => x.cod === tsel);
+  let trabsParaSalvar = [];
+
+  if (modoMassa) {
+    const checks = document.querySelectorAll('.pr-massa-check:checked');
+    if (checks.length === 0) { toast('Selecione ao menos um trabalhador!', 'error'); return; }
+    checks.forEach(c => trabsParaSalvar.push(c.value));
+  } else {
+    const trabVal = document.getElementById('pr-trab').value;
+    if (!trabVal) { toast('Selecione o trabalhador!', 'error'); return; }
+    trabsParaSalvar.push(trabVal);
+  }
+
+  for (const tsel of trabsParaSalvar) {
+    const t = DB.trabalhadores.find(x => x.cod === tsel);
 
   // Vínculo Automático: Se o peão não estiver engajado na Obra em sua ficha local, anexa a tag!
   if (t && (!t.obras || !t.obras.includes(obraVal))) {
     t.obras = t.obras && t.obras.trim() !== '' ? (t.obras + ", " + obraVal) : obraVal;
   }
 
-  const data = {
-    data: dataVal,
-    obra: obraVal,
-    trab: tsel,
-    nome: t ? t.nome : tsel,
-    funcao: document.getElementById('pr-funcao').value,
-    vinculo: t ? t.vinculo : '',
-    equipe: t ? t.equipe : '',
-    frente: document.getElementById('pr-frente').value,
-    entrada: document.getElementById('pr-entrada').value,
-    saida: document.getElementById('pr-saida').value,
-    hnorm: parseFloat(document.getElementById('pr-hnorm').value) || 0,
-    hextra: parseFloat(document.getElementById('pr-hextra').value) || 0,
-    presenca: document.getElementById('pr-presenca').value,
-    justif: document.getElementById('pr-obs').value,
-    diaria: parseFloat(document.getElementById('pr-diaria').value) || 0,
-    total: parseFloat(document.getElementById('pr-total').value) || 0,
-    pgtoStatus: document.getElementById('pr-pgto-status').value,
-    valpago: parseFloat(document.getElementById('pr-valpago').value) || 0,
-    almoco: document.getElementById('pr-almoco').value,
-    lancador: document.getElementById('pr-lancador').value,
-    hrLanc: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    obs: document.getElementById('pr-obs').value
-  };
+    const isInformal = t && t.vinculo === 'Informal';
 
-  if (currentEditIdx >= 0) {
-    DB.presenca[currentEditIdx] = data;
-  } else {
-    DB.presenca.push(data);
+    const data = {
+      data: dataVal,
+      obra: obraVal,
+      trab: tsel,
+      nome: t ? t.nome : tsel,
+      funcao: t ? t.funcao : document.getElementById('pr-funcao').value, // No modo massa pega da ficha
+      vinculo: t ? t.vinculo : '',
+      equipe: t ? t.equipe : '',
+      frente: document.getElementById('pr-frente').value,
+      entrada: document.getElementById('pr-entrada').value,
+      saida: document.getElementById('pr-saida').value,
+      hnorm: parseFloat(document.getElementById('pr-hnorm').value) || 0,
+      hextra: isInformal ? 0 : (parseFloat(document.getElementById('pr-hextra').value) || 0),
+      presenca: document.getElementById('pr-presenca').value,
+      justif: document.getElementById('pr-obs').value,
+      diaria: t ? t.diaria : (parseFloat(document.getElementById('pr-diaria').value) || 0),
+      total: isInformal ? (t ? t.diaria : 0) : (parseFloat(document.getElementById('pr-total').value) || 0), // Ajusta total se for informal no lote
+      pgtoStatus: document.getElementById('pr-pgto-status').value,
+      valpago: parseFloat(document.getElementById('pr-valpago').value) || 0,
+      almoco: document.getElementById('pr-almoco').value,
+      lancador: document.getElementById('pr-lancador').value,
+      hrLanc: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      obs: document.getElementById('pr-obs').value
+    };
+
+    if (currentEditIdx >= 0 && !modoMassa) {
+      DB.presenca[currentEditIdx] = data;
+    } else {
+      DB.presenca.push(data);
+    }
   }
 
   if (keepOpen) {
@@ -2113,6 +2153,30 @@ async function savePresenca(keepOpen = false) {
   renderPresenca();
   renderFinanceiro();
   renderDashboard();
+}
+
+// Helpers para Presença em Massa e Regras SaaS
+function togglePresencaModo() {
+  const modo = document.querySelector('input[name="pr-modo"]:checked').value;
+  const indivGrp = document.getElementById('pr-indiv-grp');
+  const massaGrp = document.getElementById('pr-massa-grp');
+  const hExtGrp = document.getElementById('pr-hextra-grp');
+  
+  if (modo === 'massa') {
+    indivGrp.style.display = 'none';
+    massaGrp.style.display = '';
+    hExtGrp.style.display = 'none'; // No modo massa esconde HE por padrão pra agilizar
+    filterTrabByObra();
+  } else {
+    indivGrp.style.display = '';
+    massaGrp.style.display = 'none';
+    fillTrabInfo(); // Recalcula visibilidade do HE
+  }
+}
+
+function selectAllTrabs(check) {
+  const checks = document.querySelectorAll('.pr-massa-check');
+  checks.forEach(c => c.checked = check);
 }
 
 async function editPresenca(idx) {

@@ -1,12 +1,31 @@
 <div class="modal-header"><span class="modal-title">✅ Lançar Presença</span><button class="modal-close"
     onclick="closeModal('modal-presenca')">×</button></div>
+<div style="background: rgba(var(--accent-rgb), 0.05); padding: 12px; border-bottom: 1px solid var(--border); margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 20px;">
+  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600;">
+    <input type="radio" name="pr-modo" value="individual" checked onchange="togglePresencaModo()"> Lançamento Individual
+  </label>
+  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600;">
+    <input type="radio" name="pr-modo" value="massa" onchange="togglePresencaModo()"> Lançamento em Massa 🚀
+  </label>
+</div>
 <div class="form-grid">
   <div class="form-group"><label class="form-label">Data *</label><input type="date" class="form-control" id="pr-data">
   </div>
   <div class="form-group"><label class="form-label">Obra *</label><select class="form-control" id="pr-obra" onchange="filterTrabByObra()"></select>
   </div>
-  <div class="form-group"><label class="form-label">Trabalhador *</label><select class="form-control" id="pr-trab"
-      onchange="fillTrabInfo()"></select></div>
+  <div class="form-group" id="pr-indiv-grp"><label class="form-label">Trabalhador *</label>
+    <select class="form-control" id="pr-trab" onchange="fillTrabInfo()"></select>
+  </div>
+  <!-- Contêiner para Seleção em Massa -->
+  <div id="pr-massa-grp" class="form-full" style="display:none; margin-bottom: 15px;">
+    <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+      <span>Selecione os Funcionários Presentes:</span>
+      <button class="btn btn-sm" style="font-size: 11px; padding: 2px 8px; background: transparent; border: 1px solid var(--border);" onclick="selectAllTrabs(true)">Marcar Todos</button>
+    </label>
+    <div id="pr-lista-trabs-massa" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; padding: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; max-height: 200px; overflow-y: auto;">
+      <!-- Checkboxes injetados via JS -->
+    </div>
+  </div>
   <div class="form-group"><label class="form-label">Função</label><input class="form-control" id="pr-funcao" readonly>
   </div>
   <div class="form-group"><label class="form-label">Frente Serviço</label><input class="form-control" id="pr-frente"
@@ -24,7 +43,7 @@
       class="form-control" id="pr-saida" value="17:00" onchange="calcPresenca()"></div>
   <div class="form-group"><label class="form-label">H. Normais</label><input type="number" step="0.5"
       class="form-control" id="pr-hnorm" onchange="calcTotalManual()"></div>
-  <div class="form-group"><label class="form-label">H. Extra</label><input type="number" step="0.5" class="form-control"
+  <div class="form-group" id="pr-hextra-grp"><label class="form-label">H. Extra</label><input type="number" step="0.5" class="form-control"
       id="pr-hextra" onchange="calcTotalManual()"></div>
   <div class="form-group"><label class="form-label">Diária (R$)</label><input type="number" class="form-control"
       id="pr-diaria" readonly></div>
