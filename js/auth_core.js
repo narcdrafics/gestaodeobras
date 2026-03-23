@@ -105,7 +105,7 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
     const Name = firebaseUser.displayName || fallbackName || 'Sem Nome';
 
     if (globalData) {
-      // Aceita Dono de Obra (Webhook Automação Database)
+      // PERFIL RESTAURADO: Se o usuário existe no Master DB, garantimos que o perfil exista (Self-Healing)
       userProfile = {
         uid,
         email,
@@ -114,7 +114,7 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
         tenantId: globalData.tenantId
       };
       await profileRef.set(userProfile);
-      console.log('[AuthTrace] Novo Perfil Criado via Global DB. Tenant:', userProfile.tenantId);
+      console.log('[AuthTrace] Perfil restaurado via Master DB. Tenant:', userProfile.tenantId);
       
     } else if (inviteData) {
       // Aceita Convite Simples: Vincula à empresa que o convidou
@@ -130,9 +130,9 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       // Remove convite após uso
       await firebase.database().ref(`invites/${sanitizedEmail}`).remove();
       console.log('[AuthTrace] Perfil processado via Convite. Tenant:', userProfile.tenantId);
-    } else if (!userProfile) {
+    } else if (!userProfile && (typeof window.isSignupProcess !== 'undefined' || isLoginPage)) {
       // AUTO-ONBOARDING / FREE TRIAL (Self Serve)
-      console.log('[AuthTrace] Usuário novo detectado. Auto-Onboarding iniciado.');
+      console.log('[AuthTrace] Novo usuário detectado no fluxo de cadastro. Iniciando trial.');
       
       const slugBase = email.split('@')[0].replace(/[^a-z0-9]/g, '');
       const numAuto = Math.floor(Math.random() * 900) + 100;
