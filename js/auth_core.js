@@ -163,8 +163,8 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
           await firebase.database().ref(`tenants/${tenantId}`).set(newTenant);
           await firebase.database().ref(`tenants_public/${tenantId}`).set({
               slug: tenantId,
-              nomeEmpresa: newTenant.nomeEmpresa,
-              corPrimaria: newTenant.corPrimaria
+              nomeEmpresa: newTenant.config.nomeEmpresa,
+              corPrimaria: newTenant.config.corPrimaria
           });
           
           // Salva no Painel Global Master
