@@ -94,8 +94,8 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
        await db.ref(`tenants/${slugFinal}`).update({
           status: 'ativo',
           plano: 'premium', 
-          planoVencimento: admin.database.ServerValue.TIMESTAMP + (32 * 24 * 60 * 60 * 1000), 
-          ultimaAtualizacaoWebhook: admin.database.ServerValue.TIMESTAMP,
+          planoVencimento: Date.now() + (32 * 24 * 60 * 60 * 1000), 
+          ultimaAtualizacaoWebhook: Date.now(),
           "config/limiteObras": 99,
           "config/limiteTrabalhadores": 99
        });

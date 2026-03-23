@@ -20,7 +20,27 @@ window.renderAdmin = window.renderAdmin || function () { };
 
 const fmt = (v) => v != null && !isNaN(v) ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 const fmtPct = (v) => v != null ? (v * 100).toFixed(1) + '%' : '—';
-const fmtDate = (d) => { if (!d) return '—'; const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; };
+const fmtDate = (d) => {
+  if (!d) return '—';
+  let val = d;
+  // Limpeza de possíveis erros de cast do Firebase
+  if (typeof d === 'string' && d.includes('[object Object]')) {
+    val = parseInt(d.replace('[object Object]', '')) || d;
+  }
+  
+  // Se for timestamp numérico
+  if (typeof val === 'number' || (!isNaN(Number(val)) && String(val).length > 8)) {
+    const dt = new Date(Number(val));
+    return dt.toLocaleDateString('pt-BR');
+  }
+  
+  // Se for string YYYY-MM-DD
+  if (typeof val === 'string' && val.includes('-')) {
+    const parts = val.split('-');
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return val;
+};
 const today = new Date().toISOString().split('T')[0];
 
 function statusBadge(s) {
