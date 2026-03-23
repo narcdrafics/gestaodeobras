@@ -169,6 +169,7 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
           
           // Salva no Painel Global Master
           await firebase.database().ref(`users/${sanitizedEmail}`).set({
+              uid: uid,
               tenantId: tenantId,
               role: 'admin',
               nome: Name,

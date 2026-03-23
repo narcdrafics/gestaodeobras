@@ -23,7 +23,7 @@
     "users": {
       "$email": {
         ".read": "auth != null",
-        ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
+        ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
       }
     },
     "invites": {
