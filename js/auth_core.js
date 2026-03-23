@@ -149,9 +149,13 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
           plano: 'free_trial', 
           webhookCriacao: dataCriacao,
           trialExpiracao: dataCriacao + trigintaDiasMs, // <--- Validade 30 dias inserida
-          corPrimaria: '#3b82f6',
-          limiteObras: 1, // Plano gratuito básico
-          limiteTrabalhadores: 5
+          config: {
+              nomeEmpresa: Name !== 'Sem Nome' ? Name + " Engenharia" : "Minha Empresa",
+              slug: tenantId,
+              corPrimaria: '#3b82f6',
+              limiteObras: 1, // Plano gratuito básico
+              limiteTrabalhadores: 10
+          }
       };
       
       try {

@@ -1117,8 +1117,9 @@ function renderFotos() {
 // SaaS: Render Billing Info
 function renderBilling() {
   if (DB.config) {
-    const limitObras = DB.config.limiteObras || 1;
-    const limitTrab = DB.config.limiteTrabalhadores || 5;
+    // Prioriza os limites dentro do nó config, mas aceita fallbacks na raiz do tenant
+    const limitObras = DB.config.limiteObras || DB.limiteObras || 1;
+    const limitTrab = DB.config.limiteTrabalhadores || DB.limiteTrabalhadores || 10;
 
     // Novo motor baseado no Plano Real do usuário (via DB central)
     const isPro = DB.plano && DB.plano !== 'free_trial';
@@ -1986,9 +1987,10 @@ async function saveTrabalhador() {
     toast('Trabalhador atualizado!');
   } else {
     // Validação SaaS: Limite de Trabalhadores
-    const limite = DB.config.limiteTrabalhadores || 10;
+    // Validação SaaS: Limite de Trabalhadores (Unificado: olha no Config e na Raiz)
+    const limite = DB.config.limiteTrabalhadores || DB.limiteTrabalhadores || 10;
     if (DB.trabalhadores.length >= limite) {
-      toast(`Seu plano atingiu o limite de ${limite} trabalhadores. Faça upgrade!`, 'error');
+      toast(`Seu plano atingiu o limite de ${limite} trabalhadores.`, 'error');
       return;
     }
     DB.trabalhadores.push(data);
