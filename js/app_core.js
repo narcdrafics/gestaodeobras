@@ -1122,7 +1122,8 @@ function renderBilling() {
     const limitTrab = DB.config.limiteTrabalhadores || DB.limiteTrabalhadores || 10;
 
     // Novo motor baseado no Plano Real do usuário (via DB central)
-    const isPro = DB.plano && DB.plano !== 'free_trial';
+    // Se tiver algum limite em 99 (Ilimitado), o sistema o reconhece como Pro automaticamente para maior resiliência
+    const isPro = (DB.plano && DB.plano !== 'free_trial') || limitObras === 99 || limitTrab === 99;
 
     let planText = isPro ? (DB.plano === 'pro_anual' ? 'PLANO PRO ANUAL ⭐' : 'PLANO PRO MENSAL ⭐') : 'PLANO INICIAL (Teste Grátis)';
 
