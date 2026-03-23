@@ -235,8 +235,6 @@ function doLogout() {
 }
 
 function checkAuth() {
-  const isLoginPage = window.location.pathname.endsWith('login.html') || /\/login(?:\.html)?$/i.test(window.location.pathname);
-  const isAdminLoginPage = window.location.pathname.endsWith('admin-login.html') || /\/admin-login(?:\.html)?$/i.test(window.location.pathname);
 
   firebase.auth().onAuthStateChanged(async (user) => {
     // SaaS: Aguarda o contexto de subdomínio ser carregado (se houver) para evitar race conditions
@@ -326,6 +324,8 @@ function safeCheckAuth() {
 const currPath = window.location.pathname;
 const isApp = currPath.endsWith('app.html');
 const isIndex = currPath.endsWith('index.html') || /\/$/i.test(currPath);
+const isLoginPage = currPath.endsWith('login.html') || /\/login(?:\.html)?$/i.test(currPath);
+const isAdminLoginPage = currPath.endsWith('admin-login.html') || /\/admin-login(?:\.html)?$/i.test(currPath);
 
 if (isApp) {
   if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
