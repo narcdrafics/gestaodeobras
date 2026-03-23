@@ -47,6 +47,9 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
         nome = nome || customerObj.full_name || customerObj.name;
     }
 
+    // SaaS: Extrai o ID da empresa enviado no checkout
+    const tenantIdFromRef = payload.external_id || payload.external_reference || payload.externalReference || '';
+
     functions.logger.info(`🔍 Processando: Email=${email}, TenantID=${tenantIdFromRef}, Status=${status}`);
 
     if (!email && !tenantIdFromRef) {
@@ -91,7 +94,7 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
        await db.ref(`tenants/${slugFinal}`).update({
           status: 'ativo',
           plano: 'premium', 
-          vencimentoPlano: admin.database.ServerValue.TIMESTAMP + (32 * 24 * 60 * 60 * 1000), 
+          planoVencimento: admin.database.ServerValue.TIMESTAMP + (32 * 24 * 60 * 60 * 1000), 
           ultimaAtualizacaoWebhook: admin.database.ServerValue.TIMESTAMP,
           "config/limiteObras": 99,
           "config/limiteTrabalhadores": 99

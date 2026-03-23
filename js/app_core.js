@@ -1440,15 +1440,13 @@ async function renderPage(pageId) {
 
 function openMasterTenantModal(tid) {
   // Injeta a estrutura limpa no modal principal
-  const content = document.getElementById('modal-master-tenant').innerHTML;
+  const contentOrig = document.getElementById('modal-master-tenant').innerHTML;
   const container = document.getElementById('modal-content');
-  container.innerHTML = content;
+  container.innerHTML = contentOrig;
 
-  // Busca os dados nativos de forma segura no Cache (Ignorando falhas de sintaxe HTML)
   const tData = (window.globalTenantsDataCache && window.globalTenantsDataCache[tid]) || {};
   const config = tData.config || {};
 
-  // Alimenta EXCLUSIVAMENTE os inputs dentro da caixa recém-aberta!
   container.querySelector('#mt-tenant-id').value = tid || '';
   container.querySelector('#mt-old-slug').value = config.slug || '';
   container.querySelector('#mt-nome').value = config.nomeEmpresa || '';
@@ -1456,6 +1454,10 @@ function openMasterTenantModal(tid) {
   container.querySelector('#mt-email').value = '';
   container.querySelector('#mt-limite-obras').value = config.limiteObras || 0;
   container.querySelector('#mt-limite-trab').value = config.limiteTrabalhadores || 0;
+  
+  // Novos campos de controle de Plano
+  if(container.querySelector('#mt-plano')) container.querySelector('#mt-plano').value = tData.plano || 'free_trial';
+  if(container.querySelector('#mt-status')) container.querySelector('#mt-status').value = tData.status || 'ativo';
 
   document.getElementById('modal-container').classList.add('open');
 }
@@ -1469,6 +1471,8 @@ async function saveMasterTenant() {
   const emailOwner = modal.querySelector('#mt-email').value.trim().toLowerCase();
   const lobras = parseInt(modal.querySelector('#mt-limite-obras').value);
   const ltrab = parseInt(modal.querySelector('#mt-limite-trab').value);
+  const plano = modal.querySelector('#mt-plano')?.value || 'free_trial';
+  const status = modal.querySelector('#mt-status')?.value || 'ativo';
 
   if (isNaN(lobras) || isNaN(ltrab)) return toast('Preencha os limites com números válidos.', 'error');
   if (!nome) return toast('Preencha o nome da empresa.', 'error');
@@ -1490,6 +1494,13 @@ async function saveMasterTenant() {
     updates[`tenants/${tid}/config/slug`] = slugVal;
     updates[`tenants/${tid}/config/limiteObras`] = lobras;
     updates[`tenants/${tid}/config/limiteTrabalhadores`] = ltrab;
+    updates[`tenants/${tid}/plano`] = plano;
+    updates[`tenants/${tid}/status`] = status;
+    
+    // Se mudou para Premium agora, garante validade de 30 dias se não tiver
+    if (plano === 'premium') {
+      updates[`tenants/${tid}/planoVencimento`] = Date.now() + (31 * 24 * 60 * 60 * 1000);
+    }
 
     updates[`tenants_public/${tid}/nomeEmpresa`] = nome;
     updates[`tenants_public/${tid}/slug`] = slugVal;

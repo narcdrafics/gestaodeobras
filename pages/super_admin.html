@@ -117,6 +117,21 @@
       <label>Limite Trabalhadores</label>
       <input type="number" id="mt-limite-trab" class="form-control">
     </div>
+    <div class="form-group">
+      <label>Plano</label>
+      <select id="mt-plano" class="form-control">
+        <option value="free_trial">Free Trial (Teste)</option>
+        <option value="premium">Premium Pro (Ativo)</option>
+        <option value="pro_anual">Pro Anual</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="mt-status" class="form-control">
+        <option value="ativo">Ativo ✅</option>
+        <option value="bloqueado_pagamento">Bloqueado 🚫</option>
+      </select>
+    </div>
   </div>
   <div style="margin-top:20px; display:flex; gap:10px;">
     <button class="btn btn-primary" onclick="saveMasterTenant()">Salvar Alterações</button>
