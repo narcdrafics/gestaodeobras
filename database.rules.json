@@ -4,14 +4,13 @@
       ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       ".write": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid"
+        ".read": "auth != null && (auth.uid === $uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
+        ".write": "auth != null && (auth.uid === $uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
       }
     },
     "tenants": {
-      ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$tenantId": {
-        ".read": "auth != null && (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
+        ".read": "auth != null && (data.child('emailAdmin').val() === auth.token.email || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
         ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
       }
     },
@@ -22,7 +21,6 @@
       }
     },
     "users": {
-      ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$email": {
         ".read": "auth != null",
         ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
