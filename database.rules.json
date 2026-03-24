@@ -21,16 +21,21 @@
       }
     },
     "users": {
+      // Bloqueia listagem global de usuários
+      ".read": "root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$email": {
-        ".read": "auth != null",
+        // Regra Granular: Usuário lê apenas SEU registro ou se for Super Admin
+        ".read": "auth != null && (data.child('email').val() === auth.token.email || data.child('uid').val() === auth.uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
         ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
       }
     },
     "invites": {
-      ".read": "auth != null",
-      ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/role').val() === 'admin')",
+      // Bloqueia listagem global de convites
+      ".read": "root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$email": {
-        ".write": "auth != null && !newData.exists()"
+        // Permite ler se for o dono do e-mail (para aceitar) ou Admin/SuperAdmin
+        ".read": "auth != null && (data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
+        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || (auth != null && !newData.exists()))"
       }
     }
   }

@@ -104,6 +104,7 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
        if (email) {
           const safeEmail = email.replace(/\./g, ',');
           await db.ref(`users/${safeEmail}`).update({
+             email: email,
              tenantId: slugFinal,
              role: 'admin',
              nome: nome || 'Administrador',

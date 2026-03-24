@@ -1531,6 +1531,7 @@ async function saveMasterTenant() {
       if (!emailRegex.test(emailOwner)) return toast('E-mail inválido.', 'error');
       const sanitizedEmail = emailOwner.replace(/\./g, ',');
       updates[`invites/${sanitizedEmail}`] = {
+        email: emailOwner, // <--- Adicionado para regras de segurança
         tenantId: tid,
         role: 'admin',
         nomeEmpresa: nome
@@ -3005,6 +3006,7 @@ async function saveNewTenant() {
 
     // 2. Inserir no Novo Título Global (Painel Mestre e Passaporte)
     await firebase.database().ref(`users/${sanitizedEmail}`).set({
+      email: emailOwner, // <--- Adicionado para regras de segurança
       tenantId: slugVal,
       role: 'admin',
       nome: nome,
