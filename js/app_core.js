@@ -1204,7 +1204,7 @@ function renderBilling() {
         btnUpgrade.style.background = "var(--bg3)";
         btnUpgrade.style.borderColor = "var(--border)";
         btnUpgrade.style.color = "var(--text2)";
-        btnUpgrade.onclick = () => window.open('https://wa.me/5511999999999?text=Olá, preciso de ajuda com minha assinatura do Obra Real.', '_blank');
+        btnUpgrade.onclick = () => window.open('https://wa.me/5598985262006?text=Olá, preciso de ajuda com minha assinatura do Obra Real.', '_blank');
         if(footerText) footerText.style.display = 'none';
       } else {
         btnUpgrade.textContent = "⭐ Assinar Plano Pro Agora";
