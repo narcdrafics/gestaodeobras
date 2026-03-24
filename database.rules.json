@@ -1,38 +1,38 @@
 {
   "rules": {
     "profiles": {
-      ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
-      ".write": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
+      ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
+      ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
       "$uid": {
-        ".read": "auth != null && (auth.uid === $uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
-        ".write": "auth != null && (auth.uid === $uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
+        ".read": "auth != null && (auth.uid === $uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
+        ".write": "auth != null && (auth.uid === $uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')"
       }
     },
     "tenants": {
-      ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
+      ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
       "$tenantId": {
-        ".read": "auth != null && (data.child('emailAdmin').val() === auth.token.email || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
-        ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
+        ".read": "auth != null && (data.child('emailAdmin').val() === auth.token.email || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
+        ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')"
       }
     },
     "tenants_public": {
       ".read": true,
       "$tenantId": {
-        ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId)"
+        ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || auth.token.email === 'tonycampelo@gmail.com')"
       }
     },
     "users": {
-      ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
+      ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
       "$email": {
-        ".read": "auth != null && (data.child('uid').val() === auth.uid || data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
-        ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
+        ".read": "auth != null && (auth.token.email === 'tonycampelo@gmail.com' || data.child('uid').val() === auth.uid || data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
+        ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')"
       }
     },
     "invites": {
-      ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
+      ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
       "$email": {
-        ".read": "auth != null && (data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
-        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || (auth != null && !newData.exists()))"
+        ".read": "auth != null && (data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
+        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || auth.token.email === 'tonycampelo@gmail.com' || (auth != null && !newData.exists()))"
       }
     }
   }
