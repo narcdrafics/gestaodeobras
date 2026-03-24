@@ -2236,7 +2236,13 @@ async function savePresenca(keepOpen = false) {
       presenca: document.getElementById('pr-presenca').value,
       justif: document.getElementById('pr-obs').value,
       diaria: t ? t.diaria : (parseFloat(document.getElementById('pr-diaria').value) || 0),
-      total: isInformal ? (t ? t.diaria : 0) : (parseFloat(document.getElementById('pr-total').value) || 0), // Ajusta total se for informal no lote
+      total: (() => {
+        const presencaVal = document.getElementById('pr-presenca').value;
+        if (presencaVal === 'Falta') return 0;
+        if (isInformal) return t ? t.diaria : 0;
+        return parseFloat(document.getElementById('pr-total').value) || 0;
+      })(),
+
       pgtoStatus: document.getElementById('pr-pgto-status').value,
       valpago: parseFloat(document.getElementById('pr-valpago').value) || 0,
       almoco: document.getElementById('pr-almoco').value,
