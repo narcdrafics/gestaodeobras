@@ -655,6 +655,7 @@ function renderPresenca() {
   safeSetInner('pres-pgto-pendentes', pendentesHtml || '<p style="color:var(--green); padding: 8px; font-weight: 500;">✅ Nenhum pagamento pendente para esta semana.</p>');
 
   console.log('renderPresenca concluído.');
+  renderAlmocos(); // Renderiza a seção de almoços avulsos no topo da aba
 }
 
 // ==================== TAREFAS ====================
