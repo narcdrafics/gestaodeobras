@@ -9,6 +9,8 @@
       }
     },
     "tenants": {
+      // SaaS: Super Admin pode listar todos os Tenants para gestão global
+      ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$tenantId": {
         ".read": "auth != null && (data.child('emailAdmin').val() === auth.token.email || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
         ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
@@ -21,19 +23,18 @@
       }
     },
     "users": {
-      // Bloqueia listagem global de usuários
-      ".read": "root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
+      // SaaS: Super Admin pode listar todos os Usuários para gestão global
+      ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$email": {
-        // Regra Granular: Usuário lê apenas SEU registro ou se for Super Admin
-        ".read": "auth != null && (data.child('email').val() === auth.token.email || data.child('uid').val() === auth.uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
+        // SaaS: Permite leitura se UID bater (para usuários antigos sem campo 'email') ou se token.email bater ou se Super Admin
+        ".read": "auth != null && (data.child('uid').val() === auth.uid || data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
         ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
       }
     },
     "invites": {
-      // Bloqueia listagem global de convites
-      ".read": "root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
+      // SaaS: Super Admin pode listar todos os convites
+      ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$email": {
-        // Permite ler se for o dono do e-mail (para aceitar) ou Admin/SuperAdmin
         ".read": "auth != null && (data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
         ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || (auth != null && !newData.exists()))"
       }
