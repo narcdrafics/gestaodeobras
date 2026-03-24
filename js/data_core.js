@@ -14,6 +14,7 @@ const staticDB = {
   financeiro: [],
   orcamento: [],
   medicao: [],
+  almocos: [],
 };
 
 const firebaseConfig = {
@@ -50,6 +51,7 @@ function ensureSchema(db) {
   safe.financeiro = Array.isArray(safe.financeiro) ? safe.financeiro : [];
   safe.orcamento = Array.isArray(safe.orcamento) ? safe.orcamento : [];
   safe.medicao = Array.isArray(safe.medicao) ? safe.medicao : [];
+  safe.almocos = Array.isArray(safe.almocos) ? safe.almocos : [];
   return safe;
 }
 

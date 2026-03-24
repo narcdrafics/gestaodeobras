@@ -135,7 +135,8 @@ function renderPage(id) {
     presenca: renderPresenca, tarefas: renderTarefas, estoque: renderEstoque,
     movEstoque: renderMovEstoque, compras: renderCompras, financeiro: renderFinanceiro,
     orcamento: renderOrcamento, medicao: renderMedicao, admin: renderAdmin,
-    fotos: renderFotos, super_admin: renderSuperAdmin, relatorios: renderRelatorios
+    fotos: renderFotos, super_admin: renderSuperAdmin, relatorios: renderRelatorios,
+    almocos: () => { renderTrabalhadores(); }
   };
   if (r[id]) r[id]();
 }
@@ -411,6 +412,79 @@ function renderTrabalhadores() {
         </td>
       </tr>`).join('')
     : uiEmptyState('Sem Trabalhadores', 'Cadastre o primeiro pedreiro, mestre ou servente para começar.', '👷‍♂️', 'Adicionar Trabalhador', 'openModal(\'modal-trabalhador\')'));
+
+  renderAlmocos();
+}
+
+function renderAlmocos() {
+  const container = document.getElementById('almoco-avulso-container');
+  if (!container) return;
+
+  const list = DB.almocos || [];
+  let html = `
+    <div class="table-wrap" style="margin-top:30px">
+      <div class="table-toolbar">
+        <h3>🍱 Almoços Avulsos (Empreiteiros)</h3>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-almoco')">+ Lançar Almoço</button>
+      </div>
+      <table>
+        <thead><tr><th>Data</th><th>Obra</th><th>Empreiteiro/Equipe</th><th>Qtd</th><th>Unit (R$)</th><th>Total (R$)</th><th>Obs</th><th>Ações</th></tr></thead>
+        <tbody>
+          ${list.length ? list.map((a, i) => `
+            <tr>
+              <td>${fmtDate(a.data)}</td><td>${obName(a.obra)}</td><td><b>${a.empreiteiro}</b></td>
+              <td>${a.qtd}</td><td>${fmt(a.vunit)}</td><td><b>${fmt(a.vtotal)}</b></td>
+              <td>${a.obs || '—'}</td>
+              <td>
+                <button class="btn btn-secondary btn-sm" onclick="editAlmoco(${i})">✏️</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${i})">🗑</button>
+              </td>
+            </tr>
+          `).join('') : '<tr><td colspan="8" style="text-align:center; color:var(--text3); padding:20px">Nenhum almoço avulso lançado.</td></tr>'}
+        </tbody>
+      </table>
+    </div>`;
+  container.innerHTML = html;
+}
+
+function calcAlmocoTotal() {
+  const q = parseFloat(document.getElementById('al-qtd').value) || 0;
+  const u = parseFloat(document.getElementById('al-vunit').value) || 0;
+  const target = document.getElementById('al-vtotal');
+  if (target) target.value = (q * u).toFixed(2);
+}
+
+async function saveAlmoco() {
+  const data = {
+    data: document.getElementById('al-data').value,
+    obra: document.getElementById('al-obra').value,
+    empreiteiro: document.getElementById('al-empreiteiro').value,
+    qtd: parseFloat(document.getElementById('al-qtd').value) || 0,
+    vunit: parseFloat(document.getElementById('al-vunit').value) || 0,
+    vtotal: parseFloat(document.getElementById('al-vtotal').value) || 0,
+    obs: document.getElementById('al-obs').value
+  };
+  if (currentEditIdx >= 0) {
+    DB.almocos[currentEditIdx] = data;
+    toast('Lançamento de almoço atualizado!');
+  } else {
+    DB.almocos.push(data);
+    toast('Almoço registrado!');
+  }
+  closeModal('modal-almoco'); await persistDB(); renderTrabalhadores();
+}
+
+async function editAlmoco(idx) {
+  await openModal('modal-almoco');
+  currentEditIdx = idx;
+  const a = DB.almocos[idx];
+  document.getElementById('al-data').value = a.data;
+  document.getElementById('al-obra').value = a.obra;
+  document.getElementById('al-empreiteiro').value = a.empreiteiro;
+  document.getElementById('al-qtd').value = a.qtd;
+  document.getElementById('al-vunit').value = a.vunit;
+  document.getElementById('al-vtotal').value = a.vtotal;
+  document.getElementById('al-obs').value = a.obs || '';
 }
 
 // ==================== PRESENÇA ====================
@@ -713,6 +787,19 @@ function renderFinanceiro() {
     }
   });
 
+  // 4. Almoços de Empreiteiros
+  (DB.almocos || []).forEach((a, i) => {
+    if ((a.vtotal || 0) > 0) {
+      allFin.push({
+        idx: i, source: 'alm', data: a.data,
+        obra: a.obra, etapa: 'Alimentação', tipo: 'Almoço Empreiteiro',
+        desc: `[Almoço] ${a.empreiteiro} - ${a.qtd} un`,
+        forn: a.empreiteiro, prev: 0, real: parseFloat(a.vtotal),
+        pgto: 'N/A', status: 'Pendente', nf: '—'
+      });
+    }
+  });
+
   // Sort: Mais recentes primeiro
   allFin.sort((a, b) => new Date(b.data) - new Date(a.data));
 
@@ -744,6 +831,16 @@ function renderFinanceiro() {
   <div class="fin-card"><div class="fin-card-label" style="color:var(--accent)">Total Geral Real.</div><div class="fin-card-val">${fmt(totalReal)}</div></div>
   <div class="fin-card"><div class="fin-card-label" style="color:var(--accent)">Diferença Total</div><div class="fin-card-val" style="color:${totalReal > totalPrev ? 'var(--red)' : 'var(--green)'}">${fmt(totalReal - totalPrev)}</div></div>`;
 
+  // Resumo de Almoços por Empreiteiro
+  const lunchByEquipe = {};
+  (DB.almocos || []).forEach(a => {
+    const eq = a.empreiteiro || 'Geral';
+    lunchByEquipe[eq] = (lunchByEquipe[eq] || 0) + (a.vtotal || 0);
+  });
+  Object.keys(lunchByEquipe).forEach(eq => {
+    sumHtml += `<div class="fin-card" style="border-left: 4px solid var(--orange)"><div class="fin-card-label">🍱 Almoco: ${eq}</div><div class="fin-card-val">${fmt(lunchByEquipe[eq])}</div></div>`;
+  });
+
   safeSetInner('fin-summary', sumHtml);
 
   safeSetInner('fin-tbody', allFin.length
@@ -754,9 +851,11 @@ function renderFinanceiro() {
       if (f.source === 'fin') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px">✏️</button>`;
       else if (f.source === 'med') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editMedicao(${f.idx})" style="margin-right:8px">✏️ Med.</button>`;
       else if (f.source === 'pre') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editPresenca(${f.idx})" style="margin-right:8px">✏️ Dia.</button>`;
+      else if (f.source === 'alm') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editAlmoco(${f.idx})" style="margin-right:8px">✏️ Alm.</button>`;
 
       let delBtn = '';
       if (f.source === 'fin') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">🗑</button>`;
+      else if (f.source === 'alm') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${f.idx})">🗑</button>`;
 
       let payBtn = '';
       if (f.status !== 'Pago') {
@@ -1776,6 +1875,17 @@ async function openModal(id) {
     }
   }
   if (id === 'modal-medicao') document.getElementById('md-semana').value = today;
+  if (id === 'modal-almoco') {
+    const osel = m.querySelector('#al-obra');
+    if (osel) osel.innerHTML = DB.obras.map(o => `<option value="${o.cod}">${o.cod} — ${o.nome}</option>`).join('');
+    const dlist = m.querySelector('#list-equipes');
+    if (dlist) {
+      const equipes = [...new Set(DB.trabalhadores.map(t => t.equipe).filter(e => e && e !== 'Própria'))];
+      dlist.innerHTML = equipes.map(e => `<option value="${e}">`).join('');
+    }
+    m.querySelector('#al-data').value = today;
+    calcAlmocoTotal();
+  }
   if (id === 'modal-usuario') {
     if (document.getElementById('usr-edit-idx') && document.getElementById('usr-edit-idx').value === '-1') {
       document.getElementById('usr-email').value = '';
