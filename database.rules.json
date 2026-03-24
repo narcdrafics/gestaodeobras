@@ -9,7 +9,6 @@
       }
     },
     "tenants": {
-      // SaaS: Super Admin pode listar todos os Tenants para gestão global
       ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$tenantId": {
         ".read": "auth != null && (data.child('emailAdmin').val() === auth.token.email || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
@@ -23,16 +22,13 @@
       }
     },
     "users": {
-      // SaaS: Super Admin pode listar todos os Usuários para gestão global
       ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$email": {
-        // SaaS: Permite leitura se UID bater (para usuários antigos sem campo 'email') ou se token.email bater ou se Super Admin
         ".read": "auth != null && (data.child('uid').val() === auth.uid || data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
         ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
       }
     },
     "invites": {
-      // SaaS: Super Admin pode listar todos os convites
       ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$email": {
         ".read": "auth != null && (data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
