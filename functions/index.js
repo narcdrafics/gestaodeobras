@@ -148,3 +148,46 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
     return res.status(500).send("Internal Error.");
   }
 });
+
+/**
+ * SaaS: Sincroniza o TenantId para o Token de Autenticação (Custom Claims)
+ * Isso permite que o Firebase Storage e Firestore isolem dados por empresa de forma segura.
+ */
+exports.syncTenantClaim = functions.database.ref('/users/{emailSafe}')
+  .onWrite(async (change, context) => {
+    const data = change.after.val();
+    
+    // Se o usuário foi removido, nada a fazer aqui (o access control de login cuidará disso)
+    if (!data || !data.tenantId) {
+      functions.logger.info(`ℹ️ Usuário ${context.params.emailSafe} sem tenant associado.`);
+      return null;
+    }
+
+    const email = context.params.emailSafe.replace(/,/g, '.');
+    
+    try {
+      // 1. Localizar o UID do usuário pelo e-mail
+      const userRecord = await admin.auth().getUserByEmail(email);
+      const uid = userRecord.uid;
+
+      // 2. Definir Custom Claims (Tenant e Role)
+      await admin.auth().setCustomUserClaims(uid, {
+        tenantId: data.tenantId,
+        role: data.role || 'admin'
+      });
+
+      functions.logger.info(`✅ Custom Claims definidos para ${email} (UID: ${uid}): { tenantId: ${data.tenantId}, role: ${data.role} }`);
+      
+      // 3. Opcional: Marcar no RTDB que o claim está sincronizado (para debug)
+      await admin.database().ref(`users/${context.params.emailSafe}/claimSynced`).set(true);
+
+      return null;
+    } catch (error) {
+      if (error.code === 'auth/user-not-found') {
+        functions.logger.warn(`⚠️ Usuário ${email} ainda não criou conta no Firebase Auth. Claim será aplicado no próximo login.`);
+      } else {
+        functions.logger.error("💥 Erro ao sincronizar Custom Claims:", error);
+      }
+      return null;
+    }
+  });

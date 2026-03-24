@@ -1,10 +1,24 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Permite uploads e leituras para usuários autenticados
+    // SaaS: Isolamento de Arquivos por Empresa (Multi-tenancy)
     match /tenants/{tenantId}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.resource.size < 10 * 1024 * 1024; // Max 10MB
+      // Permite leitura e escrita apenas se o TenantId no Token do usuário coincidir 
+      // ou se o usuário for um Super Admin Master.
+      allow read: if request.auth != null && (
+        request.auth.token.tenantId == tenantId || 
+        request.auth.token.role == 'super_admin'
+      );
+      
+      allow write: if request.auth != null && (
+        request.auth.token.tenantId == tenantId || 
+        request.auth.token.role == 'super_admin'
+      ) && request.resource.size < 10 * 1024 * 1024; // Limite de 10MB por arquivo
+    }
+
+    // Regra fallback: Bloqueia tudo o que não estiver explicitamente permitido
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }
