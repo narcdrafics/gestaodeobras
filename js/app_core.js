@@ -2942,8 +2942,7 @@ document.getElementById('header-date').textContent = new Date().toLocaleDateStri
 
 // renderDashboard(); // SaaS: Removido disparo automático. Será chamado em auth.js após controle de acesso.
 
-// SaaS: Dispara verificação de autenticação e carregamento inicial
-if (typeof checkAuth === 'function') checkAuth();
+// SaaS: Disparo de checkAuth removido daqui (movido para o final do arquivo para evitar duplicidade)
 
 // ==================== MASTER SYSTEM LOGIC ====================
 function openNewTenantModal() {
@@ -3151,9 +3150,9 @@ function closeLightbox() {
   document.getElementById('lightbox-container').classList.remove('open');
 }
 
-// SaaS: Inicialização garantida após carregamento estrito de todos os componentes de Interface Visual.
-if (typeof checkAuth === 'function') {
-  checkAuth();
+// SaaS: Inicialização ÚNICA e SEGURA após carregamento de todos os componentes
+if (typeof window.safeCheckAuth === 'function') {
+  window.safeCheckAuth();
 }
 
 

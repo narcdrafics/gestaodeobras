@@ -239,7 +239,11 @@ function doLogout() {
   });
 }
 
+let _isAuthListenerActive = false;
 function checkAuth() {
+  if (_isAuthListenerActive) return;
+  _isAuthListenerActive = true;
+  console.log('[Auth] Inicializando listener único.');
 
   firebase.auth().onAuthStateChanged(async (user) => {
     // SaaS: Aguarda o contexto de subdomínio ser carregado (se houver) para evitar race conditions
@@ -470,8 +474,9 @@ window.addEventListener('firebaseSync', (e) => {
   }
 });
 
-// SaaS: Removido disparo automático daqui. Será chamado no final do app.js
-// para garantir que showPage e renderPage já existam.
+// SaaS: Define uma forma segura de inicializar, impedindo duplicidade de listeners
+window.safeCheckAuth = checkAuth;
+
 // checkAuth();
 
 /**
