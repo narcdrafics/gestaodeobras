@@ -56,9 +56,14 @@ function ensureSchema(db) {
 // ==================== SUBDOMAIN & SAAS CONTEXT ====================
 function detectSubdomain() {
   const host = window.location.hostname;
-  const parts = host.split('.');
   
-  // Evita detectar 'www' ou 'localhost' como subdomínio de cliente
+  // Ignora domínios técnicos do Firebase e Localhost (ambientes de dev/staging)
+  if (host.includes('web.app') || host.includes('firebaseapp.com') || host.includes('localhost')) {
+    return null;
+  }
+
+  const parts = host.split('.');
+  // Evita detectar 'www' como subdomínio de cliente
   if (parts.length > 2 && parts[0] !== 'www') {
     return parts[0];
   }
