@@ -2984,17 +2984,22 @@ async function saveNewTenant() {
     const res = await firebase.database().ref('tenants').push();
     const tenantId = res.key;
 
-    // 1. Criar Configuração Inicial do Tenant
+    // 1. Criar Estrutura do Tenant (Padrão SaaS Unificado)
     await firebase.database().ref(`tenants/${slugVal}`).set({
       nomeEmpresa: nome,
       slug: slugVal,
       emailAdmin: emailOwner,
       status: 'ativo',
-      plano: 'start',
+      plano: 'premium', // Começa como Premium por ser manual do Admin
+      planoVencimento: Date.now() + (31 * 24 * 60 * 60 * 1000),
       webhookCriacao: Date.now(),
-      corPrimaria: '#f59e0b',
-      limiteObras: lobras,
-      limiteTrabalhadores: ltrab
+      config: {
+        nomeEmpresa: nome,
+        slug: slugVal,
+        corPrimaria: '#f59e0b',
+        limiteObras: lobras,
+        limiteTrabalhadores: ltrab
+      }
     });
 
     const sanitizedEmail = emailOwner.replace(/\./g, ',');
