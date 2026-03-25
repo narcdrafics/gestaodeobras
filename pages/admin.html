@@ -68,11 +68,30 @@
         </div>
       </div>
     </div>
-    <button class="btn btn-primary w-100" id="btn-upgrade" onclick="startKiwifyCheckout()"
-      style="background: #6366f1; border-color: #6366f1; width: 100%;">⭐ Assinar Plano Pro</button>
-    <div id="subscription-info" style="margin-top: 10px;"></div>
-    <p style="font-size: 11px; opacity: 0.6; margin-top: 8px; text-align: center;" id="billing-footer-text">Pagamento processado com segurança via Kiwify.</p>
+
+    <!-- Botão Pro: visível apenas para free -->
+    <button class="btn btn-primary w-100" id="btn-upgrade-pro" onclick="startKiwifyCheckout('pro')"
+      style="background:#6366f1; border-color:#6366f1; width:100%; margin-bottom:10px; display:none;">
+      ⭐ Assinar Plano Pro — Funcionários Ilimitados
+    </button>
+
+    <!-- Botão Master: visível para free e pro -->
+    <button class="btn btn-primary w-100" id="btn-upgrade-master" onclick="startKiwifyCheckout('master')"
+      style="background:linear-gradient(135deg,#f59e0b,#d97706); border:none; width:100%; font-weight:700; display:none;">
+      🌐 Assinar Plano Master — Subdomínio Próprio
+    </button>
+
+    <!-- Subdomínio ativo: visível apenas para master -->
+    <div id="master-subdomain-info" style="display:none; margin-top:10px; background:var(--bg2); border-radius:8px; padding:12px; border-left:3px solid #f59e0b;">
+      <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">🌐 Seu Subdomínio</div>
+      <b id="master-subdomain-url" style="color:#f59e0b; font-size:14px;">—</b>
+      <div style="font-size:11px; color:var(--text3); margin-top:4px;">Acesse o sistema pelo seu domínio personalizado</div>
+    </div>
+
+    <div id="subscription-info" style="margin-top:10px;"></div>
+    <p style="font-size:11px; opacity:0.6; margin-top:8px; text-align:center;" id="billing-footer-text">Pagamento processado com segurança via Kiwify.</p>
   </div>
+
 </div>
 
 <div class="table-wrap">

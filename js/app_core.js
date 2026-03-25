@@ -1163,7 +1163,7 @@ function renderAdmin() {
       </tr>`).join('')
     : '<tr><td colspan="4">Erro ao carregar usuários.</td></tr>');
 
-  renderBilling();
+  if (typeof renderBillingSection === 'function') renderBillingSection();
 }
 
 // ==================== FOTOS (RELATÓRIO FOTOGRÁFICO) ====================

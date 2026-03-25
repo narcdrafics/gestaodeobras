@@ -58,7 +58,7 @@ function ensureSchema(db) {
 // ==================== SUBDOMAIN & SAAS CONTEXT ====================
 function detectSubdomain() {
   const host = window.location.hostname;
-  
+
   // Ignora domínios técnicos do Firebase e Localhost (ambientes de dev/staging)
   if (host.includes('web.app') || host.includes('firebaseapp.com') || host.includes('localhost')) {
     return null;
@@ -80,7 +80,7 @@ async function loadTenantBySlug(slug) {
       .orderByChild('slug')
       .equalTo(slug)
       .once('value');
-    
+
     const pubTenants = pubSnap.val();
     if (pubTenants) {
       const tenantId = Object.keys(pubTenants)[0];
@@ -94,7 +94,7 @@ async function loadTenantBySlug(slug) {
         .orderByChild('config/slug')
         .equalTo(slug)
         .once('value');
-      
+
       const tenants = snapshot.val();
       if (tenants) {
         const tenantId = Object.keys(tenants)[0];
@@ -103,7 +103,7 @@ async function loadTenantBySlug(slug) {
     }
   } catch (e) {
     if (e.code !== 'PERMISSION_DENIED') {
-        console.warn('Aviso ao buscar tenant por slug:', e.code || e.message);
+      console.warn('Aviso ao buscar tenant por slug:', e.code || e.message);
     }
   }
   return null;
@@ -150,19 +150,19 @@ function initDB(tenantId) {
 function _onFirebaseValue(snapshot) {
   const data = snapshot.val();
   if (data) {
-    
+
     // SaaS: Trava de Inadimplência e Bloqueios
     if (data.status === 'bloqueado_pagamento') {
-       alert('⚠️ Sua assinatura SaaS está suspensa por falta de pagamento. O sistema foi bloqueado para proteção dos dados.\n\nPor favor, entre em contato com o Suporte (WhatsApp).');
-       if (typeof doLogout === 'function') doLogout();
-       return;
+      alert('⚠️ Sua assinatura SaaS está suspensa por falta de pagamento. O sistema foi bloqueado para proteção dos dados.\n\nPor favor, entre em contato com o Suporte (WhatsApp).');
+      if (typeof doLogout === 'function') doLogout();
+      return;
     }
-    
+
     // SaaS: Trava de Tempo do Free Trial (30 dias)
     if (data.plano === 'free_trial' && data.trialExpiracao && Date.now() > data.trialExpiracao) {
-       alert('⏰ O seu período de Teste Grátis de 30 dias chegou ao fim!\n\nEsperamos que tenha gostado do sistema. Para continuar usando o Gestão de Obras, assine um de nossos planos.');
-       if (typeof doLogout === 'function') doLogout();
-       return;
+      alert('⏰ O seu período de Teste Grátis de 30 dias chegou ao fim!\n\nEsperamos que tenha gostado do sistema. Para continuar usando o Gestão de Obras, assine um de nossos planos.');
+      if (typeof doLogout === 'function') doLogout();
+      return;
     }
 
     DB = ensureSchema(data);
@@ -199,7 +199,7 @@ function loadTheme(externalCfg) {
   const cfg = externalCfg || (DB && DB.config);
   if (cfg) {
     const root = document.documentElement;
-    
+
     // 1. Aplica cores principais
     root.style.setProperty('--accent', cfg.corPrimaria || '#f59e0b');
     if (cfg.corSidebar) root.style.setProperty('--sb-bg', cfg.corSidebar);
@@ -208,9 +208,9 @@ function loadTheme(externalCfg) {
 
     // 2. Aplica Tema (Light/Dark)
     if (cfg.tema === 'light') {
-        document.body.classList.add('light-mode');
+      document.body.classList.add('light-mode');
     } else {
-        document.body.classList.remove('light-mode');
+      document.body.classList.remove('light-mode');
     }
 
     // 3. Aplica Nome da Empresa
@@ -221,14 +221,14 @@ function loadTheme(externalCfg) {
     // 4. Aplica Logo ou Fallback
     const container = document.getElementById('brand-container');
     if (container) {
-        if (cfg.logoUrl) {
-            container.innerHTML = `
+      if (cfg.logoUrl) {
+        container.innerHTML = `
                 <img src="${cfg.logoUrl}" class="header-logo" alt="${cfg.nomeEmpresa}" style="max-height: 40px; width: auto; object-fit: contain;">
                 <span class="app-brand-name" style="margin-left: 8px;">${cfg.nomeEmpresa || 'Obra Real'}</span>
             `;
-        } else {
-            container.innerHTML = `<span id="brand-icon">🏗️</span> <span class="app-brand-name">${cfg.nomeEmpresa || 'Obra Real'}</span>`;
-        }
+      } else {
+        container.innerHTML = `<span id="brand-icon">🏗️</span> <span class="app-brand-name">${cfg.nomeEmpresa || 'Obra Real'}</span>`;
+      }
     }
   }
 }
@@ -283,7 +283,7 @@ function persistDB() {
     console.warn('Persistencia ignorada: dbRef nao inicializado.');
     return Promise.resolve();
   }
-  
+
   _isSaving = true;
   DB = ensureSchema(DB);
 
@@ -370,3 +370,96 @@ function toggleMenu() {
 
 // Retirado initDB() automático para SaaS. Será chamado em auth.js após login.
 // initDB();
+
+// ==================== BILLING / PLANOS ====================
+
+// Links de checkout da Kiwify para cada plano
+// Substitua pelos links reais dos seus produtos na Kiwify
+const KIWIFY_LINKS = {
+  pro: 'https://pay.kiwify.com.br/UeoKVpn',
+  master: 'https://pay.kiwify.com.br/d2qkT1E',
+};
+
+/**
+ * Popula a seção de billing na aba Admin conforme o plano atual do tenant.
+ * Deve ser chamada dentro de renderAdmin() após o HTML ser injetado.
+ */
+async function renderBillingSection() {
+  const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+  const tenantId = sessionUser.tenantId || _currentTenantId;
+  if (!tenantId) return;
+
+  try {
+    // Lê os dados do tenant para obter plano e slug
+    const snap = await firebase.database().ref(`tenants/${tenantId}`).once('value');
+    const tenant = snap.val() || {};
+    const plano = tenant.plano || 'free_trial';
+    const limiteObras = tenant.config?.limiteObras ?? 1;
+    const limiteTrab = tenant.config?.limiteTrabalhadores ?? 10;
+    const slugSubdom = tenant.subdominioSlug || tenant.config?.slug || '';
+    const vencimento = tenant.planoVencimento;
+
+    // Monta rótulo amigável do plano
+    const PLANO_LABELS = {
+      free_trial: '🆓 Free Trial (30 dias)',
+      pro: '⭐ Pro',
+      master: '🌐 Master',
+      premium: '⭐ Pro',
+    };
+
+    const el = (id) => document.getElementById(id);
+
+    if (el('plan-name')) el('plan-name').textContent = PLANO_LABELS[plano] || plano;
+    if (el('limit-obras')) el('limit-obras').textContent = limiteObras >= 99 ? 'Ilimitado' : limiteObras;
+    if (el('limit-trab')) el('limit-trab').textContent = limiteTrab >= 999 ? 'Ilimitado' : limiteTrab;
+
+    // Vencimento / validade
+    if (vencimento && el('subscription-info')) {
+      const dtVenc = new Date(vencimento).toLocaleDateString('pt-BR');
+      el('subscription-info').innerHTML = `<span style="font-size:11px; color:var(--text3)">Validade: ${dtVenc}</span>`;
+    }
+
+    // Controle de visibilidade dos botões conforme plano
+    const isFree = plano === 'free_trial';
+    const isPro = plano === 'pro' || plano === 'premium';
+    const isMaster = plano === 'master';
+
+    // Botão Pro: só para free
+    if (el('btn-upgrade-pro')) el('btn-upgrade-pro').style.display = isFree ? 'block' : 'none';
+    // Botão Master: para free e pro
+    if (el('btn-upgrade-master')) el('btn-upgrade-master').style.display = (isFree || isPro) ? 'block' : 'none';
+    // Painel de subdomínio: só para master
+    if (el('master-subdomain-info')) {
+      el('master-subdomain-info').style.display = isMaster ? 'block' : 'none';
+      if (isMaster && slugSubdom && el('master-subdomain-url')) {
+        el('master-subdomain-url').textContent = `${slugSubdom}.obrareal.com`;
+      }
+    }
+
+  } catch (err) {
+    console.warn('renderBillingSection: falha ao carregar plano', err);
+  }
+}
+
+/**
+ * Abre o checkout da Kiwify para o plano escolhido,
+ * passando o tenantId como external_reference para o webhook identificar o cliente.
+ */
+function startKiwifyCheckout(plano) {
+  const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+  const tenantId = sessionUser.tenantId || _currentTenantId || '';
+  const link = KIWIFY_LINKS[plano];
+
+  if (!link || link.includes('SEU_LINK')) {
+    alert('Link de checkout ainda não configurado. Edite KIWIFY_LINKS em data_core.js.');
+    return;
+  }
+
+  // Passa o tenantId como referência externa para o webhook
+  const url = `${link}${tenantId ? '?external_reference=' + encodeURIComponent(tenantId) : ''}`;
+  window.open(url, '_blank');
+}
+
+// Expõe para chamada global no renderAdmin
+window.renderBillingSection = renderBillingSection;
+window.startKiwifyCheckout = startKiwifyCheckout;
