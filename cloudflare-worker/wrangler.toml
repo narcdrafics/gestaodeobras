@@ -1,0 +1,13 @@
+name = "gestaodeobras-worker"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Roteamento: intercepta TODOS os subdomínios de obrareal.com
+routes = [
+  { pattern = "obrareal.com/*", zone_name = "obrareal.com" },
+  { pattern = "*.obrareal.com/*", zone_name = "obrareal.com" }
+]
+
+# Variáveis de ambiente (opcional — pode adicionar aqui se precisar de segredos)
+# [vars]
+# FIREBASE_URL = "https://controle-obras-c889d.web.app"
