@@ -9,8 +9,14 @@ admin.initializeApp();
 // ============================================================
 const PLANOS_MAP = {
    // 'PRODUCT_ID_KIWIFY': { plano, limiteObras, limiteTrabalhadores, subdominio }
+   
+   // IDs do Plano Pro
    'UeoKVpn': { plano: 'pro', limiteObras: 99, limiteTrabalhadores: 9999, subdominio: false },
+   // Adicione o ID numérico do produto Pro aqui se for diferente:
+   
+   // IDs do Plano Master
    'd2qkT1E': { plano: 'master', limiteObras: 99, limiteTrabalhadores: 9999, subdominio: true },
+   '560979':  { plano: 'master', limiteObras: 99, limiteTrabalhadores: 9999, subdominio: true },
 };
 
 /**
@@ -84,10 +90,13 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
       // =============== CENÁRIO 1: PAGAMENTO APROVADO ===============
       if (status === 'approved' || status === 'paid' || status === 'active') {
 
-         // --- Detecta o plano pelo ID do produto Kiwify ---
-         const productId = payload.product_id || payload.product?.id || payload.Product?.id || '';
-         const planoConfig = PLANOS_MAP[productId] || { plano: 'pro', limiteObras: 99, limiteTrabalhadores: 9999, subdominio: false };
-         functions.logger.info(`📦 Produto: ${productId} → Plano: ${planoConfig.plano}`);
+         // --- Detecta o plano pelo ID do produto ou ID da oferta Kiwify ---
+         const productId = String(payload.product_id || payload.product?.id || payload.Product?.id || '');
+         const planId = String(payload.plan_id || payload.plan?.id || payload.Plan?.id || '');
+         
+         // Tenta mapear pelo ID do plano/oferta primeiro, depois pelo produto
+         const planoConfig = PLANOS_MAP[planId] || PLANOS_MAP[productId] || { plano: 'pro', limiteObras: 99, limiteTrabalhadores: 9999, subdominio: false };
+         functions.logger.info(`📦 Produto: ${productId}, Plano/Oferta: ${planId} → Mapeado para: ${planoConfig.plano}`);
 
          let slugFinal = tenantIdFromRef;
 
