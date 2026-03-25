@@ -24,7 +24,7 @@
     "users": {
       ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
       "$email": {
-        ".read": "auth != null && (auth.token.email === 'tonycampelo@gmail.com' || data.child('uid').val() === auth.uid || data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
+        ".read": "auth != null && (auth.token.email === 'tonycampelo@gmail.com' || !data.exists() || data.child('uid').val() === auth.uid || data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
         ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')"
       }
     },
