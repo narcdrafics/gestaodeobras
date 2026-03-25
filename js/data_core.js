@@ -381,63 +381,54 @@ const KIWIFY_LINKS = {
 };
 
 /**
- * Popula a seção de billing na aba Admin conforme o plano atual do tenant.
- * Deve ser chamada dentro de renderAdmin() após o HTML ser injetado.
+ * Popula a seção de billing na aba Admin usando DB (já carregado).
+ * Chamada dentro de renderAdmin() — síncrona, sem leitura extra do Firebase.
  */
-async function renderBillingSection() {
-  const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
-  const tenantId = sessionUser.tenantId || _currentTenantId;
-  if (!tenantId) return;
+function renderBillingSection() {
+  const el = (id) => document.getElementById(id);
 
-  try {
-    // Lê os dados do tenant para obter plano e slug
-    const snap = await firebase.database().ref(`tenants/${tenantId}`).once('value');
-    const tenant = snap.val() || {};
-    const plano = tenant.plano || 'free_trial';
-    const limiteObras = tenant.config?.limiteObras ?? 1;
-    const limiteTrab = tenant.config?.limiteTrabalhadores ?? 10;
-    const slugSubdom = tenant.subdominioSlug || tenant.config?.slug || '';
-    const vencimento = tenant.planoVencimento;
+  // DB já contém os dados do tenant (carregados pelo listener do Firebase)
+  const plano         = DB.plano || 'free_trial';
+  const limiteObras   = DB.config?.limiteObras ?? 1;
+  const limiteTrab    = DB.config?.limiteTrabalhadores ?? 10;
+  const slugSubdom    = DB.subdominioSlug || DB.config?.slug || '';
+  const vencimento    = DB.planoVencimento;
 
-    // Monta rótulo amigável do plano
-    const PLANO_LABELS = {
-      free_trial: '🆓 Free Trial (30 dias)',
-      pro: '⭐ Pro',
-      master: '🌐 Master',
-      premium: '⭐ Pro',
-    };
+  console.log('[Billing] Plano detectado:', plano, '| Dados DB:', { plano, limiteObras, limiteTrab });
 
-    const el = (id) => document.getElementById(id);
+  const PLANO_LABELS = {
+    free_trial: '🆓 Free Trial (30 dias)',
+    pro:        '⭐ Pro',
+    premium:    '⭐ Pro',
+    master:     '🌐 Master',
+  };
 
-    if (el('plan-name')) el('plan-name').textContent = PLANO_LABELS[plano] || plano;
-    if (el('limit-obras')) el('limit-obras').textContent = limiteObras >= 99 ? 'Ilimitado' : limiteObras;
-    if (el('limit-trab')) el('limit-trab').textContent = limiteTrab >= 999 ? 'Ilimitado' : limiteTrab;
+  if (el('plan-name'))  el('plan-name').textContent  = PLANO_LABELS[plano] || plano;
+  if (el('limit-obras')) el('limit-obras').textContent = limiteObras >= 99  ? 'Ilimitado' : limiteObras;
+  if (el('limit-trab'))  el('limit-trab').textContent  = limiteTrab  >= 999 ? 'Ilimitado' : limiteTrab;
 
-    // Vencimento / validade
-    if (vencimento && el('subscription-info')) {
-      const dtVenc = new Date(vencimento).toLocaleDateString('pt-BR');
-      el('subscription-info').innerHTML = `<span style="font-size:11px; color:var(--text3)">Validade: ${dtVenc}</span>`;
-    }
+  if (vencimento && el('subscription-info')) {
+    const dtVenc = new Date(vencimento).toLocaleDateString('pt-BR');
+    el('subscription-info').innerHTML = `<span style="font-size:11px;color:var(--text3)">Validade: ${dtVenc}</span>`;
+  }
 
-    // Controle de visibilidade dos botões conforme plano
-    const isFree = plano === 'free_trial';
-    const isPro = plano === 'pro' || plano === 'premium';
-    const isMaster = plano === 'master';
+  const isFree   = plano === 'free_trial';
+  const isPro    = plano === 'pro' || plano === 'premium';
+  const isMaster = plano === 'master';
 
-    // Botão Pro: só para free
-    if (el('btn-upgrade-pro')) el('btn-upgrade-pro').style.display = isFree ? 'block' : 'none';
-    // Botão Master: para free e pro
-    if (el('btn-upgrade-master')) el('btn-upgrade-master').style.display = (isFree || isPro) ? 'block' : 'none';
-    // Painel de subdomínio: só para master
-    if (el('master-subdomain-info')) {
-      el('master-subdomain-info').style.display = isMaster ? 'block' : 'none';
-      if (isMaster && slugSubdom && el('master-subdomain-url')) {
-        el('master-subdomain-url').textContent = `${slugSubdom}.obrareal.com`;
-      }
-    }
+  // Botão Pro: só para free_trial
+  if (el('btn-upgrade-pro'))
+    el('btn-upgrade-pro').style.display = isFree ? 'block' : 'none';
 
-  } catch (err) {
-    console.warn('renderBillingSection: falha ao carregar plano', err);
+  // Botão Master: para free e pro
+  if (el('btn-upgrade-master'))
+    el('btn-upgrade-master').style.display = (isFree || isPro) ? 'block' : 'none';
+
+  // Painel de subdomínio: só para master
+  if (el('master-subdomain-info')) {
+    el('master-subdomain-info').style.display = isMaster ? 'block' : 'none';
+    if (isMaster && slugSubdom && el('master-subdomain-url'))
+      el('master-subdomain-url').textContent = `${slugSubdom}.obrareal.com`;
   }
 }
 
