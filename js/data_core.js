@@ -423,6 +423,20 @@ function renderBillingSection() {
   // Preenche subdomínio para Master
   if (isMaster && slugSubdom && el('master-subdomain-url'))
     el('master-subdomain-url').textContent = `${slugSubdom}.obrareal.com`;
+
+  // --- NOVO: Configura o Link de Upsell Dinâmico ---
+  if (isPro && el('kiwify-upsell-d2qkT1E')) {
+    const tenantId = _currentTenantId || '';
+    const baseUrl = el('kiwify-upsell-d2qkT1E').getAttribute('data-upsell-url');
+    
+    // Se o link já tiver o tenantId ou estiver vazio, ignora
+    if (baseUrl && !baseUrl.includes('external_reference=')) {
+      const separator = baseUrl.includes('?') ? '&' : '?';
+      const finalUrl = `${baseUrl}${separator}external_reference=${tenantId}`;
+      el('kiwify-upsell-d2qkT1E').setAttribute('data-upsell-url', finalUrl);
+      console.log('[Billing] Upsell URL configurada com tenantId:', tenantId);
+    }
+  }
 }
 
 
