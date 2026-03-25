@@ -387,14 +387,13 @@ const KIWIFY_LINKS = {
 function renderBillingSection() {
   const el = (id) => document.getElementById(id);
 
-  // DB já contém os dados do tenant (carregados pelo listener do Firebase)
-  const plano         = DB.plano || 'free_trial';
-  const limiteObras   = DB.config?.limiteObras ?? 1;
-  const limiteTrab    = DB.config?.limiteTrabalhadores ?? 10;
-  const slugSubdom    = DB.subdominioSlug || DB.config?.slug || '';
-  const vencimento    = DB.planoVencimento;
+  const plano       = DB.plano || 'free_trial';
+  const limiteObras = DB.config?.limiteObras ?? 1;
+  const limiteTrab  = DB.config?.limiteTrabalhadores ?? 10;
+  const slugSubdom  = DB.subdominioSlug || DB.config?.slug || '';
+  const vencimento  = DB.planoVencimento;
 
-  console.log('[Billing] Plano detectado:', plano, '| Dados DB:', { plano, limiteObras, limiteTrab });
+  console.log('[Billing] Plano detectado:', plano);
 
   const PLANO_LABELS = {
     free_trial: '🆓 Free Trial (30 dias)',
@@ -403,7 +402,7 @@ function renderBillingSection() {
     master:     '🌐 Master',
   };
 
-  if (el('plan-name'))  el('plan-name').textContent  = PLANO_LABELS[plano] || plano;
+  if (el('plan-name'))   el('plan-name').textContent   = PLANO_LABELS[plano] || plano;
   if (el('limit-obras')) el('limit-obras').textContent = limiteObras >= 99  ? 'Ilimitado' : limiteObras;
   if (el('limit-trab'))  el('limit-trab').textContent  = limiteTrab  >= 999 ? 'Ilimitado' : limiteTrab;
 
@@ -416,21 +415,16 @@ function renderBillingSection() {
   const isPro    = plano === 'pro' || plano === 'premium';
   const isMaster = plano === 'master';
 
-  // Botão Pro: só para free_trial
-  if (el('btn-upgrade-pro'))
-    el('btn-upgrade-pro').style.display = isFree ? 'block' : 'none';
+  // Exibe apenas o painel correspondente ao plano
+  if (el('billing-free'))   el('billing-free').style.display   = isFree   ? 'block' : 'none';
+  if (el('billing-pro'))    el('billing-pro').style.display    = isPro    ? 'block' : 'none';
+  if (el('billing-master')) el('billing-master').style.display = isMaster ? 'block' : 'none';
 
-  // Botão Master: para free e pro
-  if (el('btn-upgrade-master'))
-    el('btn-upgrade-master').style.display = (isFree || isPro) ? 'block' : 'none';
-
-  // Painel de subdomínio: só para master
-  if (el('master-subdomain-info')) {
-    el('master-subdomain-info').style.display = isMaster ? 'block' : 'none';
-    if (isMaster && slugSubdom && el('master-subdomain-url'))
-      el('master-subdomain-url').textContent = `${slugSubdom}.obrareal.com`;
-  }
+  // Preenche subdomínio para Master
+  if (isMaster && slugSubdom && el('master-subdomain-url'))
+    el('master-subdomain-url').textContent = `${slugSubdom}.obrareal.com`;
 }
+
 
 /**
  * Abre o checkout da Kiwify para o plano escolhido,

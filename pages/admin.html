@@ -55,7 +55,7 @@
   <!-- PLAN & BILLING -->
   <div class="kpi-card" id="billing-section">
     <div class="section-title">💳 Plano e Faturamento</div>
-    <div style="font-size: 14px; margin-bottom: 12px;">
+    <div style="font-size: 14px; margin-bottom: 14px;">
       <p>Plano Atual: <b id="plan-name" style="color:var(--accent)">Carregando...</b></p>
       <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
         <div style="background: var(--bg2); padding: 8px; border-radius: 6px;">
@@ -69,23 +69,46 @@
       </div>
     </div>
 
-    <!-- Botão Pro: visível apenas para free -->
-    <button class="btn btn-primary w-100" id="btn-upgrade-pro" onclick="startKiwifyCheckout('pro')"
-      style="background:#6366f1; border-color:#6366f1; width:100%; margin-bottom:10px; display:none;">
-      ⭐ Assinar Plano Pro — Funcionários Ilimitados
-    </button>
+    <!-- FREE: só botão Pro (o upsell para Master é feito pelo Kiwify pós-checkout) -->
+    <div id="billing-free" style="display:none;">
+      <button class="btn btn-primary" onclick="startKiwifyCheckout('pro')"
+        style="background:#6366f1; border-color:#6366f1; width:100%; font-size:15px; padding:12px;">
+        ⭐ Assinar Plano Pro — Funcionários Ilimitados
+      </button>
+      <p style="font-size:11px; color:var(--text3); margin-top:8px; text-align:center;">
+        ✨ Após a assinatura, você poderá fazer upgrade para o Plano Master com 1 clique.
+      </p>
+    </div>
 
-    <!-- Botão Master: visível para free e pro -->
-    <button class="btn btn-primary w-100" id="btn-upgrade-master" onclick="startKiwifyCheckout('master')"
-      style="background:linear-gradient(135deg,#f59e0b,#d97706); border:none; width:100%; font-weight:700; display:none;">
-      🌐 Assinar Plano Master — Subdomínio Próprio
-    </button>
+    <!-- PRO: widget de upsell Kiwify para upgrade em 1 clique para Master -->
+    <div id="billing-pro" style="display:none;">
+      <div style="background:linear-gradient(135deg,rgba(245,158,11,0.1),rgba(217,119,6,0.05)); border:1px solid #f59e0b; border-radius:10px; padding:16px; margin-bottom:12px;">
+        <div style="font-size:13px; font-weight:700; color:#f59e0b; margin-bottom:6px;">🌐 Upgrade para o Plano Master</div>
+        <div style="font-size:12px; color:var(--text2); margin-bottom:14px;">Tenha um subdomínio próprio com o nome da sua empresa: <b>suaempresa.obrareal.com</b></div>
+        <!-- Widget de Upsell Kiwify -->
+        <div style="text-align:center" id="kiwify-upsell-d2qkT1E"
+          data-upsell-url="COLE_AQUI_URL_UPSELL_MASTER"
+          data-downsell-url="">
+          <button id="kiwify-upsell-trigger-d2qkT1E"
+            style="background:linear-gradient(135deg,#f59e0b,#d97706); padding:12px 16px; cursor:pointer; color:#fff; font-weight:700; border-radius:8px; border:none; font-size:16px; width:100%; box-shadow:0 4px 12px rgba(245,158,11,0.4);">
+            🚀 Sim, eu quero o Plano Master!
+          </button>
+          <div id="kiwify-upsell-cancel-trigger-d2qkT1E"
+            style="margin-top:10px; cursor:pointer; font-size:12px; text-decoration:underline; color:var(--text3); font-family:sans-serif;">
+            Não, vou ficar com o plano Pro por enquanto
+          </div>
+        </div>
+      </div>
+      <script src="https://snippets.kiwify.com/upsell/upsell.min.js"></script>
+    </div>
 
-    <!-- Subdomínio ativo: visível apenas para master -->
-    <div id="master-subdomain-info" style="display:none; margin-top:10px; background:var(--bg2); border-radius:8px; padding:12px; border-left:3px solid #f59e0b;">
-      <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">🌐 Seu Subdomínio</div>
-      <b id="master-subdomain-url" style="color:#f59e0b; font-size:14px;">—</b>
-      <div style="font-size:11px; color:var(--text3); margin-top:4px;">Acesse o sistema pelo seu domínio personalizado</div>
+    <!-- MASTER: painel com subdomínio ativo -->
+    <div id="billing-master" style="display:none;">
+      <div style="background:linear-gradient(135deg,rgba(245,158,11,0.12),rgba(217,119,6,0.05)); border:1px solid #f59e0b; border-radius:10px; padding:14px;">
+        <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">🌐 Seu Subdomínio Personalizado</div>
+        <b id="master-subdomain-url" style="color:#f59e0b; font-size:16px;">—</b>
+        <div style="font-size:11px; color:var(--text3); margin-top:6px;">Compartilhe este link com sua equipe — é o acesso exclusivo da sua empresa.</div>
+      </div>
     </div>
 
     <div id="subscription-info" style="margin-top:10px;"></div>
