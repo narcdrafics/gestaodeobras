@@ -31,7 +31,7 @@
     "invites": {
       ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
       "$email": {
-        ".read": "auth != null && (data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
+        ".read": "auth != null && (!data.exists() || data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
         ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || auth.token.email === 'tonycampelo@gmail.com' || (auth != null && !newData.exists()))"
       }
     }
