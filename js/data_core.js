@@ -421,8 +421,14 @@ function renderBillingSection() {
   if (el('billing-master')) el('billing-master').style.display = isMaster ? 'block' : 'none';
 
   // Preenche subdomínio para Master
-  if (isMaster && slugSubdom && el('master-subdomain-url'))
-    el('master-subdomain-url').textContent = `${slugSubdom}.obrareal.com`;
+  if (isMaster && el('master-subdomain-url')) {
+    const slugExibicao = slugSubdom || '...';
+    el('master-subdomain-url').textContent = `${slugExibicao}.obrareal.com`;
+    if (el('subdomain-slug-input')) {
+      el('subdomain-slug-input').value = slugSubdom;
+      el('preview-slug').textContent = slugExibicao;
+    }
+  }
 
   // --- NOVO: Configura o Link de Upsell Dinâmico ---
   if (isPro && el('kiwify-upsell-d2qkT1E')) {
@@ -479,6 +485,65 @@ function startKiwifyCheckout(plano) {
   window.open(url, '_blank');
 }
 
+/**
+ * Atualiza o subdomínio (slug) do tenant no plano Master.
+ * Verifica duplicidade e atualiza nós privado e público.
+ */
+async function updateSubdomainSlug() {
+  const input = document.getElementById('subdomain-slug-input');
+  if (!input) return;
+
+  const newSlug = input.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+  if (!newSlug || newSlug.length < 3) {
+    return alert('O subdomínio deve ter pelo menos 3 caracteres (letras e números).');
+  }
+
+  const tenantId = _currentTenantId;
+  const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+
+  try {
+    if (typeof toast === 'function') toast('Verificando disponibilidade...', 'info');
+
+    // 1. Verifica se o slug já está em uso por OUTRO tenant
+    const checkSnap = await firebase.database().ref('tenants_public')
+      .orderByChild('slug')
+      .equalTo(newSlug)
+      .once('value');
+    
+    const existing = checkSnap.val();
+    if (existing) {
+      const otherId = Object.keys(existing)[0];
+      if (otherId !== tenantId) {
+        return alert('Este subdomínio já está em uso por outra empresa. Escolha outro nome.');
+      }
+    }
+
+    // 2. Atualiza o nó principal do tenant
+    await firebase.database().ref(`tenants/${tenantId}/subdominioSlug`).set(newSlug);
+
+    // 3. Atualiza o nó público para o Cloudflare Worker / Auth detectar
+    await firebase.database().ref(`tenants_public/${tenantId}`).update({
+      slug: newSlug,
+      nomeEmpresa: DB.config?.nomeEmpresa || 'Obra Real',
+      corPrimaria: DB.config?.corPrimaria || '#f59e0b',
+      logoUrl: DB.config?.logoUrl || ''
+    });
+
+    if (typeof toast === 'function') toast('Subdomínio atualizado com sucesso!', 'success');
+    
+    // Atualiza a UI
+    if (document.getElementById('master-subdomain-url')) {
+      document.getElementById('master-subdomain-url').textContent = `${newSlug}.obrareal.com`;
+    }
+
+  } catch (e) {
+    console.error('Erro ao atualizar subdomínio:', e);
+    alert('Erro ao salvar subdomínio. Verifique sua conexão.');
+  }
+}
+
 // Expõe para chamada global no renderAdmin
 window.renderBillingSection = renderBillingSection;
 window.startKiwifyCheckout = startKiwifyCheckout;
+window.updateSubdomainSlug = updateSubdomainSlug;
+

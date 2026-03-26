@@ -110,10 +110,23 @@
     <div id="billing-master" style="display:none;">
       <div
         style="background:linear-gradient(135deg,rgba(245,158,11,0.12),rgba(217,119,6,0.05)); border:1px solid #f59e0b; border-radius:10px; padding:14px;">
-        <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">🌐 Seu Subdomínio Personalizado</div>
-        <b id="master-subdomain-url" style="color:#f59e0b; font-size:16px;">—</b>
-        <div style="font-size:11px; color:var(--text3); margin-top:6px;">Compartilhe este link com sua equipe — é o
-          acesso exclusivo da sua empresa.</div>
+        <div style="font-size:11px; opacity:0.7; margin-bottom:12px;">🌐 Gestão de Subdomínio Personalizado</div>
+        <div style="display:flex; gap:8px; align-items:flex-end; margin-bottom:12px;">
+          <div style="flex:1;">
+            <label style="font-size:10px; color:var(--text3); display:block; margin-bottom:4px;">Nome do Subdomínio</label>
+            <div style="display:flex; align-items:center; background:rgba(0,0,0,0.2); border-radius:6px; padding:0 10px; border:1px solid rgba(245,158,11,0.3);">
+              <input type="text" id="subdomain-slug-input" placeholder="seu-nome" 
+                style="background:transparent; border:none; color:#fff; padding:10px 0; font-family:monospace; font-size:14px; width:100%; outline:none;"
+                oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g, ''); document.getElementById('preview-slug').textContent = this.value || '...'">
+              <span style="color:#94a3b8; font-size:14px; margin-left:4px;">.obrareal.com</span>
+            </div>
+          </div>
+          <button onclick="updateSubdomainSlug()" style="background:#f59e0b; color:#fff; border:none; border-radius:6px; padding:11px 16px; font-weight:600; cursor:pointer; height:42px; display:flex; align-items:center; gap:6px;">
+            <span>Salvar</span>
+          </button>
+        </div>
+        <div style="font-size:11px; color:var(--text3);">Link atual: <b id="master-subdomain-url" style="color:#f59e0b;">—</b></div>
+        <div style="font-size:11px; color:var(--text3); margin-top:4px; opacity:0.6;">Dica: Use apenas letras e números, sem espaços. (Visualização: <span id="preview-slug">...</span>.obrareal.com)</div>
       </div>
     </div>
 
