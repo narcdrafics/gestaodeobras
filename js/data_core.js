@@ -427,17 +427,37 @@ function renderBillingSection() {
   // --- NOVO: Configura o Link de Upsell Dinâmico ---
   if (isPro && el('kiwify-upsell-d2qkT1E')) {
     const tenantId = _currentTenantId || '';
-    const baseUrl = el('kiwify-upsell-d2qkT1E').getAttribute('data-upsell-url');
+    const container = el('kiwify-upsell-d2qkT1E');
+    let baseUrl = container.getAttribute('data-upsell-url') || 'https://pay.kiwify.com.br/d2qkT1E';
     
-    // Se o link já tiver o tenantId ou estiver vazio, ignora
-    if (baseUrl && !baseUrl.includes('external_reference=')) {
-      const separator = baseUrl.includes('?') ? '&' : '?';
-      const finalUrl = `${baseUrl}${separator}external_reference=${tenantId}`;
-      el('kiwify-upsell-d2qkT1E').setAttribute('data-upsell-url', finalUrl);
-      console.log('[Billing] Upsell URL configurada com tenantId:', tenantId);
+    // Garante que o external_reference esteja na URL principal
+    if (!baseUrl.includes('external_reference=')) {
+      const urlObj = new URL(baseUrl);
+      urlObj.searchParams.set('external_reference', tenantId);
+      // Opcional: Adicionar redirect_url para voltar ao app após a compra
+      urlObj.searchParams.set('redirect_url', window.location.href);
+      
+      const finalUrl = urlObj.toString();
+      container.setAttribute('data-upsell-url', finalUrl);
+      
+      // Fallback: Se o script da Kiwify não funcionar como widget, 
+      // garante que o botão ao menos abra o link correto
+      const btn = el('kiwify-upsell-trigger-d2qkT1E');
+      if (btn) {
+        btn.onclick = (e) => {
+           // Se o script da Kiwify não interceptou (não mudou window.location), forçamos
+           setTimeout(() => {
+             if (!window.location.href.includes('pay.kiwify')) {
+               window.open(finalUrl, '_blank');
+             }
+           }, 100);
+        };
+      }
+      console.log('[Billing] Upsell URL robusta configurada:', finalUrl);
     }
   }
 }
+
 
 
 /**
