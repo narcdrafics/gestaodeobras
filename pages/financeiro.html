@@ -15,7 +15,7 @@
     <h3 style="margin:0">💰 Lançamentos Financeiros</h3>
     <div class="toolbar-right" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
       <input class="search-input" id="fin-busca" placeholder="🔍 Obra, descrição, fornecedor..."
-        style="min-width:200px" oninput="filterTable('fin-tbody', this.value, [1,4,5])">
+        style="min-width:200px" oninput="filterFinanceiro()">
       <select id="fin-tipo-filter" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px"
         onchange="filterFinanceiro()">
         <option value="">Todos os Tipos</option>
