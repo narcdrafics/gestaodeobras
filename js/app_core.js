@@ -789,6 +789,7 @@ function renderCompras() {
 
 // ==================== FINANCEIRO ====================
 function renderFinanceiro() {
+  window.renderFinanceiro = renderFinanceiro; // Garante persistência global
   let allFin = [];
 
   // 1. Lançamentos Manuais Core
@@ -916,10 +917,15 @@ function renderFinanceiro() {
     : uiEmptyState('Financeiro Limpo', 'Suas contas a pagar, recebimentos e extratos aparecerão agrupados aqui.', '💰', 'Lançar Custo ou Receita', "openModal('modal-financeiro')"));
 
   window._allFinRows = allFin;
+  
+  // Aplica o filtro atual após a renderização para manter a consistência
+  if (typeof filterFinanceiro === 'function') filterFinanceiro();
 }
+window.renderFinanceiro = renderFinanceiro;
 
 // Filtro combinado (tipo + status + busca) do financeiro — usa data-attributes
 function filterFinanceiro() {
+  console.log('🎬 Executando filtro financeiro...');
   const tipo   = (document.getElementById('fin-tipo-filter')?.value   || '').toLowerCase().trim();
   const status = (document.getElementById('fin-status-filter')?.value || '').toLowerCase().trim();
   const busca  = (document.getElementById('fin-busca')?.value         || '').toLowerCase().trim();
