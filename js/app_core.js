@@ -865,14 +865,26 @@ function renderFinanceiro() {
     const obNameStr = getNome(cod);
     const p = sumsByObra[cod].prev;
     const r = sumsByObra[cod].real;
-    sumHtml += `<div class="kpi-card"><div class="kpi-label">${obNameStr} — Previsto</div><div class="kpi-val">${fmt(p)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">${obNameStr} — Realizado</div><div class="kpi-val" style="color:${r > p ? 'var(--red)' : 'var(--text)'}">${fmt(r)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">${obNameStr} — Diferença</div><div class="kpi-val" style="color:${r > p ? 'var(--red)' : 'var(--green)'}">${fmt(r - p)}</div></div>`;
+    sumHtml += `<div class="kpi-card" style="border-left:4px solid var(--accent)"><div class="kpi-label">${obNameStr}</div>
+      <div style="display:flex;justify-content:space-between;gap:8px;margin-top:8px">
+        <div><small>Previsto</small><div style="font-weight:600">${fmt(p)}</div></div>
+        <div><small>Realizado</small><div style="font-weight:600;color:${r > p ? 'var(--red)' : 'var(--text)'}">${fmt(r)}</div></div>
+      </div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #333;display:flex;justify-content:space-between">
+        <small>Diferença</small><b style="color:${r > p ? 'var(--red)' : 'var(--green)'}">${fmt(r - p)}</b>
+      </div>
+    </div>`;
   });
 
-  sumHtml += `<div class="kpi-card" style="border-top:2px solid var(--accent)"><div class="kpi-label" style="color:var(--accent)">Total Geral Prev.</div><div class="kpi-val">${fmt(totalPrev)}</div></div>
-  <div class="kpi-card" style="border-top:2px solid var(--accent)"><div class="kpi-label" style="color:var(--accent)">Total Geral Real.</div><div class="kpi-val">${fmt(totalReal)}</div></div>
-  <div class="kpi-card" style="border-top:2px solid var(--accent)"><div class="kpi-label" style="color:var(--accent)">Diferença Total</div><div class="kpi-val" style="color:${totalReal > totalPrev ? 'var(--red)' : 'var(--green)'}">${fmt(totalReal - totalPrev)}</div></div>`;
+  sumHtml += `<div class="kpi-card" style="background:rgba(76,175,80,0.1);border-left:4px solid var(--green)"><div class="kpi-label" style="color:var(--green)">Resumo Total</div>
+    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:8px">
+      <div><small>Previsto</small><div style="font-weight:600">${fmt(totalPrev)}</div></div>
+      <div><small>Realizado</small><div style="font-weight:600">${fmt(totalReal)}</div></div>
+    </div>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #333;display:flex;justify-content:space-between">
+      <small>Diferença Total</small><b style="color:${totalReal > totalPrev ? 'var(--red)' : 'var(--green)'}">${fmt(totalReal - totalPrev)}</b>
+    </div>
+  </div>`;
 
   // Resumo de Almoços por Empreiteiro
   const lunchByEquipe = {};
@@ -905,12 +917,31 @@ function renderFinanceiro() {
         payBtn = `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('${f.source}', ${f.idx})" style="margin-right:8px; background:var(--green); border-color:var(--green);" title="Pagar via PIX">💸</button>`;
       }
 
+      const isIncome = (f.tipo || '').toLowerCase().includes('receita') || (f.tipo || '').toLowerCase().includes('entrada');
+      const valColor = isIncome ? 'var(--green)' : 'var(--text)';
+      
+      const sourceMap = {
+        'fin': { icon: '💳', label: 'Manual' },
+        'pre': { icon: '⏱️', label: 'Diária' },
+        'med': { icon: '📐', label: 'Medição' },
+        'alm': { icon: '🍱', label: 'Almoço' }
+      };
+      const src = sourceMap[f.source] || { icon: '❓', label: 'Outro' };
+      const srcBadge = f.source !== 'fin' ? `<span class="badge badge-gray" style="font-size:10px;margin-left:4px;opacity:0.7">Automático</span>` : '';
+
       return `<tr data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}" data-busca="${getNome(f.obra).toLowerCase()} ${(f.desc||'').toLowerCase()} ${(f.forn||'').toLowerCase()}">
-          <td>${fmtDate(f.data)}</td><td>${getNome(f.obra)}</td><td>${f.etapa}</td><td>${f.tipo}</td>
-          <td><b>${f.desc}</b></td><td>${f.forn}</td>
-          <td>${fmt(f.prev)}</td><td>${fmt(f.real)}</td>
-          <td style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
-          <td>${f.pgto}</td><td>${statusBadge(f.status)}</td><td>${f.nf}</td>
+          <td data-label="Data">${fmtDate(f.data)}</td>
+          <td data-label="Obra">${getNome(f.obra)}</td>
+          <td data-label="Etapa"><small>${f.etapa}</small></td>
+          <td data-label="Tipo" style="white-space:nowrap">${src.icon} ${f.tipo}${srcBadge}</td>
+          <td data-label="Descrição"><b>${f.desc}</b></td>
+          <td data-label="Fornec./Benef."><small>${f.forn}</small></td>
+          <td data-label="Vl. Prev.">${fmt(f.prev)}</td>
+          <td data-label="Vl. Real." style="color:${valColor};font-weight:${isIncome?'600':'400'}">${fmt(f.real)}</td>
+          <td data-label="Diferença" style="color:${diff > 0 ? 'var(--red)' : diff < 1 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
+          <td data-label="Pgto"><small>${f.pgto}</small></td>
+          <td data-label="Status">${statusBadge(f.status)}</td>
+          <td data-label="NF"><small>${f.nf}</small></td>
           <td>${payBtn}${editBtn}${delBtn}</td>
         </tr>`;
     }).join('')

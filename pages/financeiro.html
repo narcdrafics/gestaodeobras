@@ -13,7 +13,10 @@
 <div class="table-wrap">
   <div class="table-toolbar" style="flex-wrap:wrap;gap:8px;">
     <h3 style="margin:0">💰 Lançamentos Financeiros</h3>
-    <div class="toolbar-right" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+    <div class="toolbar-right" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+      <div style="font-size:12px;color:var(--text3);display:flex;gap:10px;margin-right:8px;" class="hide-mobile">
+        <span>💳 Manual</span><span>⏱️ Diária</span><span>📐 Medição</span><span>🍱 Almoço</span>
+      </div>
       <input class="search-input" id="fin-busca" placeholder="🔍 Obra, descrição, fornecedor..."
         style="min-width:200px" oninput="filterFinanceiro()">
       <select id="fin-tipo-filter" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px"
