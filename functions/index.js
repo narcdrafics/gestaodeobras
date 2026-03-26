@@ -11,13 +11,16 @@ const PLANOS_MAP = {
    // 'PRODUCT_ID_KIWIFY': { plano, limiteObras, limiteTrabalhadores, subdominio }
    
    // IDs do Plano Pro
-   'UeoKVpn': { plano: 'pro', limiteObras: 99, limiteTrabalhadores: 9999, subdominio: false },
+   'UeoKVpn': { plano: 'pro', limiteObras: 99, limiteTrabalhadores: 50, subdominio: false },
    // Adicione o ID numérico do produto Pro aqui se for diferente:
    
    // IDs do Plano Master
    'd2qkT1E': { plano: 'master', limiteObras: 99, limiteTrabalhadores: 9999, subdominio: true },
    '560979':  { plano: 'master', limiteObras: 99, limiteTrabalhadores: 9999, subdominio: true },
 };
+
+// Configuração dos limites do plano Free (downgrade / inadimplência)
+const FREE_PLAN_CONFIG = { plano: 'free_trial', limiteObras: 1, limiteTrabalhadores: 5, subdominio: false };
 
 /**
  * Gera um slug de subdomínio a partir do nome da empresa.
@@ -197,11 +200,16 @@ exports.webhookPagamento = functions.https.onRequest(async (req, res) => {
             if (uSnap.exists()) targetTenantId = uSnap.val().tenantId;
          }
 
-         if (targetTenantId) {
-            functions.logger.warn(`🚫 Bloqueando tenant por status: ${status} -> ${targetTenantId}`);
-            await db.ref(`tenants/${targetTenantId}/status`).set('bloqueado_pagamento');
-            await db.ref(`webhook_debug/${logId}/result`).set(`Blocked: ${targetTenantId}`);
-            return res.status(200).send(`Bloqueio aplicado ao tenant: ${targetTenantId}`);
+      if (targetTenantId) {
+            functions.logger.warn(`🚫 Downgrade tenant por status: ${status} -> ${targetTenantId}`);
+            await db.ref(`tenants/${targetTenantId}`).update({
+               status: 'bloqueado_pagamento',
+               plano: FREE_PLAN_CONFIG.plano,
+               'config/limiteObras': FREE_PLAN_CONFIG.limiteObras,
+               'config/limiteTrabalhadores': FREE_PLAN_CONFIG.limiteTrabalhadores,
+            });
+            await db.ref(`webhook_debug/${logId}/result`).set(`Downgraded+Blocked: ${targetTenantId}`);
+            return res.status(200).send(`Downgrade e bloqueio aplicados ao tenant: ${targetTenantId}`);
          }
       }
 

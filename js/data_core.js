@@ -1,7 +1,9 @@
 const staticDB = {
   config: {
     nomeEmpresa: 'Obra Real',
-    corPrimaria: '#f59e0b'
+    corPrimaria: '#f59e0b',
+    limiteObras: 1,
+    limiteTrabalhadores: 5,
   },
   usuarios: [],
   obras: [],
