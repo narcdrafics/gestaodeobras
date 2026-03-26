@@ -904,7 +904,7 @@ function renderFinanceiro() {
         payBtn = `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('${f.source}', ${f.idx})" style="margin-right:8px; background:var(--green); border-color:var(--green);" title="Pagar via PIX">💸</button>`;
       }
 
-      return `<tr>
+      return `<tr data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}" data-busca="${getNome(f.obra).toLowerCase()} ${(f.desc||'').toLowerCase()} ${(f.forn||'').toLowerCase()}">
           <td>${fmtDate(f.data)}</td><td>${getNome(f.obra)}</td><td>${f.etapa}</td><td>${f.tipo}</td>
           <td><b>${f.desc}</b></td><td>${f.forn}</td>
           <td>${fmt(f.prev)}</td><td>${fmt(f.real)}</td>
@@ -918,18 +918,19 @@ function renderFinanceiro() {
   window._allFinRows = allFin;
 }
 
-// Filtro combinado (tipo + status + busca) do financeiro
+// Filtro combinado (tipo + status + busca) do financeiro — usa data-attributes
 function filterFinanceiro() {
-  const tipo = (document.getElementById('fin-tipo-filter')?.value || '').toLowerCase();
-  const status = (document.getElementById('fin-status-filter')?.value || '').toLowerCase();
-  const busca = (document.getElementById('fin-busca')?.value || '').toLowerCase();
-  const rows = document.querySelectorAll('#fin-tbody tr');
-  rows.forEach(row => {
-    const text = row.innerText.toLowerCase();
-    const tipoOk   = !tipo   || text.includes(tipo);
-    const statusOk = !status || text.includes(status);
-    const buscaOk  = !busca  || text.includes(busca);
-    row.style.display = (tipoOk && statusOk && buscaOk) ? '' : 'none';
+  const tipo   = (document.getElementById('fin-tipo-filter')?.value   || '').toLowerCase().trim();
+  const status = (document.getElementById('fin-status-filter')?.value || '').toLowerCase().trim();
+  const busca  = (document.getElementById('fin-busca')?.value         || '').toLowerCase().trim();
+  document.querySelectorAll('#fin-tbody tr').forEach(row => {
+    const rt = (row.dataset.tipo   || '');
+    const rs = (row.dataset.status || '');
+    const rb = (row.dataset.busca  || '') + ' ' + (row.innerText || '').toLowerCase();
+    const ok = (!tipo   || rt.includes(tipo))
+            && (!status || rs.includes(status))
+            && (!busca  || rb.includes(busca));
+    row.style.display = ok ? '' : 'none';
   });
 }
 window.filterFinanceiro = filterFinanceiro;
