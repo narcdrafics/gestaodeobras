@@ -1,20 +1,61 @@
-<div class="page-header">
+<div class="page-header" style="flex-wrap:wrap;gap:8px;">
   <div class="page-title">Financeiro <small>Previsto × Realizado</small></div>
-  <div style="display:flex;gap:10px;">
-    <button class="btn btn-secondary" style="border-color:var(--green); color:var(--green); font-weight:600;" onclick="prepareLotePgto()">💸 Fechar Folha (Lote)</button>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    <button class="btn btn-secondary" style="border-color:var(--green);color:var(--green);font-weight:600;" onclick="prepareLotePgto()">💸 Fechar Folha (Lote)</button>
     <button class="btn btn-primary" onclick="openModal('modal-financeiro')">+ Novo Lançamento</button>
   </div>
 </div>
-<div class="fin-summary" id="fin-summary"></div>
+
+<!-- KPIs / Resumo por Obra -->
+<div class="fin-summary" id="fin-summary" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:12px;"></div>
+
+<!-- Tabela de Lançamentos -->
 <div class="table-wrap">
-  <div class="table-toolbar">
-    <h3>Lançamentos Financeiros</h3>
-    <div class="toolbar-right">
-      <input class="search-input" placeholder="Buscar..." oninput="filterTable('fin-tbody', this.value, [1,4,5])">
+  <div class="table-toolbar" style="flex-wrap:wrap;gap:8px;">
+    <h3 style="margin:0">💰 Lançamentos Financeiros</h3>
+    <div class="toolbar-right" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+      <input class="search-input" id="fin-busca" placeholder="🔍 Obra, descrição, fornecedor..."
+        style="min-width:200px" oninput="filterTable('fin-tbody', this.value, [1,4,5])">
+      <select id="fin-tipo-filter" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px"
+        onchange="filterFinanceiro()">
+        <option value="">Todos os Tipos</option>
+        <option value="Mão de Obra">👷 Mão de Obra</option>
+        <option value="Material">🧱 Material</option>
+        <option value="Empreiteiro">🔨 Empreiteiro</option>
+        <option value="Almoço Empreiteiro">🍱 Almoço</option>
+      </select>
+      <select id="fin-status-filter" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px"
+        onchange="filterFinanceiro()">
+        <option value="">Todos os Status</option>
+        <option value="Pendente">⏳ Pendente</option>
+        <option value="Pago">✅ Pago</option>
+        <option value="Parcial">⚠️ Parcial</option>
+      </select>
     </div>
   </div>
-  <table>
-    <thead><tr><th>Data</th><th>Obra</th><th>Etapa</th><th>Tipo Custo</th><th>Descrição</th><th>Fornec./Benef.</th><th>Vl. Prev.</th><th>Vl. Real.</th><th>Diferença</th><th>Forma Pgto</th><th>Status</th><th>NF</th><th>Ações</th></tr></thead>
-    <tbody id="fin-tbody"></tbody>
-  </table>
+  <div class="table-responsive">
+    <table>
+      <thead><tr>
+        <th>Data</th><th>Obra</th><th>Etapa</th><th>Tipo</th>
+        <th>Descrição</th><th>Fornec./Benef.</th>
+        <th>Vl. Prev.</th><th>Vl. Real.</th><th>Diferença</th>
+        <th>Pgto</th><th>Status</th><th>NF</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="fin-tbody"></tbody>
+    </table>
+  </div>
 </div>
+
+<style>
+@media (max-width: 767px) {
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .toolbar-right { width: 100%; }
+  .toolbar-right .search-input,
+  .toolbar-right .form-control { width: 100% !important; }
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #fin-summary { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  #fin-summary { grid-template-columns: 1fr; }
+}
+</style>

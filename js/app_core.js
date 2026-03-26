@@ -864,14 +864,14 @@ function renderFinanceiro() {
     const obNameStr = getNome(cod);
     const p = sumsByObra[cod].prev;
     const r = sumsByObra[cod].real;
-    sumHtml += `<div class="fin-card"><div class="fin-card-label">${obNameStr} — Previsto</div><div class="fin-card-val">${fmt(p)}</div></div>
-    <div class="fin-card"><div class="fin-card-label">${obNameStr} — Realizado</div><div class="fin-card-val" style="color:${r > p ? 'var(--red)' : 'var(--text)'}">${fmt(r)}</div></div>
-    <div class="fin-card"><div class="fin-card-label">${obNameStr} — Diferença</div><div class="fin-card-val" style="color:${r > p ? 'var(--red)' : 'var(--green)'}">${fmt(r - p)}</div></div>`;
+    sumHtml += `<div class="kpi-card"><div class="kpi-label">${obNameStr} — Previsto</div><div class="kpi-val">${fmt(p)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">${obNameStr} — Realizado</div><div class="kpi-val" style="color:${r > p ? 'var(--red)' : 'var(--text)'}">${fmt(r)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">${obNameStr} — Diferença</div><div class="kpi-val" style="color:${r > p ? 'var(--red)' : 'var(--green)'}">${fmt(r - p)}</div></div>`;
   });
 
-  sumHtml += `<div class="fin-card"><div class="fin-card-label" style="color:var(--accent)">Total Geral Prev.</div><div class="fin-card-val">${fmt(totalPrev)}</div></div>
-  <div class="fin-card"><div class="fin-card-label" style="color:var(--accent)">Total Geral Real.</div><div class="fin-card-val">${fmt(totalReal)}</div></div>
-  <div class="fin-card"><div class="fin-card-label" style="color:var(--accent)">Diferença Total</div><div class="fin-card-val" style="color:${totalReal > totalPrev ? 'var(--red)' : 'var(--green)'}">${fmt(totalReal - totalPrev)}</div></div>`;
+  sumHtml += `<div class="kpi-card" style="border-top:2px solid var(--accent)"><div class="kpi-label" style="color:var(--accent)">Total Geral Prev.</div><div class="kpi-val">${fmt(totalPrev)}</div></div>
+  <div class="kpi-card" style="border-top:2px solid var(--accent)"><div class="kpi-label" style="color:var(--accent)">Total Geral Real.</div><div class="kpi-val">${fmt(totalReal)}</div></div>
+  <div class="kpi-card" style="border-top:2px solid var(--accent)"><div class="kpi-label" style="color:var(--accent)">Diferença Total</div><div class="kpi-val" style="color:${totalReal > totalPrev ? 'var(--red)' : 'var(--green)'}">${fmt(totalReal - totalPrev)}</div></div>`;
 
   // Resumo de Almoços por Empreiteiro
   const lunchByEquipe = {};
@@ -880,7 +880,7 @@ function renderFinanceiro() {
     lunchByEquipe[eq] = (lunchByEquipe[eq] || 0) + (a.vtotal || 0);
   });
   Object.keys(lunchByEquipe).forEach(eq => {
-    sumHtml += `<div class="fin-card" style="border-left: 4px solid var(--orange)"><div class="fin-card-label">🍱 Almoco: ${eq}</div><div class="fin-card-val">${fmt(lunchByEquipe[eq])}</div></div>`;
+    sumHtml += `<div class="kpi-card" style="border-left:4px solid var(--orange)"><div class="kpi-label">🍱 Almoço: ${eq}</div><div class="kpi-val">${fmt(lunchByEquipe[eq])}</div></div>`;
   });
 
   safeSetInner('fin-summary', sumHtml);
@@ -913,8 +913,27 @@ function renderFinanceiro() {
           <td>${payBtn}${editBtn}${delBtn}</td>
         </tr>`;
     }).join('')
-    : uiEmptyState('Financeiro Limpo', 'Suas contas a pagar, recebimentos e extratos aparecerão agrupados aqui.', '💰', 'Lançar Custo ou Receita', 'openModal(\'modal-financeiro\')'));
+    || uiEmptyState('Financeiro Limpo', 'Suas contas a pagar, recebimentos e extratos aparecerão agrupados aqui.', '💰', 'Lançar Custo ou Receita', "openModal('modal-financeiro')"));
+
+  // Guarda os registros para filtro posterior
+  window._allFinRows = allFin;
 }
+
+// Filtro combinado (tipo + status + busca) do financeiro
+function filterFinanceiro() {
+  const tipo = (document.getElementById('fin-tipo-filter')?.value || '').toLowerCase();
+  const status = (document.getElementById('fin-status-filter')?.value || '').toLowerCase();
+  const busca = (document.getElementById('fin-busca')?.value || '').toLowerCase();
+  const rows = document.querySelectorAll('#fin-tbody tr');
+  rows.forEach(row => {
+    const text = row.innerText.toLowerCase();
+    const tipoOk   = !tipo   || text.includes(tipo);
+    const statusOk = !status || text.includes(status);
+    const buscaOk  = !busca  || text.includes(busca);
+    row.style.display = (tipoOk && statusOk && buscaOk) ? '' : 'none';
+  });
+}
+window.filterFinanceiro = filterFinanceiro;
 
 
 // ==================== EXPORT FUNCTIONS ====================
