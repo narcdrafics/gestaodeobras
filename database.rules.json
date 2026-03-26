@@ -17,6 +17,7 @@
     },
     "tenants_public": {
       ".read": true,
+      ".indexOn": ["slug"],
       "$tenantId": {
         ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || auth.token.email === 'tonycampelo@gmail.com')"
       }

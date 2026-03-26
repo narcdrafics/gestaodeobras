@@ -185,13 +185,24 @@
       .nav-links { display: none; }
     }
   </style>
+  <script>
+    // SaaS: Redireciona para o portal se um subdomínio for detectado
+    (function() {
+      const host = window.location.hostname;
+      const parts = host.split('.');
+      if (parts.length > 2 && parts[0] !== 'www') {
+        // Redireciona para o login mantendo o subdomínio e possíveis parâmetros
+        window.location.href = 'login.html' + window.location.search;
+      }
+    })();
+  </script>
 </head>
 <body>
 
   <nav class="container">
-    <div class="logo">
+    <div class="logo" id="brand-container">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
-      <span>Obra Real</span>
+      <span class="app-brand-name">Obra Real</span>
     </div>
     <div class="nav-links">
       <a href="#features">Recursos</a>
