@@ -913,9 +913,8 @@ function renderFinanceiro() {
           <td>${payBtn}${editBtn}${delBtn}</td>
         </tr>`;
     }).join('')
-    || uiEmptyState('Financeiro Limpo', 'Suas contas a pagar, recebimentos e extratos aparecerão agrupados aqui.', '💰', 'Lançar Custo ou Receita', "openModal('modal-financeiro')"));
+    : uiEmptyState('Financeiro Limpo', 'Suas contas a pagar, recebimentos e extratos aparecerão agrupados aqui.', '💰', 'Lançar Custo ou Receita', "openModal('modal-financeiro')"));
 
-  // Guarda os registros para filtro posterior
   window._allFinRows = allFin;
 }
 
