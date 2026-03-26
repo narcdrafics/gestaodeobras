@@ -57,8 +57,11 @@ function ensureSchema(db) {
 
 // ==================== SUBDOMAIN & SAAS CONTEXT ====================
 function detectSubdomain() {
-  const host = window.location.hostname;
+  const urlParams = new URLSearchParams(window.location.search);
+  const tenantParam = urlParams.get('tenant');
+  if (tenantParam) return tenantParam;
 
+  const host = window.location.hostname;
   // Ignora domínios técnicos do Firebase e Localhost (ambientes de dev/staging)
   if (host.includes('web.app') || host.includes('firebaseapp.com') || host.includes('localhost')) {
     return null;
