@@ -1,39 +1,83 @@
-<div class="page-header">
-  <div class="page-title">Controle de Presença <small>Lançado pelo Mestre</small></div>
+<div class="page-header" style="flex-wrap:wrap;gap:8px;">
+  <div class="page-title">Presença <small>Ponto do Dia</small></div>
   <button class="btn btn-primary" onclick="openModal('modal-presenca')">+ Lançar Presença</button>
 </div>
-<div class="kpi-grid" id="pres-kpi"></div>
-<div id="almoco-avulso-container" style="margin-bottom:16px"></div>
+<div class="kpi-grid" id="pres-kpi" style="margin-bottom:8px"></div>
+<div id="almoco-avulso-container" style="margin-bottom:8px"></div>
+
+<!-- Tabela de Registros -->
 <div class="table-wrap">
-  <div class="table-toolbar">
-    <h3>Registros de Presença</h3>
-    <div class="toolbar-right" style="display:flex;gap:10px;align-items:center;">
-      <select id="pres-group-select" class="form-control" style="width:auto;padding:8px;border-radius:6px;font-size:13px" onchange="if(typeof renderPresenca==='function')renderPresenca()">
-        <option value="trab" selected>Agrupar por Peão</option>
-        <option value="obra">Agrupar por Obra</option>
-        <option value="">Sem Agrupamento (Plana)</option>
+  <div class="table-toolbar" style="flex-wrap:wrap;gap:8px;">
+    <h3 style="margin:0">Registros de Presença</h3>
+    <div class="toolbar-right" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+      <input class="search-input" id="pres-busca" placeholder="🔍 Nome, obra ou data..." style="min-width:180px"
+        oninput="filterPresenca(this.value)">
+      <select id="pres-group-select" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px" onchange="renderPresenca()">
+        <option value="trab" selected>👤 Por Peão</option>
+        <option value="obra">🏗️ Por Obra</option>
+        <option value="">📋 Lista Plana</option>
       </select>
-      <select id="pres-sort-select" class="form-control" style="width:auto;padding:8px;border-radius:6px;font-size:13px" onchange="if(typeof renderPresenca==='function')renderPresenca()">
-        <option value="data_desc">Data (Recentes)</option>
-        <option value="data_asc">Data (Antigas)</option>
+      <select id="pres-sort-select" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px" onchange="renderPresenca()">
+        <option value="data_desc">⬇ Mais Recentes</option>
+        <option value="data_asc">⬆ Mais Antigas</option>
       </select>
-      <input class="search-input" placeholder="Buscar..." oninput="filterTable('pres-tbody', this.value, [0,2,3])">
     </div>
   </div>
-  <table>
-    <thead><tr><th>Data</th><th>Obra</th><th>Trabalhador</th><th>Função</th><th>Frente</th><th>Entrada</th><th>Saída</th><th>H.Norm.</th><th>H.Extra</th><th>Almoço</th><th>Presença</th><th>Diária</th><th>Total Dia</th><th>Lançado por</th><th>Ações</th></tr></thead>
-    <tbody id="pres-tbody"></tbody>
-  </table>
+  <div class="table-responsive">
+    <table>
+      <thead><tr>
+        <th>Data</th><th>Obra</th><th>Trabalhador</th><th>Função</th><th>Frente</th>
+        <th>Entrada</th><th>Saída</th><th>H.N</th><th>H.E</th>
+        <th>Almoço</th><th>Status</th><th>Diária</th><th>Total</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="pres-tbody"></tbody>
+    </table>
+  </div>
 </div>
-<div class="table-wrap" style="margin-top:16px">
-  <div class="table-toolbar"><h3>Consolidado de Almoços (Hoje/Semana)</h3></div>
-  <div id="pres-almocos" style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px"></div>
+
+<!-- Almoços -->
+<div class="table-wrap" style="margin-top:12px">
+  <div class="table-toolbar"><h3 style="margin:0">🍽️ Almoços (Hoje/Semana)</h3></div>
+  <div id="pres-almocos" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
 </div>
-<div class="table-wrap" style="margin-top:16px">
-  <div class="table-toolbar"><h3>Totalizadores — Fechamento</h3></div>
-  <div id="pres-totais" style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px"></div>
+
+<!-- Fechamento Diárias -->
+<div class="table-wrap" style="margin-top:12px">
+  <div class="table-toolbar">
+    <h3 style="margin:0">📅 Fechamento — Diárias (por data)</h3>
+  </div>
+  <div id="pres-totais" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px"></div>
 </div>
-<div class="table-wrap" style="margin-top:16px">
-  <div class="table-toolbar"><h3>Pagamentos Pendentes da Semana (Por Obra)</h3></div>
-  <div id="pres-pgto-pendentes" style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px"></div>
+
+<!-- Fechamento Empreitada -->
+<div class="table-wrap" style="margin-top:12px">
+  <div class="table-toolbar">
+    <h3 style="margin:0">🔨 Fechamento — Empreitada (por trabalhador)</h3>
+  </div>
+  <div id="pres-empreitada" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
 </div>
+
+<!-- Pagamentos Pendentes -->
+<div class="table-wrap" style="margin-top:12px">
+  <div class="table-toolbar"><h3 style="margin:0">⚠️ Pagamentos Pendentes (Semana por Obra)</h3></div>
+  <div id="pres-pgto-pendentes" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+</div>
+
+<style>
+/* Mobile: quebras de linha e tabela responsiva */
+@media (max-width: 767px) {
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .toolbar-right { width: 100%; }
+  .toolbar-right .search-input { width: 100% !important; }
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #pres-totais, #pres-empreitada, #pres-almocos, #pres-pgto-pendentes {
+    grid-template-columns: 1fr 1fr;
+  }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+@media (max-width: 480px) {
+  #pres-totais, #pres-empreitada, #pres-almocos, #pres-pgto-pendentes {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

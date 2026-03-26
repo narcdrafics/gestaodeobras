@@ -654,9 +654,50 @@ function renderPresenca() {
 
   safeSetInner('pres-pgto-pendentes', pendentesHtml || '<p style="color:var(--green); padding: 8px; font-weight: 500;">✅ Nenhum pagamento pendente para esta semana.</p>');
 
+  // ➕ FECHAMENTO POR TRABALHADOR (EMPREITADA)
+  try {
+    const porTrab = {};
+    validPres.forEach(p => {
+      if (!p.nome || !Number(p.total)) return;
+      const k = p.nome;
+      if (!porTrab[k]) porTrab[k] = { total: 0, dias: 0, obra: p.obra };
+      porTrab[k].total += Number(p.total) || 0;
+      porTrab[k].dias++;
+    });
+
+    const keys = Object.keys(porTrab).sort();
+    const empreitadaHtml = keys.map(nome => {
+      const d = porTrab[nome];
+      return `<div class="kpi-card">
+        <div class="kpi-label" style="font-weight:600">${nome}</div>
+        <div style="font-size:13px;color:var(--text2);margin:4px 0">${obName(d.obra)} · ${d.dias} dia(s)</div>
+        <div style="font-size:20px;font-weight:bold;color:var(--accent)">${fmt(d.total)}</div>
+      </div>`;
+    }).join('');
+
+    safeSetInner('pres-empreitada', empreitadaHtml || '<p style="color:var(--text3); padding: 8px;">Sem registros de fechamento por trabalhador.</p>');
+  } catch(e) {
+    console.error('Erro ao renderizar fechamento por trabalhador:', e);
+  }
+
   console.log('renderPresenca concluído.');
   renderAlmocos(); // Renderiza a seção de almoços avulsos no topo da aba
 }
+
+// Filtro de busca na tabela de presença (busca por nome, obra e data)
+function filterPresenca(query) {
+  const q = (query || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#pres-tbody tr');
+  rows.forEach(row => {
+    if (row.classList.contains('group-header')) {
+      row.style.display = '';
+      return;
+    }
+    const text = row.innerText.toLowerCase();
+    row.style.display = (!q || text.includes(q)) ? '' : 'none';
+  });
+}
+window.filterPresenca = filterPresenca;
 
 // ==================== TAREFAS ====================
 function renderTarefas() {
