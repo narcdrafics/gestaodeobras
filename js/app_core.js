@@ -371,31 +371,96 @@ window.toggleGroup = function (cls, iconId) {
 // ==================== OBRAS ====================
 function renderObras() {
   safeSetInner('obras-grid', DB.obras.map(o => {
-    const realizado = DB.financeiro.filter(f => f.obra === o.cod).reduce((a, f) => a + (f.real || 0), 0);
-    const pct = o.orc > 0 ? (realizado / o.orc * 100).toFixed(1) : 0;
-    const tarefas = DB.tarefas.filter(t => t.obra === o.cod);
-    return `<div class="obra-card" onclick="showPage('financeiro')">
-      <h3>${o.nome}</h3>
-      <div class="obra-meta">${o.end} · ${statusBadge(o.status)}</div>
-      <div class="obra-stats">
-        <div class="obra-stat"><div class="obra-stat-label">Orçamento</div><div class="obra-stat-val" style="font-size:13px">${fmt(o.orc)}</div></div>
-        <div class="obra-stat"><div class="obra-stat-label">% Custo</div><div class="obra-stat-val">${pct}%</div></div>
-        <div class="obra-stat"><div class="obra-stat-label">Mestre</div><div class="obra-stat-val" style="font-size:12px">${o.mestre}</div></div>
-        <div class="obra-stat"><div class="obra-stat-label">Tarefas</div><div class="obra-stat-val" style="font-size:13px">${tarefas.filter(t => t.status === 'Concluída').length}/${tarefas.length}</div></div>
-      </div>
-    </div>`;
+    const fReal = DB.financeiro.filter(f => f.obra === o.cod).reduce((a, f) => a + (Number(f.real) || 0), 0);
+    const pctCusto = o.orc > 0 ? (fReal / o.orc * 100).toFixed(1) : 0;
+    
+    const tasks = DB.tarefas.filter(t => t.obra === o.cod);
+    const avgFisico = tasks.length > 0 
+      ? (tasks.reduce((acc, t) => acc + (Number(t.perc) || 0), 0) / tasks.length).toFixed(0)
+      : 0;
+
+    return `
+      <div class="obra-card">
+        <div onclick="showPage('financeiro')">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+            <h3 style="margin:0">${o.nome}</h3>
+            ${statusBadge(o.status)}
+          </div>
+          <div class="obra-meta">${o.end}</div>
+          
+          <div style="margin:16px 0">
+            <div class="kpi-label" style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span>Progresso Físico</span> <b>${avgFisico}%</b>
+            </div>
+            <div class="progress-bar" style="width:100%;height:10px;background:var(--bg3)">
+              <div class="progress-fill" style="width:${avgFisico}%;background:${avgFisico > 70 ? 'var(--green)' : avgFisico > 30 ? 'var(--accent)' : 'var(--orange)'}"></div>
+            </div>
+          </div>
+          
+          <div class="obra-stats" style="margin-bottom:16px">
+            <div class="obra-stat">
+              <div class="obra-stat-label">Orçamento</div>
+              <div class="obra-stat-val" style="font-size:13px">${fmt(o.orc)}</div>
+            </div>
+            <div class="obra-stat">
+              <div class="obra-stat-label">% Custo</div>
+              <div class="obra-stat-val" style="color:${fReal > o.orc ? 'var(--red)' : 'var(--text)'}">${pctCusto}%</div>
+            </div>
+          </div>
+        </div>
+        
+        <div style="display:flex;gap:8px;margin-top:auto">
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="shareObraWhatsApp('${o.cod}')">📱 WhatsApp</button>
+          <button class="btn btn-primary btn-sm" onclick="showPage('tarefas')">📋 Tarefas</button>
+        </div>
+      </div>`;
   }).join(''));
 
   safeSetInner('obras-tbody', DB.obras.map((o, i) => `<tr>
-    <td><b>${o.nome}</b></td><td><span class="cod">${o.cod}</span></td><td>${o.tipo}</td>
-    <td>${statusBadge(o.status)}</td><td>${fmtDate(o.inicio)}</td><td>${fmtDate(o.prazo)}</td>
-    <td>${fmt(o.orc)}</td><td>${o.mestre}</td><td>${o.cliente}</td>
+    <td data-label="Nome"><b>${o.nome}</b></td>
+    <td data-label="Cód."><span class="cod">${o.cod}</span></td>
+    <td data-label="Status">${statusBadge(o.status)}</td>
+    <td data-label="Prazo">${fmtDate(o.prazo)}</td>
+    <td data-label="Orçamento">${fmt(o.orc)}</td>
+    <td data-label="Mestre">${o.mestre}</td>
     <td>
       <button class="btn btn-secondary btn-sm" onclick="editObra(${i})" style="margin-right:8px">✏️</button>
       <button class="btn btn-danger btn-sm" onclick="deleteItem('obras',${i})">🗑</button>
     </td>
   </tr>`).join(''));
 }
+
+function shareObraWhatsApp(obraCod) {
+  const o = DB.obras.find(x => x.cod === obraCod);
+  if (!o) return;
+
+  const tasks = DB.tarefas.filter(t => t.obra === obraCod);
+  const avgFisico = tasks.length > 0 
+    ? (tasks.reduce((acc, t) => acc + (Number(t.perc) || 0), 0) / tasks.length).toFixed(0)
+    : 0;
+
+  const fReal = DB.financeiro.filter(f => f.obra === obraCod).reduce((a, f) => a + (Number(f.real) || 0), 0);
+  
+  // Busca presenças do dia de hoje para esta obra
+  const tDay = new Date().toISOString().split('T')[0];
+  const pres = (DB.presenca || []).filter(p => p.obra === obraCod && p.data === tDay);
+  const presentCount = pres.filter(p => p.presenca === 'Presente').length;
+
+  const msg = `🏗️ *Resumo Semanal - ${o.nome}*
+📅 Data: ${new Date().toLocaleDateString('pt-BR')}
+
+📊 *Progresso Físico:* ${avgFisico}%
+💰 *Gasto Acumulado:* ${fmt(fReal)}
+
+👷 *Equipe Hoje:* ${presentCount} presentes
+✅ *Tarefas:* ${tasks.filter(t => t.status === 'Concluída').length}/${tasks.length} concluídas
+
+🚀 _Enviado via sistema Obra Real._`.trim();
+
+  const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+}
+window.shareObraWhatsApp = shareObraWhatsApp;
 
 // ==================== TRABALHADORES ====================
 function renderTrabalhadores() {
@@ -720,34 +785,109 @@ function filterPresenca(query) {
 window.filterPresenca = filterPresenca;
 
 // ==================== TAREFAS ====================
+window._taskViewMode = 'table';
+function setTaskView(mode) {
+  window._taskViewMode = mode;
+  document.getElementById('btn-view-table')?.classList.toggle('active', mode === 'table');
+  document.getElementById('id-view-kanban')?.classList.toggle('active', mode === 'kanban');
+  const tableCont = document.getElementById('tar-table-container');
+  const kanbanCont = document.getElementById('tar-kanban-container');
+  if(tableCont) tableCont.style.display = mode === 'table' ? 'block' : 'none';
+  if(kanbanCont) kanbanCont.style.display = mode === 'kanban' ? 'block' : 'none';
+  renderTarefas();
+}
+window.setTaskView = setTaskView;
+
 function renderTarefas() {
-  const total = DB.tarefas.length;
-  const conc = DB.tarefas.filter(t => t.status === 'Concluída').length;
-  const atra = DB.tarefas.filter(t => t.status === 'Atrasada').length;
+  const obraFilter = document.getElementById('tar-obra-filter')?.value || '';
+  const busca = (document.getElementById('tar-busca')?.value || '').toLowerCase();
+  
+  const tasks = DB.tarefas.map((t, i) => ({ ...t, _idx: i }))
+    .filter(t => (!obraFilter || t.obra === obraFilter) && (!busca || (t.desc||'').toLowerCase().includes(busca) || (t.resp||'').toLowerCase().includes(busca)));
+
+  // KPIs dinâmicos filtrados
+  const total = tasks.length;
+  const conc = tasks.filter(t => t.status === 'Concluída').length;
+  const andam = tasks.filter(t => t.status === 'Em andamento').length;
+  const pend = tasks.filter(t => t.status === 'Pendente' || !t.status).length;
+  
   safeSetInner('tar-kpi', `
-    <div class="kpi-card"><div class="kpi-label">Total Tarefas</div><div class="kpi-val">${total}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Total Filtrado</div><div class="kpi-val">${total}</div></div>
     <div class="kpi-card"><div class="kpi-label">Concluídas</div><div class="kpi-val green">${conc}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Atrasadas</div><div class="kpi-val ${atra > 0 ? 'red' : 'green'}">${atra}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Em Andamento</div><div class="kpi-val blue">${DB.tarefas.filter(t => t.status === 'Em andamento').length}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Em Andamento</div><div class="kpi-val blue">${andam}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Pendentes</div><div class="kpi-val orange">${pend}</div></div>
   `);
-  safeSetInner('tar-tbody', DB.tarefas.length
-    ? DB.tarefas.map((t, i) => `<tr>
-        <td><span class="cod">${t.cod}</span></td><td>${obName(t.obra)}</td><td>${t.etapa}</td><td>${t.frente || '—'}</td>
-        <td><b>${t.desc}</b></td><td>${t.resp}</td>
-        <td>${statusBadge(t.prior)}</td><td>${statusBadge(t.status)}</td><td>${fmtDate(t.criacao)}</td><td>${fmtDate(t.prazo)}</td>
-        <td><div style="display:flex;align-items:center;gap:6px">
-          <div class="progress-bar"><div class="progress-fill" style="width:${t.perc || 0}%;background:${t.perc >= 100 ? 'var(--green)' : t.status === 'Atrasada' ? 'var(--red)' : 'var(--accent2)'}"></div></div>
-          <span style="font-size:12px">${t.perc || 0}%</span>
-        </div></td>
+
+  if (window._taskViewMode === 'kanban') {
+    renderKanban(tasks);
+  } else {
+    renderTaskTable(tasks);
+  }
+}
+
+function renderTaskTable(tasks) {
+  safeSetInner('tar-tbody', tasks.length
+    ? tasks.map(t => `<tr>
+        <td data-label="Cód."><span class="cod">${t.cod}</span></td>
+        <td data-label="Obra">${obName(t.obra)}</td>
+        <td data-label="Etapa / Frente"><small>${t.etapa}<br>${t.frente || '—'}</small></td>
+        <td data-label="Descrição"><b>${t.desc}</b></td>
+        <td data-label="Responsável">${t.resp}</td>
+        <td data-label="Prior.">${statusBadge(t.prior)}</td>
+        <td data-label="Status">${statusBadge(t.status)}</td>
+        <td data-label="Prazo">${fmtDate(t.prazo)}</td>
+        <td data-label="% Conc.">
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="progress-bar" style="width:60px;height:6px"><div class="progress-fill" style="width:${t.perc || 0}%;background:${t.perc >= 100 ? 'var(--green)' : t.status === 'Atrasada' ? 'var(--red)' : 'var(--accent2)'}"></div></div>
+            <span style="font-size:11px">${t.perc || 0}%</span>
+          </div>
+        </td>
         <td>
            <div style="display:flex; gap:8px; align-items:center">
              ${t.photoUrl ? `<span style="cursor:pointer; font-size:18px" title="Ver Evidência" onclick="openLightbox('${t.photoUrl}')">📷</span>` : ''}
-             <button class="btn btn-secondary btn-sm" onclick="editTarefa(${i})">✏️</button>
-             <button class="btn btn-danger btn-sm" onclick="deleteItem('tarefas',${i})">🗑</button>
+             <button class="btn btn-secondary btn-sm" onclick="editTarefa(${t._idx})">✏️</button>
+             <button class="btn btn-danger btn-sm" onclick="deleteItem('tarefas',${t._idx})">🗑</button>
            </div>
         </td>
       </tr>`).join('')
-    : uiEmptyState('Nenhuma Tarefa', 'O cronograma está limpo. Crie uma atividade para a equipe focar.', '📋', 'Nova Tarefa', 'openModal(\'modal-tarefa\')'));
+    : uiEmptyState('Nenhuma Tarefa', 'O cronograma está limpo.', '📋', 'Nova Tarefa', 'openModal(\'modal-tarefa\')'));
+}
+
+function renderKanban(tasks) {
+  const colOrder = ['Pendente', 'Em andamento', 'Concluída'];
+  const colTitles = { 'Pendente': '📋 Para Fazer', 'Em andamento': '🚧 Em Andamento', 'Concluída': '✅ Concluída' };
+  
+  let html = '';
+  colOrder.forEach(cId => {
+    const cItems = tasks.filter(t => (t.status || 'Pendente') === cId);
+    html += `
+      <div class="kanban-col">
+        <div class="kanban-header">
+          <h4>${colTitles[cId]}</h4>
+          <span class="badge badge-gray">${cItems.length}</span>
+        </div>
+        <div class="kanban-cards">
+          ${cItems.length ? cItems.map(t => `
+            <div class="kanban-card" onclick="editTarefa(${t._idx})">
+              <div class="kanban-card-title">${t.desc}</div>
+              <div class="kanban-card-meta">
+                <span>👤 ${t.resp}</span>
+                <span>🏗️ ${obName(t.obra)}</span>
+                <span>📅 Prazo: ${fmtDate(t.prazo)}</span>
+              </div>
+              <div class="kanban-card-footer">
+                ${statusBadge(t.prior)}
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div class="progress-bar" style="width:50px;height:4px"><div class="progress-fill" style="width:${t.perc || 0}%;background:var(--accent2)"></div></div>
+                  <span style="font-size:10px;font-weight:600">${t.perc || 0}%</span>
+                </div>
+              </div>
+            </div>
+          `).join('') : '<div style="text-align:center; padding:30px; color:var(--text3); font-size:12px; font-style:italic">Vazio</div>'}
+        </div>
+      </div>`;
+  });
+  safeSetInner('tar-board', html);
 }
 
 // ==================== ESTOQUE ====================
