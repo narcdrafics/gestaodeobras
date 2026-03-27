@@ -399,18 +399,41 @@ function renderObras() {
 
 // ==================== TRABALHADORES ====================
 function renderTrabalhadores() {
+  const currentMonth = new Date().toISOString().substring(0, 7); // ISO YYYY-MM
+
   safeSetInner('trab-tbody', DB.trabalhadores.length
-    ? DB.trabalhadores.map((t, i) => `<tr>
-        <td><span class="cod">${t.cod}</span></td><td><b>${t.nome}</b></td>
-        <td>${t.cpf || '—'}</td><td>${t.funcao || '—'}</td>
-        <td>${t.vinculo || '—'}</td><td>${t.equipe || '—'}</td>
-        <td>${obName(t.obras)}</td><td>${fmt(t.diaria)}</td>
-        <td>${statusBadge(t.status)}</td>
-        <td>
-          <button class="btn btn-secondary btn-sm" onclick="editTrabalhador(${i})" style="margin-right:8px">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteItem('trabalhadores',${i})">🗑</button>
-        </td>
-      </tr>`).join('')
+    ? DB.trabalhadores.map((t, i) => {
+        const pres = (DB.presenca || []).filter(p => (p.trab === t.cod || p.nome === t.nome));
+        const totalAtend = pres.filter(p => (p.presenca==='Presente'||p.presenca==='Falta')).length;
+        const presentCnt = pres.filter(p => p.presenca === 'Presente').length;
+        const assid = totalAtend > 0 ? ((presentCnt / totalAtend) * 100).toFixed(0) : 0;
+        const faltasMes = pres.filter(p => p.presenca === 'Falta' && (p.data||'').startsWith(currentMonth)).length;
+
+        // Cálculo de Saldo Acumulado (Simplificado: Total Gerado - Saldo Pago no Financeiro)
+        const earned = pres.reduce((acc, p) => acc + (Number(p.total) || 0), 0);
+        const paid = (DB.financeiro || []).filter(f => f.source === 'pre' && f.forn === t.nome && f.status === 'Pago')
+                      .reduce((acc, f) => acc + (Number(f.real) || 0), 0);
+        const saldo = earned - paid;
+
+        return `<tr>
+          <td data-label="Cód."><span class="cod">${t.cod}</span></td>
+          <td data-label="Nome / Função"><b>${t.nome}</b><br><small style="color:var(--text3)">${t.funcao || '—'}</small></td>
+          <td data-label="Assiduidade (%)">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="progress-bar" style="width:50px;height:6px"><div class="progress-fill" style="width:${assid}%; background:${assid > 80 ? 'var(--green)' : assid > 50 ? 'var(--orange)' : 'var(--red)'}"></div></div>
+              <span style="font-weight:600;font-size:12px">${assid}%</span>
+            </div>
+          </td>
+          <td data-label="Faltas (Mês)" style="font-weight:600;color:${faltasMes > 0 ? 'var(--red)' : 'var(--text3)'}">${faltasMes}</td>
+          <td data-label="Saldo Acum."><b style="color:${saldo > 0 ? 'var(--orange)' : 'var(--text3)'}">${fmt(saldo)}</b></td>
+          <td data-label="Diária/Salário">${fmt(t.diaria)}</td>
+          <td data-label="Status">${statusBadge(t.status)}</td>
+          <td>
+            <button class="btn btn-secondary btn-sm" onclick="editTrabalhador(${i})" style="margin-right:8px">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteItem('trabalhadores',${i})">🗑</button>
+          </td>
+        </tr>`;
+      }).join('')
     : uiEmptyState('Sem Trabalhadores', 'Cadastre o primeiro pedreiro, mestre ou servente para começar.', '👷‍♂️', 'Adicionar Trabalhador', 'openModal(\'modal-trabalhador\')'));
 
   renderAlmocos();
@@ -526,15 +549,14 @@ function renderPresenca() {
   } else if (!groupMode) {
     // Sem Agrupamento
     safeSetInner('pres-tbody', listForTable.map(p => `<tr>
-        <td>${fmtDate(p.data)}</td><td>${obName(p.obra)}</td>
-        <td>${p.frente || '—'}</td><td><span class="cod">${p.trab}</span></td>
-        <td><b>${p.nome}</b></td><td>${p.funcao}</td>
-        <td>${p.entrada || '—'}</td><td>${p.saida || '—'}</td>
-        <td>${p.hnorm || 0}h</td><td>${p.hextra || 0}h</td>
-        <td><span class="badge ${p.almoco === 'Sim' ? 'bg-success' : 'bg-secondary'}">${p.almoco || 'Não'}</span></td>
-        <td>${statusBadge(p.presenca)}</td>
-        <td>${fmt(p.diaria)}</td><td><b>${fmt(p.total)}</b></td>
-        <td>${p.lancador || '—'}</td>
+        <td data-label="Data / Local"><b>${fmtDate(p.data)}</b><br><small style="color:var(--text3)">${obName(p.obra)}${p.frente ? ' · ' + p.frente : ''}</small></td>
+        <td data-label="Profissional"><b>${p.nome}</b><br><small style="color:var(--text3)">${p.funcao}</small></td>
+        <td data-label="Horários">${p.entrada || '—'} - ${p.saida || '—'}</td>
+        <td data-label="Horas (N+E)">${p.hnorm || 0}h + ${p.hextra || 0}h</td>
+        <td data-label="Almoço"><span class="badge ${p.almoco === 'Sim' ? 'bg-success' : 'bg-secondary'}">${p.almoco || 'Não'}</span></td>
+        <td data-label="Status">${statusBadge(p.presenca)}</td>
+        <td data-label="Valor Total"><b>${fmt(p.total)}</b></td>
+        <td data-label="Pgto">${p.pagamentoStatus || '—'}</td>
         <td>
           <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">🗑</button>
@@ -559,25 +581,23 @@ function renderPresenca() {
       const icn = `ico-pres-${idx}`;
 
       tbodyHtml += `<tr class="group-header" onclick="toggleGroup('${cls}', '${icn}')" style="cursor:pointer; background:var(--bg3); font-weight:600;">
-            <td colspan="12"><span id="${icn}" style="display:inline-block; width:20px; font-size:12px; color:var(--accent);">▶</span> 
+            <td colspan="7"><span id="${icn}" style="display:inline-block; width:20px; font-size:12px; color:var(--accent);">▶</span> 
               <span style="font-size:14px; text-transform:uppercase">${k}</span> 
               <span class="badge badge-blue" style="margin-left:12px">${rows.length} registros</span>
             </td>
-            <td colspan="3" style="color:var(--green); font-size:14px; font-weight:bold;">Total: ${fmt(totalGroup)}</td>
+            <td colspan="2" style="color:var(--green); font-size:14px; font-weight:bold;">Total: ${fmt(totalGroup)}</td>
           </tr>`;
 
       rows.forEach(p => {
         tbodyHtml += `<tr class="${cls}" style="display:none; transition: all 0.3s">
-                <td style="padding-left:16px"><span style="color:var(--text3); font-size:10px; margin-right:4px">└</span> ${fmtDate(p.data)}</td>
-                <td>${obName(p.obra)}</td>
-                <td style="color:var(--text2)">${groupMode === 'trab' ? '—' : p.nome}</td>
-                <td>${p.funcao}</td><td>${p.frente}</td>
-                <td>${p.entrada || '—'}</td><td>${p.saida || '—'}</td>
-                <td>${p.hnorm || 0}h</td><td>${p.hextra || 0}h</td>
-                <td><span class="badge ${p.almoco === 'Sim' ? 'bg-success' : 'bg-secondary'}">${p.almoco || 'Não'}</span></td>
-                <td>${statusBadge(p.presenca)}</td>
-                <td>${fmt(p.diaria)}</td><td><b>${fmt(p.total)}</b></td>
-                <td>${p.lancador || '—'}</td>
+                <td data-label="Data / Local" style="padding-left:16px"><span style="color:var(--text3); font-size:10px; margin-right:4px">└</span> <b>${fmtDate(p.data)}</b><br><small style="color:var(--text3)">${obName(p.obra)}${p.frente ? ' · ' + p.frente : ''}</small></td>
+                <td data-label="Profissional"><b>${p.nome}</b><br><small style="color:var(--text3)">${p.funcao}</small></td>
+                <td data-label="Horários">${p.entrada || '—'} - ${p.saida || '—'}</td>
+                <td data-label="Horas (N+E)">${p.hnorm || 0}h + ${p.hextra || 0}h</td>
+                <td data-label="Almoço"><span class="badge ${p.almoco === 'Sim' ? 'bg-success' : 'bg-secondary'}">${p.almoco || 'Não'}</span></td>
+                <td data-label="Status">${statusBadge(p.presenca)}</td>
+                <td data-label="Valor Total"><b>${fmt(p.total)}</b></td>
+                <td data-label="Pgto">${p.pagamentoStatus || '—'}</td>
                 <td>
                   <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
                   <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">🗑</button>
@@ -898,10 +918,41 @@ function renderFinanceiro() {
 
   safeSetInner('fin-summary', sumHtml);
 
-  safeSetInner('fin-tbody', allFin.length
-    ? allFin.map(f => {
-      const diff = f.real - f.prev;
+  // Agrupamento por Tipo para evitar lista infinita
+  const grouped = {};
+  allFin.forEach(f => {
+    const type = f.tipo || 'Outros';
+    if (!grouped[type]) grouped[type] = [];
+    grouped[type].push(f);
+  });
 
+  // Ordem sugerida: Mão de obra, Materiais, Equipamentos, etc.
+  const typeOrder = ['mão de obra própria', 'empreiteiro', 'material', 'equipamento', 'almoço empreiteiro'];
+  const sortedKeys = Object.keys(grouped).sort((a, b) => {
+    const ia = typeOrder.indexOf(a.toLowerCase());
+    const ib = typeOrder.indexOf(b.toLowerCase());
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  let tbodyHtml = '';
+  sortedKeys.forEach(type => {
+    const rows = grouped[type];
+    const subPrev = rows.reduce((a, b) => a + (Number(b.prev) || 0), 0);
+    const subReal = rows.reduce((a, b) => a + (Number(b.real) || 0), 0);
+
+    // Header do Grupo
+    tbodyHtml += `<tr class="group-header-fin" data-group="${type.toLowerCase()}" style="background:var(--bg3); font-weight:700;">
+      <td colspan="6" style="text-transform:uppercase; font-size:11px; color:var(--accent); letter-spacing:1px">📂 ${type} <small style="color:var(--text3); font-weight:400">(${rows.length})</small></td>
+      <td style="font-family:'IBM Plex Mono', monospace; font-size:12px">${fmt(subPrev)}</td>
+      <td style="font-family:'IBM Plex Mono', monospace; font-size:12px">${fmt(subReal)}</td>
+      <td colspan="5" style="color:${subReal > subPrev ? 'var(--red)' : 'var(--green)'}; font-size:12px; font-weight:bold">Subtotal: ${fmt(subReal - subPrev)}</td>
+    </tr>`;
+
+    rows.forEach(f => {
+      const diff = f.real - f.prev;
       let editBtn = '';
       if (f.source === 'fin') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px">✏️</button>`;
       else if (f.source === 'med') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editMedicao(${f.idx})" style="margin-right:8px">✏️ Med.</button>`;
@@ -913,23 +964,16 @@ function renderFinanceiro() {
       else if (f.source === 'alm') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${f.idx})">🗑</button>`;
 
       let payBtn = '';
-      if (f.status !== 'Pago') {
-        payBtn = `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('${f.source}', ${f.idx})" style="margin-right:8px; background:var(--green); border-color:var(--green);" title="Pagar via PIX">💸</button>`;
-      }
+      if (f.status !== 'Pago') payBtn = `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('${f.source}', ${f.idx})" style="margin-right:8px; background:var(--green); border-color:var(--green);" title="Pagar via PIX">💸</button>`;
 
       const isIncome = (f.tipo || '').toLowerCase().includes('receita') || (f.tipo || '').toLowerCase().includes('entrada');
       const valColor = isIncome ? 'var(--green)' : 'var(--text)';
       
-      const sourceMap = {
-        'fin': { icon: '💳', label: 'Manual' },
-        'pre': { icon: '⏱️', label: 'Diária' },
-        'med': { icon: '📐', label: 'Medição' },
-        'alm': { icon: '🍱', label: 'Almoço' }
-      };
-      const src = sourceMap[f.source] || { icon: '❓', label: 'Outro' };
+      const sourceMap = { 'fin': { icon: '💳' }, 'pre': { icon: '⏱️' }, 'med': { icon: '📐' }, 'alm': { icon: '🍱' } };
+      const src = sourceMap[f.source] || { icon: '❓' };
       const srcBadge = f.source !== 'fin' ? `<span class="badge badge-gray" style="font-size:10px;margin-left:4px;opacity:0.7">Automático</span>` : '';
 
-      return `<tr data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}" data-busca="${getNome(f.obra).toLowerCase()} ${(f.desc||'').toLowerCase()} ${(f.forn||'').toLowerCase()}">
+      tbodyHtml += `<tr class="fin-row" data-group-ref="${type.toLowerCase()}" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}" data-busca="${getNome(f.obra).toLowerCase()} ${(f.desc||'').toLowerCase()} ${(f.forn||'').toLowerCase()}">
           <td data-label="Data">${fmtDate(f.data)}</td>
           <td data-label="Obra">${getNome(f.obra)}</td>
           <td data-label="Etapa"><small>${f.etapa}</small></td>
@@ -944,8 +988,10 @@ function renderFinanceiro() {
           <td data-label="NF"><small>${f.nf}</small></td>
           <td>${payBtn}${editBtn}${delBtn}</td>
         </tr>`;
-    }).join('')
-    : uiEmptyState('Financeiro Limpo', 'Suas contas a pagar, recebimentos e extratos aparecerão agrupados aqui.', '💰', 'Lançar Custo ou Receita', "openModal('modal-financeiro')"));
+    });
+  });
+
+  safeSetInner('fin-tbody', tbodyHtml || uiEmptyState('Financeiro Limpo', 'Suas contas a pagar, recebimentos e extratos aparecerão agrupados aqui.', '💰', 'Lançar Custo ou Receita', "openModal('modal-financeiro')"));
 
   window._allFinRows = allFin;
   
@@ -960,14 +1006,29 @@ function filterFinanceiro() {
   const tipo   = (document.getElementById('fin-tipo-filter')?.value   || '').toLowerCase().trim();
   const status = (document.getElementById('fin-status-filter')?.value || '').toLowerCase().trim();
   const busca  = (document.getElementById('fin-busca')?.value         || '').toLowerCase().trim();
-  document.querySelectorAll('#fin-tbody tr').forEach(row => {
+  
+  // Mapeia headers para controle de visibilidade
+  const headers = {};
+  document.querySelectorAll('#fin-tbody .group-header-fin').forEach(h => {
+    headers[h.dataset.group] = h;
+    h.style.display = 'none'; // Oculta inicialmente
+  });
+
+  document.querySelectorAll('#fin-tbody .fin-row').forEach(row => {
     const rt = (row.dataset.tipo   || '');
     const rs = (row.dataset.status || '');
     const rb = (row.dataset.busca  || '') + ' ' + (row.innerText || '').toLowerCase();
     const ok = (!tipo   || rt.includes(tipo))
             && (!status || rs.includes(status))
             && (!busca  || rb.includes(busca));
-    row.style.display = ok ? '' : 'none';
+    
+    if (ok) {
+      row.style.display = '';
+      const groupRef = row.dataset.groupRef;
+      if (headers[groupRef]) headers[groupRef].style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
   });
 }
 window.filterFinanceiro = filterFinanceiro;
