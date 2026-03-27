@@ -2510,6 +2510,20 @@ async function savePresenca(keepOpen = false) {
 
   for (const tsel of trabsParaSalvar) {
     const t = DB.trabalhadores.find(x => x.cod === tsel);
+    
+    // Bloqueia duplicidade de data para o mesmo trabalhador
+    const jaExiste = DB.presenca.some((p, idx) => 
+      p.data === dataVal && 
+      p.trab === tsel && 
+      (currentEditIdx < 0 || idx !== currentEditIdx)
+    );
+
+    if (jaExiste) {
+      const nomeTrab = t ? t.nome : tsel;
+      toast(`⚠️ Já existe registro para ${nomeTrab} em ${fmtDate(dataVal)}!`, 'error');
+      if (modoMassa) continue;
+      return;
+    }
 
   // Vínculo Automático: Se o peão não estiver engajado na Obra em sua ficha local, anexa a tag!
   if (t && (!t.obras || !t.obras.includes(obraVal))) {
