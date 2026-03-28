@@ -603,6 +603,109 @@ async function editAlmoco(idx) {
 }
 
 // ==================== PRESENÇA ====================
+let currentWeekOffset = 0;
+
+function changeWeek(offset) {
+  currentWeekOffset += offset;
+  renderQuadroSemanal();
+}
+
+function renderQuadroSemanal() {
+  const container = document.getElementById('pres-quadro-semanal');
+  if (!container) return;
+
+  const todayObj = new Date();
+  // Ajusta para o início da semana (Domingo) + o offset
+  const startOfWeek = new Date(todayObj);
+  startOfWeek.setDate(todayObj.getDate() - todayObj.getDay() + (currentWeekOffset * 7));
+  
+  const days = [];
+  const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + i);
+    days.push({
+      date: d.toISOString().split('T')[0],
+      name: dayNames[i],
+      display: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    });
+  }
+
+  const workers = DB.trabalhadores.filter(t => t.status === 'Ativo');
+  if (workers.length === 0) {
+    container.innerHTML = '<p style="text-align:center; padding:20px; color:var(--text3)">Nenhum trabalhador ativo para exibir no quadro.</p>';
+    return;
+  }
+
+  let html = `<table class="presence-board">
+    <thead>
+      <tr>
+        <th class="worker-info">Trabalhador</th>
+        ${days.map(d => `
+          <th>
+            <div class="day-header">
+              <span class="day-name">${d.name}</span>
+              <span class="day-date">${d.display}</span>
+            </div>
+          </th>
+        `).join('')}
+      </tr>
+    </thead>
+    <tbody>`;
+
+  workers.forEach(w => {
+    html += `<tr>
+      <td class="worker-info">
+        <b>${w.nome}</b><br>
+        <small style="color:var(--text3)">${w.funcao || '—'}</small>
+      </td>`;
+    
+    days.forEach(d => {
+      const pIdx = (DB.presenca || []).findIndex(record => (record && (record.trab === w.cod || record.nome === w.nome) && record.data === d.date));
+      const p = pIdx !== -1 ? DB.presenca[pIdx] : null;
+
+      let iconClass = 'none';
+      let icon = '•';
+      let title = 'Sem registro';
+
+      if (p) {
+        if (p.presenca === 'Presente') { iconClass = 'presente'; icon = '✅'; title = 'Presente'; }
+        else if (p.presenca === 'Falta') { iconClass = 'falta'; icon = '❌'; title = 'Falta'; }
+        else if (p.presenca === 'Meio período') { iconClass = 'meio'; icon = '🌓'; title = 'Meio Período'; }
+      }
+
+      html += `<td>
+        <div class="presence-cell" title="${title}" onclick="openPresenceModal('${w.cod}', '${d.date}', ${pIdx})">
+          <div class="pres-icon ${iconClass}">${icon}</div>
+        </div>
+      </td>`;
+    });
+    html += `</tr>`;
+  });
+
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+}
+
+// Helper para abrir o modal de presença já com dados
+function openPresenceModal(workerCod, date, existingIdx = -1) {
+  if (existingIdx !== -1) {
+    // Modo Edição
+    editPresenca(existingIdx);
+  } else {
+    // Modo Novo
+    openModal('modal-presenca');
+    setTimeout(() => {
+      const tsel = document.getElementById('pr-trab');
+      const dsel = document.getElementById('pr-data');
+      if (tsel) tsel.value = workerCod;
+      if (dsel) dsel.value = date;
+      if (typeof fillTrabInfo === 'function') fillTrabInfo();
+    }, 300);
+  }
+}
+
 function renderPresenca() {
   console.log('Iniciando renderPresenca...');
   const allPres = DB.presenca || [];
@@ -793,7 +896,8 @@ function renderPresenca() {
   }
 
   console.log('renderPresenca concluído.');
-  renderAlmocos(); // Renderiza a seção de almoços avulsos no topo da aba
+  renderAlmocos();
+  renderQuadroSemanal();
 }
 
 // Filtro de busca na tabela de presença (busca por nome, obra e data)

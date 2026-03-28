@@ -2,8 +2,23 @@
   <div class="page-title">Presença <small>Ponto do Dia</small></div>
   <button class="btn btn-primary" onclick="openModal('modal-presenca')">+ Lançar Presença</button>
 </div>
-<div class="kpi-grid" id="pres-kpi" style="margin-bottom:8px"></div>
-<div id="almoco-avulso-container" style="margin-bottom:8px"></div>
+<div class="kpi-grid" id="pres-kpi"></div>
+
+<div class="table-wrap" style="margin-bottom: 24px;">
+  <div class="table-toolbar">
+    <h3>📅 Quadro de Presença Semanal</h3>
+    <div class="toolbar-right" style="display:flex; gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="changeWeek(-1)">◀ Semana Anterior</button>
+      <button class="btn btn-secondary btn-sm" onclick="changeWeek(1)">Próxima Semana ▶</button>
+      <button class="btn btn-primary btn-sm" onclick="openModal('modal-presenca')">+ Lançar</button>
+    </div>
+  </div>
+  <div id="pres-quadro-semanal" style="overflow-x: auto; padding: 10px;">
+    <!-- Renderizado via JS -->
+  </div>
+</div>
+
+<div id="almoco-avulso-container" style="margin-bottom:16px"></div>
 
 <!-- Tabela de Registros -->
 <div class="table-wrap">
