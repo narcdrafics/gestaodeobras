@@ -2492,7 +2492,11 @@ function togglePresenca() {
   const show = v !== 'Falta';
   document.getElementById('pr-entrada-grp').style.display = show ? '' : 'none';
   document.getElementById('pr-saida-grp').style.display = show ? '' : 'none';
-  if (!show) document.getElementById('pr-total').value = 0;
+  if (!show) {
+    document.getElementById('pr-total').value = 0;
+  } else {
+    calcPresenca();
+  }
 }
 
 function calcMovTotal() {
@@ -2608,7 +2612,22 @@ async function saveTrabalhador() {
     foto: window._currentTrFoto || (currentEditIdx >= 0 ? DB.trabalhadores[currentEditIdx].foto : null)
   };
   if (currentEditIdx >= 0) {
+    const oldName = DB.trabalhadores[currentEditIdx].nome;
     DB.trabalhadores[currentEditIdx] = data;
+    
+    // Atualiza o nome dos registros legados se houver renomeação de funcionário
+    if (oldName !== data.nome) {
+      if (DB.presenca) {
+        DB.presenca.forEach(p => {
+          if (p.trab === data.cod) p.nome = data.nome;
+        });
+      }
+      if (DB.tarefas) {
+        DB.tarefas.forEach(t => {
+          if (t.resp === oldName) t.resp = data.nome;
+        });
+      }
+    }
     toast('Trabalhador atualizado!');
   } else {
     // Validação SaaS: Limite de Trabalhadores
@@ -2725,6 +2744,10 @@ async function savePresenca(keepOpen = false) {
       total: (() => {
         const presencaVal = document.getElementById('pr-presenca').value;
         if (presencaVal === 'Falta') return 0;
+        if (presencaVal === 'Meio período') {
+          const diariaBase = t ? t.diaria : (parseFloat(document.getElementById('pr-diaria').value) || 0);
+          return diariaBase / 2;
+        }
         if (isInformal) return t ? t.diaria : 0;
         return parseFloat(document.getElementById('pr-total').value) || 0;
       })(),
