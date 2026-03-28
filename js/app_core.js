@@ -2160,9 +2160,28 @@ async function openModal(id) {
   if (id === 'modal-financeiro' && currentEditIdx === -1) document.getElementById('fn-data').value = today;
   if (id === 'modal-presenca' && currentEditIdx === -1) calcPresenca();
   if (id === 'modal-obra' && currentEditIdx === -1) document.getElementById('ob-cod').value = nextCod(DB.obras, 'OB');
-  if (id === 'modal-trabalhador' && currentEditIdx === -1) {
-    document.getElementById('tr-cod').value = nextCod(DB.trabalhadores, 'TR');
-    document.getElementById('tr-admissao').value = today;
+  if (id === 'modal-trabalhador') {
+    window._currentTrFoto = null;
+    if (currentEditIdx === -1) {
+      document.getElementById('tr-cod').value = nextCod(DB.trabalhadores, 'TR');
+      document.getElementById('tr-admissao').value = today;
+    }
+    const fInput = document.getElementById('tr-foto');
+    const fPreview = document.getElementById('tr-foto-preview');
+    if (fInput && fPreview) {
+      fInput.onchange = e => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = re => {
+            fPreview.style.display = 'block';
+            fPreview.querySelector('img').src = re.target.result;
+            window._currentTrFoto = re.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+    }
   }
   if (id === 'modal-estoque' && currentEditIdx === -1) document.getElementById('es-cod').value = nextCod(DB.estoque, 'ES');
   if (id === 'modal-movest') {
@@ -2392,6 +2411,8 @@ async function saveObra() {
     mestre: document.getElementById('ob-mestre').value,
     eng: document.getElementById('ob-eng').value,
     cliente: document.getElementById('ob-cliente').value,
+    cliente_contato: document.getElementById('ob-cliente-contato').value,
+    contrato_tipo: document.getElementById('ob-contrato-tipo').value,
     obs: document.getElementById('ob-obs').value
   };
   if (currentEditIdx >= 0) {
@@ -2425,6 +2446,8 @@ async function editObra(idx) {
   document.getElementById('ob-mestre').value = o.mestre;
   document.getElementById('ob-eng').value = o.eng;
   document.getElementById('ob-cliente').value = o.cliente;
+  document.getElementById('ob-cliente-contato').value = o.cliente_contato || '';
+  document.getElementById('ob-contrato-tipo').value = o.contrato_tipo || 'Administração';
   document.getElementById('ob-obs').value = o.obs;
 }
 
@@ -2448,7 +2471,10 @@ async function saveTrabalhador() {
     pixkey: document.getElementById('tr-pixkey').value,
     contato: document.getElementById('tr-contato').value,
     status: document.getElementById('tr-status').value,
-    admissao: document.getElementById('tr-admissao').value
+    admissao: document.getElementById('tr-admissao').value,
+    endereco: document.getElementById('tr-endereco').value,
+    cidade: document.getElementById('tr-cidade').value,
+    foto: window._currentTrFoto || (currentEditIdx >= 0 ? DB.trabalhadores[currentEditIdx].foto : null)
   };
   if (currentEditIdx >= 0) {
     DB.trabalhadores[currentEditIdx] = data;
@@ -2485,6 +2511,23 @@ async function editTrabalhador(idx) {
   document.getElementById('tr-contato').value = t.contato || '';
   document.getElementById('tr-status').value = t.status;
   document.getElementById('tr-admissao').value = t.admissao;
+  document.getElementById('tr-endereco').value = t.endereco || '';
+  document.getElementById('tr-cidade').value = t.cidade || '';
+  
+  // Foto Preview
+  const fPreview = document.getElementById('tr-foto-preview');
+  if (fPreview && t.foto) {
+    fPreview.style.display = 'block';
+    fPreview.querySelector('img').src = t.foto;
+  } else if (fPreview) {
+    fPreview.style.display = 'none';
+  }
+
+  // Cálculo Último Pagamento
+  const ultPgto = DB.financeiro
+    .filter(f => f.trab === t.cod && (f.status === 'Pago' || f.pgtoStatus === 'Pago'))
+    .sort((a, b) => new Date(b.data) - new Date(a.data))[0];
+  document.getElementById('tr-last-pay').value = ultPgto ? fmtDate(ultPgto.data) : 'Nenhum pagamento registrado';
 }
 
 async function savePresenca(keepOpen = false) {

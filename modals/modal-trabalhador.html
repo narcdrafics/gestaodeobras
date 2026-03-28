@@ -18,6 +18,14 @@
   <div class="form-group"><label class="form-label">Status</label>
     <select class="form-control" id="tr-status"><option>Ativo</option><option>Inativo</option><option>Afastado</option></select></div>
   <div class="form-group"><label class="form-label">Data Admissão</label><input type="date" class="form-control" id="tr-admissao"></div>
+  <div class="form-group form-full" style="grid-column: span 2">
+    <label class="form-label">Foto do Trabalhador</label>
+    <input type="file" class="form-control" id="tr-foto" accept="image/*" capture="camera">
+    <div id="tr-foto-preview" style="margin-top:10px; display:none"><img src="" style="width:100px; height:100px; object-fit:cover; border-radius:10px; border:1px solid var(--border)"></div>
+  </div>
+  <div class="form-group form-full"><label class="form-label">Endereço Residencial</label><input class="form-control" id="tr-endereco" placeholder="Rua, Número, Bairro"></div>
+  <div class="form-group"><label class="form-label">Cidade / UF</label><input class="form-control" id="tr-cidade" placeholder="São Luís / MA"></div>
+  <div class="form-group"><label class="form-label">Último Pagamento</label><input class="form-control" id="tr-last-pay" readonly style="background:var(--bg3); cursor:not-allowed" placeholder="Calculado automaticamente"></div>
 </div>
 <div class="modal-footer">
   <button class="btn btn-secondary" onclick="closeModal('modal-trabalhador')">Cancelar</button>
