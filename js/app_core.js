@@ -140,6 +140,33 @@ function renderPage(id) {
   };
   if (r[id]) r[id]();
 }
+// Renderiza o banner de trial progressivo
+function renderTrialBanner(daysLeft) {
+  let banner = document.getElementById('trial-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'trial-banner';
+    banner.className = 'trial-banner';
+    document.body.prepend(banner);
+  }
+  const msg = daysLeft <= 1 ? 'últimas 24 horas' : `${daysLeft} dias restantes`;
+  banner.innerHTML = `
+    <span>⏳ <b>${msg}</b> no seu teste grátis. Assine agora e nunca perca seus dados.</span>
+    <button class="btn-pay" onclick="window.open('https://wa.me/5598985262006?text=Olá, quero assinar o plano Pro do Obra Real!', '_blank')">Assinar Pro →</button>
+  `;
+}
+
+// Escuta atualizações do Firebase para gerenciar o banner
+window.addEventListener('firebaseSync', e => {
+  const data = e.detail;
+  // Se for free trial e estiver nos últimos 14 dias
+  if (data.plano === 'free_trial' && data.daysLeftTrial !== undefined && data.daysLeftTrial <= 14 && data.daysLeftTrial > 0) {
+    renderTrialBanner(data.daysLeftTrial);
+  } else {
+    const existing = document.getElementById('trial-banner');
+    if (existing) existing.remove();
+  }
+});
 
 function safeSetInner(id, html) {
   const el = document.getElementById(id);

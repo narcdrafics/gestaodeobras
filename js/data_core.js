@@ -164,10 +164,18 @@ function _onFirebaseValue(snapshot) {
     }
 
     // SaaS: Trava de Tempo do Free Trial (30 dias)
-    if (data.plano === 'free_trial' && data.trialExpiracao && Date.now() > data.trialExpiracao) {
-      alert('⏰ O seu período de Teste Grátis de 30 dias chegou ao fim!\n\nEsperamos que tenha gostado do sistema. Para continuar usando o Gestão de Obras, assine um de nossos planos.');
-      if (typeof doLogout === 'function') doLogout();
-      return;
+    if (data.plano === 'free_trial' && data.trialExpiracao) {
+      const msLeft = data.trialExpiracao - Date.now();
+      const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+      
+      // Armazena no objeto global para uso na UI
+      DB.daysLeftTrial = daysLeft;
+
+      if (msLeft <= 0) {
+        alert('⏰ O seu período de Teste Grátis de 30 dias chegou ao fim!\n\nEsperamos que tenha gostado do sistema. Para continuar usando o Gestão de Obras, assine um de nossos planos.');
+        if (typeof doLogout === 'function') doLogout();
+        return;
+      }
     }
 
     DB = ensureSchema(data);
