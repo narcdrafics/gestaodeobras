@@ -132,15 +132,33 @@
         padding-bottom: 120px;
         text-align: center;
     }
+    .price-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+        margin-top: 60px;
+        align-items: flex-start;
+    }
     .price-card {
         background: #18181b;
-        border: 2px solid var(--lp-accent);
+        border: 1px solid #27272a;
         border-radius: 20px;
-        padding: 48px;
-        max-width: 400px;
-        margin: 60px auto 0;
+        padding: 32px;
         position: relative;
+        transition: transform 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
     }
+    .price-card.featured {
+        border: 2px solid var(--lp-accent);
+        background: #1c1c1f;
+        transform: scale(1.05);
+        z-index: 2;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+    .price-card:hover:not(.featured) { transform: translateY(-8px); }
+    
     .price-card .tag {
         position: absolute;
         top: -15px;
@@ -149,12 +167,15 @@
         background: var(--lp-accent);
         padding: 4px 16px;
         border-radius: 20px;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 700;
         text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
-    .price-val { font-size: 56px; font-weight: 800; letter-spacing: -2px; margin: 20px 0; }
-    .price-val small { font-size: 16px; font-weight: 400; color: #71717a; }
+    .price-card h3 { font-size: 20px; margin-bottom: 8px; }
+    .price-card .desc { font-size: 13px; color: #71717a; margin-bottom: 20px; }
+    .price-val { font-size: 40px; font-weight: 800; letter-spacing: -1px; margin: 10px 0; color: #fff; }
+    .price-val small { font-size: 14px; font-weight: 400; color: #71717a; }
     
     ul.check-list {
         list-style: none;
@@ -190,7 +211,11 @@
     (function() {
       const host = window.location.hostname;
       const parts = host.split('.');
-      if (parts.length > 2 && parts[0] !== 'www') {
+      // Ignora www e domínios padrão do Firebase
+      const isFirebase = host.includes('web.app') || host.includes('firebaseapp.com');
+      const isWWW = parts[0] === 'www';
+      
+      if (parts.length > 2 && !isWWW && !isFirebase) {
         // Redireciona para o login mantendo o subdomínio e possíveis parâmetros
         window.location.href = 'login.html' + window.location.search;
       }
@@ -266,24 +291,63 @@
   </section>
 
   <section id="precos" class="pricing container">
-    <h2 style="font-size:32px; letter-spacing:-1px">Simples como deve ser.</h2>
-    <div class="price-card">
-      <div class="tag">Mais Popular</div>
-      <h3>Plano Profissional</h3>
-      <div class="price-val">R$ 39,90 <small>/ mês</small></div>
-      <p style="font-size: 14px; color: #71717a">Tenha o controle total do seu negócio agora.</p>
-      
-      <ul class="check-list">
-        <li>Obras Ilimitadas</li>
-        <li>Controle de Estoque e Compras</li>
-        <li>Gestão Financeira Completa</li>
-        <li>Relatórios em Tempo Real</li>
-        <li>Suporte Prioritário</li>
-      </ul>
-      
-      <a href="https://pay.kiwify.com.br/UeoKVpn" class="btn btn-primary" style="width:100%; padding: 14px; font-size:16px;">Assinar Agora</a>
-      <p style="margin-top:20px; font-size:12px; color:#52525b">Ou comece o <a href="login.html#signup" style="color:#71717a">Teste Grátis de 30 dias</a></p>
+    <h2 style="font-size:32px; letter-spacing:-1px">Planos para todos os tamanhos de obra.</h2>
+    <p style="color:#71717a">Escolha o plano ideal para profissionalizar sua gestão hoje.</p>
+
+    <div class="price-grid">
+      <!-- PLANO BASICO -->
+      <div class="price-card">
+        <h3>Básico</h3>
+        <p class="desc">Ideal para quem está começando agora.</p>
+        <div class="price-val">Grátis <small>/ 30 dias</small></div>
+        
+        <ul class="check-list">
+          <li>1 Obra Ativa</li>
+          <li>Até 5 Trabalhadores</li>
+          <li>Todos os Módulos</li>
+          <li>Sem subdomínio próprio</li>
+        </ul>
+        
+        <a href="login.html#signup" class="btn btn-secondary" style="width:100%; margin-top:auto; padding: 12px;">Começar Grátis</a>
+      </div>
+
+      <!-- PLANO PRO -->
+      <div class="price-card featured">
+        <div class="tag">Mais Popular</div>
+        <h3>Profissional (Pro)</h3>
+        <p class="desc">Para engenheiros e empreiteiros em crescimento.</p>
+        <div class="price-val">R$ 39,90 <small>/ mês</small></div>
+        
+        <ul class="check-list">
+          <li><b>Obras Ilimitadas</b></li>
+          <li>Até 50 Trabalhadores</li>
+          <li><b>PIX Integrado</b></li>
+          <li>Relatórios de Vistoria</li>
+          <li>Suporte Prioritário</li>
+        </ul>
+        
+        <a href="https://pay.kiwify.com.br/UeoKVpn" class="btn btn-primary" style="width:100%; margin-top:auto; padding: 12px; font-weight:700;">Assinar Agora</a>
+      </div>
+
+      <!-- PLANO MASTER -->
+      <div class="price-card">
+        <h3>Master</h3>
+        <p class="desc">Para construtoras e grandes equipes.</p>
+        <div class="price-val">R$ 89,90 <small>/ mês</small></div>
+        
+        <ul class="check-list">
+          <li>Tudo do Plano Pro</li>
+          <li><b>Trabalhadores Ilimitados</b></li>
+          <li><b>Subdomínio Próprio</b></li>
+          <li>Acesso Multi-usuário</li>
+          <li>Sua Logo (White-label)</li>
+        </ul>
+        
+        <a href="https://pay.kiwify.com.br/d2qkT1E" class="btn btn-secondary" style="width:100%; margin-top:auto; padding: 12px;">Falar com Consultor</a>
+      </div>
     </div>
+
+    <p style="margin-top:40px; font-size:14px; color:#52525b">Precisa de algo personalizado? <a href="https://wa.me/5598985262006" style="color:var(--lp-accent); font-weight:600;">Chamar no WhatsApp</a></p>
   </section>
 
   <footer class="container">
