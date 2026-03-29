@@ -40,12 +40,25 @@
 
     /* NAV ENHANCED */
     nav.nav-custom {
-      height: 80px;
+      height: 72px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      position: relative;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: rgba(9, 9, 11, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transition: all 0.3s ease;
+    }
+
+    nav.nav-custom.scrolled {
+      height: 60px;
+      background: rgba(9, 9, 11, 0.95);
+      border-bottom-color: var(--lp-accent);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
     }
 
     .nav-left,
@@ -65,12 +78,33 @@
       left: 50%;
       transform: translateX(-50%);
       font-weight: 800;
-      font-size: 24px;
-      letter-spacing: -1px;
+      font-size: 22px;
+      letter-spacing: -1.5px;
       color: var(--lp-text);
       display: flex;
       align-items: center;
       gap: 8px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .nav-center span {
+      background: linear-gradient(90deg, #fff 0%, var(--lp-accent) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-link {
+      display: flex;
+      align-items: center;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      cursor: pointer;
+    }
+
+    .logo-link:hover {
+      transform: scale(1.15) rotate(5deg);
+      filter: drop-shadow(0 0 8px var(--lp-accent));
     }
 
     .nav-right {
@@ -566,27 +600,34 @@
     }
 
     @media(max-width: 768px) {
-      .hero h1 {
-        font-size: 40px;
+      .hero h1 { font-size: 36px; padding: 0 10px; }
+      .hero p { font-size: 16px; }
+
+      nav.nav-custom {
+        height: 64px;
       }
 
-      .proof-grid,
-      .price-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .nav-links {
-        display: none;
+      .nav-links.hide-mobile, 
+      .nav-right a.hide-mobile {
+        display: none !important;
       }
 
       .nav-center {
-        position: static;
-        transform: none;
-        font-size: 20px;
+        font-size: 18px;
+        /* Manter centralizado mesmo no mobile */
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        pointer-events: none;
       }
 
-      .nav-right .hide-mobile {
-        display: none;
+      .nav-right {
+        gap: 12px;
+      }
+
+      .nav-right .btn-primary {
+        padding: 8px 12px !important;
+        font-size: 12px !important;
       }
     }
   </style>
@@ -629,40 +670,54 @@
 
 <body>
 
-  <nav class="container nav-custom">
-    <!-- Left: Logo Icon -->
-    <div class="nav-left">
-      <div class="logo-icon">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="2.5"
-          stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-          <polyline points="2 17 12 22 22 17"></polyline>
-          <polyline points="2 12 12 17 22 12"></polyline>
-        </svg>
-      </div>
-    </div>
-
-    <!-- Center: Brand Name -->
-    <div class="nav-center">
-      <span class="app-brand-name">Obra Real</span>
-    </div>
-
-    <!-- Right: Links & Theme -->
-    <div class="nav-right nav-links">
-      <a href="#features" class="hide-mobile">Recursos</a>
-      <a href="#precos" class="hide-mobile">Preços</a>
-
-      <!-- Theme Switcher -->
-      <div class="theme-switcher hide-mobile" title="Ajustar cores">
-        <button class="color-btn indigo active" onclick="setTheme('indigo')" aria-label="Tema Indigo"></button>
-        <button class="color-btn amber" onclick="setTheme('amber')" aria-label="Tema Laranja"></button>
-        <button class="color-btn emerald" onclick="setTheme('emerald')" aria-label="Tema Verde (Construtora)"></button>
+  <nav class="nav-custom">
+    <div class="container" style="display:flex; width:100%; align-items:center; position:relative;">
+      <!-- Left: Logo Icon (Interactive) -->
+      <div class="nav-left">
+        <a href="#" class="logo-link" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;" title="Voltar ao início">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+        </a>
       </div>
 
-      <a href="login.html">Entrar</a>
-      <button onclick="openDemoModal()" class="btn btn-primary" style="padding: 10px 20px; font-family:inherit; border:none; cursor:pointer;">Agendar demonstração</button>
+      <!-- Center: Brand Name -->
+      <div class="nav-center">
+        <span>Obra Real</span>
+      </div>
+
+      <!-- Right: Links & Theme -->
+      <div class="nav-right nav-links">
+        <a href="#features" class="hide-mobile">Recursos</a>
+        <a href="#precos" class="hide-mobile">Preços</a>
+
+        <!-- Theme Switcher -->
+        <div class="theme-switcher hide-mobile" title="Ajustar cores">
+          <button class="color-btn indigo active" onclick="setTheme('indigo')" aria-label="Tema Indigo"></button>
+          <button class="color-btn amber" onclick="setTheme('amber')" aria-label="Tema Laranja"></button>
+          <button class="color-btn emerald" onclick="setTheme('emerald')" aria-label="Tema Verde (Construtora)"></button>
+        </div>
+
+        <a href="login.html">Entrar</a>
+        <button onclick="openDemoModal()" class="btn btn-primary" style="padding: 10px 20px; font-family:inherit; border:none; cursor:pointer;">Agendar demonstração</button>
+      </div>
     </div>
   </nav>
+
+  <script>
+    // Navbar effect on scroll
+    window.addEventListener('scroll', () => {
+      const nav = document.querySelector('.nav-custom');
+      if (window.scrollY > 50) {
+        nav.classList.add('scrolled');
+      } else {
+        nav.classList.remove('scrolled');
+      }
+    });
+  </script>
 
   <header class="hero container">
     <div class="glow"></div>
