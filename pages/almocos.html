@@ -1,0 +1,49 @@
+<div class="page-header" style="flex-wrap:wrap;gap:8px;">
+  <div class="page-title">Gestão de Almoços <small>Refeições Custeadas</small></div>
+</div>
+
+<!-- Resumo do Dia/Semana -->
+<div class="kpi-grid" id="almocos-kpi" style="margin-bottom: 24px;"></div>
+
+<!-- Lançamento e Listagem Geral -->
+<div class="table-wrap">
+  <div class="table-toolbar" style="flex-wrap:wrap;gap:8px;">
+    <h3 style="margin:0">🍽️ Lançamentos de Almoço</h3>
+    <div class="toolbar-right" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+      <button class="btn btn-primary" onclick="openModal('modal-almoco')">+ Lançar Almoço</button>
+      <input class="search-input" id="almoco-busca" placeholder="🔍 Data, Obra ou Empreiteiro..." style="min-width:180px"
+        oninput="renderAlmocosList()">
+    </div>
+  </div>
+  
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Obra</th>
+          <th>Colaborador / Empreiteiro</th>
+          <th>Quantidade</th>
+          <th>Valor Unit.</th>
+          <th>Total</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="almocos-tbody">
+        <!-- Renderizado dinamicamente via renderAlmocosList() -->
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Fechamento por Empreiteiro/Trabalhador -->
+<div class="table-wrap" style="margin-top:12px">
+  <div class="table-toolbar">
+    <h3 style="margin:0">📊 Resumo de Refeições no Período</h3>
+  </div>
+  <div id="almocos-resumo" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
+</div>
+
+<style>
+/* CSS adicional para cards de almoço, se necessário */
+</style>

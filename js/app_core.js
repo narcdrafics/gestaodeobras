@@ -136,7 +136,7 @@ function renderPage(id) {
     movEstoque: renderMovEstoque, compras: renderCompras, financeiro: renderFinanceiro,
     orcamento: renderOrcamento, medicao: renderMedicao, admin: renderAdmin,
     fotos: renderFotos, super_admin: renderSuperAdmin, relatorios: renderRelatorios,
-    almocos: () => { renderTrabalhadores(); }
+    almocos: renderAlmocosList
   };
   if (r[id]) r[id]();
 }
@@ -527,39 +527,93 @@ function renderTrabalhadores() {
         </tr>`;
       }).join('')
     : uiEmptyState('Sem Trabalhadores', 'Cadastre o primeiro pedreiro, mestre ou servente para começar.', '👷‍♂️', 'Adicionar Trabalhador', 'openModal(\'modal-trabalhador\')'));
-
-  renderAlmocos();
 }
 
-function renderAlmocos() {
-  const container = document.getElementById('almoco-avulso-container');
-  if (!container) return;
+function renderAlmocosList() {
+  const tbody = document.getElementById('almocos-tbody');
+  if (!tbody) return;
 
   const list = DB.almocos || [];
-  let html = `
-    <div class="table-wrap" style="margin-top:30px">
-      <div class="table-toolbar">
-        <h3>🍱 Almoços Avulsos (Empreiteiros)</h3>
-        <button class="btn btn-primary btn-sm" onclick="openModal('modal-almoco')">+ Lançar Almoço</button>
+  const qStr = (document.getElementById('almoco-busca')?.value || '').toLowerCase();
+
+  const filtered = list.map((a, i) => ({ ...a, _idx: i }))
+                       .filter(a => JSON.stringify(a).toLowerCase().includes(qStr))
+                       .sort((a, b) => new Date(b.data) - new Date(a.data));
+
+  if (!filtered.length) {
+    safeSetInner('almocos-tbody', '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text3)">Nenhum almoço registrado.</td></tr>');
+  } else {
+    const html = filtered.map(a => `
+      <tr>
+        <td>${fmtDate(a.data)}</td>
+        <td>${obName(a.obra)}</td>
+        <td><b>${a.empreiteiro}</b></td>
+        <td>${a.qtd}</td>
+        <td>${fmt(a.vunit)}</td>
+        <td><b style="color:var(--accent)">${fmt(a.vtotal)}</b></td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="editAlmoco(${a._idx})" style="margin-right:8px">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${a._idx})">🗑</button>
+        </td>
+      </tr>
+    `).join('');
+    safeSetInner('almocos-tbody', html);
+  }
+
+  renderAlmocosKPI(list);
+}
+
+function renderAlmocosKPI(list) {
+  const container = document.getElementById('almocos-kpi');
+  if(!container) return;
+  const hoje = getToday();
+  const almoHoje = list.filter(a => a.data === hoje).reduce((acc, a) => acc + (parseFloat(a.qtd)||0), 0);
+  const custoHoje = list.filter(a => a.data === hoje).reduce((acc, a) => acc + (parseFloat(a.vtotal)||0), 0);
+  
+  const custoMes = list.filter(a => a.data.startsWith(hoje.slice(0,7))).reduce((acc, a) => acc + (parseFloat(a.vtotal)||0), 0);
+
+  container.innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-icon">🍽️</div>
+      <div>
+        <div class="kpi-label">Refeições Hoje</div>
+        <div class="kpi-value">${almoHoje} un</div>
       </div>
-      <table>
-        <thead><tr><th>Data</th><th>Obra</th><th>Empreiteiro/Equipe</th><th>Qtd</th><th>Unit (R$)</th><th>Total (R$)</th><th>Obs</th><th>Ações</th></tr></thead>
-        <tbody>
-          ${list.length ? list.map((a, i) => `
-            <tr>
-              <td>${fmtDate(a.data)}</td><td>${obName(a.obra)}</td><td><b>${a.empreiteiro}</b></td>
-              <td>${a.qtd}</td><td>${fmt(a.vunit)}</td><td><b>${fmt(a.vtotal)}</b></td>
-              <td>${a.obs || '—'}</td>
-              <td>
-                <button class="btn btn-secondary btn-sm" onclick="editAlmoco(${i})">✏️</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${i})">🗑</button>
-              </td>
-            </tr>
-          `).join('') : '<tr><td colspan="8" style="text-align:center; color:var(--text3); padding:20px">Nenhum almoço avulso lançado.</td></tr>'}
-        </tbody>
-      </table>
-    </div>`;
-  container.innerHTML = html;
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon" style="background:var(--accent); color:var(--bg)">💲</div>
+      <div>
+        <div class="kpi-label">Custo Dia (Hj)</div>
+        <div class="kpi-value">${fmt(custoHoje)}</div>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">📊</div>
+      <div>
+        <div class="kpi-label">Custo Mês Atual</div>
+        <div class="kpi-value">${fmt(custoMes)}</div>
+      </div>
+    </div>
+  `;
+
+  // Resumo por Empreiteiro
+  const resumoContainer = document.getElementById('almocos-resumo');
+  if(resumoContainer) {
+    const agrupado = {};
+    list.forEach(a => {
+      if(!agrupado[a.empreiteiro]) agrupado[a.empreiteiro] = { qtd: 0, total: 0 };
+      agrupado[a.empreiteiro].qtd += (parseFloat(a.qtd)||0);
+      agrupado[a.empreiteiro].total += (parseFloat(a.vtotal)||0);
+    });
+    
+    resumoContainer.innerHTML = Object.keys(agrupado).map(emp => `
+      <div class="kpi-card" style="padding:16px;">
+        <div style="font-size:12px;color:var(--text3)">${emp}</div>
+        <div style="font-weight:600;margin-top:6px">${agrupado[emp].qtd} <small style="font-size:10px;font-weight:normal">ref. somadas</small></div>
+        <div style="font-size:14px;color:var(--red);margin-top:4px">${fmt(agrupado[emp].total)}</div>
+      </div>
+    `).join('') || '<div style="color:var(--text3);">Sem consolidação.</div>';
+  }
 }
 
 function calcAlmocoTotal() {
@@ -586,7 +640,8 @@ async function saveAlmoco() {
     DB.almocos.push(data);
     toast('Almoço registrado!');
   }
-  closeModal('modal-almoco'); await persistDB(); renderTrabalhadores();
+  closeModal('modal-almoco'); await persistDB(); 
+  if (typeof renderAlmocosList === 'function') renderAlmocosList();
 }
 
 async function editAlmoco(idx) {
@@ -789,7 +844,6 @@ function renderPresenca() {
                 <td data-label="Profissional"><b>${p.nome}</b><br><small style="color:var(--text3)">${p.funcao}</small></td>
                 <td data-label="Horários">${p.entrada || '—'} - ${p.saida || '—'}</td>
                 <td data-label="Horas (N+E)">${p.hnorm || 0}h + ${p.hextra || 0}h</td>
-                <td data-label="Almoço"><span class="badge ${p.almoco === 'Sim' ? 'bg-success' : 'bg-secondary'}">${p.almoco || 'Não'}</span></td>
                 <td data-label="Status">${statusBadge(p.presenca)}</td>
                 <td data-label="Valor Total"><b>${fmt(p.total)}</b></td>
                 <td data-label="Pgto">${p.pagamentoStatus || '—'}</td>
@@ -803,28 +857,7 @@ function renderPresenca() {
     safeSetInner('pres-tbody', tbodyHtml);
   }
 
-  // Consolidação de Almoços por Obra
-  const almocosHtml = (DB.obras || []).map(o => {
-    const hojeAlmoco = validPres.filter(p => p.obra === o.cod && p.data === today && p.almoco === 'Sim').length;
-
-    // Almoços na semana atual
-    const todayObj = new Date();
-    const startOfWeek = new Date(todayObj);
-    startOfWeek.setDate(todayObj.getDate() - todayObj.getDay());
-    const strWeek = startOfWeek.toISOString().split('T')[0];
-
-    const semanaAlmoco = validPres.filter(p => p.obra === o.cod && p.data >= strWeek && p.data <= today && p.almoco === 'Sim').length;
-
-    if (hojeAlmoco === 0 && semanaAlmoco === 0) return '';
-
-    return `<div class="kpi-card">
-      <div class="kpi-label">${o.nome}</div>
-      <div style="font-size:20px; font-weight:bold; color:var(--accent); margin: 8px 0;">${hojeAlmoco} <small style="font-size:12px; font-weight:normal; color:var(--text3)">almoços hoje</small></div>
-      <div style="font-size:13px; color:var(--text2)">Total na semana: <b>${semanaAlmoco}</b></div>
-    </div>`;
-  }).join('');
-
-  safeSetInner('pres-almocos', almocosHtml || '<p style="color:var(--text3); padding: 8px;">Nenhum almoço registrado hoje ou nesta semana.</p>');
+  // Almoços foram extraídos para a nova aba de Gestão de Almoços.
 
   // Totalizadores por Data (Últimos 10 registros de datas distintas)
   try {
@@ -896,7 +929,8 @@ function renderPresenca() {
   }
 
   console.log('renderPresenca concluído.');
-  renderAlmocos();
+  // Almoços movidos para nova tela.
+  applyRoleLocks();
   renderQuadroSemanal();
 }
 
@@ -2324,7 +2358,9 @@ async function openModal(id) {
     const dlist = m.querySelector('#list-equipes');
     if (dlist) {
       const equipes = [...new Set(DB.trabalhadores.map(t => t.equipe).filter(e => e && e !== 'Própria'))];
-      dlist.innerHTML = equipes.map(e => `<option value="${e}">`).join('');
+      const nomes = DB.trabalhadores.map(t => t.nome);
+      const opcoes = [...new Set([...equipes, ...nomes])];
+      dlist.innerHTML = opcoes.map(e => `<option value="${e}">`).join('');
     }
     m.querySelector('#al-data').value = today;
     calcAlmocoTotal();
@@ -2743,7 +2779,7 @@ async function savePresenca(keepOpen = false) {
 
       pgtoStatus: document.getElementById('pr-pgto-status').value,
       valpago: parseFloat(document.getElementById('pr-valpago').value) || 0,
-      almoco: document.getElementById('pr-almoco').value,
+      // Almoco agora é captado na tela de Gestão de Almoços
       lancador: document.getElementById('pr-lancador').value,
       hrLanc: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       obs: document.getElementById('pr-obs').value
@@ -2849,7 +2885,7 @@ async function editPresenca(idx) {
   document.getElementById('pr-hnorm').value = p.hnorm;
   document.getElementById('pr-hextra').value = p.hextra;
   document.getElementById('pr-presenca').value = p.presenca;
-  document.getElementById('pr-almoco').value = p.almoco || 'Não';
+  // pr-almoco removido
   document.getElementById('pr-obs').value = p.justif || p.obs || '';
   document.getElementById('pr-diaria').value = p.diaria;
   document.getElementById('pr-total').value = p.total;
@@ -2865,10 +2901,10 @@ function togglePresenca() {
   const show = v !== 'Falta';
   safeSetDisplay('pr-entrada-grp', show ? '' : 'none');
   safeSetDisplay('pr-saida-grp', show ? '' : 'none');
-  safeSetDisplay('pr-almoco-grp', show ? '' : 'none');
+  // pr-almoco removido
   if (!show) {
     document.getElementById('pr-total').value = 0;
-    document.getElementById('pr-almoco').value = 'Não';
+    // pr-almoco removido
   }
 }
 
