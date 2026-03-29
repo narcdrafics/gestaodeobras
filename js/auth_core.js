@@ -152,7 +152,7 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
           config: {
               nomeEmpresa: Name !== 'Sem Nome' ? Name + " Engenharia" : "Minha Empresa",
               slug: tenantId,
-              corPrimaria: '#3b82f6',
+              esquemaCores: 'emerald',
               limiteObras: 1, // Plano gratuito básico
               limiteTrabalhadores: 10
           }
@@ -164,7 +164,7 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
           await firebase.database().ref(`tenants_public/${tenantId}`).set({
               slug: tenantId,
               nomeEmpresa: newTenant.config.nomeEmpresa,
-              corPrimaria: newTenant.config.corPrimaria
+              esquemaCores: newTenant.config.esquemaCores
           });
           
           // Salva no Painel Global Master

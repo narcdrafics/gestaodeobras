@@ -1,7 +1,7 @@
 const staticDB = {
   config: {
     nomeEmpresa: 'Obra Real',
-    corPrimaria: '#f59e0b',
+    esquemaCores: 'emerald',
     limiteObras: 1,
     limiteTrabalhadores: 5,
   },
@@ -213,11 +213,12 @@ function loadTheme(externalCfg) {
   if (cfg) {
     const root = document.documentElement;
 
-    // 1. Aplica cores principais
-    root.style.setProperty('--accent', cfg.corPrimaria || '#f59e0b');
-    if (cfg.corSidebar) root.style.setProperty('--sb-bg', cfg.corSidebar);
-    if (cfg.corMenu) root.style.setProperty('--sb-text', cfg.corMenu);
-    if (cfg.corSidebar) root.style.setProperty('--sb-active-bg', 'rgba(255,255,255,0.05)');
+    // 1. Aplica cores principais via paleta pré-definida
+    if (typeof setAppTheme === 'function' && cfg.esquemaCores) {
+       setAppTheme(cfg.esquemaCores);
+    } else {
+       root.setAttribute('data-theme', cfg.esquemaCores || 'emerald');
+    }
 
     // 2. Aplica Tema (Light/Dark)
     if (cfg.tema === 'light') {
@@ -538,7 +539,7 @@ async function updateSubdomainSlug() {
     await firebase.database().ref(`tenants_public/${tenantId}`).update({
       slug: newSlug,
       nomeEmpresa: DB.config?.nomeEmpresa || 'Obra Real',
-      corPrimaria: DB.config?.corPrimaria || '#f59e0b',
+      esquemaCores: DB.config?.esquemaCores || 'emerald',
       logoUrl: DB.config?.logoUrl || ''
     });
 

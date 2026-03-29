@@ -1567,9 +1567,7 @@ function renderAdmin() {
   if (DB.config) {
     const cfg = DB.config;
     safeSetValue('cfg-empresa', cfg.nomeEmpresa || '');
-    safeSetValue('cfg-cor-prim', cfg.corPrimaria || '#f59e0b');
-    safeSetValue('cfg-cor-side', cfg.corSidebar || '#161b27');
-    safeSetValue('cfg-cor-text', cfg.corMenu || '#94a3b8');
+    safeSetValue('cfg-esquema', cfg.esquemaCores || 'emerald');
     safeSetValue('cfg-tema', cfg.tema || 'dark');
     safeSetValue('cfg-slug', cfg.slug || '');
     safeSetValue('cfg-logo-url', cfg.logoUrl || '');
@@ -2141,9 +2139,7 @@ async function deleteGlobalUser(uid, email, tid) {
 
 function salvarConfiguracoes() {
   const emp = document.getElementById('cfg-empresa').value;
-  const corPrim = document.getElementById('cfg-cor-prim').value;
-  const corSide = document.getElementById('cfg-cor-side').value;
-  const corText = document.getElementById('cfg-cor-text').value;
+  const esquemaCores = document.getElementById('cfg-esquema').value;
   const tema = document.getElementById('cfg-tema').value;
   const slug = document.getElementById('cfg-slug').value.trim().toLowerCase();
   const logoUrl = document.getElementById('cfg-logo-url').value;
@@ -2151,9 +2147,7 @@ function salvarConfiguracoes() {
   if (!DB.config) DB.config = {};
 
   DB.config.nomeEmpresa = emp;
-  DB.config.corPrimaria = corPrim;
-  DB.config.corSidebar = corSide;
-  DB.config.corMenu = corText;
+  DB.config.esquemaCores = esquemaCores;
   DB.config.tema = tema;
   DB.config.slug = slug;
   DB.config.logoUrl = logoUrl;
@@ -3622,7 +3616,7 @@ async function saveNewTenant() {
       config: {
         nomeEmpresa: nome,
         slug: slugVal,
-        corPrimaria: '#f59e0b',
+        esquemaCores: 'emerald',
         limiteObras: lobras,
         limiteTrabalhadores: ltrab
       }
@@ -3643,7 +3637,7 @@ async function saveNewTenant() {
     await firebase.database().ref(`tenants_public/${slugVal}`).set({
       slug: slugVal,
       nomeEmpresa: nome,
-      corPrimaria: '#f59e0b'
+      esquemaCores: 'emerald'
     });
 
     toast('Empresa criada! O dono já pode logar com seu e-mail.');

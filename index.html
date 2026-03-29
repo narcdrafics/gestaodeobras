@@ -12,7 +12,8 @@
     :root {
       --lp-bg: #09090b;
       --lp-text: #fafafa;
-      --lp-accent: #6366f1; /* default indigo */
+      --lp-accent: #6366f1;
+      /* default indigo */
       --lp-zinc: #27272a;
     }
 
@@ -47,7 +48,9 @@
       position: relative;
     }
 
-    .nav-left, .nav-right, .nav-center {
+    .nav-left,
+    .nav-right,
+    .nav-center {
       display: flex;
       align-items: center;
     }
@@ -83,7 +86,7 @@
       padding-right: 16px;
       border-right: 1px solid rgba(255, 255, 255, 0.1);
       margin-right: 8px;
-      background: rgba(255,255,255,0.03);
+      background: rgba(255, 255, 255, 0.03);
       padding: 6px 16px;
       border-radius: 20px;
     }
@@ -97,16 +100,26 @@
       padding: 0;
       transition: transform 0.2s, box-shadow 0.2s;
     }
+
     .color-btn:hover {
       transform: scale(1.3);
     }
+
     .color-btn.active {
       box-shadow: 0 0 0 2px var(--lp-bg), 0 0 0 4px var(--lp-text);
     }
-    
-    .color-btn.indigo { background: #6366f1; }
-    .color-btn.amber { background: #f59e0b; }
-    .color-btn.emerald { background: #10b981; }
+
+    .color-btn.indigo {
+      background: #6366f1;
+    }
+
+    .color-btn.amber {
+      background: #f59e0b;
+    }
+
+    .color-btn.emerald {
+      background: #10b981;
+    }
 
     .nav-links a {
       color: #a1a1aa;
@@ -269,14 +282,20 @@
       background: rgba(255, 255, 255, 0.06);
       transform: translateX(4px);
     }
-    
+
     .who-list .icon {
       font-size: 24px;
     }
 
     @media(max-width: 768px) {
-      .who-content { padding: 32px 20px; }
-      .who-list li { font-size: 16px; padding: 12px 16px; }
+      .who-content {
+        padding: 32px 20px;
+      }
+
+      .who-list li {
+        font-size: 16px;
+        padding: 12px 16px;
+      }
     }
 
     /* VISUAL PROOF */
@@ -331,6 +350,7 @@
       justify-content: center;
       text-align: center;
     }
+
     .cta-human-content {
       background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.0) 100%), #18181b;
       border: 1px solid var(--lp-accent);
@@ -340,11 +360,13 @@
       width: 100%;
       box-shadow: 0 20px 40px rgba(99, 102, 241, 0.15);
     }
+
     .cta-human-content h2 {
       font-size: 36px;
       letter-spacing: -1px;
       margin-bottom: 16px;
     }
+
     .cta-human-content p {
       font-size: 18px;
       color: #a1a1aa;
@@ -353,6 +375,7 @@
       margin-left: auto;
       margin-right: auto;
     }
+
     .btn-whatsapp {
       background: #25D366;
       color: #fff;
@@ -366,10 +389,12 @@
       text-decoration: none;
       transition: transform 0.2s, background 0.2s;
     }
+
     .btn-whatsapp:hover {
       background: #20BA56;
       transform: translateY(-2px);
     }
+
     .btn-whatsapp svg {
       fill: currentColor;
     }
@@ -391,18 +416,36 @@
       justify-content: center;
       transition: transform 0.2s;
     }
+
     .whatsapp-float:hover {
       transform: scale(1.1);
     }
+
     .whatsapp-float svg {
       fill: currentColor;
     }
 
     @media(max-width: 768px) {
-      .cta-human-content { padding: 40px 20px; }
-      .cta-human-content h2 { font-size: 28px; }
-      .btn-whatsapp { width: 100%; justify-content: center; padding: 14px 20px; }
-      .whatsapp-float { bottom: 20px; right: 20px; width: 50px; height: 50px; }
+      .cta-human-content {
+        padding: 40px 20px;
+      }
+
+      .cta-human-content h2 {
+        font-size: 28px;
+      }
+
+      .btn-whatsapp {
+        width: 100%;
+        justify-content: center;
+        padding: 14px 20px;
+      }
+
+      .whatsapp-float {
+        bottom: 20px;
+        right: 20px;
+        width: 50px;
+        height: 50px;
+      }
     }
 
     /* PRICING */
@@ -462,6 +505,7 @@
       font-size: 20px;
       margin-bottom: 8px;
     }
+
     .price-card.has-tag h3 {
       margin-top: 10px;
     }
@@ -526,18 +570,21 @@
         font-size: 40px;
       }
 
-      .proof-grid, .price-grid {
+      .proof-grid,
+      .price-grid {
         grid-template-columns: 1fr;
       }
 
       .nav-links {
         display: none;
       }
+
       .nav-center {
         position: static;
         transform: none;
         font-size: 20px;
       }
+
       .nav-right .hide-mobile {
         display: none;
       }
@@ -571,7 +618,7 @@
       document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('active'));
       document.querySelector('.color-btn.' + themeName)?.classList.add('active');
     }
-    
+
     // Set active dot on load
     window.addEventListener('DOMContentLoaded', () => {
       const current = localStorage.getItem('obra_real_theme') || 'indigo';
@@ -604,12 +651,12 @@
     <div class="nav-right nav-links">
       <a href="#features" class="hide-mobile">Recursos</a>
       <a href="#precos" class="hide-mobile">Preços</a>
-      
+
       <!-- Theme Switcher -->
       <div class="theme-switcher hide-mobile" title="Ajustar cores">
-         <button class="color-btn indigo active" onclick="setTheme('indigo')" aria-label="Tema Indigo"></button>
-         <button class="color-btn amber" onclick="setTheme('amber')" aria-label="Tema Laranja"></button>
-         <button class="color-btn emerald" onclick="setTheme('emerald')" aria-label="Tema Verde (Construtora)"></button>
+        <button class="color-btn indigo active" onclick="setTheme('indigo')" aria-label="Tema Indigo"></button>
+        <button class="color-btn amber" onclick="setTheme('amber')" aria-label="Tema Laranja"></button>
+        <button class="color-btn emerald" onclick="setTheme('emerald')" aria-label="Tema Verde (Construtora)"></button>
       </div>
 
       <a href="login.html">Entrar</a>
@@ -668,7 +715,7 @@
         <h4>Cronograma e Etapas</h4>
         <p>Tabela visual tipo Kanban mostrando exatamente o andamento físico da obra.</p>
       </div>
-      </div>
+    </div>
     </div>
   </section>
 
@@ -694,13 +741,16 @@
     <div class="feature-grid">
       <div class="feature-card">
         <div class="icon">📦</div>
-        <h3 style="line-height: 1.3; margin-bottom: 8px;">Saiba onde o material está indo antes que ele suma da obra</h3>
-        <p>Controle rigoroso de entradas e saídas. Sem mais surpresas e trabalho parado por falta de cimento ou areia.</p>
+        <h3 style="line-height: 1.3; margin-bottom: 8px;">Saiba onde o material está indo antes que ele suma da obra
+        </h3>
+        <p>Controle rigoroso de entradas e saídas. Sem mais surpresas e trabalho parado por falta de cimento ou areia.
+        </p>
       </div>
       <div class="feature-card">
         <div class="icon">👷</div>
         <h3 style="line-height: 1.3; margin-bottom: 8px;">Pare de se perder em faltas, diárias e pagamentos</h3>
-        <p>Histórico claro de presenças para você fechar a conta da semana em 5 minutos e fugir de passivos trabalhistas.</p>
+        <p>Histórico claro de presenças para você fechar a conta da semana em 5 minutos e fugir de passivos
+          trabalhistas.</p>
       </div>
       <div class="feature-card">
         <div class="icon">💰</div>
@@ -709,18 +759,22 @@
       </div>
       <div class="feature-card">
         <div class="icon">📏</div>
-        <h3 style="line-height: 1.3; margin-bottom: 8px;">Acompanhe o que foi feito e o que está atrasando a entrega</h3>
-        <p>Painel de medições de empreitas. Saiba o que travou e só pague por aquilo que o empreiteiro realmente executou.</p>
+        <h3 style="line-height: 1.3; margin-bottom: 8px;">Acompanhe o que foi feito e o que está atrasando a entrega
+        </h3>
+        <p>Painel de medições de empreitas. Saiba o que travou e só pague por aquilo que o empreiteiro realmente
+          executou.</p>
       </div>
       <div class="feature-card">
         <div class="icon">📸</div>
         <h3 style="line-height: 1.3; margin-bottom: 8px;">Acabe com as eternas cobranças do cliente no WhatsApp</h3>
-        <p>Linha do tempo visual da obra na nuvem. Preste contas mostrando imagens da evolução antes mesmo do cliente perguntar.</p>
+        <p>Linha do tempo visual da obra na nuvem. Preste contas mostrando imagens da evolução antes mesmo do cliente
+          perguntar.</p>
       </div>
       <div class="feature-card">
         <div class="icon">📱</div>
         <h3 style="line-height: 1.3; margin-bottom: 8px;">Sua obra inteira guardada no bolso da calça</h3>
-        <p>Não precisa de computador chique no escritório. Aconteceu no canteiro? Você puxa o celular e registra na hora.</p>
+        <p>Não precisa de computador chique no escritório. Aconteceu no canteiro? Você puxa o celular e registra na
+          hora.</p>
       </div>
     </div>
   </section>
@@ -730,8 +784,12 @@
     <div class="cta-human-content">
       <h2>Quer ver a Obra Real aplicada na sua realidade?</h2>
       <p>Te mostro em poucos minutos como organizar equipe, material, etapas e custos da sua obra.</p>
-      <a href="https://wa.me/5598985262006?text=Olá! Gostaria de ver uma demonstração da Obra Real." class="btn-whatsapp" target="_blank">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      <a href="https://wa.me/5598985262006?text=Olá! Gostaria de ver uma demonstração da Obra Real."
+        class="btn-whatsapp" target="_blank">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+          <path
+            d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+        </svg>
         Falar no WhatsApp agora
       </a>
     </div>
@@ -755,7 +813,7 @@
           <li>Suporte via chat</li>
         </ul>
 
-        <a href="https://pay.kiwify.com.br/UeoKVpn" class="btn btn-secondary"
+        <a href="https://pay.kiwify.com.br/hHQz2Zu" class="btn btn-secondary"
           style="width:100%; margin-top:auto; padding: 12px;">Assinar Start</a>
       </div>
 
@@ -772,7 +830,7 @@
           <li>Estoque de Materiais</li>
         </ul>
 
-        <a href="https://pay.kiwify.com.br/d2qkT1E" class="btn btn-secondary"
+        <a href="https://pay.kiwify.com.br/d0Gfv34" class="btn btn-secondary"
           style="width:100%; margin-top:auto; padding: 12px;">Assinar Pro</a>
       </div>
 
@@ -780,7 +838,7 @@
       <div class="price-card featured has-tag">
         <div class="tag">Mais Escolhido</div>
         <h3>Plano Ilimitado</h3>
-        <p class="desc">Obras sem limite, acesso para toda a equipe  e relatórios fluidos.</p>
+        <p class="desc">Obras sem limite, acesso para toda a equipe e relatórios fluidos.</p>
         <div class="price-val">R$ 149,90 <small>/ mês</small></div>
 
         <ul class="check-list">
@@ -827,8 +885,12 @@
     </div>
   </footer>
 
-  <a href="https://wa.me/5598985262006?text=Olá! Gostaria de tirar algumas dúvidas sobre a Obra Real." class="whatsapp-float" target="_blank" aria-label="Fale conosco no WhatsApp">
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  <a href="https://wa.me/5598985262006?text=Olá! Gostaria de tirar algumas dúvidas sobre a Obra Real."
+    class="whatsapp-float" target="_blank" aria-label="Fale conosco no WhatsApp">
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24">
+      <path
+        d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+    </svg>
   </a>
 
   <script>
