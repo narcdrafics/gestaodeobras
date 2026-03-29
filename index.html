@@ -127,6 +127,41 @@
     .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
     .feature-card p { font-size: 14px; color: #71717a; }
     
+    /* VISUAL PROOF */
+    .visual-proof { padding: 80px 0; }
+    .proof-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 32px;
+    }
+    .proof-card {
+      background: var(--lp-zinc, #27272a);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: transform 0.2s;
+    }
+    .proof-card:hover { transform: translateY(-4px); }
+    .proof-card img {
+      width: 100%;
+      height: 280px;
+      object-fit: cover;
+      object-position: top;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .proof-card h4 {
+      padding: 20px 20px 8px;
+      font-size: 18px;
+      margin: 0;
+      color: #fff;
+    }
+    .proof-card p {
+      padding: 0 20px 20px;
+      font-size: 14px;
+      color: #a1a1aa;
+      margin: 0;
+    }
+
     /* PRICING */
     .pricing { 
         padding-bottom: 120px;
@@ -250,6 +285,44 @@
       <img src="img/dashboard.png" alt="Obra Real Dashboard Preview" id="dashboard-mock">
     </div>
   </header>
+
+  <!-- SEÇÃO DE PROVA VISUAL DA OBRA REAL -->
+  <section class="visual-proof container" id="funcionamento">
+    <div style="text-align: center; margin-bottom: 50px;">
+      <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -1px; margin-bottom: 16px;">Veja a Obra Real funcionando na prática</h2>
+      <p style="color: #a1a1aa; font-size: 18px; max-width: 600px; margin: 0 auto;">Poder total. De relatórios de campo à gestão de diárias e tarefas, direto do seu celular e computador.</p>
+    </div>
+
+    <div class="proof-grid">
+      <!-- Card: Presença -->
+      <div class="proof-card">
+        <img src="img/print-presenca.png" alt="Tela de Presença Diária" onerror="this.src='https://placehold.co/800x500/18181b/6366f1?text=Print+da+Presen%C3%A7a'">
+        <h4>Presença e Diárias</h4>
+        <p>Folha de ponto diária e cálculos automáticos do que pagar para cada funcionário.</p>
+      </div>
+
+      <!-- Card: Estoque -->
+      <div class="proof-card">
+        <img src="img/print-estoque.png" alt="Tela de Estoque" onerror="this.src='https://placehold.co/800x500/18181b/6366f1?text=Print+do+Estoque'">
+        <h4>Estoque Controlado</h4>
+        <p>Entradas, saídas e rastreio de cada saco de cimento. Acabou a surpresa no canteiro.</p>
+      </div>
+
+      <!-- Card: Financeiro -->
+      <div class="proof-card">
+        <img src="img/print-financeiro.png" alt="Tela Financeira" onerror="this.src='https://placehold.co/800x500/18181b/6366f1?text=Print+Financeiro'">
+        <h4>Caixa e Financeiro</h4>
+        <p>Saiba quanto gastou hoje, quem recebeu vales, e tudo integrado ao orçamento geral da obra.</p>
+      </div>
+
+      <!-- Card: Cronograma -->
+      <div class="proof-card">
+        <img src="img/print-cronograma.png" alt="Tela do Cronograma" onerror="this.src='https://placehold.co/800x500/18181b/6366f1?text=Print+Cronograma\n(Medições+e+Etapas)'">
+        <h4>Cronograma e Etapas</h4>
+        <p>Tabela visual tipo Kanban mostrando exatamente o andamento físico da obra.</p>
+      </div>
+    </div>
+  </section>
 
   <section id="features" class="features container">
     <div style="text-align:center">
