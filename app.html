@@ -21,16 +21,25 @@
 
 <!-- HEADER -->
 <header class="header">
-  <div class="header-brand" id="app-logo-area">
-    <button class="menu-toggle" onclick="toggleMenu()">☰</button>
-    <div id="brand-container" style="display:flex; align-items:center; gap:8px">
-       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
-       <span class="app-brand-name">Obra Real</span>
+  <div class="header-left">
+    <button class="menu-toggle" onclick="toggleMenu()" style="background:none; border:none; color:var(--text); font-size:20px; cursor:pointer; margin-right:8px;" title="Menu principal">☰</button>
+    <div id="brand-container" style="display:flex; align-items:center;">
+       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
     </div>
   </div>
-  <div style="display:flex; align-items:center; gap:10px">
-    <button onclick="shareScreen()" style="background:var(--accent); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:13px; cursor:pointer; font-weight:600; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s;">📤 Compartilhar</button>
-    <div class="header-date" id="header-date"></div>
+  
+  <div class="header-center">
+    Obra Real
+  </div>
+
+  <div class="header-right">
+    <div class="theme-switcher-app" title="Ajustar esquema de cores">
+       <button class="theme-btn indigo" onclick="setAppTheme('indigo')" aria-label="Tema Indigo"></button>
+       <button class="theme-btn amber" onclick="setAppTheme('amber')" aria-label="Tema Ouro"></button>
+       <button class="theme-btn emerald" onclick="setAppTheme('emerald')" aria-label="Tema Construtora"></button>
+    </div>
+    <button onclick="shareScreen()" style="background:var(--accent); color:var(--accent-text); border:none; padding:6px 14px; border-radius:6px; font-size:13px; cursor:pointer; font-weight:600; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s;">📤 Compartilhar</button>
+    <div class="header-date" id="header-date" style="font-size: 13px; color: var(--text3); border-left: 1px solid var(--border); padding-left: 12px; height: 100%; display: flex; align-items: center;"></div>
   </div>
 </header>
 
@@ -134,6 +143,26 @@ window.shareScreen = async function() {
     if(typeof toast === 'function') toast('Erro ao compilar visual.', 'error');
   }
 };
+</script>
+
+<script>
+  // Inicialização e gerenciamento do tema do aplicativo
+  function setAppTheme(themeName) {
+    document.documentElement.setAttribute('data-theme', themeName);
+    localStorage.setItem('obra_real_app_theme', themeName);
+    document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector('.theme-btn.' + themeName)?.classList.add('active');
+  }
+
+  // Define o tema verde esmeralda (esquema 3) como padrão do WebApp caso não haja escolha
+  window.addEventListener('DOMContentLoaded', () => {
+    let current = localStorage.getItem('obra_real_app_theme');
+    if (!current) {
+      current = 'emerald';
+      localStorage.setItem('obra_real_app_theme', 'emerald');
+    }
+    setAppTheme(current);
+  });
 </script>
 
 <script src="js/pix_logic.js?v=202603260845"></script>
