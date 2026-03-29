@@ -401,12 +401,13 @@
   </div>
 
   <script>
+    let currentMode = 'login';
+    window.isSignupProcess = false;
+
     function switchTab(mode) {
-      if (mode === 'signup') {
-        openDemoModal();
-        return;
-      }
       currentMode = mode;
+      window.isSignupProcess = (mode === 'signup');
+      
       const fieldName = document.getElementById('field-name');
       const btnAction = document.getElementById('btn-action');
       const subtitle = document.getElementById('form-subtitle');
@@ -414,15 +415,24 @@
 
       document.getElementById('login-error').style.display = 'none';
 
-      fieldName.style.display = 'none';
-      btnAction.textContent = 'Acessar Painel';
-      subtitle.textContent = 'Bem-vindo de volta! Acesse seu painel corporativo.';
-      switchContainer.innerHTML = 'Ainda não tem uma conta? <a onclick="switchTab(\'signup\')">Agendar Demonstração</a>';
+      if (mode === 'login') {
+        fieldName.style.display = 'none';
+        btnAction.textContent = 'Acessar Painel';
+        subtitle.textContent = 'Bem-vindo de volta! Acesse seu painel corporativo.';
+        switchContainer.innerHTML = 'Ainda não tem uma conta? <a onclick="switchTab(\'signup\')">Experimente Grátis</a>';
+      } else {
+        fieldName.style.display = 'block';
+        btnAction.textContent = 'Criar Conta Gratuita';
+        subtitle.textContent = 'Crie sua conta e comece a gerenciar suas obras hoje.';
+        switchContainer.innerHTML = 'Já possui uma conta? <a onclick="switchTab(\'login\')">Fazer Login</a>';
+      }
     }
 
     function handleAuthAction() {
       if (currentMode === 'login') {
         if (typeof doEmailLogin === 'function') doEmailLogin();
+      } else {
+        if (typeof doEmailSignup === 'function') doEmailSignup();
       }
     }
 
@@ -431,6 +441,13 @@
     function openDemoModal() {
       document.getElementById('demo-modal').style.display = 'flex';
     }
+
+    // Link para demonstração guiada
+    const demoLink = document.createElement('div');
+    demoLink.style.textAlign = 'center';
+    demoLink.style.marginTop = '20px';
+    demoLink.innerHTML = '<a onclick="openDemoModal()" style="color:var(--text3); font-size:12px; cursor:pointer; text-decoration:underline;">Prefere uma demonstração guiada?</a>';
+    document.querySelector('.login-container').appendChild(demoLink);
 
     function closeDemoModal() {
       document.getElementById('demo-modal').style.display = 'none';
