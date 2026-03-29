@@ -354,17 +354,16 @@ function applyAccessControl(user) {
 }
 
 function setRestrictions(user) {
-  const headerBrand = document.querySelector('.header-brand');
+  const headerRight = document.querySelector('.header-right');
   const headerDate = document.querySelector('.header-date');
 
-  if (headerBrand && !document.getElementById('btn-logout')) {
+  if (headerRight && !document.getElementById('btn-logout')) {
     const logoutBtn = document.createElement('button');
     logoutBtn.id = 'btn-logout';
     logoutBtn.className = 'btn btn-secondary btn-sm';
     logoutBtn.style.marginLeft = '12px';
     logoutBtn.innerHTML = '🚪 Sair';
     logoutBtn.onclick = doLogout;
-    headerBrand.appendChild(logoutBtn);
 
     const userNameSpan = document.createElement('span');
     userNameSpan.id = 'active-user-badge';
@@ -374,17 +373,13 @@ function setRestrictions(user) {
     userNameSpan.style.fontWeight = '500';
     userNameSpan.innerHTML = `👤 ${user.name} <span style="opacity:0.6;font-size:10px">(${(user.role || 'admin').toUpperCase()})</span>`;
 
-    if (headerDate?.parentNode) {
-      headerDate.parentNode.insertBefore(userNameSpan, headerDate);
-      userNameSpan.style.marginRight = '16px';
+    // Adiciona o nome antes da data, e o botão sair por último
+    if (headerDate) {
+      headerRight.insertBefore(userNameSpan, headerDate);
     } else {
-      document.querySelector('.header')?.appendChild(userNameSpan);
+      headerRight.prepend(userNameSpan);
     }
-
-    // SaaS: Adiciona botão de logout no final se não existir
-    if (!document.getElementById('btn-logout')) {
-      // Já existe lógica acima, mas garantindo aqui.
-    }
+    headerRight.appendChild(logoutBtn);
   }
 
   const role = user.role || 'admin';
