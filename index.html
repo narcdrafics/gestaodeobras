@@ -54,8 +54,8 @@
     }
 
     nav.nav-custom .container {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
+      display: flex;
+      justify-content: space-between;
       align-items: center;
       width: 100%;
     }
@@ -77,22 +77,19 @@
     .nav-left {
       display: flex;
       align-items: center;
-      justify-content: flex-start;
+      gap: 12px;
     }
 
-    .nav-center {
+    .brand-text {
       font-weight: 800;
       font-size: 22px;
       letter-spacing: -1.5px;
       color: var(--lp-text);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
       white-space: nowrap;
+      text-decoration: none;
     }
 
-    .nav-center span {
+    .brand-text span {
       background: linear-gradient(90deg, #fff 0%, var(--lp-accent) 100%);
       -webkit-background-clip: text;
       background-clip: text;
@@ -609,7 +606,7 @@
       .hero p { font-size: 16px; }
 
       nav.nav-custom .container {
-        grid-template-columns: auto 1fr auto;
+        justify-content: space-between;
       }
 
       .nav-links.hide-mobile, 
@@ -673,7 +670,7 @@
 
   <nav class="nav-custom">
     <div class="container">
-      <!-- Left: Logo Icon (Interactive) -->
+      <!-- Left: Logo + Name (Identity) -->
       <div class="nav-left">
         <a href="#" class="logo-link" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;" title="Voltar ao início">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="2.5"
@@ -683,14 +680,12 @@
             <polyline points="2 12 12 17 22 12"></polyline>
           </svg>
         </a>
+        <a href="#" class="brand-text" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;">
+          Obra <span>Real</span>
+        </a>
       </div>
 
-      <!-- Center: Brand Name -->
-      <div class="nav-center">
-        <span>Obra Real</span>
-      </div>
-
-      <!-- Right: Links & Theme -->
+      <!-- Right: Links & Theme (Menu) -->
       <div class="nav-right nav-links">
         <a href="#features" class="hide-mobile">Recursos</a>
         <a href="#precos" class="hide-mobile">Preços</a>
