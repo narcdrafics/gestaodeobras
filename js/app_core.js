@@ -2001,7 +2001,7 @@ function openMasterTenantModal(tid) {
   container.querySelector('#mt-slug').value = config.slug || '';
   container.querySelector('#mt-email').value = '';
   container.querySelector('#mt-limite-obras').value = config.limiteObras || 0;
-  container.querySelector('#mt-limite-trab').value = config.limiteTrabalhadores || 0;
+  container.querySelector('#mt-limite-usr').value = config.limiteUsuarios || 0;
   
   // Novos campos de controle de Plano
   if(container.querySelector('#mt-plano')) container.querySelector('#mt-plano').value = tData.plano || 'free_trial';
@@ -2018,11 +2018,11 @@ async function saveMasterTenant() {
   let slugVal = modal.querySelector('#mt-slug').value.trim().toLowerCase();
   const emailOwner = modal.querySelector('#mt-email').value.trim().toLowerCase();
   const lobras = parseInt(modal.querySelector('#mt-limite-obras').value);
-  const ltrab = parseInt(modal.querySelector('#mt-limite-trab').value);
+  const lusr = parseInt(modal.querySelector('#mt-limite-usr').value);
   const plano = modal.querySelector('#mt-plano')?.value || 'free_trial';
   const status = modal.querySelector('#mt-status')?.value || 'ativo';
 
-  if (isNaN(lobras) || isNaN(ltrab)) return toast('Preencha os limites com números válidos.', 'error');
+  if (isNaN(lobras) || isNaN(lusr)) return toast('Preencha os limites com números válidos.', 'error');
   if (!nome) return toast('Preencha o nome da empresa.', 'error');
   if (!slugVal) return toast('Preencha o subdomínio (slug).', 'error');
 
@@ -2041,7 +2041,7 @@ async function saveMasterTenant() {
     updates[`tenants/${tid}/config/nomeEmpresa`] = nome;
     updates[`tenants/${tid}/config/slug`] = slugVal;
     updates[`tenants/${tid}/config/limiteObras`] = lobras;
-    updates[`tenants/${tid}/config/limiteTrabalhadores`] = ltrab;
+    updates[`tenants/${tid}/config/limiteUsuarios`] = lusr;
     updates[`tenants/${tid}/plano`] = plano;
     updates[`tenants/${tid}/status`] = status;
     
@@ -2624,13 +2624,8 @@ async function saveTrabalhador() {
     }
     toast('Trabalhador atualizado!');
   } else {
-    // Validação SaaS: Limite de Trabalhadores
-    // Validação SaaS: Limite de Trabalhadores (Unificado: olha no Config e na Raiz)
-    const limite = DB.config.limiteTrabalhadores || DB.limiteTrabalhadores || 10;
-    if (DB.trabalhadores.length >= limite) {
-      toast(`Seu plano atingiu o limite de ${limite} trabalhadores.`, 'error');
-      return;
-    }
+    // Trabalhadores agora são ilimitados em todos os planos (Startup SaaS LP)
+    // O limite foi movido para Usuários Internos e Obras.
     DB.trabalhadores.push(data);
     toast('Trabalhador cadastrado!');
   }
@@ -3486,6 +3481,12 @@ async function saveUsuario() {
     toast('Permissões de Usuário atualizadas!');
   } else {
     // New
+    const limiteAcessos = DB.config.limiteUsuarios || 2; // Plano Start e Free é 2
+    if (DB.usuarios && DB.usuarios.length >= limiteAcessos && limiteAcessos < 99) {
+      toast(`Seu plano atingiu o limite de ${limiteAcessos} acessos. Faça downgrade ou o Upgrade Ilimitado!`, 'error');
+      return;
+    }
+
     if (DB.usuarios.find(u => u.email === email)) {
       toast('Este e-mail já está cadastrado nesta empresa.', 'error');
       return;
@@ -3580,7 +3581,7 @@ async function saveNewTenant() {
   let slugVal = modal.querySelector('#ct-slug').value.trim().toLowerCase();
   const emailOwner = modal.querySelector('#ct-email').value.trim().toLowerCase();
   const lobras = parseInt(modal.querySelector('#ct-limite-obras').value) || 0;
-  const ltrab = parseInt(modal.querySelector('#ct-limite-trab').value) || 0;
+  const lusr = parseInt(modal.querySelector('#ct-limite-usr').value) || 0;
 
   if (!nome) return toast('Preencha o nome da empresa.', 'error');
   if (!slugVal) return toast('Preencha o subdomínio.', 'error');
@@ -3618,7 +3619,8 @@ async function saveNewTenant() {
         slug: slugVal,
         esquemaCores: 'emerald',
         limiteObras: lobras,
-        limiteTrabalhadores: ltrab
+        limiteUsuarios: lusr,
+        limiteTrabalhadores: 9999
       }
     });
 

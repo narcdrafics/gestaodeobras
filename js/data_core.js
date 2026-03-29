@@ -3,7 +3,8 @@ const staticDB = {
     nomeEmpresa: 'Obra Real',
     esquemaCores: 'emerald',
     limiteObras: 1,
-    limiteTrabalhadores: 5,
+    limiteUsuarios: 1,
+    limiteTrabalhadores: 9999,
   },
   usuarios: [],
   obras: [],
@@ -387,11 +388,9 @@ function toggleMenu() {
 
 // ==================== BILLING / PLANOS ====================
 
-// Links de checkout da Kiwify para cada plano
-// Substitua pelos links reais dos seus produtos na Kiwify
 const KIWIFY_LINKS = {
-  pro: 'https://pay.kiwify.com.br/UeoKVpn',
-  master: 'https://pay.kiwify.com.br/d2qkT1E',
+  start: 'https://pay.kiwify.com.br/hHQz2Zu',
+  pro: 'https://pay.kiwify.com.br/d0Gfv34',
 };
 
 /**
@@ -403,34 +402,39 @@ function renderBillingSection() {
 
   const plano       = DB.plano || 'free_trial';
   const limiteObras = DB.config?.limiteObras ?? 1;
-  const limiteTrab  = DB.config?.limiteTrabalhadores ?? 10;
+  const limiteUsers = DB.config?.limiteUsuarios ?? 2;
   const slugSubdom  = DB.subdominioSlug || DB.config?.slug || '';
   const vencimento  = DB.planoVencimento;
 
   console.log('[Billing] Plano detectado:', plano);
 
   const PLANO_LABELS = {
-    free_trial: '🆓 Free Trial (30 dias)',
+    free_trial: '🆓 Período de Teste (30 dias)',
+    start:      '🚀 Start',
     pro:        '⭐ Pro',
     premium:    '⭐ Pro',
-    master:     '🌐 Master',
+    master:     '🌐 Ilimitado / Master',
+    ilimitado:  '🌐 Ilimitado',
+    full_anual: '👑 Full Anual'
   };
 
   if (el('plan-name'))   el('plan-name').textContent   = PLANO_LABELS[plano] || plano;
   if (el('limit-obras')) el('limit-obras').textContent = limiteObras >= 99  ? 'Ilimitado' : limiteObras;
-  if (el('limit-trab'))  el('limit-trab').textContent  = limiteTrab  >= 999 ? 'Ilimitado' : limiteTrab;
+  if (el('limit-usr'))   el('limit-usr').textContent   = limiteUsers >= 99  ? 'Ilimitado' : limiteUsers;
 
   if (vencimento && el('subscription-info')) {
     const dtVenc = new Date(vencimento).toLocaleDateString('pt-BR');
-    el('subscription-info').innerHTML = `<span style="font-size:11px;color:var(--text3)">Validade: ${dtVenc}</span>`;
+    el('subscription-info').innerHTML = `<span style="font-size:11px;color:var(--text3)">Vencimento / Renovação: ${dtVenc}</span>`;
   }
 
   const isFree   = plano === 'free_trial';
-  const isPro    = plano === 'pro' || plano === 'premium';
-  const isMaster = plano === 'master';
+  const isStart  = (plano === 'start');
+  const isPro    = (plano === 'pro' || plano === 'premium');
+  const isMaster = (plano === 'master' || plano === 'ilimitado' || plano === 'full_anual');
 
-  // Exibe apenas o painel correspondente ao plano
+  // Exibe apenas o painel correspondente ao plano de expansão
   if (el('billing-free'))   el('billing-free').style.display   = isFree   ? 'block' : 'none';
+  if (el('billing-start'))  el('billing-start').style.display  = isStart  ? 'block' : 'none';
   if (el('billing-pro'))    el('billing-pro').style.display    = isPro    ? 'block' : 'none';
   if (el('billing-master')) el('billing-master').style.display = isMaster ? 'block' : 'none';
 
@@ -444,40 +448,8 @@ function renderBillingSection() {
     }
   }
 
-  // --- NOVO: Configura o Link de Upsell Dinâmico ---
-  if (isPro && el('kiwify-upsell-d2qkT1E')) {
-    const tenantId = _currentTenantId || '';
-    const container = el('kiwify-upsell-d2qkT1E');
-    let baseUrl = container.getAttribute('data-upsell-url') || 'https://pay.kiwify.com.br/d2qkT1E';
-    
-    // Garante que o external_reference esteja na URL principal
-    if (!baseUrl.includes('external_reference=')) {
-      const urlObj = new URL(baseUrl);
-      urlObj.searchParams.set('external_reference', tenantId);
-      // Opcional: Adicionar redirect_url para voltar ao app após a compra
-      urlObj.searchParams.set('redirect_url', window.location.href);
-      
-      const finalUrl = urlObj.toString();
-      container.setAttribute('data-upsell-url', finalUrl);
-      
-      // Fallback: Se o script da Kiwify não funcionar como widget, 
-      // garante que o botão ao menos abra o link correto
-      const btn = el('kiwify-upsell-trigger-d2qkT1E');
-      if (btn) {
-        btn.onclick = (e) => {
-           // Se o script da Kiwify não interceptou (não mudou window.location), forçamos
-           setTimeout(() => {
-             if (!window.location.href.includes('pay.kiwify')) {
-               window.open(finalUrl, '_blank');
-             }
-           }, 100);
-        };
-      }
-      console.log('[Billing] Upsell URL robusta configurada:', finalUrl);
-    }
-  }
+  // Lógica do antigo Kiwify Snippet foi removida pois dependemos de Checkout de Prateleira (transparência/venda humana)
 }
-
 
 
 /**

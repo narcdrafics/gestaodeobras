@@ -59,50 +59,54 @@
           <b id="limit-obras">—</b>
         </div>
         <div style="background: var(--bg2); padding: 8px; border-radius: 6px;">
-          <div style="font-size: 11px; opacity: 0.7;">Limite Trabalhadores</div>
-          <b id="limit-trab">—</b>
+          <div style="font-size: 11px; opacity: 0.7;">Acessos Internos</div>
+          <b id="limit-usr">—</b>
         </div>
       </div>
     </div>
 
-    <!-- FREE: só botão Pro (o upsell para Master é feito pelo Kiwify pós-checkout) -->
-    <div id="billing-free" style="display:none;">
-      <button class="btn btn-primary" onclick="startKiwifyCheckout('pro')"
-        style="background:#6366f1; border-color:#6366f1; width:100%; font-size:15px; padding:12px;">
-        ⭐ Assinar Plano Pro — Funcionários Ilimitados
-      </button>
-      <p style="font-size:11px; color:var(--text3); margin-top:8px; text-align:center;">
-        ✨ Após a assinatura, você poderá fazer upgrade para o Plano Master com 1 clique.
-      </p>
-    </div>
-
-    <!-- PRO: widget de upsell Kiwify para upgrade em 1 clique para Master -->
-    <div id="billing-pro" style="display:none;">
-      <div
-        style="background:linear-gradient(135deg,rgba(245,158,11,0.1),rgba(217,119,6,0.05)); border:1px solid #f59e0b; border-radius:10px; padding:16px; margin-bottom:12px;">
-        <div style="font-size:13px; font-weight:700; color:#f59e0b; margin-bottom:6px;">🌐 Upgrade para o Plano Master
-        </div>
-        <div style="font-size:12px; color:var(--text2); margin-bottom:14px;">Tenha um subdomínio próprio com o nome da
-          sua empresa: <b>suaempresa.obrareal.com</b></div>
-
-        <!-- Widget de Upsell Kiwify -->
-        <div style="text-align:center" id="kiwify-upsell-d2qkT1E"
-          data-upsell-url="https://pay.kiwify.com.br/d2qkT1E"
-          data-downsell-url="">
-          <button id="kiwify-upsell-trigger-d2qkT1E"
-            style="background-color:#5383ad;padding:12px 16px;cursor:pointer;color:#FFFFFF;font-weight:600;border-radius:4px;border:1px solid #5383ad;font-size:20px;">
-            Sim, eu aceito essa oferta especial!
-          </button>
-          <div id="kiwify-upsell-cancel-trigger-d2qkT1E"
-            style="margin-top:1rem;cursor:pointer;font-size:16px;text-decoration:underline;font-family:sans-serif;">
-            Não, eu gostaria de recusar essa oferta
-          </div>
-        </div>
-        <script src="https://snippets.kiwify.com/upsell/upsell.min.js"></script>
+    <!-- FREE: Opções de Assinatura Iniciais -->
+    <div id="billing-free" style="display:none; margin-top:16px;">
+      <div style="font-size:13px; font-weight:600; margin-bottom:10px;">Fazer Upgrade da sua Conta:</div>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button class="btn btn-secondary" onclick="startKiwifyCheckout('start')" style="width:100%; padding:12px; font-size:14px;">
+          🚀 Plano Start (R$ 69,90/mês) — 2 Obras
+        </button>
+        <button class="btn btn-primary" onclick="startKiwifyCheckout('pro')" style="width:100%; padding:12px; font-size:14px;">
+          ⭐ Plano Pro (R$ 105,90/mês) — 5 Obras
+        </button>
+        <a href="https://wa.me/5598985262006?text=Quero fazer o Upgrade para o Plano Ilimitado!" target="_blank" class="btn" style="width:100%; padding:12px; font-size:14px; background:#10b981; color:#fff; border:none; text-decoration:none; text-align:center;">
+          👑 Plano Ilimitado (R$ 149,90) — Obras Livres
+        </a>
       </div>
     </div>
 
-    <!-- MASTER: painel com subdomínio ativo -->
+    <!-- START: Opções de Upgrade -->
+    <div id="billing-start" style="display:none; margin-top:16px;">
+      <div style="font-size:13px; font-weight:600; margin-bottom:10px;">Fazer Upgrade de Plano:</div>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button class="btn btn-primary" onclick="startKiwifyCheckout('pro')" style="width:100%; padding:12px; font-size:14px;">
+          ⭐ Evoluir para Pro (R$ 105,90/mês) — 5 Obras
+        </button>
+        <a href="https://wa.me/5598985262006?text=Quero fazer o Upgrade para o Plano Ilimitado!" target="_blank" class="btn" style="width:100%; padding:12px; font-size:14px; background:#10b981; color:#fff; border:none; text-decoration:none; text-align:center;">
+          👑 Evoluir para Ilimitado (R$ 149,90)
+        </a>
+      </div>
+    </div>
+
+    <!-- PRO: Upgrade Final -->
+    <div id="billing-pro" style="display:none; margin-top:16px;">
+      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:12px;">
+        <div style="font-size:13px; font-weight:700; color:var(--text); margin-bottom:6px;">👑 Alcançar o Próximo Nível</div>
+        <div style="font-size:12px; color:var(--text2); margin-bottom:14px;">Libere Obras e Usuários Ilimitados, além de Subdomínio próprio da sua empresa.</div>
+        
+        <a href="https://wa.me/5598985262006?text=Quero fazer o Upgrade definitivo para o Plano Ilimitado Geral." target="_blank" class="btn" style="background-color:#10b981; padding:12px 16px; color:#fff; font-weight:600; border-radius:6px; border:none; width:100%; text-decoration:none; display:inline-block; text-align:center;">
+          Fazer Upgrade Ilimitado no WhatsApp
+        </a>
+      </div>
+    </div>
+
+    <!-- MASTER (ILIMITADO): Painel com subdomínio ativo -->
     <div id="billing-master" style="display:none;">
       <div
         style="background:linear-gradient(135deg,rgba(245,158,11,0.12),rgba(217,119,6,0.05)); border:1px solid #f59e0b; border-radius:10px; padding:14px;">

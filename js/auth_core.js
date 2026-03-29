@@ -153,8 +153,9 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
               nomeEmpresa: Name !== 'Sem Nome' ? Name + " Engenharia" : "Minha Empresa",
               slug: tenantId,
               esquemaCores: 'emerald',
-              limiteObras: 1, // Plano gratuito básico
-              limiteTrabalhadores: 10
+              limiteObras: 1, // Plano gratuito básico restrito
+              limiteUsuarios: 1, // Apenas o dono
+              limiteTrabalhadores: 9999 // Sem limite de pedreiros
           }
       };
       
