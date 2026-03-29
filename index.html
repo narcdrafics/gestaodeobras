@@ -12,8 +12,16 @@
     :root {
       --lp-bg: #09090b;
       --lp-text: #fafafa;
-      --lp-accent: #6366f1;
+      --lp-accent: #6366f1; /* default indigo */
       --lp-zinc: #27272a;
+    }
+
+    :root[data-theme="amber"] {
+      --lp-accent: #f59e0b;
+    }
+
+    :root[data-theme="emerald"] {
+      --lp-accent: #10b981;
     }
 
     body {
@@ -29,29 +37,76 @@
       padding: 0 24px;
     }
 
-    /* NAV */
-    nav {
+    /* NAV ENHANCED */
+    nav.nav-custom {
       height: 80px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      position: relative;
     }
 
-    .logo {
+    .nav-left, .nav-right, .nav-center {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-weight: 700;
-      font-size: 20px;
-      letter-spacing: -0.5px;
     }
 
-    .nav-links {
-      display: flex;
-      gap: 32px;
-      align-items: center;
+    .nav-left {
+      flex: 1;
+      justify-content: flex-start;
     }
+
+    .nav-center {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-weight: 800;
+      font-size: 24px;
+      letter-spacing: -1px;
+      color: var(--lp-text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-right {
+      flex: 1;
+      justify-content: flex-end;
+      gap: 24px;
+    }
+
+    .theme-switcher {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding-right: 16px;
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      margin-right: 8px;
+      background: rgba(255,255,255,0.03);
+      padding: 6px 16px;
+      border-radius: 20px;
+    }
+
+    .color-btn {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .color-btn:hover {
+      transform: scale(1.3);
+    }
+    .color-btn.active {
+      box-shadow: 0 0 0 2px var(--lp-bg), 0 0 0 4px var(--lp-text);
+    }
+    
+    .color-btn.indigo { background: #6366f1; }
+    .color-btn.amber { background: #f59e0b; }
+    .color-btn.emerald { background: #10b981; }
 
     .nav-links a {
       color: #a1a1aa;
@@ -468,6 +523,14 @@
       .nav-links {
         display: none;
       }
+      .nav-center {
+        position: static;
+        transform: none;
+        font-size: 20px;
+      }
+      .nav-right .hide-mobile {
+        display: none;
+      }
     }
   </style>
   <script>
@@ -483,25 +546,62 @@
         // Redireciona para o login mantendo o subdomínio e possíveis parâmetros
         window.location.href = 'login.html' + window.location.search;
       }
+
+      // Restore theme
+      const savedTheme = localStorage.getItem('obra_real_theme');
+      if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+      }
     })();
+
+    function setTheme(themeName) {
+      document.documentElement.setAttribute('data-theme', themeName);
+      localStorage.setItem('obra_real_theme', themeName);
+      // update active state
+      document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelector('.color-btn.' + themeName)?.classList.add('active');
+    }
+    
+    // Set active dot on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const current = localStorage.getItem('obra_real_theme') || 'indigo';
+      document.querySelector('.color-btn.' + current)?.classList.add('active');
+    });
   </script>
 </head>
 
 <body>
 
-  <nav class="container">
-    <div class="logo" id="brand-container">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-        <polyline points="2 17 12 22 22 17"></polyline>
-        <polyline points="2 12 12 17 22 12"></polyline>
-      </svg>
+  <nav class="container nav-custom">
+    <!-- Left: Logo Icon -->
+    <div class="nav-left">
+      <div class="logo-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="2.5"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Center: Brand Name -->
+    <div class="nav-center">
       <span class="app-brand-name">Obra Real</span>
     </div>
-    <div class="nav-links">
-      <a href="#features">Recursos</a>
-      <a href="#precos">Preços</a>
+
+    <!-- Right: Links & Theme -->
+    <div class="nav-right nav-links">
+      <a href="#features" class="hide-mobile">Recursos</a>
+      <a href="#precos" class="hide-mobile">Preços</a>
+      
+      <!-- Theme Switcher -->
+      <div class="theme-switcher hide-mobile" title="Ajustar cores">
+         <button class="color-btn indigo active" onclick="setTheme('indigo')" aria-label="Tema Indigo"></button>
+         <button class="color-btn amber" onclick="setTheme('amber')" aria-label="Tema Laranja"></button>
+         <button class="color-btn emerald" onclick="setTheme('emerald')" aria-label="Tema Verde (Construtora)"></button>
+      </div>
+
       <a href="login.html">Entrar</a>
       <a href="login.html#signup" class="btn btn-primary" style="padding: 10px 20px">Testar Grátis</a>
     </div>
