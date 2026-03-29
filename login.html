@@ -401,9 +401,11 @@
   </div>
 
   <script>
-    let currentMode = 'login';
-
     function switchTab(mode) {
+      if (mode === 'signup') {
+        openDemoModal();
+        return;
+      }
       currentMode = mode;
       const fieldName = document.getElementById('field-name');
       const btnAction = document.getElementById('btn-action');
@@ -412,30 +414,69 @@
 
       document.getElementById('login-error').style.display = 'none';
 
-      if (mode === 'login') {
-        fieldName.style.display = 'none';
-        btnAction.textContent = 'Acessar Painel';
-        subtitle.textContent = 'Bem-vindo de volta! Acesse seu painel corporativo.';
-        switchContainer.innerHTML = 'Ainda não tem uma conta? <a onclick="switchTab(\'signup\')">Experimente Grátis</a>';
-      } else {
-        fieldName.style.display = 'block';
-        btnAction.textContent = 'Criar Conta Gratuita';
-        subtitle.textContent = 'Crie sua conta e teste sem compromisso agora.';
-        switchContainer.innerHTML = 'Já possui uma conta? <a onclick="switchTab(\'login\')">Fazer Login</a>';
-      }
+      fieldName.style.display = 'none';
+      btnAction.textContent = 'Acessar Painel';
+      subtitle.textContent = 'Bem-vindo de volta! Acesse seu painel corporativo.';
+      switchContainer.innerHTML = 'Ainda não tem uma conta? <a onclick="switchTab(\'signup\')">Agendar Demonstração</a>';
     }
 
     function handleAuthAction() {
       if (currentMode === 'login') {
         if (typeof doEmailLogin === 'function') doEmailLogin();
-      } else {
-        if (typeof doEmailSignup === 'function') doEmailSignup();
       }
     }
+
+    // Formulário Curto Demonstração (Lead Capture)
+    let selectedPlan = "Login Page";
+    function openDemoModal() {
+      document.getElementById('demo-modal').style.display = 'flex';
+    }
+
+    function closeDemoModal() {
+      document.getElementById('demo-modal').style.display = 'none';
+      document.getElementById('demo-form').reset();
+    }
+
+    function submitDemo(e) {
+      e.preventDefault();
+      const nome = document.getElementById('dm-nome').value;
+      const wpp = document.getElementById('dm-wpp').value;
+      const emp = document.getElementById('dm-empresa').value;
+      const qtd = document.getElementById('dm-obras').value;
+      const dif = document.getElementById('dm-dif').value;
+
+      const txt = `Olá! Gostaria de agendar uma demonstração (visto na página de Login).\n\n*Nome:* ${nome}\n*WhatsApp:* ${wpp}\n*Empresa:* ${emp}\n*Obras simultâneas:* ${qtd}\n*Dificuldade:* ${dif}`;
+      const url = `https://wa.me/5598985262006?text=${encodeURIComponent(txt)}`;
+      
+      window.open(url, '_blank');
+      closeDemoModal();
+    }
   </script>
+
+  <!-- Modal Demo -->
+  <div id="demo-modal" class="modal-overlay" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center; padding: 16px;">
+    <div class="modal-box" style="background: #18181b; border-radius: 12px; padding: 24px; width: 100%; max-width: 440px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 40px rgba(0,0,0,0.6);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <h3 style="margin:0; font-size:20px; color:#fff;">Agendar Demonstração</h3>
+        <button onclick="closeDemoModal()" style="background:transparent; border:none; color:#fff; cursor:pointer; font-size:20px;">&times;</button>
+      </div>
+      <form id="demo-form" onsubmit="submitDemo(event)" style="display:flex; flex-direction:column; gap:16px;">
+        <input type="text" id="dm-nome" placeholder="Seu Nome *" required style="padding:12px; border-radius:8px; border:1px solid #3f3f46; background:#09090b; color:#fff;">
+        <input type="tel" id="dm-wpp" placeholder="Seu WhatsApp *" required style="padding:12px; border-radius:8px; border:1px solid #3f3f46; background:#09090b; color:#fff;">
+        <input type="text" id="dm-empresa" placeholder="Empresa / Tipo de Atuação *" required style="padding:12px; border-radius:8px; border:1px solid #3f3f46; background:#09090b; color:#fff;">
+        <select id="dm-obras" required style="padding:12px; border-radius:8px; border:1px solid #3f3f46; background:#09090b; color:#fff;">
+          <option value="">Quantas obras gerencia hoje? *</option>
+          <option value="Apenas 1">Apenas 1</option>
+          <option value="2 a 4">2 a 4</option>
+          <option value="5 ou mais">5 ou mais</option>
+        </select>
+        <textarea id="dm-dif" placeholder="Principal dificuldade hoje? *" rows="3" required style="padding:12px; border-radius:8px; border:1px solid #3f3f46; background:#09090b; color:#fff; font-family:inherit;"></textarea>
+        <button type="submit" class="btn-login" style="padding:14px; font-size:16px; margin-top:8px;">Pedir Demonstração</button>
+      </form>
+    </div>
+  </div>
 
   <script src="js/data_core.js?v=202603272225"></script>
   <script src="js/auth_core.js?v=202603272225"></script>
 </body>
-
 </html>
