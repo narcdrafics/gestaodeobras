@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Obra Real — O Controle Absoluto do seu Canteiro de Obras</title>
   <link rel="stylesheet" href="css/style.css?v=202603212100">
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
   <style>
     :root {
       --lp-bg: #09090b;
@@ -13,25 +15,29 @@
       --lp-accent: #6366f1;
       --lp-zinc: #27272a;
     }
+
     body {
       background: var(--lp-bg);
       color: var(--lp-text);
       overflow-x: hidden;
       line-height: 1.6;
     }
+
     .container {
       max-width: 1100px;
       margin: 0 auto;
       padding: 0 24px;
     }
+
     /* NAV */
     nav {
       height: 80px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     }
+
     .logo {
       display: flex;
       align-items: center;
@@ -40,11 +46,13 @@
       font-size: 20px;
       letter-spacing: -0.5px;
     }
+
     .nav-links {
       display: flex;
       gap: 32px;
       align-items: center;
     }
+
     .nav-links a {
       color: #a1a1aa;
       text-decoration: none;
@@ -52,13 +60,17 @@
       font-size: 14px;
       transition: color 0.2s;
     }
-    .nav-links a:hover { color: #fff; }
-    
+
+    .nav-links a:hover {
+      color: #fff;
+    }
+
     /* HERO */
     .hero {
       padding: 100px 0 120px;
       text-align: center;
     }
+
     .hero h1 {
       font-size: 64px;
       line-height: 1.1;
@@ -70,34 +82,39 @@
       background-clip: text;
       -webkit-text-fill-color: transparent;
     }
+
     .hero p {
       font-size: 20px;
       color: #a1a1aa;
       max-width: 700px;
       margin: 0 auto 40px;
     }
+
     .cta-group {
       display: flex;
       gap: 16px;
       justify-content: center;
     }
+
     .btn-hero {
       padding: 14px 32px;
       font-size: 16px;
       font-weight: 600;
     }
-    
+
     /* MOCKUP AREA */
     .dashboard-preview {
       margin-top: 80px;
       position: relative;
     }
+
     .dashboard-preview img {
       width: 100%;
       border-radius: 16px;
       border: 1px solid var(--border);
-      box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+      box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8);
     }
+
     .glow {
       position: absolute;
       width: 100%;
@@ -106,15 +123,19 @@
       background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.15), transparent 70%);
       z-index: -1;
     }
-    
+
     /* FEATURES */
-    .features { padding: 100px 0; }
+    .features {
+      padding: 100px 0;
+    }
+
     .feature-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 32px;
       margin-top: 60px;
     }
+
     .feature-card {
       background: #18181b;
       border: 1px solid #27272a;
@@ -122,39 +143,65 @@
       border-radius: 16px;
       transition: transform 0.2s;
     }
-    .feature-card:hover { transform: translateY(-8px); }
-    .feature-card .icon { font-size: 32px; margin-bottom: 20px; }
-    .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
-    .feature-card p { font-size: 14px; color: #71717a; }
-    
+
+    .feature-card:hover {
+      transform: translateY(-8px);
+    }
+
+    .feature-card .icon {
+      font-size: 32px;
+      margin-bottom: 20px;
+    }
+
+    .feature-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .feature-card p {
+      font-size: 14px;
+      color: #71717a;
+    }
+
     /* VISUAL PROOF */
-    .visual-proof { padding: 80px 0; }
+    .visual-proof {
+      padding: 80px 0;
+    }
+
     .proof-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 32px;
     }
+
     .proof-card {
       background: var(--lp-zinc, #27272a);
-      border: 1px solid rgba(255,255,255,0.05);
+      border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 12px;
       overflow: hidden;
       transition: transform 0.2s;
     }
-    .proof-card:hover { transform: translateY(-4px); }
+
+    .proof-card:hover {
+      transform: translateY(-4px);
+    }
+
     .proof-card img {
       width: 100%;
       height: 280px;
       object-fit: cover;
       object-position: top;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     }
+
     .proof-card h4 {
       padding: 20px 20px 8px;
       font-size: 18px;
       margin: 0;
       color: #fff;
     }
+
     .proof-card p {
       padding: 0 20px 20px;
       font-size: 14px;
@@ -163,93 +210,134 @@
     }
 
     /* PRICING */
-    .pricing { 
-        padding-bottom: 120px;
-        text-align: center;
+    .pricing {
+      padding-bottom: 120px;
+      text-align: center;
     }
+
     .price-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 24px;
-        margin-top: 60px;
-        align-items: flex-start;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-top: 60px;
+      align-items: flex-start;
     }
+
     .price-card {
-        background: #18181b;
-        border: 1px solid #27272a;
-        border-radius: 20px;
-        padding: 32px;
-        position: relative;
-        transition: transform 0.3s ease;
-        display: flex;
-        flex-direction: column;
-        height: 100%;
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 20px;
+      padding: 32px;
+      position: relative;
+      transition: transform 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
     }
+
     .price-card.featured {
-        border: 2px solid var(--lp-accent);
-        background: #1c1c1f;
-        transform: scale(1.05);
-        z-index: 2;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      border: 2px solid var(--lp-accent);
+      background: #1c1c1f;
+      transform: scale(1.05);
+      z-index: 2;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
     }
-    .price-card:hover:not(.featured) { transform: translateY(-8px); }
-    
+
+    .price-card:hover:not(.featured) {
+      transform: translateY(-8px);
+    }
+
     .price-card .tag {
-        position: absolute;
-        top: -15px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: var(--lp-accent);
-        padding: 4px 16px;
-        border-radius: 20px;
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+      position: absolute;
+      top: -15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--lp-accent);
+      padding: 4px 16px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
-    .price-card h3 { font-size: 20px; margin-bottom: 8px; }
-    .price-card .desc { font-size: 13px; color: #71717a; margin-bottom: 20px; }
-    .price-val { font-size: 40px; font-weight: 800; letter-spacing: -1px; margin: 10px 0; color: #fff; }
-    .price-val small { font-size: 14px; font-weight: 400; color: #71717a; }
-    
+
+    .price-card h3 {
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+
+    .price-card .desc {
+      font-size: 13px;
+      color: #71717a;
+      margin-bottom: 20px;
+    }
+
+    .price-val {
+      font-size: 40px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin: 10px 0;
+      color: #fff;
+    }
+
+    .price-val small {
+      font-size: 14px;
+      font-weight: 400;
+      color: #71717a;
+    }
+
     ul.check-list {
-        list-style: none;
-        text-align: left;
-        margin: 32px 0;
+      list-style: none;
+      text-align: left;
+      margin: 32px 0;
     }
+
     ul.check-list li {
-        margin-bottom: 12px;
-        display: flex;
-        gap: 12px;
-        font-size: 15px;
-        color: #a1a1aa;
+      margin-bottom: 12px;
+      display: flex;
+      gap: 12px;
+      font-size: 15px;
+      color: #a1a1aa;
     }
-    ul.check-list li::before { content: '✓'; color: var(--lp-accent); font-weight: 900; }
+
+    ul.check-list li::before {
+      content: '✓';
+      color: var(--lp-accent);
+      font-weight: 900;
+    }
 
     /* FOOTER */
     footer {
-        padding: 60px 0;
-        border-top: 1px solid rgba(255,255,255,0.05);
-        text-align: center;
-        color: #52525b;
-        font-size: 14px;
+      padding: 60px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      text-align: center;
+      color: #52525b;
+      font-size: 14px;
     }
 
     @media(max-width: 768px) {
-      .hero h1 { font-size: 40px; }
-      .feature-grid { grid-template-columns: 1fr; }
-      .nav-links { display: none; }
+      .hero h1 {
+        font-size: 40px;
+      }
+
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .nav-links {
+        display: none;
+      }
     }
   </style>
   <script>
     // SaaS: Redireciona para o portal se um subdomínio for detectado
-    (function() {
+    (function () {
       const host = window.location.hostname;
       const parts = host.split('.');
       // Ignora www e domínios padrão do Firebase
       const isFirebase = host.includes('web.app') || host.includes('firebaseapp.com');
       const isWWW = parts[0] === 'www';
-      
+
       if (parts.length > 2 && !isWWW && !isFirebase) {
         // Redireciona para o login mantendo o subdomínio e possíveis parâmetros
         window.location.href = 'login.html' + window.location.search;
@@ -257,11 +345,17 @@
     })();
   </script>
 </head>
+
 <body>
 
   <nav class="container">
     <div class="logo" id="brand-container">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+        <polyline points="2 17 12 22 22 17"></polyline>
+        <polyline points="2 12 12 17 22 12"></polyline>
+      </svg>
       <span class="app-brand-name">Obra Real</span>
     </div>
     <div class="nav-links">
@@ -289,35 +383,41 @@
   <!-- SEÇÃO DE PROVA VISUAL DA OBRA REAL -->
   <section class="visual-proof container" id="funcionamento">
     <div style="text-align: center; margin-bottom: 50px;">
-      <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -1px; margin-bottom: 16px;">Veja a Obra Real funcionando na prática</h2>
-      <p style="color: #a1a1aa; font-size: 18px; max-width: 600px; margin: 0 auto;">Poder total. De relatórios de campo à gestão de diárias e tarefas, direto do seu celular e computador.</p>
+      <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -1px; margin-bottom: 16px;">Veja a Obra Real
+        funcionando na prática</h2>
+      <p style="color: #a1a1aa; font-size: 18px; max-width: 600px; margin: 0 auto;">Poder total. De relatórios de campo
+        à gestão de diárias e tarefas, direto do seu celular e computador.</p>
     </div>
 
     <div class="proof-grid">
       <!-- Card: Presença -->
       <div class="proof-card">
-        <img src="img/print-presenca.png" alt="Tela de Presença Diária" onerror="this.src='https://placehold.co/800x500/18181b/6366f1?text=Print+da+Presen%C3%A7a'">
+        <img src="img/print-presenca.png" alt="Tela de Presença Diária"
+          onerror="this.src='https://placehold.co/800x500/18181b/6366f1?text=Print+da+Presen%C3%A7a'">
         <h4>Presença e Diárias</h4>
         <p>Folha de ponto diária e cálculos automáticos do que pagar para cada funcionário.</p>
       </div>
 
       <!-- Card: Estoque -->
       <div class="proof-card">
-        <img src="img/print-estoque.png" alt="Tela de Estoque" onerror="this.src='https://placehold.co/800x500/18181b/6366f1?text=Print+do+Estoque'">
+        <img src="img/print-estoque.png" alt="Tela de Estoque"
+          onerror="this.src='https://placehold.co/800x500/18181b/6366f1?text=Print+do+Estoque'">
         <h4>Estoque Controlado</h4>
         <p>Entradas, saídas e rastreio de cada saco de cimento. Acabou a surpresa no canteiro.</p>
       </div>
 
       <!-- Card: Financeiro -->
       <div class="proof-card">
-        <img src="img/print-financeiro.png" alt="Tela Financeira" onerror="this.src='https://placehold.co/800x500/18181b/6366f1?text=Print+Financeiro'">
+        <img src="img/print-financeiro.png" alt="Tela Financeira"
+          onerror="this.src='https://placehold.co/800x500/18181b/6366f1?text=Print+Financeiro'">
         <h4>Caixa e Financeiro</h4>
         <p>Saiba quanto gastou hoje, quem recebeu vales, e tudo integrado ao orçamento geral da obra.</p>
       </div>
 
       <!-- Card: Cronograma -->
       <div class="proof-card">
-        <img src="img/print-cronograma.png" alt="Tela do Cronograma" onerror="this.src='https://placehold.co/800x500/18181b/6366f1?text=Print+Cronograma\n(Medições+e+Etapas)'">
+        <img src="img/print-cronograma.png" alt="Tela do Cronograma"
+          onerror="this.src='https://placehold.co/800x500/18181b/6366f1?text=Print+Cronograma\n(Medições+e+Etapas)'">
         <h4>Cronograma e Etapas</h4>
         <p>Tabela visual tipo Kanban mostrando exatamente o andamento físico da obra.</p>
       </div>
@@ -333,12 +433,14 @@
       <div class="feature-card">
         <div class="icon">📦</div>
         <h3>Fim do Desperdício</h3>
-        <p>Controle rigoroso de estoque e movimentação de materiais. Saiba exatamente para onde foi cada saco de cimento.</p>
+        <p>Controle rigoroso de estoque e movimentação de materiais. Saiba exatamente para onde foi cada saco de
+          cimento.</p>
       </div>
       <div class="feature-card">
         <div class="icon">👷</div>
         <h3>Gestão de Equipes</h3>
-        <p>Controle diário de presenças, diárias e pagamentos semanais. Evite passivos trabalhistas com históricos claros.</p>
+        <p>Controle diário de presenças, diárias e pagamentos semanais. Evite passivos trabalhistas com históricos
+          claros.</p>
       </div>
       <div class="feature-card">
         <div class="icon">💰</div>
@@ -348,7 +450,8 @@
       <div class="feature-card">
         <div class="icon">📸</div>
         <h3>Linha do Tempo</h3>
-        <p>Galeria em nuvem com o progresso visual da obra. Preste contas e impressione seus clientes (Dono da Obra).</p>
+        <p>Galeria em nuvem com o progresso visual da obra. Preste contas e impressione seus clientes (Dono da Obra).
+        </p>
       </div>
       <div class="feature-card">
         <div class="icon">📏</div>
@@ -373,15 +476,16 @@
         <h3>Básico</h3>
         <p class="desc">Ideal para quem está começando agora.</p>
         <div class="price-val">Grátis <small>/ 30 dias</small></div>
-        
+
         <ul class="check-list">
           <li>1 Obra Ativa</li>
           <li>Até 5 Trabalhadores</li>
           <li>Todos os Módulos</li>
           <li>Sem subdomínio próprio</li>
         </ul>
-        
-        <a href="login.html#signup" class="btn btn-secondary" style="width:100%; margin-top:auto; padding: 12px;">Começar Grátis</a>
+
+        <a href="login.html#signup" class="btn btn-secondary"
+          style="width:100%; margin-top:auto; padding: 12px;">Começar Grátis</a>
       </div>
 
       <!-- PLANO PRO -->
@@ -390,7 +494,7 @@
         <h3>Profissional (Pro)</h3>
         <p class="desc">Para engenheiros e empreiteiros em crescimento.</p>
         <div class="price-val">R$ 39,90 <small>/ mês</small></div>
-        
+
         <ul class="check-list">
           <li><b>Obras Ilimitadas</b></li>
           <li>Até 50 Trabalhadores</li>
@@ -398,8 +502,9 @@
           <li>Relatórios de Vistoria</li>
           <li>Suporte Prioritário</li>
         </ul>
-        
-        <a href="https://pay.kiwify.com.br/UeoKVpn" class="btn btn-primary" style="width:100%; margin-top:auto; padding: 12px; font-weight:700;">Assinar Agora</a>
+
+        <a href="https://pay.kiwify.com.br/UeoKVpn" class="btn btn-primary"
+          style="width:100%; margin-top:auto; padding: 12px; font-weight:700;">Assinar Agora</a>
       </div>
 
       <!-- PLANO MASTER -->
@@ -407,7 +512,7 @@
         <h3>Master</h3>
         <p class="desc">Para construtoras e grandes equipes.</p>
         <div class="price-val">R$ 89,90 <small>/ mês</small></div>
-        
+
         <ul class="check-list">
           <li>Tudo do Plano Pro</li>
           <li><b>Trabalhadores Ilimitados</b></li>
@@ -415,12 +520,14 @@
           <li>Acesso Multi-usuário</li>
           <li>Sua Logo (White-label)</li>
         </ul>
-        
-        <a href="https://pay.kiwify.com.br/d2qkT1E" class="btn btn-secondary" style="width:100%; margin-top:auto; padding: 12px;">Falar com Consultor</a>
+
+        <a href="https://pay.kiwify.com.br/d2qkT1E" class="btn btn-secondary"
+          style="width:100%; margin-top:auto; padding: 12px;">Falar com Consultor</a>
       </div>
     </div>
 
-    <p style="margin-top:40px; font-size:14px; color:#52525b">Precisa de algo personalizado? <a href="https://wa.me/5598985262006" style="color:var(--lp-accent); font-weight:600;">Chamar no WhatsApp</a></p>
+    <p style="margin-top:40px; font-size:14px; color:#52525b">Precisa de algo personalizado? <a
+        href="https://wa.me/5598985262006" style="color:var(--lp-accent); font-weight:600;">Chamar no WhatsApp</a></p>
   </section>
 
   <footer class="container">
@@ -428,7 +535,8 @@
     <div style="margin-top:10px">
       <a href="login.html" style="color:#52525b; text-decoration:none; margin:0 10px">Login</a>
       <a href="admin-login.html" style="color:#52525b; text-decoration:none; margin:0 10px">Admin</a>
-      <a href="https://wa.me/5598985262006" target="_blank" style="color:#52525b; text-decoration:none; margin:0 10px">Suporte WhatsApp</a>
+      <a href="https://wa.me/5598985262006" target="_blank"
+        style="color:#52525b; text-decoration:none; margin:0 10px">Suporte WhatsApp</a>
     </div>
   </footer>
 
@@ -439,4 +547,5 @@
     }
   </script>
 </body>
+
 </html>
