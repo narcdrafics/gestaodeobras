@@ -41,9 +41,6 @@
     /* NAV ENHANCED */
     nav.nav-custom {
       height: 72px;
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       position: sticky;
       top: 0;
@@ -52,7 +49,15 @@
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       transition: all 0.3s ease;
-      padding: 0 24px;
+      display: flex;
+      align-items: center;
+    }
+
+    nav.nav-custom .container {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      width: 100%;
     }
 
     nav.nav-custom.scrolled {
@@ -603,8 +608,7 @@
       .hero h1 { font-size: 36px; padding: 0 10px; }
       .hero p { font-size: 16px; }
 
-      nav.nav-custom {
-        height: 64px;
+      nav.nav-custom .container {
         grid-template-columns: auto 1fr auto;
       }
 
@@ -668,7 +672,7 @@
 <body>
 
   <nav class="nav-custom">
-    <div class="container" style="display:flex; width:100%; align-items:center; position:relative;">
+    <div class="container">
       <!-- Left: Logo Icon (Interactive) -->
       <div class="nav-left">
         <a href="#" class="logo-link" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;" title="Voltar ao início">
