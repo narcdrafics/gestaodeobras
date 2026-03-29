@@ -164,6 +164,66 @@
       color: #71717a;
     }
 
+    /* WHO IS IT FOR */
+    .who-is-it-for {
+      padding: 60px 0 100px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .who-content {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 20px;
+      padding: 48px;
+      max-width: 800px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .who-content h2 {
+      font-size: 32px;
+      margin-bottom: 32px;
+      text-align: center;
+      letter-spacing: -1px;
+    }
+
+    .who-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .who-list li {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 18px;
+      color: #e4e4e7;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 16px 24px;
+      border-radius: 12px;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .who-list li:hover {
+      background: rgba(255, 255, 255, 0.06);
+      transform: translateX(4px);
+    }
+    
+    .who-list .icon {
+      font-size: 24px;
+    }
+
+    @media(max-width: 768px) {
+      .who-content { padding: 32px 20px; }
+      .who-list li { font-size: 16px; padding: 12px 16px; }
+    }
+
     /* VISUAL PROOF */
     .visual-proof {
       padding: 80px 0;
@@ -417,6 +477,21 @@
         <h4>Cronograma e Etapas</h4>
         <p>Tabela visual tipo Kanban mostrando exatamente o andamento físico da obra.</p>
       </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SEÇÃO PRA QUEM É -->
+  <section class="who-is-it-for container" id="publico">
+    <div class="who-content">
+      <h2>A Obra Real é para:</h2>
+      <ul class="who-list">
+        <li><span class="icon">✅</span><span>Engenheiros que gerenciam obra</span></li>
+        <li><span class="icon">✅</span><span>Empreiteiros que precisam controlar equipe e material</span></li>
+        <li><span class="icon">✅</span><span>Construtoras pequenas e médias</span></li>
+        <li><span class="icon">✅</span><span>Mestres de obra que querem sair do improviso</span></li>
+        <li><span class="icon">✅</span><span>Quem está cansado de obra no caderno + WhatsApp + planilha</span></li>
+      </ul>
     </div>
   </section>
 
