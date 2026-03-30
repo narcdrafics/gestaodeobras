@@ -3815,6 +3815,19 @@ if (typeof window.safeCheckAuth === 'function') {
   window.safeCheckAuth();
 }
 
+// FECHAR SIDEBAR AO CLICAR FORA (Mobile / Dashboard Overlay)
+document.addEventListener('click', (event) => {
+  const sidebar = document.querySelector('.sidebar');
+  const menuToggle = document.querySelector('.menu-toggle');
+  
+  if (sidebar && sidebar.classList.contains('open')) {
+    // Se o clique não foi dentro da sidebar E não foi no botão de abrir o menu...
+    if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
+      sidebar.classList.remove('open');
+    }
+  }
+});
+
 
 
 
