@@ -2624,7 +2624,7 @@ async function saveTrabalhador() {
   const duplicado = DB.trabalhadores.some((t, i) => t.cod === cod && i !== currentEditIdx);
   if (duplicado) { toast(`Código "${cod}" já existe! Use outro.`, 'error'); return; }
   const data = {
-    cod, nome: document.getElementById('tr-nome').value,
+    cod, nome: document.getElementById('tr-nome').value.trim(),
     cpf: document.getElementById('tr-cpf').value,
     funcao: document.getElementById('tr-funcao').value,
     vinculo: document.getElementById('tr-vinculo').value,
@@ -2645,16 +2645,45 @@ async function saveTrabalhador() {
     const oldName = DB.trabalhadores[currentEditIdx].nome;
     DB.trabalhadores[currentEditIdx] = data;
     
-    // Atualiza o nome dos registros legados se houver renomeação de funcionário
-    if (oldName !== data.nome) {
+    // Atualiza o nome dos registros vinculados se houver renomeação (Propagação Total)
+    if (oldName && data.nome && oldName.trim() !== data.nome.trim()) {
+      const oName = oldName.trim();
+      const nName = data.nome.trim();
+
+      // 1. Presença (Folha de Ponto)
       if (DB.presenca) {
         DB.presenca.forEach(p => {
-          if (p.trab === data.cod) p.nome = data.nome;
+          if (p.trab === data.cod || p.nome === oName) p.nome = nName;
         });
       }
+      // 2. Tarefas
       if (DB.tarefas) {
         DB.tarefas.forEach(t => {
-          if (t.resp === oldName) t.resp = data.nome;
+          if (t.resp === oName) t.resp = nName;
+        });
+      }
+      // 3. Financeiro (Lançamentos de Diárias/Mão de Obra)
+      if (DB.financeiro) {
+        DB.financeiro.forEach(f => {
+          if (f.forn === oName) f.forn = nName;
+        });
+      }
+      // 4. Medições (Empreiteiros)
+      if (DB.medicao) {
+        DB.medicao.forEach(m => {
+          if (m.equipe === oName) m.equipe = nName;
+        });
+      }
+      // 5. Almoços
+      if (DB.almocos) {
+        DB.almocos.forEach(a => {
+          if (a.empreiteiro === oName) a.empreiteiro = nName;
+        });
+      }
+      // 6. Cadastro de Obras (Mestre de Obra)
+      if (DB.obras) {
+        DB.obras.forEach(o => {
+          if (o.mestre === oName) o.mestre = nName;
         });
       }
     }
