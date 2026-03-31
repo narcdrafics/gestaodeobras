@@ -2618,10 +2618,15 @@ async function editObra(idx) {
 
 async function saveTrabalhador() {
 
+  // Tenta obter o índice do campo oculto (mais seguro que global)
+  const hiddenIdxVal = document.getElementById('tr-idx') ? document.getElementById('tr-idx').value : '-1';
+  const editIdx = parseInt(hiddenIdxVal) >= 0 ? parseInt(hiddenIdxVal) : currentEditIdx;
+
   const cod = document.getElementById('tr-cod').value.trim();
   if (!cod) { toast('Informe o código', 'error'); return; }
-  // Verifica unicidade do código
-  const duplicado = DB.trabalhadores.some((t, i) => t.cod === cod && i !== currentEditIdx);
+  
+  // Verifica unicidade do código (desconsiderando o registro em edição)
+  const duplicado = DB.trabalhadores.some((t, i) => t.cod === cod && i !== editIdx);
   if (duplicado) { toast(`Código "${cod}" já existe! Use outro.`, 'error'); return; }
   const data = {
     cod, nome: document.getElementById('tr-nome').value.trim(),
@@ -2641,19 +2646,25 @@ async function saveTrabalhador() {
     cidade: document.getElementById('tr-cidade').value,
     foto: window._currentTrFoto || (currentEditIdx >= 0 ? DB.trabalhadores[currentEditIdx].foto : null)
   };
-  if (currentEditIdx >= 0) {
-    const oldName = DB.trabalhadores[currentEditIdx].nome;
-    DB.trabalhadores[currentEditIdx] = data;
+  if (editIdx >= 0 && DB.trabalhadores[editIdx]) {
+    const oldName = DB.trabalhadores[editIdx].nome;
+    DB.trabalhadores[editIdx] = data;
     
     // Atualiza o nome dos registros vinculados se houver renomeação (Propagação Total)
     if (oldName && data.nome && oldName.trim() !== data.nome.trim()) {
       const oName = oldName.trim();
       const nName = data.nome.trim();
 
-      // 1. Presença (Folha de Ponto)
+      console.log(`Renomeando de "${oName}" para "${nName}" em todo o sistema...`);
+
+      // 1. Presença (Folha de Ponto) — Crucial: Busca pelo código antigo SE o código não mudou, ou pelo nome
+      const oldCod = DB.trabalhadores[editIdx].cod || data.cod; 
       if (DB.presenca) {
         DB.presenca.forEach(p => {
-          if (p.trab === data.cod || p.nome === oName) p.nome = nName;
+          if (p.trab === oldCod || p.trab === data.cod || p.nome === oName) {
+            p.nome = nName;
+            p.trab = data.cod; // Atualiza o código também, caso tenha mudado
+          }
         });
       }
       // 2. Tarefas
@@ -2662,13 +2673,13 @@ async function saveTrabalhador() {
           if (t.resp === oName) t.resp = nName;
         });
       }
-      // 3. Financeiro (Lançamentos de Diárias/Mão de Obra)
+      // 3. Financeiro
       if (DB.financeiro) {
         DB.financeiro.forEach(f => {
           if (f.forn === oName) f.forn = nName;
         });
       }
-      // 4. Medições (Empreiteiros)
+      // 4. Medições
       if (DB.medicao) {
         DB.medicao.forEach(m => {
           if (m.equipe === oName) m.equipe = nName;
@@ -2680,7 +2691,7 @@ async function saveTrabalhador() {
           if (a.empreiteiro === oName) a.empreiteiro = nName;
         });
       }
-      // 6. Cadastro de Obras (Mestre de Obra)
+      // 6. Cadastro de Obras
       if (DB.obras) {
         DB.obras.forEach(o => {
           if (o.mestre === oName) o.mestre = nName;
@@ -2700,6 +2711,9 @@ async function saveTrabalhador() {
 async function editTrabalhador(idx) {
   await openModal('modal-trabalhador');
   currentEditIdx = idx;
+  if (document.getElementById('tr-idx')) {
+     document.getElementById('tr-idx').value = idx;
+  }
   const t = DB.trabalhadores[idx];
   document.getElementById('tr-cod').value = t.cod;
   document.getElementById('tr-nome').value = t.nome;
