@@ -167,8 +167,14 @@ function initDB(tenantId) {
   });
 }
 
-// Handler centralizado do listener Firebase — usado tanto no initDB quanto no _religarListener
+// Handler centralizado do listener Firebase
 function _onFirebaseValue(snapshot) {
+  // Ignora o eco do nosso próprio salvamento (evita loop e conflito no mobile)
+  if (_ignoreNextEcho) {
+    _ignoreNextEcho = false;
+    console.log('[Firebase] Eco próprio ignorado.');
+    return;
+  }
   const data = snapshot.val();
   if (data) {
 
@@ -304,6 +310,7 @@ const subdomainContextPromise = (async function initSubdomainContext() {
 let _persistenceTimer = null;
 let _isSaving = false;
 let _saveScheduled = false;
+let _ignoreNextEcho = false; // Previne reprocessar o eco do nosso próprio salvamento
 
 /**
  * Persiste o banco de dados de forma segura.
@@ -416,29 +423,27 @@ function persistDB(force = false) {
       // Em smartphones, o OS mata conexões em background (iOS/Android).
       firebase.database().goOnline();
 
-      // Desliga o listener temporariamente para evitar echo/conflito de dados
-      if (!isSuperAdmin) targetRef.off('value');
+      // Sinaliza para ignorar o eco do Firebase (sem precisar de .off())
+      // Chamar .off() destruía a conexão WebSocket no mobile — nunca mais!
+      _ignoreNextEcho = true;
 
       // Timeout de 20s (mobile pode ser mais lento que desktop)
       await Promise.race([
         targetRef.set(dbForCloud),
-        new Promise((_, rej) => setTimeout(() => rej({ code: 'TIMEOUT', message: 'Conexão lenta ou sem internet. Tente novamente.' }), 20000))
+        new Promise((_, rej) => setTimeout(() => rej({ code: 'TIMEOUT', message: 'Conexão lenta ou sem internet.' }), 20000))
       ]);
 
       console.log('[Persist] Sincronizado com a nuvem com sucesso.');
       window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'synced' } }));
-
-      if (!isSuperAdmin) _religarListener(_currentTenantId);
       if (resolve) resolve();
     } catch (err) {
+      _ignoreNextEcho = false; // Reseta a flag em caso de falha
       const errCode = err.code || 'UNKNOWN';
       console.error(`[Persist Error] Code: ${errCode}`, err.message || err);
 
       window.dispatchEvent(new CustomEvent('syncStatus', {
         detail: { status: 'error', code: errCode }
       }));
-
-      if (!isSuperAdmin) _religarListener(_currentTenantId);
       if (reject) reject(err);
     } finally {
       _isSaving = false;
