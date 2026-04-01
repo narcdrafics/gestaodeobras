@@ -887,8 +887,28 @@
           <li>Estoque de Materiais</li>
         </ul>
 
-        <a href="login.html#signup" class="btn btn-primary" style="width:100%; text-decoration:none; display:inline-block; margin-top:auto; padding: 12px; text-align:center;">Testar Grátis</a>
+        <button onclick="handleProCheckout()" class="btn btn-primary" style="width:100%; border:none; cursor:pointer; font-family:inherit; margin-top:auto; padding: 12px; text-align:center; font-weight:700;">Assinar plano Pro</button>
       </div>
+
+      <script>
+        function handleProCheckout() {
+          if (typeof gtag === 'function') {
+            gtag('event', 'begin_checkout', {
+              currency: 'BRL',
+              value: 105.90,
+              items: [{
+                item_id: 'plano_pro_lp',
+                item_name: 'Obra Real - Plano Pro',
+                item_category: 'Assinatura',
+                price: 105.90,
+                quantity: 1
+              }]
+            });
+          }
+          // Checkout direto sem tenantId (será vinculado no webhook via email do cliente)
+          window.location.href = 'https://pay.kiwify.com.br/UeoKVpn';
+        }
+      </script>
 
       <!-- PLANO ILIMITADO -->
       <div class="price-card featured has-tag">

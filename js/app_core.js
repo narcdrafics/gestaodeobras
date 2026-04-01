@@ -1649,7 +1649,7 @@ function renderBilling() {
         btnUpgrade.onclick = () => window.open('https://wa.me/5598985262006?text=Olá, preciso de ajuda com minha assinatura do Obra Real.', '_blank');
         if(footerText) footerText.style.display = 'none';
       } else {
-        btnUpgrade.textContent = "⭐ Assinar Plano Pro Agora";
+        btnUpgrade.textContent = "Assinar plano Pro";
         btnUpgrade.style.background = "#6366f1";
         btnUpgrade.style.borderColor = "#6366f1";
         btnUpgrade.style.color = "#fff";
@@ -1665,14 +1665,27 @@ async function startKiwifyCheckout() {
   const user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
   if (!user.tenantId) return toast('Erro: Conta não identificada.', 'error');
 
+  // GA4 Event - begin_checkout
+  if (typeof gtag === 'function') {
+    gtag('event', 'begin_checkout', {
+      currency: 'BRL',
+      value: 197.00,
+      items: [{
+        item_id: 'plano_pro',
+        item_name: 'Obra Real - Plano Pro',
+        item_category: 'Assinatura',
+        price: 197.00,
+        quantity: 1
+      }]
+    });
+  }
+
   toast('Abrindo Checkout Seguro da Kiwify...', 'success');
 
   setTimeout(() => {
-    // Redirecionamento real para a Kiwify na aba principal (usando o link do checkout)
-    // Passamos o email para pré-preenchimento e o tenantId como external_id para vinculação segura no webhook
     const userEmail = user.email || user.username || '';
     const checkoutUrl = `https://pay.kiwify.com.br/UeoKVpn?email=${encodeURIComponent(userEmail)}&external_id=${user.tenantId}`;
-    window.open(checkoutUrl, '_blank');
+    window.open(checkoutUrl, '_self'); // Alterado para _self para redirecionamento direto conforme solicitado
   }, 1000);
 }
 
