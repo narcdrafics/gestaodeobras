@@ -161,3 +161,15 @@ export function estoqueStatus(item) {
   if (saldo <= item.min * 1.5) return 'BAIXO';
   return 'NORMAL';
 }
+// Vinculação explícita ao window para compatibilidade com scripts legados (app_core.js)
+if (typeof window !== 'undefined') {
+  window.fmt = fmt;
+  window.fmtPct = fmtPct;
+  window.fmtDate = fmtDate;
+  window.summarizePresence = summarizePresence;
+  window.calcWeeklyPendingPayments = calcWeeklyPendingPayments;
+  window.summarizeFinance = summarizeFinance;
+  window.calcBudgetProgress = calcBudgetProgress;
+  window.calcSaldo = calcSaldo;
+  window.estoqueStatus = estoqueStatus;
+}
