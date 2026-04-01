@@ -2609,7 +2609,9 @@ async function saveTrabalhador() {
   }
 
   closeModal('modal-trabalhador');
-  await persistDB(); 
+  
+  // Força a sincronização imediata devido à grande quantidade de alterações (Propagação em Cascata)
+  await persistDB(true); 
   
   // Atualizações Globais na UI
   if (typeof renderTrabalhadores === 'function') renderTrabalhadores();
@@ -3808,9 +3810,13 @@ window.addEventListener('syncStatus', (e) => {
       if (indicator.classList.contains('synced')) indicator.style.opacity = '0.3'; 
     }, 3000);
   } else if (status === 'error') {
-    const msg = code === 'PERMISSION_DENIED' ? 'Sem Permissão' : 'Erro na Nuvem';
-    indicator.innerHTML = `<div class="sync-dot"></div><span>${msg}</span> <button class="sync-retry-btn" onclick="persistDB(true); event.stopPropagation();">🔄 Tentar</button>`;
+    const msg = code === 'PERMISSION_DENIED' ? 'Acesso Negado (Firebase)' : 
+                code === 'DISCONNECTED' ? 'Sem Conexão' : 'Erro na Nuvem';
+    
+    indicator.innerHTML = `<div class="sync-dot"></div><span>${msg}</span> 
+                           <button class="sync-retry-btn" onclick="persistDB(true); event.stopPropagation();">🔄 Tentar Agora</button>`;
     indicator.className = 'sync-indicator error';
+    indicator.title = `Código do Erro: ${code}`;
     indicator.style.cursor = 'pointer';
     indicator.onclick = () => persistDB(true);
   }
