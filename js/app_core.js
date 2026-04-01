@@ -836,16 +836,12 @@ function renderPresenca() {
 
   // Totalizadores por Data (Últimos 10 registros de datas distintas)
   try {
-    const uniqueDates = [...new Set(validPres.map(p => p.data))].sort((a, b) => String(b).localeCompare(String(a))).slice(0, 10);
-    console.log('Datas para totalizadores:', uniqueDates);
-
-    const totalsHtml = uniqueDates.map(d => {
-      const rows = validPres.filter(p => p.data === d);
-      const dayTotal = rows.reduce((a, r) => a + (Number(r.total) || 0), 0);
+    const summary = window.summarizePresence(validPres).slice(0, 10);
+    const totalsHtml = summary.map(s => {
       return `<div class="kpi-card">
-        <div class="kpi-label">${fmtDate(d)}</div>
-        <div style="font-size:13px;margin-top:4px">Presentes: <b style="color:var(--green)">${rows.filter(r => r.presenca === 'Presente').length}</b> · Faltas: <b style="color:var(--red)">${rows.filter(r => r.presenca === 'Falta').length}</b></div>
-        <div style="font-size:13px;margin-top:4px">Total: <b style="color:var(--accent)">${fmt(dayTotal)}</b></div>
+        <div class="kpi-label">${fmtDate(s.data)}</div>
+        <div style="font-size:13px;margin-top:4px">Presentes: <b style="color:var(--green)">${s.presentes}</b> · Faltas: <b style="color:var(--red)">${s.faltas}</b></div>
+        <div style="font-size:13px;margin-top:4px">Total: <b style="color:var(--accent)">${fmt(s.total)}</b></div>
       </div>`;
     }).join('');
 
@@ -856,22 +852,12 @@ function renderPresenca() {
   }
 
   // Pagamentos Pendentes da Semana (Por Obra)
-  const pendentesHtml = (DB.obras || []).map(o => {
-    const todayObj2 = new Date();
-    const startOfWeek2 = new Date(todayObj2);
-    startOfWeek2.setDate(todayObj2.getDate() - todayObj2.getDay());
-    const strWeek2 = startOfWeek2.toISOString().split('T')[0];
-
-    const pPendentes = validPres.filter(p => p.obra === o.cod && p.data >= strWeek2 && p.data <= today && p.pgtoStatus === 'Pendente' && Number(p.total) > 0);
-
-    if (pPendentes.length === 0) return '';
-
-    const somaPendente = pPendentes.reduce((a, r) => a + (Number(r.total) || 0), 0);
-
+  const pResults = window.calcWeeklyPendingPayments(validPres, DB.obras || [], today);
+  const pendentesHtml = pResults.map(res => {
     return `<div class="kpi-card">
-      <div class="kpi-label">${o.cod} — ${o.nome}</div>
-      <div style="font-size:20px; font-weight:bold; color:var(--red); margin: 8px 0;">${fmt(somaPendente)}</div>
-      <div style="font-size:13px; color:var(--text2)">${pPendentes.length} pendências salariais na semana</div>
+      <div class="kpi-label">${res.obraCod} — ${res.obraNome}</div>
+      <div style="font-size:20px; font-weight:bold; color:var(--red); margin: 8px 0;">${fmt(res.totalPendente)}</div>
+      <div style="font-size:13px; color:var(--text2)">${res.count} pendências salariais na semana</div>
     </div>`;
   }).join('');
 
@@ -1090,73 +1076,13 @@ function renderCompras() {
 // ==================== FINANCEIRO ====================
 function renderFinanceiro() {
   window.renderFinanceiro = renderFinanceiro; // Garante persistência global
-  let allFin = [];
+  // Consolidação Otimizada via Módulo
+  const finSummary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos);
+  allFin = finSummary.all;
+  const sumsByObra = finSummary.totalsByObra;
 
-  // 1. Lançamentos Manuais Core
-  DB.financeiro.forEach((f, i) => {
-    allFin.push({
-      idx: i, source: 'fin', data: f.data,
-      obra: f.obra, etapa: f.etapa, tipo: f.tipo, desc: f.desc,
-      forn: f.forn || '—', prev: f.prev || 0, real: f.real || 0,
-      pgto: f.pgto, status: f.status, nf: f.nf || '—'
-    });
-  });
-
-  // 2. Mão de Obra - Folha de Ponto (Diárias)
-  DB.presenca.forEach((p, i) => {
-    if ((p.total || 0) > 0) {
-      const tb = DB.trabalhadores.find(t => t.cod === p.trab);
-      const funcName = tb ? tb.nome : p.trab;
-      allFin.push({
-        idx: i, source: 'pre', data: p.data,
-        obra: p.obra, etapa: 'N/A', tipo: 'Mão de obra própria',
-        desc: `[Diária] ${p.nome}`,
-        forn: p.nome, prev: 0, real: parseFloat(p.total),
-        pgto: 'N/A', status: p.pgtoStatus || 'Pendente', nf: '—'
-      });
-    }
-  });
-
-  // 3. Empreita - Medições Físicas
-  DB.medicao.forEach((m, i) => {
-    if ((m.vtotal || 0) > 0) {
-      allFin.push({
-        idx: i, source: 'med', data: m.semana,
-        obra: m.obra, etapa: m.etapa, tipo: 'Empreiteiro',
-        desc: `[Medição] ${m.servico}`,
-        forn: m.equipe || 'Equipe Terceira', prev: 0, real: parseFloat(m.vtotal),
-        pgto: 'N/A', status: m.pgtoStatus || 'Pendente', nf: '—'
-      });
-    }
-  });
-
-  // 4. Almoços de Empreiteiros
-  (DB.almocos || []).forEach((a, i) => {
-    if ((a.vtotal || 0) > 0) {
-      allFin.push({
-        idx: i, source: 'alm', data: a.data,
-        obra: a.obra, etapa: 'Alimentação', tipo: 'Almoço Empreiteiro',
-        desc: `[Almoço] ${a.empreiteiro} - ${a.qtd} un`,
-        forn: a.empreiteiro, prev: 0, real: parseFloat(a.vtotal),
-        pgto: 'N/A', status: 'Pendente', nf: '—'
-      });
-    }
-  });
-
-  // Sort: Mais recentes primeiro
-  allFin.sort((a, b) => new Date(b.data) - new Date(a.data));
-
-  // Summary by obra otimizado em O(N)
-  const sumsByObra = {};
-  let totalPrev = 0, totalReal = 0;
-  allFin.forEach(f => {
-    const cod = f.obra || 'Geral';
-    if (!sumsByObra[cod]) sumsByObra[cod] = { prev: 0, real: 0 };
-    sumsByObra[cod].prev += (f.prev || 0);
-    sumsByObra[cod].real += (f.real || 0);
-    totalPrev += (f.prev || 0);
-    totalReal += (f.real || 0);
-  });
+  const totalPrev = Object.values(sumsByObra).reduce((a, b) => a + b.prev, 0);
+  const totalReal = Object.values(sumsByObra).reduce((a, b) => a + b.real, 0);
 
   const getNome = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
 
@@ -1341,37 +1267,17 @@ function exportarImagemDashboard() {
 
 // ==================== ORÇAMENTO ====================
 function renderOrcamento() {
-  // Mapa de gastos reais por Obra + Etapa
-  const realCosts = {};
-  DB.financeiro.forEach(f => {
-    if (f.status === 'Pago' || f.status === 'Parcial') {
-      const key = `${f.obra}|${f.etapa}`;
-      const val = (parseFloat(f.real) || 0);
-      realCosts[key] = (realCosts[key] || 0) + val;
-    }
-  });
-  // Adiciona gastos de compras entregues ou pagas
-  DB.compras.forEach(c => {
-    if (['Entregue', 'Pago', 'Pedido Feito'].includes(c.status)) {
-      const key = `${c.obra}|${c.etapa || 'Material'}`;
-      realCosts[key] = (realCosts[key] || 0) + (parseFloat(c.vtotal) || 0);
-    }
-  });
+  const budgetResults = window.calcBudgetProgress(DB.orcamento, DB.financeiro, DB.compras);
 
-  safeSetInner('orc-tbody', DB.orcamento.length
-    ? DB.orcamento.map((o, i) => {
-      const key = `${o.obra}|${o.etapa}`;
-      const vreal = realCosts[key] || 0;
-      const vtotal = parseFloat(o.vtotal) || 0;
-      const diff = vtotal - vreal;
-      const pexec = vtotal > 0 ? ((vreal / vtotal) * 100).toFixed(1) : 0;
-
+  safeSetInner('orc-tbody', budgetResults.length
+    ? budgetResults.map((o, i) => {
+      const diff = o.diferenca;
       return `<tr>
           <td>${obName(o.obra)}</td><td>${o.etapa}</td><td>${o.tipo}</td><td>${o.desc}</td>
-          <td>${o.unid || '—'}</td><td>${o.qtd}</td><td>${fmt(o.vunit)}</td><td>${fmt(vtotal)}</td>
-          <td>${fmt(vreal)}</td>
+          <td>${o.unid || '—'}</td><td>${o.qtd}</td><td>${fmt(o.vunit)}</td><td>${fmt(o.vtotal)}</td>
+          <td>${fmt(o.realizado)}</td>
           <td style="color:${diff < 0 ? 'var(--red)' : diff > 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
-          <td>${pexec}%</td>
+          <td>${o.perc}%</td>
           <td>
             <button class="btn btn-secondary btn-sm" onclick="editOrcamento(${i})" style="margin-right:8px">✏️</button>
             <button class="btn btn-danger btn-sm" onclick="deleteItem('orcamento',${i})">🗑</button>

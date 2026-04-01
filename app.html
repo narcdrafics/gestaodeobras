@@ -177,12 +177,16 @@ window.shareScreen = async function() {
 
 <!-- MODULOS DE LOGICA (TESTAVEIS) -->
 <script type="module">
-  import { fmt, fmtPct, fmtDate, calcSaldo, estoqueStatus } from './js/utils.module.js';
+  import { fmt, fmtPct, fmtDate, calcSaldo, estoqueStatus, summarizePresence, calcWeeklyPendingPayments, summarizeFinance, calcBudgetProgress } from './js/utils.module.js';
   window.fmt = fmt;
   window.fmtPct = fmtPct;
   window.fmtDate = fmtDate;
   window.calcSaldo = calcSaldo;
   window.estoqueStatus = estoqueStatus;
+  window.summarizePresence = summarizePresence;
+  window.calcWeeklyPendingPayments = calcWeeklyPendingPayments;
+  window.summarizeFinance = summarizeFinance;
+  window.calcBudgetProgress = calcBudgetProgress;
 </script>
 
 <script src="js/pix_logic.js?v=202603260845"></script>

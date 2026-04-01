@@ -28,6 +28,128 @@ export const fmtDate = (d) => {
   return val;
 };
 
+// --- NOVAS FUNÇÕES DE LÓGICA DE NEGÓCIO ---
+
+/**
+ * Consolida totais de presença, faltas e valores por data.
+ */
+export const summarizePresence = (presencaArray) => {
+  const uniqueDates = [...new Set(presencaArray.map(p => p.data))].sort((a, b) => String(b).localeCompare(String(a)));
+  return uniqueDates.map(d => {
+    const rows = presencaArray.filter(p => p.data === d);
+    return {
+      data: d,
+      total: rows.reduce((a, r) => a + (Number(r.total) || 0), 0),
+      presentes: rows.filter(r => r.presenca === 'Presente').length,
+      faltas: rows.filter(r => r.presenca === 'Falta').length,
+      registros: rows.length
+    };
+  });
+};
+
+/**
+ * Calcula pagamentos pendentes da semana atual por obra.
+ */
+export const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) => {
+  const todayObj = new Date(todayStr);
+  const startOfWeek = new Date(todayObj);
+  startOfWeek.setDate(todayObj.getDate() - todayObj.getDay());
+  const strWeek = startOfWeek.toISOString().split('T')[0];
+
+  return obrasArray.map(o => {
+    const pPendentes = presencaArray.filter(p => 
+      p.obra === o.cod && 
+      p.data >= strWeek && 
+      p.data <= todayStr && 
+      p.pgtoStatus === 'Pendente' && 
+      Number(p.total) > 0
+    );
+    return {
+      obraCod: o.cod,
+      obraNome: o.nome,
+      totalPendente: pPendentes.reduce((a, r) => a + (Number(r.total) || 0), 0),
+      count: pPendentes.length
+    };
+  }).filter(res => res.count > 0);
+};
+
+/**
+ * Consolida todo o financeiro (Manuais, Presença, Medições, Almoços).
+ */
+export const summarizeFinance = (fin, pres, med, alm) => {
+  let all = [];
+  
+  // Lançamentos manuais
+  fin.forEach((f, i) => all.push({ source: 'fin', ...f, real: parseFloat(f.real) || 0, prev: parseFloat(f.prev) || 0 }));
+  
+  // Presença (Mão de obra)
+  pres.forEach((p, i) => {
+    if ((p.total || 0) > 0) {
+      all.push({ source: 'pre', data: p.data, obra: p.obra, tipo: 'Mão de obra própria', desc: `[Diária] ${p.nome}`, real: parseFloat(p.total), prev: 0, status: p.pgtoStatus || 'Pendente' });
+    }
+  });
+
+  // Medições
+  med.forEach((m, i) => {
+    if ((m.vtotal || 0) > 0) {
+      all.push({ source: 'med', data: m.semana || m.data, obra: m.obra, tipo: 'Empreiteiro', desc: `[Medição] ${m.servico}`, real: parseFloat(m.vtotal), prev: 0, status: m.pgtoStatus || 'Pendente' });
+    }
+  });
+
+  // Almoços
+  (alm || []).forEach((a, i) => {
+    if ((a.vtotal || 0) > 0) {
+      all.push({ source: 'alm', data: a.data, obra: a.obra, tipo: 'Almoço Empreiteiro', desc: `[Almoço] ${a.empreiteiro}`, real: parseFloat(a.vtotal), prev: 0, status: 'Pendente' });
+    }
+  });
+
+  const totalsByObra = {};
+  all.forEach(f => {
+    const cod = f.obra || 'Geral';
+    if (!totalsByObra[cod]) totalsByObra[cod] = { prev: 0, real: 0, diff: 0 };
+    totalsByObra[cod].prev += f.prev;
+    totalsByObra[cod].real += f.real;
+    totalsByObra[cod].diff = totalsByObra[cod].real - totalsByObra[cod].prev;
+  });
+
+  return { all, totalsByObra };
+};
+
+/**
+ * Calcula o progresso do orçamento vs. gastos reais.
+ */
+export const calcBudgetProgress = (orcamento, financeiro, compras) => {
+  const realCosts = {};
+  
+  // Gastos realizados (Financeiro)
+  financeiro.forEach(f => {
+    if (f.status === 'Pago' || f.status === 'Parcial') {
+      const key = `${f.obra}|${f.etapa}`;
+      realCosts[key] = (realCosts[key] || 0) + (parseFloat(f.real) || 0);
+    }
+  });
+
+  // Gastos realizados (Compras)
+  compras.forEach(c => {
+    if (['Entregue', 'Pago', 'Pedido Feito'].includes(c.status)) {
+      const key = `${c.obra}|${c.etapa || 'Material'}`;
+      realCosts[key] = (realCosts[key] || 0) + (parseFloat(c.vtotal) || 0);
+    }
+  });
+
+  return orcamento.map(o => {
+    const key = `${o.obra}|${o.etapa}`;
+    const vreal = realCosts[key] || 0;
+    const vtotal = parseFloat(o.vtotal) || 0;
+    return {
+      ...o,
+      realizado: vreal,
+      diferenca: vtotal - vreal,
+      perc: vtotal > 0 ? ((vreal / vtotal) * 100).toFixed(1) : 0
+    };
+  });
+};
+
 export function calcSaldo(item) { 
   return (parseFloat(item.entrada) || 0) - (parseFloat(item.saida) || 0); 
 }
