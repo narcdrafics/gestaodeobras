@@ -505,3 +505,55 @@ select.form-control option { background: var(--bg2); }
   from { transform: translateY(-100%); }
   to { transform: translateY(0); }
 }
+
+/* SYNC INDICATOR */
+.sync-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text3);
+  transition: all 0.3s ease;
+  pointer-events: none;
+  opacity: 0.8;
+}
+.sync-indicator.saving {
+  color: var(--orange);
+  border-color: var(--orange);
+  background: rgba(245, 158, 11, 0.1);
+}
+.sync-indicator.synced {
+  color: var(--green);
+  border-color: var(--green);
+  background: rgba(16, 185, 129, 0.1);
+}
+.sync-indicator.error {
+  color: var(--red);
+  border-color: var(--red);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.sync-indicator.saving .sync-dot {
+  animation: pulse 1s infinite alternate;
+}
+
+@keyframes pulse {
+  from { opacity: 0.4; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1.2); }
+}
+
+@media(max-width: 768px) {
+  .sync-indicator span { display: none; }
+  .sync-indicator { padding: 8px; }
+}

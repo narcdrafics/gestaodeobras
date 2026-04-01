@@ -140,6 +140,21 @@ function initDB(tenantId) {
     console.log('initDB ignorado: tenant ja inicializado:', tenantId);
     return;
   }
+
+  // SaaS: Carregamento Híbrido (LocalStorage como Cache)
+  const localCache = localStorage.getItem('gestaoObraDB');
+  if (localCache) {
+    try {
+      const cached = JSON.parse(localCache);
+      // Só usa o cache se pertencer ao tenant atual (segurança cross-tenant)
+      if (cached._tenantId === tenantId) {
+        console.log('DB carregado via Cache Local para tenant:', tenantId);
+        DB = ensureSchema(cached);
+        processCloudUpdate();
+      }
+    } catch(e) { console.warn('Erro ao ler cache local:', e); }
+  }
+
   // Remove listener anterior se existir
   if (dbRef) {
     dbRef.off('value');
@@ -271,56 +286,88 @@ const subdomainContextPromise = (async function initSubdomainContext() {
   return null;
 })();
 
+let _persistenceTimer = null;
 let _isSaving = false;
+let _saveScheduled = false;
 
+/**
+ * Persiste o banco de dados de forma segura.
+ * 1. Salva imediatamente no LocalStorage (Segurança total contra perda).
+ * 2. Faz Debounce de 500ms para evitar sobrecarga na rede nas edições rápidas.
+ * 3. Gerencia fila para evitar conflitos de escrita simultânea no Firebase.
+ */
 function persistDB() {
-  if (_isSaving) return Promise.resolve();
-  const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+  // 1. BACKUP LOCAL IMEDIATO (Evita perda se a aba fechar antes da nuvem salvar)
+  try {
+    const toCache = JSON.parse(JSON.stringify(DB));
+    toCache._tenantId = _currentTenantId; // Marca o cache com o tenant atual para evitar "Ghost Data"
+    localStorage.setItem('gestaoObraDB', JSON.stringify(toCache));
+  } catch(e) { console.warn('Falha no backup local:', e); }
 
-  // Super Admin com tenant ativo selecionado: salva no tenant escolhido
-  if (sessionUser.role === 'super_admin') {
-    if (!superAdminActiveTenant) {
-      console.warn('Super Admin sem tenant ativo selecionado. Use selectSuperAdminTenant() primeiro.');
-      return Promise.resolve();
-    }
-    _isSaving = true;
-    const ref = firebase.database().ref('tenants/' + superAdminActiveTenant.id);
-    return ref.set(DB)
-      .finally(() => { _isSaving = false; })
-      .catch(err => {
-        console.error('Falha ao salvar (Super Admin):', err);
+  // 2. DEBOUNCE
+  if (_persistenceTimer) clearTimeout(_persistenceTimer);
+
+  return new Promise((resolve, reject) => {
+    _persistenceTimer = setTimeout(async () => {
+      
+      // 3. GERENCIAMENTO DE FILA
+      if (_isSaving) {
+        console.log('[Persist] Aguardando salvamento anterior concluir...');
+        _saveScheduled = true;
+        resolve(); // Resolve o atual pois o agendado cuidará da versão final
+        return;
+      }
+
+      const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+      const isSuperAdmin = sessionUser.role === 'super_admin';
+
+      // Validação de Tenant
+      if (isSuperAdmin && !superAdminActiveTenant) {
+         console.warn('Super Admin sem tenant ativo selecionado.');
+         return resolve();
+      }
+      if (!isSuperAdmin && !dbRef) {
+         console.warn('Persistencia ignorada: dbRef nao inicializado.');
+         return resolve();
+      }
+
+      try {
+        _isSaving = true;
+        window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'saving' } }));
+
+        const targetRef = isSuperAdmin 
+          ? firebase.database().ref('tenants/' + superAdminActiveTenant.id)
+          : dbRef;
+
+        DB = ensureSchema(DB);
+
+        // Desliga o listener temporariamente para evitar echo/conflito
+        if (!isSuperAdmin) targetRef.off('value');
+
+        await targetRef.set(DB);
+        
+        console.log('[Persist] Sincronizado com a nuvem com sucesso.');
+        window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'synced' } }));
+
+        if (!isSuperAdmin) _religarListener(_currentTenantId);
+
+        resolve();
+      } catch (err) {
+        console.error('Falha ao salvar na nuvem:', err);
         if (typeof toast === 'function') toast('Erro ao sincronizar nuvem!', 'error');
-        throw err;
-      });
-  }
-
-  if (!dbRef) {
-    console.warn('Persistencia ignorada: dbRef nao inicializado.');
-    return Promise.resolve();
-  }
-
-  _isSaving = true;
-  DB = ensureSchema(DB);
-
-  // Desliga o listener antes de salvar para evitar que o echo do Firebase
-  // sobrescreva o DB local com a versão antiga antes da confirmação
-  dbRef.off('value');
-
-  return dbRef.set(DB)
-    .then(() => {
-      // Religa o listener após confirmação real da escrita
-      _religarListener(_currentTenantId);
-    })
-    .catch(err => {
-      // Religa mesmo em caso de erro
-      _religarListener(_currentTenantId);
-      console.error('Falha ao salvar na nuvem:', err);
-      if (typeof toast === 'function') toast('Erro ao sincronizar nuvem!', 'error');
-      throw err;
-    })
-    .finally(() => {
-      _isSaving = false;
-    });
+        window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'error' } }));
+        if (!isSuperAdmin) _religarListener(_currentTenantId);
+        reject(err);
+      } finally {
+        _isSaving = false;
+        // Se houve uma requisição de salvamento durante este processo, executa-a agora
+        if (_saveScheduled) {
+          _saveScheduled = false;
+          persistDB();
+        }
+      }
+    }, 500); 
+  });
 }
 
 function _religarListener(tenantId) {

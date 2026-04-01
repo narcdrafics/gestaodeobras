@@ -3765,6 +3765,38 @@ document.addEventListener('click', (event) => {
   }
 });
 
+// ==================== SYNC STATUS FEEDBACK ====================
+window.addEventListener('syncStatus', (e) => {
+  const { status } = e.detail;
+  let indicator = document.getElementById('sync-indicator');
+  
+  if (!indicator) {
+    const container = document.querySelector('.header-right');
+    if (!container) return;
+    indicator = document.createElement('div');
+    indicator.id = 'sync-indicator';
+    indicator.className = 'sync-indicator';
+    // Insere antes do botão de compartilhar ou no início da lista
+    container.prepend(indicator);
+  }
+
+  indicator.style.opacity = '1';
+
+  if (status === 'saving') {
+    indicator.innerHTML = '<div class="sync-dot"></div><span>Salvando...</span>';
+    indicator.className = 'sync-indicator saving';
+  } else if (status === 'synced') {
+    indicator.innerHTML = '<div class="sync-dot"></div><span>Sincronizado</span>';
+    indicator.className = 'sync-indicator synced';
+    setTimeout(() => { 
+      if (indicator.classList.contains('synced')) indicator.style.opacity = '0.3'; 
+    }, 3000);
+  } else if (status === 'error') {
+    indicator.innerHTML = '<div class="sync-dot"></div><span>Falha na nuvem</span>';
+    indicator.className = 'sync-indicator error';
+  }
+});
+
 
 
 
