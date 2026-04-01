@@ -536,6 +536,26 @@ select.form-control option { background: var(--bg2); }
   color: var(--red);
   border-color: var(--red);
   background: rgba(239, 68, 68, 0.1);
+  pointer-events: auto; /* Permite clique no erro */
+}
+.sync-indicator.error:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.sync-retry-btn {
+  background: var(--red);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 8px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.sync-retry-btn:hover {
+  transform: scale(1.1);
 }
 
 .sync-dot {

@@ -3767,7 +3767,7 @@ document.addEventListener('click', (event) => {
 
 // ==================== SYNC STATUS FEEDBACK ====================
 window.addEventListener('syncStatus', (e) => {
-  const { status } = e.detail;
+  const { status, code } = e.detail;
   let indicator = document.getElementById('sync-indicator');
   
   if (!indicator) {
@@ -3776,11 +3776,12 @@ window.addEventListener('syncStatus', (e) => {
     indicator = document.createElement('div');
     indicator.id = 'sync-indicator';
     indicator.className = 'sync-indicator';
-    // Insere antes do botão de compartilhar ou no início da lista
     container.prepend(indicator);
   }
 
   indicator.style.opacity = '1';
+  indicator.onclick = null; // Reseta clique
+  indicator.style.cursor = 'default';
 
   if (status === 'saving') {
     indicator.innerHTML = '<div class="sync-dot"></div><span>Salvando...</span>';
@@ -3792,8 +3793,11 @@ window.addEventListener('syncStatus', (e) => {
       if (indicator.classList.contains('synced')) indicator.style.opacity = '0.3'; 
     }, 3000);
   } else if (status === 'error') {
-    indicator.innerHTML = '<div class="sync-dot"></div><span>Falha na nuvem</span>';
+    const msg = code === 'PERMISSION_DENIED' ? 'Sem Permissão' : 'Erro na Nuvem';
+    indicator.innerHTML = `<div class="sync-dot"></div><span>${msg}</span> <button class="sync-retry-btn" onclick="persistDB(true); event.stopPropagation();">🔄 Tentar</button>`;
     indicator.className = 'sync-indicator error';
+    indicator.style.cursor = 'pointer';
+    indicator.onclick = () => persistDB(true);
   }
 });
 

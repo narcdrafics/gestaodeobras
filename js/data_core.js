@@ -292,11 +292,9 @@ let _saveScheduled = false;
 
 /**
  * Persiste o banco de dados de forma segura.
- * 1. Salva imediatamente no LocalStorage (Segurança total contra perda).
- * 2. Faz Debounce de 500ms para evitar sobrecarga na rede nas edições rápidas.
- * 3. Gerencia fila para evitar conflitos de escrita simultânea no Firebase.
+ * @param {boolean} force - Se true, ignora o debounce e tenta salvar imediatamente.
  */
-function persistDB() {
+function persistDB(force = false) {
   // 1. BACKUP LOCAL IMEDIATO (Evita perda se a aba fechar antes da nuvem salvar)
   try {
     const toCache = JSON.parse(JSON.stringify(DB));
@@ -304,70 +302,81 @@ function persistDB() {
     localStorage.setItem('gestaoObraDB', JSON.stringify(toCache));
   } catch(e) { console.warn('Falha no backup local:', e); }
 
-  // 2. DEBOUNCE
+  // 2. DEBOUNCE (Ignorado se force=true)
   if (_persistenceTimer) clearTimeout(_persistenceTimer);
 
-  return new Promise((resolve, reject) => {
-    _persistenceTimer = setTimeout(async () => {
+  const performSave = async (resolve, reject) => {
+    
+    // 3. GERENCIAMENTO DE FILA
+    if (_isSaving) {
+      console.log('[Persist] Aguardando salvamento anterior concluir...');
+      _saveScheduled = true;
+      if (resolve) resolve(); 
+      return;
+    }
+
+    const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+    const isSuperAdmin = sessionUser.role === 'super_admin';
+
+    // Validação de Tenant
+    if (isSuperAdmin && !superAdminActiveTenant) {
+       console.warn('Super Admin sem tenant ativo selecionado.');
+       if (resolve) resolve();
+       return;
+    }
+    if (!isSuperAdmin && !dbRef) {
+       console.warn('Persistencia ignorada: dbRef nao inicializado.');
+       if (resolve) resolve();
+       return;
+    }
+
+    try {
+      _isSaving = true;
+      window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'saving' } }));
+
+      const targetRef = isSuperAdmin 
+        ? firebase.database().ref('tenants/' + superAdminActiveTenant.id)
+        : dbRef;
+
+      DB = ensureSchema(DB);
+
+      // Desliga o listener temporariamente para evitar echo/conflito
+      if (!isSuperAdmin) targetRef.off('value');
+
+      await targetRef.set(DB);
       
-      // 3. GERENCIAMENTO DE FILA
-      if (_isSaving) {
-        console.log('[Persist] Aguardando salvamento anterior concluir...');
-        _saveScheduled = true;
-        resolve(); // Resolve o atual pois o agendado cuidará da versão final
-        return;
+      console.log('[Persist] Sincronizado com a nuvem com sucesso.');
+      window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'synced' } }));
+
+      if (!isSuperAdmin) _religarListener(_currentTenantId);
+
+      if (resolve) resolve();
+    } catch (err) {
+      const errCode = err.code || 'UNKNOWN';
+      console.error(`[Persist Error] Code: ${errCode}`, err);
+      
+      window.dispatchEvent(new CustomEvent('syncStatus', { 
+        detail: { status: 'error', code: errCode } 
+      }));
+
+      if (!isSuperAdmin) _religarListener(_currentTenantId);
+      if (reject) reject(err);
+    } finally {
+      _isSaving = false;
+      if (_saveScheduled) {
+        _saveScheduled = false;
+        persistDB();
       }
+    }
+  };
 
-      const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
-      const isSuperAdmin = sessionUser.role === 'super_admin';
-
-      // Validação de Tenant
-      if (isSuperAdmin && !superAdminActiveTenant) {
-         console.warn('Super Admin sem tenant ativo selecionado.');
-         return resolve();
-      }
-      if (!isSuperAdmin && !dbRef) {
-         console.warn('Persistencia ignorada: dbRef nao inicializado.');
-         return resolve();
-      }
-
-      try {
-        _isSaving = true;
-        window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'saving' } }));
-
-        const targetRef = isSuperAdmin 
-          ? firebase.database().ref('tenants/' + superAdminActiveTenant.id)
-          : dbRef;
-
-        DB = ensureSchema(DB);
-
-        // Desliga o listener temporariamente para evitar echo/conflito
-        if (!isSuperAdmin) targetRef.off('value');
-
-        await targetRef.set(DB);
-        
-        console.log('[Persist] Sincronizado com a nuvem com sucesso.');
-        window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'synced' } }));
-
-        if (!isSuperAdmin) _religarListener(_currentTenantId);
-
-        resolve();
-      } catch (err) {
-        console.error('Falha ao salvar na nuvem:', err);
-        if (typeof toast === 'function') toast('Erro ao sincronizar nuvem!', 'error');
-        window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'error' } }));
-        if (!isSuperAdmin) _religarListener(_currentTenantId);
-        reject(err);
-      } finally {
-        _isSaving = false;
-        // Se houve uma requisição de salvamento durante este processo, executa-a agora
-        if (_saveScheduled) {
-          _saveScheduled = false;
-          persistDB();
-        }
-      }
-    }, 500); 
-  });
+  if (force) {
+    return new Promise((resolve, reject) => performSave(resolve, reject));
+  } else {
+    return new Promise((resolve, reject) => {
+      _persistenceTimer = setTimeout(() => performSave(resolve, reject), 500); 
+    });
+  }
 }
 
 function _religarListener(tenantId) {
