@@ -2541,65 +2541,80 @@ async function saveTrabalhador() {
     foto: window._currentTrFoto || (currentEditIdx >= 0 ? DB.trabalhadores[currentEditIdx].foto : null)
   };
   if (editIdx >= 0 && DB.trabalhadores[editIdx]) {
-    const oldName = DB.trabalhadores[editIdx].nome;
-    DB.trabalhadores[editIdx] = data;
+    // 1. Captura Segura dos Dados Antigos ANTES de atualizar
+    const oldWorker = { ...DB.trabalhadores[editIdx] };
+    const oldName = (oldWorker.nome || '').trim();
+    const oldCod = (oldWorker.cod || '').trim();
     
-    // Atualiza o nome dos registros vinculados se houver renomeação (Propagação Total)
-    if (oldName && data.nome && oldName.trim() !== data.nome.trim()) {
-      const oName = oldName.trim();
-      const nName = data.nome.trim();
+    const newName = (data.nome || '').trim();
+    const newCod = (data.cod || '').trim();
 
-      console.log(`Renomeando de "${oName}" para "${nName}" em todo o sistema...`);
+    DB.trabalhadores[editIdx] = data; // Atualiza o cadastro principal
+    
+    // 2. Propagação em Cascata (Se Nome OU Código mudaram)
+    if ((oldName !== newName && newName) || (oldCod !== newCod && newCod)) {
+      console.log(`[Sync] Propagando alteração de "${oldName}" (${oldCod}) para "${newName}" (${newCod})...`);
 
-      // 1. Presença (Folha de Ponto) — Crucial: Busca pelo código antigo SE o código não mudou, ou pelo nome
-      const oldCod = DB.trabalhadores[editIdx].cod || data.cod; 
+      // 1. Presença (Folha de Ponto) — Vínculo primário por Código (trab) ou Nome
       if (DB.presenca) {
         DB.presenca.forEach(p => {
-          if (p.trab === oldCod || p.trab === data.cod || p.nome === oName) {
-            p.nome = nName;
-            p.trab = data.cod; // Atualiza o código também, caso tenha mudado
+          if (p.trab === oldCod || p.nome === oldName) {
+            p.nome = newName;
+            p.trab = newCod;
           }
         });
       }
-      // 2. Tarefas
+
+      // 2. Tarefas (Responsável)
       if (DB.tarefas) {
         DB.tarefas.forEach(t => {
-          if (t.resp === oName) t.resp = nName;
+          if (t.resp === oldName) t.resp = newName;
         });
       }
-      // 3. Financeiro
+
+      // 3. Financeiro (Fornecedor/Beneficiário)
       if (DB.financeiro) {
         DB.financeiro.forEach(f => {
-          if (f.forn === oName) f.forn = nName;
+          if (f.forn === oldName) f.forn = newName;
+          // Se for pagamento de diária gerado automaticamente, o vínculo de código pode estar em outro lugar,
+          // mas o campo 'forn' é o principal para busca na tela.
         });
       }
-      // 4. Medições
+
+      // 4. Medições (Equipe Terceira)
       if (DB.medicao) {
         DB.medicao.forEach(m => {
-          if (m.equipe === oName) m.equipe = nName;
+          if (m.equipe === oldName) m.equipe = newName;
         });
       }
-      // 5. Almoços
+
+      // 5. Almoços (Empreiteiro/Responsável)
       if (DB.almocos) {
         DB.almocos.forEach(a => {
-          if (a.empreiteiro === oName) a.empreiteiro = nName;
+          if (a.empreiteiro === oldName) a.empreiteiro = newName;
         });
       }
-      // 6. Cadastro de Obras
+
+      // 6. Cadastro de Obras (Mestre Responsável)
       if (DB.obras) {
         DB.obras.forEach(o => {
-          if (o.mestre === oName) o.mestre = nName;
+          if (o.mestre === oldName) o.mestre = newName;
         });
       }
     }
-    toast('Trabalhador atualizado!');
+    toast('Cadastro e históricos atualizados!');
   } else {
-    // Trabalhadores agora são ilimitados em todos os planos (Startup SaaS LP)
-    // O limite foi movido para Usuários Internos e Obras.
     DB.trabalhadores.push(data);
-    toast('Trabalhador cadastrado!');
+    toast('Novo trabalhador cadastrado!');
   }
-  closeModal('modal-trabalhador'); await persistDB(); renderTrabalhadores();
+
+  closeModal('modal-trabalhador');
+  await persistDB(); 
+  
+  // Atualizações Globais na UI
+  if (typeof renderTrabalhadores === 'function') renderTrabalhadores();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  if (typeof renderFinanceiro === 'function') renderFinanceiro();
 }
 
 async function editTrabalhador(idx) {
