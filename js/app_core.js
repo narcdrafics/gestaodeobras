@@ -18,29 +18,10 @@ window.renderOrcamento = window.renderOrcamento || function () { };
 window.renderMedicao = window.renderMedicao || function () { };
 window.renderAdmin = window.renderAdmin || function () { };
 
-const fmt = (v) => v != null && !isNaN(v) ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
-const fmtPct = (v) => v != null ? (v * 100).toFixed(1) + '%' : '—';
-const fmtDate = (d) => {
-  if (!d) return '—';
-  let val = d;
-  // Limpeza de possíveis erros de cast do Firebase
-  if (typeof d === 'string' && d.includes('[object Object]')) {
-    val = parseInt(d.replace('[object Object]', '')) || d;
-  }
-  
-  // Se for timestamp numérico
-  if (typeof val === 'number' || (!isNaN(Number(val)) && String(val).length > 8)) {
-    const dt = new Date(Number(val));
-    return dt.toLocaleDateString('pt-BR');
-  }
-  
-  // Se for string YYYY-MM-DD
-  if (typeof val === 'string' && val.includes('-')) {
-    const parts = val.split('-');
-    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return val;
-};
+// Utiliza as funções globais fornecidas pelo utils.module.js
+const fmt = window.fmt;
+const fmtPct = window.fmtPct;
+const fmtDate = window.fmtDate;
 const today = new Date().toISOString().split('T')[0];
 
 function statusBadge(s) {
@@ -76,14 +57,8 @@ function obName(cStr) {
   }).join(', ');
 }
 
-function calcSaldo(item) { return (item.entrada || 0) - (item.saida || 0); }
-function estoqueStatus(item) {
-  const saldo = calcSaldo(item);
-  if (saldo <= 0) return 'SEM ESTOQUE';
-  if (saldo <= item.min) return 'CRÍTICO';
-  if (saldo <= item.min * 1.5) return 'BAIXO';
-  return 'NORMAL';
-}
+const calcSaldo = window.calcSaldo;
+const estoqueStatus = window.estoqueStatus;
 
 function nextCod(arr, prefix) {
   const nums = arr.map(x => parseInt((x.cod || x.num || '0').replace(/\D/g, '')) || 0);
@@ -3870,6 +3845,7 @@ document.addEventListener('click', (event) => {
     }
   }
 });
+
 
 
 
