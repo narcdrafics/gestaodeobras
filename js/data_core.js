@@ -338,12 +338,30 @@ function persistDB(force = false) {
         ? firebase.database().ref('tenants/' + superAdminActiveTenant.id)
         : dbRef;
 
-      DB = ensureSchema(DB);
+      // ⚠️ SANITIZAÇÃO: Remove fotos base64 antes de enviar ao Firebase
+      // O Firebase RTDB tem limite de 10MB por escrita. Fotos base64 podem
+      // ultrapassar esse limite. As fotos permanecem no localStorage como fallback.
+      const dbForCloud = JSON.parse(JSON.stringify(DB));
+      if (Array.isArray(dbForCloud.trabalhadores)) {
+        dbForCloud.trabalhadores = dbForCloud.trabalhadores.map(t => {
+          if (t.foto && t.foto.startsWith('data:')) {
+            const { foto, ...rest } = t; // Remove apenas base64 — URLs normais são mantidas
+            return rest;
+          }
+          return t;
+        });
+      }
+      if (Array.isArray(dbForCloud.medicao)) {
+        dbForCloud.medicao = dbForCloud.medicao.map(m => {
+          if (m.photoUrl && m.photoUrl.startsWith('data:')) {
+            const { photoUrl, ...rest } = m;
+            return rest;
+          }
+          return m;
+        });
+      }
 
-      // Desliga o listener temporariamente para evitar echo/conflito
-      if (!isSuperAdmin) targetRef.off('value');
-
-      await targetRef.set(DB);
+      await targetRef.set(dbForCloud);
       
       console.log('[Persist] Sincronizado com a nuvem com sucesso.');
       window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'synced' } }));
