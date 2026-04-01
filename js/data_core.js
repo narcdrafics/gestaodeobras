@@ -195,6 +195,21 @@ function _onFirebaseValue(snapshot) {
     }
 
     DB = ensureSchema(data);
+
+    // Restaura fotos do localStorage separado (não são salvas na nuvem por serem base64)
+    try {
+      const fotosRaw = localStorage.getItem('gestaoObraFotos');
+      if (fotosRaw && Array.isArray(DB.trabalhadores)) {
+        const fotosMap = JSON.parse(fotosRaw);
+        DB.trabalhadores = DB.trabalhadores.map(t => {
+          if (!t.foto && fotosMap[t.cod]) {
+            return { ...t, foto: fotosMap[t.cod] };
+          }
+          return t;
+        });
+      }
+    } catch(e) { /* Silencioso: foto é opcional */ }
+
     processCloudUpdate();
     return;
   }
@@ -295,11 +310,44 @@ let _saveScheduled = false;
  * @param {boolean} force - Se true, ignora o debounce e tenta salvar imediatamente.
  */
 function persistDB(force = false) {
-  // 1. BACKUP LOCAL IMEDIATO (Evita perda se a aba fechar antes da nuvem salvar)
+  // 1. BACKUP LOCAL (Sanitizado — sem base64 para respeitar limite de 5MB do iOS Safari)
   try {
     const toCache = JSON.parse(JSON.stringify(DB));
     toCache._tenantId = _currentTenantId;
+
+    // Remove base64 do backup principal (economiza espaço no localStorage do mobile)
+    // As fotos são salvas separadamente em 'gestaoObraFotos'
+    const fotosMap = {};
+    if (Array.isArray(toCache.trabalhadores)) {
+      toCache.trabalhadores = toCache.trabalhadores.map(t => {
+        if (t.foto && t.foto.startsWith('data:')) {
+          fotosMap[t.cod] = t.foto; // Guarda separado
+          const { foto, ...rest } = t;
+          return rest;
+        }
+        return t;
+      });
+    }
+    if (Array.isArray(toCache.medicao)) {
+      toCache.medicao = toCache.medicao.map(m => {
+        if (m.photoUrl && m.photoUrl.startsWith('data:')) {
+          const { photoUrl, ...rest } = m;
+          return rest;
+        }
+        return m;
+      });
+    }
+
     localStorage.setItem('gestaoObraDB', JSON.stringify(toCache));
+
+    // Salva fotos separadamente (se houver espaço)
+    if (Object.keys(fotosMap).length > 0) {
+      try {
+        localStorage.setItem('gestaoObraFotos', JSON.stringify(fotosMap));
+      } catch(e2) {
+        console.warn('[Persist] Sem espaço para fotos no localStorage (mobile):', e2);
+      }
+    }
   } catch(e) { console.warn('Falha no backup local:', e); }
 
   // 2. DEBOUNCE (Ignorado se force=true)
@@ -364,13 +412,17 @@ function persistDB(force = false) {
         });
       }
 
+      // ⚠️ MOBILE FIX: Força reconexão do WebSocket antes de escrever.
+      // Em smartphones, o OS mata conexões em background (iOS/Android).
+      firebase.database().goOnline();
+
       // Desliga o listener temporariamente para evitar echo/conflito de dados
       if (!isSuperAdmin) targetRef.off('value');
 
-      // Timeout de 15s para capturar falhas de rede silenciosas
+      // Timeout de 20s (mobile pode ser mais lento que desktop)
       await Promise.race([
         targetRef.set(dbForCloud),
-        new Promise((_, rej) => setTimeout(() => rej({ code: 'TIMEOUT', message: 'Tempo limite de escrita excedido' }), 15000))
+        new Promise((_, rej) => setTimeout(() => rej({ code: 'TIMEOUT', message: 'Conexão lenta ou sem internet. Tente novamente.' }), 20000))
       ]);
 
       console.log('[Persist] Sincronizado com a nuvem com sucesso.');
