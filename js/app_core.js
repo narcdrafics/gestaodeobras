@@ -2609,14 +2609,20 @@ async function saveTrabalhador() {
   }
 
   closeModal('modal-trabalhador');
-  
-  // Força a sincronização imediata devido à grande quantidade de alterações (Propagação em Cascata)
-  await persistDB(true); 
-  
-  // Atualizações Globais na UI
+
+  // Atualizações Globais na UI (antes do sync para UX mais rápida)
   if (typeof renderTrabalhadores === 'function') renderTrabalhadores();
   if (typeof renderDashboard === 'function') renderDashboard();
   if (typeof renderFinanceiro === 'function') renderFinanceiro();
+
+  // Força sincronização imediata com diagnóstico de erro
+  try {
+    await persistDB(true);
+  } catch (err) {
+    const code = err?.code || 'UNKNOWN';
+    console.error('[saveTrabalhador] Falha ao sincronizar com a nuvem:', code, err?.message || err);
+    toast(`Salvo localmente. Erro na nuvem: ${code}`, 'error');
+  }
 }
 
 async function editTrabalhador(idx) {

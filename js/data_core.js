@@ -298,7 +298,7 @@ function persistDB(force = false) {
   // 1. BACKUP LOCAL IMEDIATO (Evita perda se a aba fechar antes da nuvem salvar)
   try {
     const toCache = JSON.parse(JSON.stringify(DB));
-    toCache._tenantId = _currentTenantId; // Marca o cache com o tenant atual para evitar "Ghost Data"
+    toCache._tenantId = _currentTenantId;
     localStorage.setItem('gestaoObraDB', JSON.stringify(toCache));
   } catch(e) { console.warn('Falha no backup local:', e); }
 
@@ -306,12 +306,12 @@ function persistDB(force = false) {
   if (_persistenceTimer) clearTimeout(_persistenceTimer);
 
   const performSave = async (resolve, reject) => {
-    
+
     // 3. GERENCIAMENTO DE FILA
     if (_isSaving) {
       console.log('[Persist] Aguardando salvamento anterior concluir...');
       _saveScheduled = true;
-      if (resolve) resolve(); 
+      if (resolve) resolve();
       return;
     }
 
@@ -334,18 +334,21 @@ function persistDB(force = false) {
       _isSaving = true;
       window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'saving' } }));
 
-      const targetRef = isSuperAdmin 
+      const targetRef = isSuperAdmin
         ? firebase.database().ref('tenants/' + superAdminActiveTenant.id)
         : dbRef;
 
-      // ⚠️ SANITIZAÇÃO: Remove fotos base64 antes de enviar ao Firebase
-      // O Firebase RTDB tem limite de 10MB por escrita. Fotos base64 podem
-      // ultrapassar esse limite. As fotos permanecem no localStorage como fallback.
+      // Garante estrutura válida antes de salvar
+      DB = ensureSchema(DB);
+
+      // ⚠️ SANITIZAÇÃO: Remove fotos base64 antes de enviar ao Firebase.
+      // Firebase RTDB tem limite de 10MB por escrita. Imagens base64 de trabalhadores
+      // e medições podem ultrapassar esse limite. As fotos ficam apenas no localStorage.
       const dbForCloud = JSON.parse(JSON.stringify(DB));
       if (Array.isArray(dbForCloud.trabalhadores)) {
         dbForCloud.trabalhadores = dbForCloud.trabalhadores.map(t => {
           if (t.foto && t.foto.startsWith('data:')) {
-            const { foto, ...rest } = t; // Remove apenas base64 — URLs normais são mantidas
+            const { foto, ...rest } = t;
             return rest;
           }
           return t;
@@ -361,20 +364,26 @@ function persistDB(force = false) {
         });
       }
 
-      await targetRef.set(dbForCloud);
-      
+      // Desliga o listener temporariamente para evitar echo/conflito de dados
+      if (!isSuperAdmin) targetRef.off('value');
+
+      // Timeout de 15s para capturar falhas de rede silenciosas
+      await Promise.race([
+        targetRef.set(dbForCloud),
+        new Promise((_, rej) => setTimeout(() => rej({ code: 'TIMEOUT', message: 'Tempo limite de escrita excedido' }), 15000))
+      ]);
+
       console.log('[Persist] Sincronizado com a nuvem com sucesso.');
       window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'synced' } }));
 
       if (!isSuperAdmin) _religarListener(_currentTenantId);
-
       if (resolve) resolve();
     } catch (err) {
       const errCode = err.code || 'UNKNOWN';
-      console.error(`[Persist Error] Code: ${errCode}`, err);
-      
-      window.dispatchEvent(new CustomEvent('syncStatus', { 
-        detail: { status: 'error', code: errCode } 
+      console.error(`[Persist Error] Code: ${errCode}`, err.message || err);
+
+      window.dispatchEvent(new CustomEvent('syncStatus', {
+        detail: { status: 'error', code: errCode }
       }));
 
       if (!isSuperAdmin) _religarListener(_currentTenantId);
@@ -392,7 +401,7 @@ function persistDB(force = false) {
     return new Promise((resolve, reject) => performSave(resolve, reject));
   } else {
     return new Promise((resolve, reject) => {
-      _persistenceTimer = setTimeout(() => performSave(resolve, reject), 500); 
+      _persistenceTimer = setTimeout(() => performSave(resolve, reject), 800);
     });
   }
 }
