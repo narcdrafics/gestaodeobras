@@ -3,8 +3,8 @@
  * para facilitar testes unitários e modularização.
  */
 
-const fmt = (v) => v != null && !isNaN(v) 
-  ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) 
+const fmt = (v) => v != null && !isNaN(v)
+  ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   : '—';
 
 const fmtPct = (v) => v != null ? (v * 100).toFixed(1) + '%' : '—';
@@ -15,12 +15,12 @@ const fmtDate = (d) => {
   if (typeof d === 'string' && d.includes('[object Object]')) {
     val = parseInt(d.replace('[object Object]', '')) || d;
   }
-  
+
   if (typeof val === 'number' || (!isNaN(Number(val)) && String(val).length > 8)) {
     const dt = new Date(Number(val));
     return dt.toLocaleDateString('pt-BR');
   }
-  
+
   if (typeof val === 'string' && val.includes('-')) {
     const parts = val.split('-');
     if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
@@ -57,11 +57,11 @@ const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) => {
   const strWeek = startOfWeek.toISOString().split('T')[0];
 
   return obrasArray.map(o => {
-    const pPendentes = presencaArray.filter(p => 
-      p.obra === o.cod && 
-      p.data >= strWeek && 
-      p.data <= todayStr && 
-      p.pgtoStatus === 'Pendente' && 
+    const pPendentes = presencaArray.filter(p =>
+      p.obra === o.cod &&
+      p.data >= strWeek &&
+      p.data <= todayStr &&
+      p.pgtoStatus === 'Pendente' &&
       Number(p.total) > 0
     );
     return {
@@ -84,7 +84,7 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
     const parts = d.split('-');
     return parseInt(parts[0]) === parseInt(year) && parseInt(parts[1]) === parseInt(month);
   };
-  
+
   // Lançamentos manuais
   fin.forEach((f, i) => {
     if (filterDate(f.data)) {
@@ -95,7 +95,7 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
       });
     }
   });
-  
+
   // Presença
   pres.forEach((p, i) => {
     if ((p.total || 0) > 0 && filterDate(p.data)) {
@@ -173,16 +173,16 @@ function getPeriodLabel(dateStr, viewType) {
   const parts = dateStr.split('-');
   if (parts.length < 3) return 'S/D';
   const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-  
+
   if (viewType === 'quinzenal') {
     return d.getDate() <= 15 ? '1ª Quinzena' : '2ª Quinzena';
   }
-  
+
   // Semanal (Inicia no Domingo)
   const firstOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
   const firstSunday = new Date(firstOfMonth);
   firstSunday.setDate(1 + (7 - firstOfMonth.getDay()) % 7);
-  
+
   if (d < firstSunday) return 'Semana 1';
   const diffDays = Math.floor((d.getTime() - firstSunday.getTime()) / (1000 * 60 * 60 * 24));
   const weekNum = Math.floor(diffDays / 7) + 2;
@@ -194,7 +194,7 @@ function getPeriodLabel(dateStr, viewType) {
  */
 const calcBudgetProgress = (orcamento, financeiro, compras) => {
   const realCosts = {};
-  
+
   // Gastos realizados (Financeiro)
   financeiro.forEach(f => {
     if (f.status === 'Pago' || f.status === 'Parcial') {
@@ -224,8 +224,8 @@ const calcBudgetProgress = (orcamento, financeiro, compras) => {
   });
 };
 
-function calcSaldo(item) { 
-  return (parseFloat(item.entrada) || 0) - (parseFloat(item.saida) || 0); 
+function calcSaldo(item) {
+  return (parseFloat(item.entrada) || 0) - (parseFloat(item.saida) || 0);
 }
 
 function estoqueStatus(item) {
