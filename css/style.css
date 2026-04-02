@@ -68,7 +68,7 @@ body {
 .header {
   background: var(--bg2); /* Solid for better contrast */
   border-bottom: 1px solid var(--border);
-  padding: 0 24px;
+  padding: 0 16px; /* Reduzido levemente para mobile */
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -76,32 +76,37 @@ body {
   position: sticky;
   top: 0;
   z-index: 50;
-}
-
-.header-left {
-  flex: 1;
-  display: flex;
-  align-items: center;
   gap: 12px;
 }
 
-.header-center {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  font-weight: 800;
-  font-size: 18px;
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0; /* Permite encolher se necessário */
+  flex: 1;
+}
+
+#brand-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 17px; /* Aumentado para destaque logo-style */
   letter-spacing: -0.5px;
-  color: var(--text);
-  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+#brand-container .app-brand-name {
+    color: var(--text);
 }
 
 .header-right {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 16px;
+  gap: 12px;
 }
 
 .theme-switcher-app {
@@ -129,15 +134,13 @@ body {
 .theme-btn.amber { background: #f59e0b; }
 .theme-btn.emerald { background: #10b981; }
 
-@media(max-width: 768px) {
-  .header-center { display: none; }
-  .theme-switcher-app { display: none; }
+@media(max-width: 1024px) {
+  .header-date { display: none !important; }
 }
 
-.header-brand {
-  display: flex; align-items: center; gap: 10px;
-  font-weight: 700; font-size: 18px; letter-spacing: -0.5px;
-  max-height: 40px;
+@media(max-width: 768px) {
+  .theme-switcher-app { display: none; }
+  #brand-container .app-brand-name { display: none; } /* No mobile deixa só o ícone */
 }
 .header-logo { max-height: 32px; max-width: 150px; object-fit: contain; }
 .header-brand span { color: var(--accent); }
