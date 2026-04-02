@@ -1075,51 +1075,48 @@ function renderCompras() {
 
 // ==================== FINANCEIRO ====================
 function renderFinanceiro() {
-  window.renderFinanceiro = renderFinanceiro; // Garante persistência global
-  // Consolidação Otimizada via Módulo
-  const finSummary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos);
-  allFin = finSummary.all;
-  const sumsByObra = finSummary.totalsByObra;
+  window.renderFinanceiro = renderFinanceiro; 
+  
+  const selMonth = document.getElementById('fin-month');
+  const selYear = document.getElementById('fin-year');
+  const selView = document.getElementById('fin-view-type');
 
-  const totalPrev = Object.values(sumsByObra).reduce((a, b) => a + b.prev, 0);
-  const totalReal = Object.values(sumsByObra).reduce((a, b) => a + b.real, 0);
+  if (!selMonth || !selYear || !selView) return;
 
-  const getNome = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
+  // Inicialização de filtros se vazios
+  if (selYear.options.length === 0) {
+    const curY = new Date().getFullYear();
+    [curY, curY - 1, curY - 2].forEach(y => {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      selYear.appendChild(opt);
+    });
+    selMonth.value = new Date().getMonth() + 1;
+  }
 
+  const mm = selMonth.value;
+  const yy = selYear.value;
+  const view = selView.value;
+  window.finViewType = view; // Para uso no helper do modulo
+
+  // Consolidação Filtrada por Período
+  const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, yy, mm);
+  allFin = summary.all;
+  const perTotals = summary.totalsByPeriod;
+
+  // Renderização de Cards de Fluxo de Caixa (Semanal/Quinzenal)
   let sumHtml = '';
-  Object.keys(sumsByObra).forEach(cod => {
-    const obNameStr = getNome(cod);
-    const p = sumsByObra[cod].prev;
-    const r = sumsByObra[cod].real;
-    sumHtml += `<div class="kpi-card" style="border-left:4px solid var(--accent)"><div class="kpi-label">${obNameStr}</div>
-      <div style="display:flex;justify-content:space-between;gap:8px;margin-top:8px">
-        <div><small>Previsto</small><div style="font-weight:600">${fmt(p)}</div></div>
-        <div><small>Realizado</small><div style="font-weight:600;color:${r > p ? 'var(--red)' : 'var(--text)'}">${fmt(r)}</div></div>
-      </div>
-      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #333;display:flex;justify-content:space-between">
-        <small>Diferença</small><b style="color:${r > p ? 'var(--red)' : 'var(--green)'}">${fmt(r - p)}</b>
-      </div>
+  const periods = view === 'quinzenal' ? ['1ª Quinzena', '2ª Quinzena'] : ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5'];
+  
+  periods.forEach(p => {
+    const data = perTotals[p] || { real: 0, items: 0 };
+    if (data.items === 0 && p === 'Semana 5') return; // Oculta 5ª semana se vazia
+
+    sumHtml += `<div class="kpi-card" style="border-left:4px solid var(--accent); background: var(--bg2);">
+      <div class="kpi-label" style="opacity:0.8">${p}</div>
+      <div class="kpi-val" style="font-size:20px; font-weight:800; margin: 4px 0;">${fmt(data.real)}</div>
+      <div style="font-size:11px; color:var(--text3)">${data.items} registros</div>
     </div>`;
-  });
-
-  sumHtml += `<div class="kpi-card" style="background:rgba(76,175,80,0.1);border-left:4px solid var(--green)"><div class="kpi-label" style="color:var(--green)">Resumo Total</div>
-    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:8px">
-      <div><small>Previsto</small><div style="font-weight:600">${fmt(totalPrev)}</div></div>
-      <div><small>Realizado</small><div style="font-weight:600">${fmt(totalReal)}</div></div>
-    </div>
-    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #333;display:flex;justify-content:space-between">
-      <small>Diferença Total</small><b style="color:${totalReal > totalPrev ? 'var(--red)' : 'var(--green)'}">${fmt(totalReal - totalPrev)}</b>
-    </div>
-  </div>`;
-
-  // Resumo de Almoços por Empreiteiro
-  const lunchByEquipe = {};
-  (DB.almocos || []).forEach(a => {
-    const eq = a.empreiteiro || 'Geral';
-    lunchByEquipe[eq] = (lunchByEquipe[eq] || 0) + (a.vtotal || 0);
-  });
-  Object.keys(lunchByEquipe).forEach(eq => {
-    sumHtml += `<div class="kpi-card" style="border-left:4px solid var(--orange)"><div class="kpi-label">🍱 Almoço: ${eq}</div><div class="kpi-val">${fmt(lunchByEquipe[eq])}</div></div>`;
   });
 
   safeSetInner('fin-summary', sumHtml);

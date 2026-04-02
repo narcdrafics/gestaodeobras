@@ -1,7 +1,28 @@
-<div class="page-header" style="flex-wrap:wrap;gap:8px;">
-  <div class="page-title">Financeiro <small>Previsto × Realizado</small></div>
-  <div style="display:flex;flex-wrap:wrap;gap:8px;">
-    <button class="btn btn-secondary" style="border-color:var(--green);color:var(--green);font-weight:600;" onclick="prepareLotePgto()">💸 Fechar Folha (Lote)</button>
+<div class="page-header" style="flex-wrap:wrap;gap:12px; align-items: flex-end;">
+  <div class="page-title">Financeiro <small id="fin-period-subtitle">Fluxo de Caixa Mensal</small></div>
+  
+  <div class="fin-controls" style="display:flex; flex-wrap:wrap; gap:8px; align-items: center;">
+    <div class="form-group" style="margin:0;">
+      <select id="fin-view-type" class="form-control" style="padding:6px 12px; height:38px; min-width:120px;" onchange="renderFinanceiro()">
+        <option value="semanal">Visão Semanal</option>
+        <option value="quinzenal">Visão Quinzenal</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;">
+      <select id="fin-month" class="form-control" style="padding:6px 12px; height:38px; min-width:110px;" onchange="renderFinanceiro()">
+        <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+        <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+        <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+        <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;">
+      <select id="fin-year" class="form-control" style="padding:6px 12px; height:38px; min-width:80px;" onchange="renderFinanceiro()"></select>
+    </div>
+  </div>
+
+  <div style="margin-left:auto; display:flex; gap:8px;">
+    <button class="btn btn-secondary" style="border-color:var(--green);color:var(--green);font-weight:600;" onclick="prepareLotePgto()">💸 Fechar Folha</button>
     <button class="btn btn-primary" onclick="openModal('modal-financeiro')">+ Novo Lançamento</button>
   </div>
 </div>
