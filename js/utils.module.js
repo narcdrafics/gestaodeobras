@@ -79,27 +79,55 @@ export const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) =
 export const summarizeFinance = (fin, pres, med, alm) => {
   let all = [];
   
-  // Lançamentos manuais
-  fin.forEach((f, i) => all.push({ source: 'fin', ...f, real: parseFloat(f.real) || 0, prev: parseFloat(f.prev) || 0 }));
+  // Lançamentos manuais — idx aponta direto para DB.financeiro[i]
+  fin.forEach((f, i) => all.push({
+    source: 'fin', idx: i, ...f,
+    real: parseFloat(f.real) || 0,
+    prev: parseFloat(f.prev) || 0
+  }));
   
-  // Presença (Mão de obra)
+  // Presença (Mão de obra) — idx aponta para DB.presenca[i]
   pres.forEach((p, i) => {
     if ((p.total || 0) > 0) {
-      all.push({ source: 'pre', data: p.data, obra: p.obra, tipo: 'Mão de obra própria', desc: `[Diária] ${p.nome}`, real: parseFloat(p.total), prev: 0, status: p.pgtoStatus || 'Pendente' });
+      all.push({
+        source: 'pre', idx: i,
+        data: p.data, obra: p.obra,
+        tipo: 'Mão de obra própria',
+        desc: `[Diária] ${p.nome}`,
+        forn: p.nome || '',
+        real: parseFloat(p.total), prev: 0,
+        status: p.pgtoStatus || 'Pendente'
+      });
     }
   });
 
-  // Medições
+  // Medições — idx aponta para DB.medicao[i]
   med.forEach((m, i) => {
     if ((m.vtotal || 0) > 0) {
-      all.push({ source: 'med', data: m.semana || m.data, obra: m.obra, tipo: 'Empreiteiro', desc: `[Medição] ${m.servico}`, real: parseFloat(m.vtotal), prev: 0, status: m.pgtoStatus || 'Pendente' });
+      all.push({
+        source: 'med', idx: i,
+        data: m.semana || m.data, obra: m.obra,
+        tipo: 'Empreiteiro',
+        desc: `[Medição] ${m.servico}`,
+        forn: m.equipe || '',
+        real: parseFloat(m.vtotal), prev: 0,
+        status: m.pgtoStatus || 'Pendente'
+      });
     }
   });
 
-  // Almoços
+  // Almoços — idx aponta para DB.almocos[i]
   (alm || []).forEach((a, i) => {
     if ((a.vtotal || 0) > 0) {
-      all.push({ source: 'alm', data: a.data, obra: a.obra, tipo: 'Almoço Empreiteiro', desc: `[Almoço] ${a.empreiteiro}`, real: parseFloat(a.vtotal), prev: 0, status: 'Pendente' });
+      all.push({
+        source: 'alm', idx: i,
+        data: a.data, obra: a.obra,
+        tipo: 'Almoço Empreiteiro',
+        desc: `[Almoço] ${a.empreiteiro}`,
+        forn: a.empreiteiro || '',
+        real: parseFloat(a.vtotal), prev: 0,
+        status: 'Pendente'
+      });
     }
   });
 
