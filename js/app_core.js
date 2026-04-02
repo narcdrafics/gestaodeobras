@@ -3291,6 +3291,19 @@ async function saveFinanceiro() {
 
   const prev = parseFloat(document.getElementById('fn-prev').value) || 0;
   const real = parseFloat(document.getElementById('fn-real').value) || 0;
+  const status = document.getElementById('fn-status').value;
+  let valpago = parseFloat(document.getElementById('fn-valpago').value) || 0;
+
+  // Regras de integridade para valpago:
+  // - Status "Pago": valpago deve ser o valor total (real > 0 ? real : prev)
+  // - Status "Pendente" ou "Atrasado": valpago deve ser zero
+  // - Status "Parcial": valpago é o que o usuário digitou
+  if (status === 'Pago') {
+    valpago = real > 0 ? real : prev;
+  } else if (status === 'Pendente' || status === 'Atrasado') {
+    valpago = 0;
+  }
+
   const data = {
     data: document.getElementById('fn-data').value,
     obra: document.getElementById('fn-obra').value,
@@ -3300,20 +3313,31 @@ async function saveFinanceiro() {
     forn: document.getElementById('fn-forn').value,
     prev, real,
     pgto: document.getElementById('fn-pgto').value,
-    status: document.getElementById('fn-status').value,
-    valpago: parseFloat(document.getElementById('fn-valpago').value) || 0,
+    status,
+    valpago,
     nf: document.getElementById('fn-nf').value,
     obs: document.getElementById('fn-obs').value
   };
+
   if (currentEditIdx >= 0) {
     DB.financeiro[currentEditIdx] = data;
     let tmsg = 'Lançamento financeiro atualizado!';
-    if (data.status === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.real > 0 ? data.real - data.valpago : data.prev - data.valpago).toFixed(2).replace('.', ',')}`;
+    if (status === 'Parcial') {
+      const falta = (real > 0 ? real : prev) - valpago;
+      tmsg = falta > 0
+        ? `Status Parcial: Falta Pagar R$ ${falta.toFixed(2).replace('.', ',')}`
+        : 'Status Parcial: Totalmente quitado.';
+    }
     toast(tmsg);
   } else {
     DB.financeiro.push(data);
     let tmsg = 'Lançamento financeiro salvo!';
-    if (data.status === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.real > 0 ? data.real - data.valpago : data.prev - data.valpago).toFixed(2).replace('.', ',')}`;
+    if (status === 'Parcial') {
+      const falta = (real > 0 ? real : prev) - valpago;
+      tmsg = falta > 0
+        ? `Status Parcial: Falta Pagar R$ ${falta.toFixed(2).replace('.', ',')}`
+        : 'Status Parcial: Totalmente quitado.';
+    }
     toast(tmsg);
   }
   closeModal('modal-financeiro'); await persistDB(); renderFinanceiro(); renderDashboard();
@@ -3331,12 +3355,14 @@ async function editFinanceiro(idx) {
   document.getElementById('fn-forn').value = f.forn;
   document.getElementById('fn-prev').value = f.prev;
   document.getElementById('fn-real').value = f.real;
-  document.getElementById('fn-pgto').value = f.pgto;
+  document.getElementById('fn-pgto').value = f.pgto || 'PIX';
   document.getElementById('fn-status').value = f.status;
   document.getElementById('fn-valpago').value = f.valpago || '';
-  document.getElementById('fn-nf').value = f.nf;
+  document.getElementById('fn-nf').value = f.nf || '';
   document.getElementById('fn-obs').value = f.obs || '';
-  toggleParcial('fn');
+  calcFinDiff(); // Atualiza o campo Diferença ao abrir
+  toggleParcial('fn'); // Mostra/oculta campo de valpago
+  if (f.status === 'Parcial') window.calcParcial('fn'); // Exibe "Falta Pagar" imediatamente
 }
 
 function calcOrcTotal() {
