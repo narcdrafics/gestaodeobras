@@ -76,7 +76,7 @@ const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) => {
 /**
  * Consolida todo o financeiro (Manuais, Presença, Medições, Almoços).
  */
-const summarizeFinance = (fin, pres, med, alm, year, month) => {
+const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
   let all = [];
   const filterDate = (d) => {
     if (!year || !month) return true;
@@ -155,7 +155,7 @@ const summarizeFinance = (fin, pres, med, alm, year, month) => {
 
     // Lógica de Agrupamento por Período (Semanal/Quinzenal)
     if (f.data) {
-      const pId = getPeriodLabel(f.data, window.finViewType || 'semanal');
+      const pId = getPeriodLabel(f.data, viewType || 'semanal');
       if (!totalsByPeriod[pId]) totalsByPeriod[pId] = { real: 0, items: 0 };
       totalsByPeriod[pId].real += f.real;
       totalsByPeriod[pId].items++;

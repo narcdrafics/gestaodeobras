@@ -131,15 +131,25 @@ function renderTrialBanner(daysLeft) {
   `;
 }
 
-// Escuta atualizações do Firebase para gerenciar o banner
+// Escuta atualizações do Firebase para gerenciar o banner de Trial e Atualizar a UI Autonamente
 window.addEventListener('firebaseSync', e => {
   const data = e.detail;
-  // Se for free trial e estiver nos últimos 14 dias
+  
+  // 1. Atualiza Banner de Trial
   if (data.plano === 'free_trial' && data.daysLeftTrial !== undefined && data.daysLeftTrial <= 14 && data.daysLeftTrial > 0) {
     renderTrialBanner(data.daysLeftTrial);
   } else {
     const existing = document.getElementById('trial-banner');
     if (existing) existing.remove();
+  }
+
+  // 2. ATUALIZAÇÃO AUTOMÁTICA DE INTERFACE (Fix Dashboard/Financeiro vazio no load)
+  // Identifica qual página está ativa e força o re-render
+  const activePage = document.querySelector('.page.active');
+  if (activePage) {
+    const id = activePage.id.replace('page-', '');
+    console.log(`[Sync] Atualizando interface da página: ${id}`);
+    renderPage(id);
   }
 });
 
@@ -1100,9 +1110,9 @@ function renderFinanceiro() {
   window.finViewType = view; // Para uso no helper do modulo
 
   const getNome = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
-
+  
   // Consolidação Filtrada por Período
-  const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, yy, mm) || {};
+  const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, yy, mm, view) || {};
   allFin = summary.all || [];
   const perTotals = summary.totalsByPeriod || {};
 

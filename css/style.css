@@ -136,6 +136,7 @@ body {
 
 @media(max-width: 1024px) {
   .header-date { display: none !important; }
+  #brand-container .app-brand-name { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
 }
 
 @media(max-width: 768px) {
@@ -145,6 +146,34 @@ body {
 .header-logo { max-height: 32px; max-width: 150px; object-fit: contain; }
 .header-brand span { color: var(--accent); }
 .header-date { font-size: 13px; color: var(--text3); font-family: 'IBM Plex Mono', monospace; font-weight: 500;}
+
+/* SYNC INDICATOR */
+.sync-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  background: var(--bg3);
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+.sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text3);
+}
+.sync-indicator.saving .sync-dot { background: var(--orange); animation: blink 1s infinite; }
+.sync-indicator.synced .sync-dot { background: var(--green); }
+.sync-indicator.error .sync-dot { background: var(--red); }
+.sync-indicator.error { border-color: rgba(239, 68, 68, 0.3); color: var(--red); background: rgba(239, 68, 68, 0.05); }
+
+@keyframes blink { 50% { opacity: 0.3; } }
 
 /* LAYOUT */
 .layout { display: flex; min-height: calc(100vh - 60px); }

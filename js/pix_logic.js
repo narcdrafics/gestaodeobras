@@ -54,11 +54,11 @@ function crc16(str) {
         crc ^= (str.charCodeAt(i) << 8);
         for (let j = 0; j < 8; j++) {
             if (crc & 0x8000) {
-                crc = (crc << 1) ^ poly;
+                crc = ((crc << 1) ^ poly) & 0xFFFF;
             } else {
-                crc <<= 1;
+                crc = (crc << 1) & 0xFFFF;
             }
         }
     }
-    return (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+    return crc.toString(16).toUpperCase().padStart(4, '0');
 }
