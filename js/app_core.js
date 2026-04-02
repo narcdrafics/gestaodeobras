@@ -201,6 +201,9 @@ function safeSetStyle(id, prop, val) {
 
 // ==================== DASHBOARD ====================
 function renderDashboard() {
+  console.log('[Dash] renderDashboard chamado');
+  console.log('[Dash] window.fmt:', typeof window.fmt);
+  console.log('[Dash] window.estoqueStatus:', typeof window.estoqueStatus);
   try {
     // Re-vinculação de segurança (SaaS Check)
     if (!window.fmt) console.warn('[Dash] Utilitários não carregados totalmente.');
@@ -210,6 +213,9 @@ function renderDashboard() {
     calcSaldo = window.calcSaldo || calcSaldo;
 
     const kpiGrid = document.getElementById('kpi-grid');
+    console.log('[Dash] kpiGrid:', kpiGrid);
+    console.log('[Dash] DB.obras:', DB?.obras?.length);
+    console.log('[Dash] DB.financeiro:', DB?.financeiro?.length);
 
     const obrasAtivas = (DB.obras || []).filter(o => o && ['Em andamento', 'Planejada'].includes(o.status)).length;
     const tarefasAtrasadas = (DB.tarefas || []).filter(t => t && t.status === 'Atrasada').length;
@@ -254,6 +260,9 @@ function renderDashboard() {
         <div class="kpi-card"><div class="kpi-label">Tarefas Atrasadas</div><div class="kpi-val ${tarefasAtrasadas > 0 ? 'red' : 'green'}">${tarefasAtrasadas}</div><div class="kpi-sub">requer atenção imediata</div></div>
         <div class="kpi-card"><div class="kpi-label">Estoque Baixo/Crítico</div><div class="kpi-val ${estoquesBaixos > 0 ? 'orange' : 'green'}">${estoquesBaixos}</div><div class="kpi-sub">itens abaixo do mínimo</div></div>
       `;
+      console.log('[Dash] KPIs renderizados, innerHTML length:', kpiGrid.innerHTML.length);
+    } else {
+      console.log('[Dash] kpiGrid NÃO encontrado!');
     }
 
   const alerts = [];
