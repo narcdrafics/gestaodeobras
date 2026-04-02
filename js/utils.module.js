@@ -1,15 +1,16 @@
 /**
  * utilitários de lógica pura (sem dependência de DOM)
  * para facilitar testes unitários e modularização.
+ * Atribui diretamente ao window para evitar conflitos de declaração.
  */
 
-const fmt = (v) => v != null && !isNaN(v)
+window.fmt = (v) => v != null && !isNaN(v)
   ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   : '—';
 
-const fmtPct = (v) => v != null ? (v * 100).toFixed(1) + '%' : '—';
+window.fmtPct = (v) => v != null ? (v * 100).toFixed(1) + '%' : '—';
 
-const fmtDate = (d) => {
+window.fmtDate = (d) => {
   if (!d) return '—';
   let val = d;
   if (typeof d === 'string' && d.includes('[object Object]')) {
@@ -235,15 +236,6 @@ function estoqueStatus(item) {
   if (saldo <= item.min * 1.5) return 'BAIXO';
   return 'NORMAL';
 }
-// Vinculação explícita ao window para compatibilidade com scripts legados (app_core.js)
-if (typeof window !== 'undefined') {
-  window.fmt = fmt;
-  window.fmtPct = fmtPct;
-  window.fmtDate = fmtDate;
-  window.summarizePresence = summarizePresence;
-  window.calcWeeklyPendingPayments = calcWeeklyPendingPayments;
-  window.summarizeFinance = summarizeFinance;
-  window.calcBudgetProgress = calcBudgetProgress;
-  window.calcSaldo = calcSaldo;
-  window.estoqueStatus = estoqueStatus;
-}
+// Atribui funções restantes ao window
+window.calcSaldo = calcSaldo;
+window.estoqueStatus = estoqueStatus;

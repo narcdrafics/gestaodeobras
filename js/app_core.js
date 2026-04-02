@@ -1,6 +1,7 @@
 // ==================== HELPERS ====================
 let currentEditIdx = -1; // Global variable to identify if we are creating new (-1) or editing an existing record.
 
+
 // ==================== SYSTEM GLOBALS (ANTI-REFERENCE ERROR) ====================
 // Cria 'stubs' para evitar que saves de uma página "crachem" tentando dar reload em UI de outra página
 window.renderDashboard = window.renderDashboard || function () { };
@@ -18,13 +19,12 @@ window.renderOrcamento = window.renderOrcamento || function () { };
 window.renderMedicao = window.renderMedicao || function () { };
 window.renderAdmin = window.renderAdmin || function () { };
 
-// Utiliza as funções globais fornecidas pelo utils.module.js
-// Utiliza as funções globais fornecidas pelo utils.module.js (usamos 'let' para re-vincular se necessário)
-let fmt = window.fmt || ((v) => v || '—');
-let fmtPct = window.fmtPct || ((v) => v || '—');
-let fmtDate = window.fmtDate || ((v) => v || '—');
-let calcSaldo = window.calcSaldo || (() => 0);
-let estoqueStatus = window.estoqueStatus || (() => 'NORMAL');
+// Funções de formatação - fornecidas pelo utils.module.js via window
+var fmt = window.fmt || ((v) => v || '—');
+var fmtPct = window.fmtPct || ((v) => v || '—');
+var fmtDate = window.fmtDate || ((v) => v || '—');
+var calcSaldo = window.calcSaldo || (() => 0);
+var estoqueStatus = window.estoqueStatus || (() => 'NORMAL');
 const today = new Date().toISOString().split('T')[0];
 
 function statusBadge(s) {
@@ -205,12 +205,6 @@ function renderDashboard() {
   console.log('[Dash] window.fmt:', typeof window.fmt);
   console.log('[Dash] window.estoqueStatus:', typeof window.estoqueStatus);
   try {
-    // Re-vinculação de segurança (SaaS Check)
-    if (!window.fmt) console.warn('[Dash] Utilitários não carregados totalmente.');
-    fmt = window.fmt || fmt;
-    fmtDate = window.fmtDate || fmtDate;
-    estoqueStatus = window.estoqueStatus || estoqueStatus;
-    calcSaldo = window.calcSaldo || calcSaldo;
 
     const kpiGrid = document.getElementById('kpi-grid');
     console.log('[Dash] kpiGrid:', kpiGrid);
