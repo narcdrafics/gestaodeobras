@@ -268,19 +268,18 @@ function renderDashboard() {
     }
   }
 
-  const alertIcons = { 'ESTOQUE CRÍTICO': '🔴', 'ESTOQUE BAIXO': '🟡', 'TAREFA ATRASADA': '⏰', 'COMPRA PENDENTE': '🛒', 'NOVO USUÁRIO': '👤', 'DIÁRIA PENDENTE': '💸', 'EMPREITA PENDENTE': '🔨', 'PGTO FINANCEIRO': '📄' };
+  const alertIcons = {};
   const alertsGrid = document.getElementById('alerts-grid');
   if (alertsGrid) {
     alertsGrid.innerHTML = alerts.length
       ? alerts.map(a => `<div class="alert-card ${a.prior}" ${a.action ? `onclick="${a.action}" style="cursor:pointer"` : ''}>
-          <div class="alert-icon">${alertIcons[a.tipo] || '⚠️'}</div>
           <div class="alert-body">
             <h4>${a.tipo}</h4>
             <p><b>${a.obra}</b> — ${a.desc}</p>
             <p style="margin-top:4px">Resp: ${a.resp}${a.action ? ' &nbsp;<span style="color:var(--accent);font-weight:600">→ Abrir e pagar</span>' : ''}</p>
           </div>
         </div>`).join('')
-      : '<div style="color:var(--text3);font-size:13px;padding:8px">✅ Nenhum alerta no momento.</div>';
+      : '<div style="color:var(--text3);font-size:13px;padding:8px">Nenhum alerta no momento.</div>';
   }
 
   safeSetInner('dash-obras-tbody', DB.obras.map(o => {
@@ -388,8 +387,8 @@ function renderObras() {
     <td data-label="Orçamento">${fmt(o.orc)}</td>
     <td data-label="Mestre">${o.mestre}</td>
     <td>
-      <button class="btn btn-secondary btn-sm" onclick="editObra(${i})" style="margin-right:8px">✏️</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteItem('obras',${i})">🗑</button>
+      <button class="btn btn-secondary btn-sm" onclick="editObra(${i})" style="margin-right:8px"></button>
+      <button class="btn btn-danger btn-sm" onclick="deleteItem('obras',${i})">Excluir</button>
     </td>
   </tr>`).join(''));
 }
@@ -458,8 +457,8 @@ function renderTrabalhadores() {
           <td data-label="Diária/Salário">${fmt(t.diaria)}</td>
           <td data-label="Status">${statusBadge(t.status)}</td>
           <td>
-            <button class="btn btn-secondary btn-sm" onclick="editTrabalhador(${i})" style="margin-right:8px">✏️</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteItem('trabalhadores',${i})">🗑</button>
+            <button class="btn btn-secondary btn-sm" onclick="editTrabalhador(${i})" style="margin-right:8px"></button>
+            <button class="btn btn-danger btn-sm" onclick="deleteItem('trabalhadores',${i})">Excluir</button>
           </td>
         </tr>`;
       }).join('')
@@ -489,8 +488,8 @@ function renderAlmocosList() {
         <td>${fmt(a.vunit)}</td>
         <td><b style="color:var(--accent)">${fmt(a.vtotal)}</b></td>
         <td>
-          <button class="btn btn-secondary btn-sm" onclick="editAlmoco(${a._idx})" style="margin-right:8px">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${a._idx})">🗑</button>
+          <button class="btn btn-secondary btn-sm" onclick="editAlmoco(${a._idx})" style="margin-right:8px"></button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${a._idx})">Excluir</button>
         </td>
       </tr>
     `).join('');
@@ -516,28 +515,24 @@ function renderAlmocosKPI(list) {
 
   container.innerHTML = `
     <div class="kpi-card">
-      <div class="kpi-icon">🍽️</div>
       <div>
         <div class="kpi-label">Refeições Hoje</div>
         <div class="kpi-value">${almoHoje} un</div>
       </div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-icon" style="background:var(--accent); color:var(--bg)">💲</div>
       <div>
         <div class="kpi-label">Custo Dia (Hj)</div>
         <div class="kpi-value">${fmt(custoHoje)}</div>
       </div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-icon">📊</div>
       <div>
         <div class="kpi-label">Refeições Semana</div>
         <div class="kpi-value">${qtdSemana} un</div>
       </div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-icon">💰</div>
       <div>
         <div class="kpi-label">Custo Semana</div>
         <div class="kpi-value">${fmt(custoSemana)}</div>
@@ -758,8 +753,8 @@ function renderPresenca() {
         <td data-label="Valor Total"><b>${fmt(p.total)}</b></td>
         <td data-label="Pgto">${p.pagamentoStatus || '—'}</td>
         <td>
-          <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">🗑</button>
+          <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px"></button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">Excluir</button>
         </td>
       </tr>`).join(''));
   } else {
@@ -798,8 +793,8 @@ function renderPresenca() {
                 <td data-label="Valor Total"><b>${fmt(p.total)}</b></td>
                 <td data-label="Pgto">${p.pagamentoStatus || '—'}</td>
                 <td>
-                  <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
-                  <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">🗑</button>
+                  <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px"></button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">Excluir</button>
                 </td>
               </tr>`;
       });
@@ -946,8 +941,8 @@ function renderTaskTable(tasks) {
         <td>
            <div style="display:flex; gap:8px; align-items:center">
              ${t.photoUrl ? `<span style="cursor:pointer; font-size:18px" title="Ver Evidência" onclick="openLightbox('${t.photoUrl}')">📷</span>` : ''}
-             <button class="btn btn-secondary btn-sm" onclick="editTarefa(${t._idx})">✏️</button>
-             <button class="btn btn-danger btn-sm" onclick="deleteItem('tarefas',${t._idx})">🗑</button>
+             <button class="btn btn-secondary btn-sm" onclick="editTarefa(${t._idx})"></button>
+             <button class="btn btn-danger btn-sm" onclick="deleteItem('tarefas',${t._idx})">Excluir</button>
            </div>
         </td>
       </tr>`).join('')
@@ -1004,8 +999,8 @@ function renderEstoque() {
           <td>${fmt(e.custo)}</td><td>${fmt(saldo * e.custo)}</td>
           <td>${statusBadge(s)}</td>
           <td>
-            <button class="btn btn-secondary btn-sm" onclick="editEstoque(${i})" style="margin-right:8px">✏️</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteItem('estoque',${i})">🗑</button>
+            <button class="btn btn-secondary btn-sm" onclick="editEstoque(${i})" style="margin-right:8px"></button>
+            <button class="btn btn-danger btn-sm" onclick="deleteItem('estoque',${i})">Excluir</button>
           </td>
         </tr>`;
     }).join('')
@@ -1023,8 +1018,8 @@ function renderMovEstoque() {
         <td>${m.autor || '—'}</td><td>${m.nf || '—'}</td>
         <td>${fmt(m.vunit)}</td><td>${fmt(m.vtotal)}</td><td>${m.obs || '—'}</td>
         <td>
-          <button class="btn btn-secondary btn-sm" onclick="editMovEstoque(${i})" style="margin-right:8px">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteItem('movEstoque',${i})">🗑</button>
+          <button class="btn btn-secondary btn-sm" onclick="editMovEstoque(${i})" style="margin-right:8px"></button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('movEstoque',${i})">Excluir</button>
         </td>
       </tr>`).join('')
     : uiEmptyState('Sem Movimentações', 'O depósito não teve entradas ou saídas de materiais ainda.', '🔄', 'Registrar Movimento', 'openModal(\'modal-movest\')'));
@@ -1040,8 +1035,8 @@ function renderCompras() {
         <td>${fmt(c.vtotal)}</td><td>${fmtDate(c.prazo)}</td>
         <td>${c.conf || '—'}</td>
         <td>
-          <button class="btn btn-secondary btn-sm" onclick="editCompra(${i})" style="margin-right:8px">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteItem('compras',${i})">🗑</button>
+          <button class="btn btn-secondary btn-sm" onclick="editCompra(${i})" style="margin-right:8px"></button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('compras',${i})">Excluir</button>
         </td>
       </tr>`).join('')
     : uiEmptyState('Nenhuma Compra', 'Crie um pedido de material novo para acompanhar as entregas dos fornecedores.', '🛒', 'Novo Pedido', 'openModal(\'modal-compra\')'));
@@ -1134,14 +1129,14 @@ function renderFinanceiro() {
     rows.forEach(f => {
       const diff = f.real - f.prev;
       let editBtn = '';
-      if (f.source === 'fin') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px">✏️</button>`;
-      else if (f.source === 'med') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editMedicao(${f.idx})" style="margin-right:8px">✏️ Med.</button>`;
-      else if (f.source === 'pre') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editPresenca(${f.idx})" style="margin-right:8px">✏️ Dia.</button>`;
-      else if (f.source === 'alm') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editAlmoco(${f.idx})" style="margin-right:8px">✏️ Alm.</button>`;
+      if (f.source === 'fin') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px"></button>`;
+      else if (f.source === 'med') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editMedicao(${f.idx})" style="margin-right:8px"> Med.</button>`;
+      else if (f.source === 'pre') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editPresenca(${f.idx})" style="margin-right:8px"> Dia.</button>`;
+      else if (f.source === 'alm') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editAlmoco(${f.idx})" style="margin-right:8px"> Alm.</button>`;
 
       let delBtn = '';
-      if (f.source === 'fin') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">🗑</button>`;
-      else if (f.source === 'alm') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${f.idx})">🗑</button>`;
+      if (f.source === 'fin') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">Excluir</button>`;
+      else if (f.source === 'alm') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${f.idx})">Excluir</button>`;
 
       let payBtn = '';
       if (f.status !== 'Pago') payBtn = `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('${f.source}', ${f.idx})" style="margin-right:8px; background:var(--green); border-color:var(--green);" title="Pagar via PIX">💸</button>`;
@@ -1253,8 +1248,8 @@ function renderOrcamento() {
           <td style="color:${diff < 0 ? 'var(--red)' : diff > 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
           <td>${o.perc}%</td>
           <td>
-            <button class="btn btn-secondary btn-sm" onclick="editOrcamento(${i})" style="margin-right:8px">✏️</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteItem('orcamento',${i})">🗑</button>
+            <button class="btn btn-secondary btn-sm" onclick="editOrcamento(${i})" style="margin-right:8px"></button>
+            <button class="btn btn-danger btn-sm" onclick="deleteItem('orcamento',${i})">Excluir</button>
           </td>
         </tr>`;
     }).join('')
@@ -1431,8 +1426,8 @@ function renderMedicao() {
           <td>
              <div style="display:flex; gap:8px; align-items:center">
                ${m.photoUrl ? `<span style="cursor:pointer; font-size:18px" title="Ver Evidência" onclick="openLightbox('${m.photoUrl}')">📷</span>` : ''}
-               <button class="btn btn-secondary btn-sm" onclick="editMedicao(${i})">✏️</button>
-               <button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${i})">🗑</button>
+               <button class="btn btn-secondary btn-sm" onclick="editMedicao(${i})"></button>
+               <button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${i})">Excluir</button>
              </div>
           </td>
         </tr>`;
@@ -1469,8 +1464,8 @@ function renderAdmin() {
         <td><b>${u.email || u.username}</b></td><td>${u.name}</td>
         <td><span class="badge ${u.role === 'admin' ? 'badge-red' : u.role === 'engenheiro' ? 'badge-blue' : u.role === 'pendente' ? 'badge-orange' : 'badge-green'}">${u.role.toUpperCase()}</span></td>
         <td>
-           <button class="btn btn-secondary btn-sm" onclick="editUsuario(${i})" style="margin-right:8px">✏️</button>
-           <button class="btn btn-danger btn-sm" onclick="deleteUsuario(${i})">🗑</button>
+           <button class="btn btn-secondary btn-sm" onclick="editUsuario(${i})" style="margin-right:8px"></button>
+           <button class="btn btn-danger btn-sm" onclick="deleteUsuario(${i})">Excluir</button>
         </td>
       </tr>`).join('')
     : '<tr><td colspan="4">Erro ao carregar usuários.</td></tr>');
@@ -1710,7 +1705,7 @@ async function renderSuperAdmin() {
             <td>${config.limiteTrabalhadores || 10}</td>
             <td>
                 <button class="btn btn-primary btn-sm" onclick="openMasterTenantModal('${tid}')">⚙️ Ajustar</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteTenant('${tid}')" style="margin-left: 5px;">🗑</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteTenant('${tid}')" style="margin-left: 5px;">Excluir</button>
             </td>
         </tr>`;
     }).join('');
@@ -1740,7 +1735,7 @@ async function renderSuperAdmin() {
                     ${extraInfo}
                 </td>
                 <td>
-                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser('${p.uid}', '${p.email}', '${p.tenantId}')">🗑️ Excluir</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser('${p.uid}', '${p.email}', '${p.tenantId}')">Excluir️ Excluir</button>
                 </td>
             </tr>`;
       }).join('');
@@ -1814,7 +1809,7 @@ async function renderMasterUsers() {
         </td>
         <td><span class="badge badge-gray">${m.origem || 'N/A'}</span></td>
         <td>
-           <button class="btn btn-danger btn-sm" onclick="deleteMasterUser('${m.email}')">🗑️</button>
+           <button class="btn btn-danger btn-sm" onclick="deleteMasterUser('${m.email}')">Excluir️</button>
         </td>
       </tr>
     `).join('');

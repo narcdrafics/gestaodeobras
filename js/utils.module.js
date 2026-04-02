@@ -276,7 +276,6 @@ window.statusBadge = statusBadge;
 const uiEmptyState = function(message, subMessage, icon, actionText, actionFn) {
   return `<tr class="empty-row" style="background:transparent;border:none;box-shadow:none;">
    <td colspan="100%" style="text-align:center;padding:48px 20px;border:none;background:transparent;">
-       <div style="font-size:48px;margin-bottom:12px;opacity:0.9;">${icon}</div>
        <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px;">${message}</div>
        <div style="font-size:13px;color:var(--text3);margin-bottom:20px;max-width:300px;margin-left:auto;margin-right:auto;text-wrap:balance;">${subMessage}</div>
        ${actionText ? `<button class="btn btn-primary" onclick="${actionFn}" style="margin:0 auto;">${actionText}</button>` : ''}
