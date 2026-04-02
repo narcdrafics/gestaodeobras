@@ -19,9 +19,12 @@ window.renderMedicao = window.renderMedicao || function () { };
 window.renderAdmin = window.renderAdmin || function () { };
 
 // Utiliza as funções globais fornecidas pelo utils.module.js
-const fmt = window.fmt;
-const fmtPct = window.fmtPct;
-const fmtDate = window.fmtDate;
+// Utiliza as funções globais fornecidas pelo utils.module.js (usamos 'let' para re-vincular se necessário)
+let fmt = window.fmt || ((v) => v || '—');
+let fmtPct = window.fmtPct || ((v) => v || '—');
+let fmtDate = window.fmtDate || ((v) => v || '—');
+let calcSaldo = window.calcSaldo || (() => 0);
+let estoqueStatus = window.estoqueStatus || (() => 'NORMAL');
 const today = new Date().toISOString().split('T')[0];
 
 function statusBadge(s) {
@@ -57,8 +60,7 @@ function obName(cStr) {
   }).join(', ');
 }
 
-const calcSaldo = window.calcSaldo;
-const estoqueStatus = window.estoqueStatus;
+// (Removido do topo para evitar conflito de redeclare)
 
 function nextCod(arr, prefix) {
   const nums = arr.map(x => parseInt((x.cod || x.num || '0').replace(/\D/g, '')) || 0);
@@ -199,20 +201,28 @@ function safeSetStyle(id, prop, val) {
 
 // ==================== DASHBOARD ====================
 function renderDashboard() {
-  const obrasAtivas = DB.obras.filter(o => ['Em andamento', 'Planejada'].includes(o.status)).length;
-  const tarefasAtrasadas = DB.tarefas.filter(t => t.status === 'Atrasada').length;
-  const estoquesBaixos = DB.estoque.filter(e => ['BAIXO', 'CRÍTICO'].includes(estoqueStatus(e))).length;
-  const comprasAguardando = DB.compras.filter(c => c.status === 'Aguardando').length;
-  const totalPrev = DB.financeiro.reduce((a, f) => a + (f.prev || 0), 0);
+  try {
+    // Re-vinculação de segurança (SaaS Check)
+    if (!window.fmt) console.warn('[Dash] Utilitários não carregados totalmente.');
+    fmt = window.fmt || fmt;
+    fmtDate = window.fmtDate || fmtDate;
+    estoqueStatus = window.estoqueStatus || estoqueStatus;
+    calcSaldo = window.calcSaldo || calcSaldo;
 
-  // Unificação Rápida Financeira Global do Dashboard (Apenas Pendentes subtraindo Parcial)
-  let globalFinance = [];
-  DB.financeiro.forEach(f => { if (f.status !== 'Pago') globalFinance.push({ obra: f.obra, data: f.data, v: Math.max(0, (parseFloat(f.real) || parseFloat(f.prev) || 0) - (f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0)) }) });
-  DB.presenca.forEach(p => { if (p.pgtoStatus !== 'Pago') globalFinance.push({ obra: p.obra, data: p.data, v: Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)) }) });
-  DB.medicao.forEach(m => { if (m.pgtoStatus !== 'Pago') globalFinance.push({ obra: m.obra, data: m.semana, v: Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0)) }) });
+    const obrasAtivas = (DB.obras || []).filter(o => o && ['Em andamento', 'Planejada'].includes(o.status)).length;
+    const tarefasAtrasadas = (DB.tarefas || []).filter(t => t && t.status === 'Atrasada').length;
+    const estoquesBaixos = (DB.estoque || []).filter(e => e && ['BAIXO', 'CRÍTICO'].includes(estoqueStatus(e))).length;
+    const comprasAguardando = (DB.compras || []).filter(c => c && c.status === 'Aguardando').length;
+    const totalPrev = (DB.financeiro || []).reduce((a, f) => a + (f?.prev || 0), 0);
 
-  const totalRealGlobal = globalFinance.reduce((a, f) => a + f.v, 0);
-  const pctCusto = totalPrev > 0 ? ((totalRealGlobal / totalPrev) * 100).toFixed(1) : 0;
+    // Unificação Rápida Financeira Global do Dashboard (Apenas Pendentes subtraindo Parcial)
+    let globalFinance = [];
+    (DB.financeiro || []).forEach(f => { if (f && f.status !== 'Pago') globalFinance.push({ obra: f.obra, data: f.data, v: Math.max(0, (parseFloat(f.real) || parseFloat(f.prev) || 0) - (f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0)) }) });
+    (DB.presenca || []).forEach(p => { if (p && p.pgtoStatus !== 'Pago') globalFinance.push({ obra: p.obra, data: p.data, v: Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)) }) });
+    (DB.medicao || []).forEach(m => { if (m && m.pgtoStatus !== 'Pago') globalFinance.push({ obra: m.obra, data: m.semana, v: Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0)) }) });
+
+    const totalRealGlobal = globalFinance.reduce((a, f) => a + (f?.v || 0), 0);
+    const pctCusto = totalPrev > 0 ? ((totalRealGlobal / totalPrev) * 100).toFixed(1) : 0;
 
   const hoje = DB.presenca.filter(p => p.data === today);
   const presPresente = hoje.filter(p => p.presenca === 'Presente').length;
@@ -233,17 +243,16 @@ function renderDashboard() {
     .filter(m => m.semana >= strSemana && m.semana <= today && m.pgtoStatus !== 'Pago')
     .reduce((a, m) => a + Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0)), 0);
 
-  const kpiGrid = document.getElementById('kpi-grid');
-  if (kpiGrid) {
-    kpiGrid.innerHTML = `
-      <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obrasAtivas}</div><div class="kpi-sub">de ${DB.obras.length} cadastradas</div></div>
-      <div class="kpi-card"><div class="kpi-label">Diárias (Semana)</div><div class="kpi-val blue">${fmt(cDiariasSemana)}</div><div class="kpi-sub">Custo de Folha na contabilidade</div></div>
-      <div class="kpi-card"><div class="kpi-label">Empreitas (Semana)</div><div class="kpi-val blue" style="font-size:20px">${fmt(cEmpreitaSemana)}</div><div class="kpi-sub">Custo de Medições na contabilidade</div></div>
-      <div class="kpi-card"><div class="kpi-label">Custo Real / Prev.</div><div class="kpi-val ${pctCusto > 100 ? 'red' : 'green'}">${pctCusto}%</div><div class="kpi-sub">${fmt(totalRealGlobal)} de ${fmt(totalPrev)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Tarefas Atrasadas</div><div class="kpi-val ${tarefasAtrasadas > 0 ? 'red' : 'green'}">${tarefasAtrasadas}</div><div class="kpi-sub">requer atenção imediata</div></div>
-      <div class="kpi-card"><div class="kpi-label">Estoque Baixo/Crítico</div><div class="kpi-val ${estoquesBaixos > 0 ? 'orange' : 'green'}">${estoquesBaixos}</div><div class="kpi-sub">itens abaixo do mínimo</div></div>
-    `;
-  }
+    if (kpiGrid) {
+      kpiGrid.innerHTML = `
+        <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obrasAtivas}</div><div class="kpi-sub">de ${(DB.obras || []).length} cadastradas</div></div>
+        <div class="kpi-card"><div class="kpi-label">Diárias (Semana)</div><div class="kpi-val blue">${fmt(cDiariasSemana)}</div><div class="kpi-sub">Custo de Folha na contabilidade</div></div>
+        <div class="kpi-card"><div class="kpi-label">Empreitas (Semana)</div><div class="kpi-val blue" style="font-size:20px">${fmt(cEmpreitaSemana)}</div><div class="kpi-sub">Custo de Medições na contabilidade</div></div>
+        <div class="kpi-card"><div class="kpi-label">Custo Real / Prev.</div><div class="kpi-val ${pctCusto > 100 ? 'red' : 'green'}">${pctCusto}%</div><div class="kpi-sub">${fmt(totalRealGlobal)} de ${fmt(totalPrev)}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Tarefas Atrasadas</div><div class="kpi-val ${tarefasAtrasadas > 0 ? 'red' : 'green'}">${tarefasAtrasadas}</div><div class="kpi-sub">requer atenção imediata</div></div>
+        <div class="kpi-card"><div class="kpi-label">Estoque Baixo/Crítico</div><div class="kpi-val ${estoquesBaixos > 0 ? 'orange' : 'green'}">${estoquesBaixos}</div><div class="kpi-sub">itens abaixo do mínimo</div></div>
+      `;
+    }
 
   const alerts = [];
   const uObra = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
@@ -365,10 +374,16 @@ function renderDashboard() {
       <td>${pct}%</td>
       <td>${tarefas.filter(t => t.status === 'Concluída').length}/${tarefas.length} concluídas</td>
     </tr>`;
-
   }).join(''));
+
   const updEl = document.getElementById('dash-updated');
   if (updEl) updEl.textContent = 'Atualizado: ' + new Date().toLocaleString('pt-BR');
+
+  } catch (error) {
+    console.error('[Dashboard Error]:', error);
+    const kpiGrid = document.getElementById('kpi-grid');
+    if (kpiGrid) kpiGrid.innerHTML = `<div style="grid-column: 1/-1; padding: 20px; color: var(--red); background: rgba(239, 68, 68, 0.1); border-radius: 8px;">Erro ao processar dados do Dashboard. Por favor, recarregue a página (F5).</div>`;
+  }
 }
 
 window.toggleGroup = function (cls, iconId) {

@@ -169,6 +169,7 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
  * Define em qual período (Semana/Quinzena) uma data se encaixa dentro do mês.
  */
 function getPeriodLabel(dateStr, viewType) {
+  if (!dateStr || typeof dateStr !== 'string') return 'S/D';
   const parts = dateStr.split('-');
   if (parts.length < 3) return 'S/D';
   const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
