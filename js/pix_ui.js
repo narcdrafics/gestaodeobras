@@ -1,5 +1,6 @@
 /**
  * Obra Real - UI Logic for PIX Payments
+ * v20260402001
  */
 
 let activePixTransaction = null;
@@ -12,27 +13,34 @@ async function initiatePixPayment(source, idx) {
 
     if (source === 'pre') {
         const p = DB.presenca[idx];
+        if (!p) { toast('Registro não encontrado. Recarregue a página.', 'error'); return; }
         const t = DB.trabalhadores.find(x => x.cod === p.trab);
-        amount = p.total;
-        receiver = t ? t.nome : p.nome;
+        amount = parseFloat(p.total) || 0;
+        receiver = t ? t.nome : (p.nome || 'TRABALHADOR');
         pixKey = t ? (t.pixkey || '') : '';
         description = `DIARIA ${p.data} ${p.nome}`;
+
     } else if (source === 'lote') {
-        const item = window.lotePendentes[idx];
+        const item = window.lotePendentes?.[idx];
+        if (!item) { toast('Item de lote não encontrado.', 'error'); return; }
         const t = DB.trabalhadores.find(x => x.cod === item.chave);
-        amount = item.valor;
-        receiver = item.nome;
+        amount = parseFloat(item.valor) || 0;
+        receiver = item.nome || 'TRABALHADOR';
         pixKey = t ? (t.pixkey || '') : '';
         description = `FOLHA ${item.diarias} DIARIAS - ${item.nome}`;
+
     } else if (source === 'med') {
         const m = DB.medicao[idx];
+        if (!m) { toast('Medição não encontrada. Recarregue a página.', 'error'); return; }
         amount = parseFloat(m.vtotal) || 0;
         receiver = m.equipe || 'EQUIPE';
         pixKey = '';
         description = `MEDICAO ${m.servico}`;
+
     } else if (source === 'fin') {
         const f = DB.financeiro[idx];
-        // Usa o valor realizado se disponível e maior que 0; caso contrário usa o previsto
+        if (!f) { toast('Lançamento não encontrado. Recarregue a página.', 'error'); return; }
+        // Usa o valor realizado se > 0; caso contrário usa o previsto
         amount = (parseFloat(f.real) > 0) ? parseFloat(f.real) : parseFloat(f.prev) || 0;
         receiver = f.forn || 'FORNECEDOR';
         pixKey = f.pixkey || '';
@@ -80,23 +88,21 @@ async function confirmPixPaid() {
     const { source, idx, amount } = activePixTransaction;
     
     if (source === 'pre') {
-        DB.presenca[idx].pgtoStatus = 'Pago';
-        DB.presenca[idx].valpago = DB.presenca[idx].total; // Registra o valor efetivamente pago
+        const p = DB.presenca[idx];
+        if (p) { p.pgtoStatus = 'Pago'; p.valpago = parseFloat(p.total) || amount; }
     } else if (source === 'lote') {
-        const item = window.lotePendentes[idx];
-        item.indices.forEach(p => {
-            p.pgtoStatus = 'Pago';
-            p.valpago = p.total;
-        });
-        window.lotePendentes.splice(idx, 1);
-        renderLoteTbody(); 
+        const item = window.lotePendentes?.[idx];
+        if (item) {
+            item.indices.forEach(p => { p.pgtoStatus = 'Pago'; p.valpago = p.total; });
+            window.lotePendentes.splice(idx, 1);
+            renderLoteTbody && renderLoteTbody();
+        }
     } else if (source === 'med') {
-        DB.medicao[idx].pgtoStatus = 'Pago';
-        DB.medicao[idx].valpago = parseFloat(DB.medicao[idx].vtotal) || amount;
+        const m = DB.medicao[idx];
+        if (m) { m.pgtoStatus = 'Pago'; m.valpago = parseFloat(m.vtotal) || amount; }
     } else if (source === 'fin') {
-        DB.financeiro[idx].status = 'Pago';
-        // Registra o valor que foi efetivamente pago para integridade dos relatórios
-        DB.financeiro[idx].valpago = amount;
+        const f = DB.financeiro[idx];
+        if (f) { f.status = 'Pago'; f.valpago = amount; }
     }
     
     toast('Pagamento confirmado com sucesso!');
