@@ -209,6 +209,8 @@ function renderDashboard() {
     estoqueStatus = window.estoqueStatus || estoqueStatus;
     calcSaldo = window.calcSaldo || calcSaldo;
 
+    const kpiGrid = document.getElementById('kpi-grid');
+
     const obrasAtivas = (DB.obras || []).filter(o => o && ['Em andamento', 'Planejada'].includes(o.status)).length;
     const tarefasAtrasadas = (DB.tarefas || []).filter(t => t && t.status === 'Atrasada').length;
     const estoquesBaixos = (DB.estoque || []).filter(e => e && ['BAIXO', 'CRÍTICO'].includes(estoqueStatus(e))).length;
