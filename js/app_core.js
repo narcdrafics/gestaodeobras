@@ -507,7 +507,12 @@ function renderAlmocosKPI(list) {
   const almoHoje = list.filter(a => a.data === hoje).reduce((acc, a) => acc + (parseFloat(a.qtd)||0), 0);
   const custoHoje = list.filter(a => a.data === hoje).reduce((acc, a) => acc + (parseFloat(a.vtotal)||0), 0);
   
-  const custoMes = list.filter(a => a.data.startsWith(hoje.slice(0,7))).reduce((acc, a) => acc + (parseFloat(a.vtotal)||0), 0);
+  const todayDate = new Date();
+  const fSemana = new Date(todayDate);
+  fSemana.setDate(fSemana.getDate() - fSemana.getDay());
+  const strSemana = fSemana.toISOString().split('T')[0];
+  const qtdSemana = list.filter(a => a.data >= strSemana && a.data <= hoje).reduce((acc, a) => acc + (parseFloat(a.qtd)||0), 0);
+  const custoSemana = list.filter(a => a.data >= strSemana && a.data <= hoje).reduce((acc, a) => acc + (parseFloat(a.vtotal)||0), 0);
 
   container.innerHTML = `
     <div class="kpi-card">
@@ -527,29 +532,37 @@ function renderAlmocosKPI(list) {
     <div class="kpi-card">
       <div class="kpi-icon">📊</div>
       <div>
-        <div class="kpi-label">Custo Mês Atual</div>
-        <div class="kpi-value">${fmt(custoMes)}</div>
+        <div class="kpi-label">Refeições Semana</div>
+        <div class="kpi-value">${qtdSemana} un</div>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">💰</div>
+      <div>
+        <div class="kpi-label">Custo Semana</div>
+        <div class="kpi-value">${fmt(custoSemana)}</div>
       </div>
     </div>
   `;
 
-  // Resumo por Empreiteiro
+  // Resumo Semanal por Obra
   const resumoContainer = document.getElementById('almocos-resumo');
   if(resumoContainer) {
-    const agrupado = {};
-    list.forEach(a => {
-      if(!agrupado[a.empreiteiro]) agrupado[a.empreiteiro] = { qtd: 0, total: 0 };
-      agrupado[a.empreiteiro].qtd += (parseFloat(a.qtd)||0);
-      agrupado[a.empreiteiro].total += (parseFloat(a.vtotal)||0);
+    const weeklyList = list.filter(a => a.data >= strSemana && a.data <= hoje);
+    const agrupadoSemanal = {};
+    weeklyList.forEach(a => {
+      if(!agrupadoSemanal[a.obra]) agrupadoSemanal[a.obra] = { qtd: 0, total: 0 };
+      agrupadoSemanal[a.obra].qtd += (parseFloat(a.qtd)||0);
+      agrupadoSemanal[a.obra].total += (parseFloat(a.vtotal)||0);
     });
     
-    resumoContainer.innerHTML = Object.keys(agrupado).map(emp => `
+    resumoContainer.innerHTML = Object.keys(agrupadoSemanal).map(obra => `
       <div class="kpi-card" style="padding:16px;">
-        <div style="font-size:12px;color:var(--text3)">${emp}</div>
-        <div style="font-weight:600;margin-top:6px">${agrupado[emp].qtd} <small style="font-size:10px;font-weight:normal">ref. somadas</small></div>
-        <div style="font-size:14px;color:var(--red);margin-top:4px">${fmt(agrupado[emp].total)}</div>
+        <div style="font-size:12px;color:var(--text3)">${obName(obra)}</div>
+        <div style="font-weight:600;margin-top:6px">${agrupadoSemanal[obra].qtd} <small style="font-size:10px;font-weight:normal">ref. somadas</small></div>
+        <div style="font-size:14px;color:var(--red);margin-top:4px">${fmt(agrupadoSemanal[obra].total)}</div>
       </div>
-    `).join('') || '<div style="color:var(--text3);">Sem consolidação.</div>';
+    `).join('') || '<div style="color:var(--text3);">Sem consolidação semanal.</div>';
   }
 }
 
