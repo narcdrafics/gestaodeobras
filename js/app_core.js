@@ -20,11 +20,11 @@ window.renderMedicao = window.renderMedicao || function () { };
 window.renderAdmin = window.renderAdmin || function () { };
 
 // Funções de formatação - fornecidas pelo utils.module.js via window
-var fmt = window.fmt || ((v) => v || '—');
-var fmtPct = window.fmtPct || ((v) => v || '—');
-var fmtDate = window.fmtDate || ((v) => v || '—');
-var calcSaldo = window.calcSaldo || (() => 0);
-var estoqueStatus = window.estoqueStatus || (() => 'NORMAL');
+const fmt = window.fmt || ((v) => v || '—');
+const fmtPct = window.fmtPct || ((v) => v || '—');
+const fmtDate = window.fmtDate || ((v) => v || '—');
+const calcSaldo = window.calcSaldo || (() => 0);
+const estoqueStatus = window.estoqueStatus || (() => 'NORMAL');
 const today = new Date().toISOString().split('T')[0];
 
 function statusBadge(s) {
