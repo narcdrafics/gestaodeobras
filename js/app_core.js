@@ -1099,6 +1099,8 @@ function renderFinanceiro() {
   const view = selView.value;
   window.finViewType = view; // Para uso no helper do modulo
 
+  const getNome = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
+
   // Consolidação Filtrada por Período
   const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, yy, mm) || {};
   allFin = summary.all || [];

@@ -3,13 +3,13 @@
  * para facilitar testes unitários e modularização.
  */
 
-export const fmt = (v) => v != null && !isNaN(v) 
+const fmt = (v) => v != null && !isNaN(v) 
   ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) 
   : '—';
 
-export const fmtPct = (v) => v != null ? (v * 100).toFixed(1) + '%' : '—';
+const fmtPct = (v) => v != null ? (v * 100).toFixed(1) + '%' : '—';
 
-export const fmtDate = (d) => {
+const fmtDate = (d) => {
   if (!d) return '—';
   let val = d;
   if (typeof d === 'string' && d.includes('[object Object]')) {
@@ -33,7 +33,7 @@ export const fmtDate = (d) => {
 /**
  * Consolida totais de presença, faltas e valores por data.
  */
-export const summarizePresence = (presencaArray) => {
+const summarizePresence = (presencaArray) => {
   const uniqueDates = [...new Set(presencaArray.map(p => p.data))].sort((a, b) => String(b).localeCompare(String(a)));
   return uniqueDates.map(d => {
     const rows = presencaArray.filter(p => p.data === d);
@@ -50,7 +50,7 @@ export const summarizePresence = (presencaArray) => {
 /**
  * Calcula pagamentos pendentes da semana atual por obra.
  */
-export const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) => {
+const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) => {
   const todayObj = new Date(todayStr);
   const startOfWeek = new Date(todayObj);
   startOfWeek.setDate(todayObj.getDate() - todayObj.getDay());
@@ -76,7 +76,7 @@ export const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) =
 /**
  * Consolida todo o financeiro (Manuais, Presença, Medições, Almoços).
  */
-export const summarizeFinance = (fin, pres, med, alm, year, month) => {
+const summarizeFinance = (fin, pres, med, alm, year, month) => {
   let all = [];
   const filterDate = (d) => {
     if (!year || !month) return true;
@@ -191,7 +191,7 @@ function getPeriodLabel(dateStr, viewType) {
 /**
  * Calcula o progresso do orçamento vs. gastos reais.
  */
-export const calcBudgetProgress = (orcamento, financeiro, compras) => {
+const calcBudgetProgress = (orcamento, financeiro, compras) => {
   const realCosts = {};
   
   // Gastos realizados (Financeiro)
@@ -223,11 +223,11 @@ export const calcBudgetProgress = (orcamento, financeiro, compras) => {
   });
 };
 
-export function calcSaldo(item) { 
+function calcSaldo(item) { 
   return (parseFloat(item.entrada) || 0) - (parseFloat(item.saida) || 0); 
 }
 
-export function estoqueStatus(item) {
+function estoqueStatus(item) {
   const saldo = calcSaldo(item);
   if (saldo <= 0) return 'SEM ESTOQUE';
   if (saldo <= item.min) return 'CRÍTICO';
