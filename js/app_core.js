@@ -22,22 +22,7 @@ window.renderAdmin = window.renderAdmin || function () { };
 // Funções de formatação - fornecidas pelo utils.module.js via window
 const fmt = window.fmt || ((v) => v || '—');
 const fmtPct = window.fmtPct || ((v) => v || '—');
-const fmtDate = window.fmtDate || ((v) => v || '—');
 const today = new Date().toISOString().split('T')[0];
-
-function statusBadge(s) {
-  const map = {
-    'Em andamento': 'badge-blue', 'Ativo': 'badge-green', 'Presente': 'badge-green',
-    'Concluída': 'badge-green', 'Concluído': 'badge-green', 'Entregue': 'badge-green', 'Pago': 'badge-green', 'Aprovada': 'badge-green',
-    'Atrasada': 'badge-red', 'Falta': 'badge-red', 'Reprovada': 'badge-red', 'Atrasado': 'badge-red', 'CRÍTICO': 'badge-red',
-    'Aguardando': 'badge-orange', 'Pendente': 'badge-orange', 'Planejada': 'badge-orange', 'A fazer': 'badge-orange', 'Pedido Feito': 'badge-orange',
-    'Alta': 'badge-red', 'Média': 'badge-orange', 'Baixa': 'badge-blue',
-    'NORMAL': 'badge-green', 'BAIXO': 'badge-orange', 'SEM ESTOQUE': 'badge-red',
-    'Pausada': 'badge-gray', 'Inativo': 'badge-gray', 'Parcial': 'badge-yellow', 'Divergência': 'badge-yellow', 'Meio período': 'badge-yellow',
-  };
-  const cls = map[s] || 'badge-gray';
-  return `<span class="badge ${cls}">${s || '—'}</span>`;
-}
 
 function uiEmptyState(message, subMessage, icon, actionText, actionFn) {
   return `<tr class="empty-row" style="background:transparent;border:none;box-shadow:none;">
@@ -158,7 +143,7 @@ function safeSetInner(id, html) {
   if (el) {
     el.innerHTML = html;
     if (el.tagName === 'TBODY') {
-      setTimeout(() => autoBindTableLabels(el), 10);
+      setTimeout(() => window.autoBindTableLabels(el), 10);
     }
   }
 }
