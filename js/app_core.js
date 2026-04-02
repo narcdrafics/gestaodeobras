@@ -1100,9 +1100,9 @@ function renderFinanceiro() {
   window.finViewType = view; // Para uso no helper do modulo
 
   // Consolidação Filtrada por Período
-  const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, yy, mm);
-  allFin = summary.all;
-  const perTotals = summary.totalsByPeriod;
+  const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, yy, mm) || {};
+  allFin = summary.all || [];
+  const perTotals = summary.totalsByPeriod || {};
 
   // Renderização de Cards de Fluxo de Caixa (Semanal/Quinzenal)
   let sumHtml = '';
