@@ -225,17 +225,15 @@ const calcBudgetProgress = (orcamento, financeiro, compras) => {
   });
 };
 
-function calcSaldo(item) {
+// Funções para window (evita declaração no escopo global)
+window.calcSaldo = function(item) {
   return (parseFloat(item.entrada) || 0) - (parseFloat(item.saida) || 0);
-}
+};
 
-function estoqueStatus(item) {
-  const saldo = calcSaldo(item);
+window.estoqueStatus = function(item) {
+  const saldo = window.calcSaldo(item);
   if (saldo <= 0) return 'SEM ESTOQUE';
   if (saldo <= item.min) return 'CRÍTICO';
   if (saldo <= item.min * 1.5) return 'BAIXO';
   return 'NORMAL';
-}
-// Atribui funções restantes ao window
-window.calcSaldo = calcSaldo;
-window.estoqueStatus = estoqueStatus;
+};

@@ -23,8 +23,6 @@ window.renderAdmin = window.renderAdmin || function () { };
 const fmt = window.fmt || ((v) => v || '—');
 const fmtPct = window.fmtPct || ((v) => v || '—');
 const fmtDate = window.fmtDate || ((v) => v || '—');
-const calcSaldo = window.calcSaldo || (() => 0);
-const estoqueStatus = window.estoqueStatus || (() => 'NORMAL');
 const today = new Date().toISOString().split('T')[0];
 
 function statusBadge(s) {
@@ -213,7 +211,7 @@ function renderDashboard() {
 
     const obrasAtivas = (DB.obras || []).filter(o => o && ['Em andamento', 'Planejada'].includes(o.status)).length;
     const tarefasAtrasadas = (DB.tarefas || []).filter(t => t && t.status === 'Atrasada').length;
-    const estoquesBaixos = (DB.estoque || []).filter(e => e && ['BAIXO', 'CRÍTICO'].includes(estoqueStatus(e))).length;
+    const estoquesBaixos = (DB.estoque || []).filter(e => e && ['BAIXO', 'CRÍTICO'].includes(window.estoqueStatus(e))).length;
     const comprasAguardando = (DB.compras || []).filter(c => c && c.status === 'Aguardando').length;
     const totalPrev = (DB.financeiro || []).reduce((a, f) => a + (f?.prev || 0), 0);
 
@@ -263,9 +261,9 @@ function renderDashboard() {
   const uObra = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
 
   DB.estoque.forEach(e => {
-    const s = estoqueStatus(e);
-    if (s === 'CRÍTICO') alerts.push({ tipo: 'ESTOQUE CRÍTICO', obra: uObra(e.obra), desc: `${e.mat} — saldo ${calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp: 'Almoxarife', prior: 'alto' });
-    else if (s === 'BAIXO') alerts.push({ tipo: 'ESTOQUE BAIXO', obra: uObra(e.obra), desc: `${e.mat} — saldo ${calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp: 'Almoxarife', prior: 'medio' });
+    const s = window.estoqueStatus(e);
+    if (s === 'CRÍTICO') alerts.push({ tipo: 'ESTOQUE CRÍTICO', obra: uObra(e.obra), desc: `${e.mat} — saldo ${window.calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp: 'Almoxarife', prior: 'alto' });
+    else if (s === 'BAIXO') alerts.push({ tipo: 'ESTOQUE BAIXO', obra: uObra(e.obra), desc: `${e.mat} — saldo ${window.calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp: 'Almoxarife', prior: 'medio' });
   });
   DB.tarefas.filter(t => t.status === 'Atrasada').forEach(t => alerts.push({ tipo: 'TAREFA ATRASADA', obra: uObra(t.obra), desc: `${t.desc} — prazo: ${fmtDate(t.prazo)}`, resp: t.resp, prior: 'alto' }));
   DB.compras.filter(c => c.status === 'Aguardando').forEach(c => alerts.push({ tipo: 'COMPRA PENDENTE', obra: uObra(c.obra), desc: `${c.mat} — ${fmt(c.vtotal)}`, resp: 'Gestor', prior: 'medio' }));
@@ -1050,8 +1048,8 @@ function renderKanban(tasks) {
 function renderEstoque() {
   safeSetInner('est-tbody', DB.estoque.length
     ? DB.estoque.map((e, i) => {
-      const saldo = calcSaldo(e);
-      const s = estoqueStatus(e);
+      const saldo = window.calcSaldo(e);
+      const s = window.estoqueStatus(e);
       return `<tr>
           <td><span class="cod">${e.cod}</span></td><td>${e.mat}</td><td>${e.unid}</td>
           <td>${obName(e.obra)}</td><td>${e.min}</td><td>${e.entrada}</td><td>${e.saida}</td>
@@ -3161,7 +3159,7 @@ async function saveMovEstoque() {
 
     // 1. Dar baixa na Origem
     if (e) {
-      if (qtd > calcSaldo(e)) { toast('Qtd. maior que saldo na Origem!', 'error'); return; }
+      if (qtd > window.calcSaldo(e)) { toast('Qtd. maior que saldo na Origem!', 'error'); return; }
       e.saida += qtd;
     }
 
@@ -3208,7 +3206,7 @@ async function saveMovEstoque() {
     // Normal Entrada/Saida Logic
     if (e) {
       if (tipo === 'Entrada') e.entrada += qtd;
-      else { if (qtd > calcSaldo(e)) { toast('Qtd. maior que saldo!', 'error'); return; } e.saida += qtd; }
+      else { if (qtd > window.calcSaldo(e)) { toast('Qtd. maior que saldo!', 'error'); return; } e.saida += qtd; }
     }
     const data = {
       data: document.getElementById('mv-data').value,
