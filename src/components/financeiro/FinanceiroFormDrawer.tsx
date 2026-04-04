@@ -97,7 +97,7 @@ export function FinanceiroFormDrawer({ visible, onClose, record, recordIndex, in
   return (
     <Drawer
       title={record ? "Editar Lançamento" : "Novo Lançamento Financeiro"}
-      width={600}
+      size="large"
       onClose={onClose}
       open={visible}
       styles={{ body: { paddingBottom: 80 } }}

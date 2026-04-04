@@ -46,6 +46,34 @@ export function useFirebaseMutations() {
   };
 
   /**
+   * Plural version of saveItem. Efficiently saves multiple items in one go.
+   * @param node The DB node
+   * @param items Array of data objects
+   */
+  const saveItems = async (node: string, items: any[]) => {
+    if (!user?.tenantId) return false;
+    if (!items.length) return true;
+
+    try {
+      const nodeRef = ref(db, `tenants/${user.tenantId}/${node}`);
+      const snapshot = await get(nodeRef);
+      let currentArray = snapshot.val() || [];
+      
+      if (!Array.isArray(currentArray)) {
+         currentArray = Object.values(currentArray);
+      }
+
+      const newArray = [...currentArray, ...items];
+      await set(nodeRef, newArray);
+      return true;
+    } catch (error) {
+      console.error(`Error saving multiple items to ${node}:`, error);
+      message.error("Falha ao salvar múltiplos registros.");
+      return false;
+    }
+  };
+
+  /**
    * Universal deletion from arrays.
    * @param node The DB node
    * @param index The array index to remove
@@ -72,5 +100,5 @@ export function useFirebaseMutations() {
      }
   };
 
-  return { saveItem, deleteItem };
+  return { saveItem, saveItems, deleteItem };
 }

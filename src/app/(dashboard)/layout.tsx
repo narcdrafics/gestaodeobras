@@ -49,13 +49,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ],
   };
 
-  if (loading) {
-    return <div style={{ height: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>Carregando Permissões...</div>;
-  }
+  React.useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login");
+    }
+  }, [user, loading, router]);
 
-  if (!user) {
-    router.replace("/login");
-    return null;
+  if (loading || !user) {
+    return <div style={{ height: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>Carregando Permissões...</div>;
   }
 
   return (

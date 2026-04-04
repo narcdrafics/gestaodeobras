@@ -121,7 +121,7 @@ export function TrabalhadorFormDrawer({ visible, onClose, record, recordIndex, i
   return (
     <Drawer
       title={record ? "Editar Trabalhador" : "Novo Trabalhador"}
-      width={640}
+      size="large"
       onClose={onClose}
       open={visible}
       styles={{ body: { paddingBottom: 80 } }}

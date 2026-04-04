@@ -114,7 +114,7 @@ export function TarefaFormDrawer({ visible, onClose, record, recordIndex }: Tare
   return (
     <Drawer
       title={record ? "Editar Tarefa" : "Nova Tarefa"}
-      width={600}
+      size="large"
       onClose={onClose}
       open={visible}
       styles={{ body: { paddingBottom: 80 } }}

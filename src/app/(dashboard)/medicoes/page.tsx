@@ -61,12 +61,12 @@ export default function MedicoesPage() {
            <Row gutter={16} style={{ marginBottom: 24 }}>
               <Col span={8}>
                  <Card variant="borderless">
-                    <Statistic title="Total Medido (Obra)" value={totalMedido} precision={2} prefix="R$" valueStyle={{ color: '#1890ff' }} />
+                    <Statistic title="Total Medido (Obra)" value={totalMedido} precision={2} prefix="R$" styles={{ content: { color: '#1890ff' } }} />
                  </Card>
               </Col>
               <Col span={8}>
                  <Card variant="borderless">
-                    <Statistic title="Média Avanço Mensal" value={avgAvanco} suffix="%" valueStyle={{ color: '#52c41a' }} />
+                    <Statistic title="Média Avanço Mensal" value={avgAvanco} suffix="%" styles={{ content: { color: '#52c41a' } }} />
                  </Card>
               </Col>
               <Col span={8}>
@@ -106,7 +106,7 @@ export default function MedicoesPage() {
         </div>
       </div>
 
-      <Card variant="borderless" style={{ background: 'transparent' }} bodyStyle={{ padding: 0 }}>
+      <Card variant="borderless" style={{ background: 'transparent' }} styles={{ body: { padding: 0 } }}>
          {loading ? (
              <p>Carregando medições...</p>
          ) : items.length > 0 ? (

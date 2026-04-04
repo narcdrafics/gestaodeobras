@@ -104,7 +104,7 @@ export function CompraFormDrawer({ visible, onClose, record, recordIndex, initia
   return (
     <Drawer
       title={record ? "Editar Pedido" : "Novo Pedido de Compra"}
-      width={600}
+      size="large"
       onClose={onClose}
       open={visible}
       styles={{ body: { paddingBottom: 80 } }}

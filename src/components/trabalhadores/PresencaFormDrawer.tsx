@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, Checkbox, message, Typography, Row, Col, Divider } from "antd";
 import { useFirebaseMutations } from "@/hooks/useFirebaseMutations";
 import { useTenantData } from "@/hooks/useTenantData";
+import { CheckSquareOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 
 const { Option } = Select;
@@ -22,8 +23,9 @@ export function PresencaFormDrawer({ visible, onClose, record, recordIndex, init
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"individual" | "massa">("individual");
   const [selectedMassa, setSelectedMassa] = useState<string[]>([]);
+  const [searchMassa, setSearchMassa] = useState("");
   
-  const { saveItem } = useFirebaseMutations();
+  const { saveItem, saveItems } = useFirebaseMutations();
   const { data } = useTenantData();
 
   // Watchers for individual mode
@@ -110,10 +112,9 @@ export function PresencaFormDrawer({ visible, onClose, record, recordIndex, init
     }
     setLoading(true);
     
-    let successCount = 0;
-    for (const trabCod of selectedMassa) {
+    const payloads = selectedMassa.map(trabCod => {
        const worker = data.trabalhadores.find(t => t.cod === trabCod);
-       const payload = {
+       return {
           data: values.data.format("YYYY-MM-DD"),
           obra: initialObraId,
           trab: trabCod,
@@ -126,12 +127,11 @@ export function PresencaFormDrawer({ visible, onClose, record, recordIndex, init
           status: "Pendente",
           lancador: values.lancador || ""
        };
-       const ok = await saveItem("presenca", payload);
-       if (ok) successCount++;
-    }
+    });
 
-    if (successCount > 0) {
-       message.success(`${successCount} presenças lançadas com sucesso!`);
+    const success = await saveItems("presenca", payloads);
+    if (success) {
+       message.success(`${payloads.length} presenças lançadas com sucesso!`);
        onClose();
     }
     setLoading(false);
@@ -169,11 +169,12 @@ export function PresencaFormDrawer({ visible, onClose, record, recordIndex, init
   };
 
   const workersOfThisObra = data.trabalhadores.filter(t => t.obra === initialObraId && t.status !== "Inativo");
+  const workersFiltered = workersOfThisObra.filter(t => t.nome?.toLowerCase().includes(searchMassa.toLowerCase()));
 
   return (
     <Drawer
       title={record ? "Editar Presença" : "Lançar Presença"}
-      width={mode === "individual" ? 500 : 700}
+      size={mode === "individual" ? "default" : "large"}
       onClose={onClose}
       open={visible}
       styles={{ body: { paddingBottom: 80 } }}
@@ -266,7 +267,13 @@ export function PresencaFormDrawer({ visible, onClose, record, recordIndex, init
            </>
         ) : (
            <>
-              <Divider>Selecione os profissionais presentes na {initialObraId}</Divider>
+              <Divider>Selecione os profissionais presentes</Divider>
+              <Input 
+                 placeholder="Filtrar por nome ou equipe..." 
+                 style={{ marginBottom: 16 }} 
+                 onChange={(e) => setSearchMassa(e.target.value)}
+                 prefix={<CheckSquareOutlined style={{ color: '#bfbfbf' }} />}
+               />
               <div style={{ border: '1px solid #d9d9d9', borderRadius: 8, padding: 16, maxHeight: 300, overflowY: 'auto', marginBottom: 24 }}>
                  <Checkbox.Group 
                     value={selectedMassa} 
@@ -274,12 +281,12 @@ export function PresencaFormDrawer({ visible, onClose, record, recordIndex, init
                     style={{ width: '100%' }}
                  >
                     <Row gutter={[16, 8]}>
-                       {workersOfThisObra.map(t => (
+                       {workersFiltered.map(t => (
                           <Col span={12} key={t.cod}>
                              <Checkbox value={t.cod}>{t.nome}</Checkbox>
                           </Col>
                        ))}
-                       {workersOfThisObra.length === 0 && <Text type="secondary">Nenhum trabalhador cadastrado nesta obra.</Text>}
+                       {workersFiltered.length === 0 && <Text type="secondary">Nenhum trabalhador encontrado.</Text>}
                     </Row>
                  </Checkbox.Group>
               </div>

@@ -122,7 +122,7 @@ export function MedicaoFormDrawer({ visible, onClose, record, recordIndex, initi
   return (
     <Drawer
       title={record ? "Editar Medição" : "Nova Medição"}
-      width={600}
+      size="large"
       onClose={onClose}
       open={visible}
       styles={{ body: { paddingBottom: 80 } }}

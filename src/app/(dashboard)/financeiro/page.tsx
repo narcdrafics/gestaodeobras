@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Button, Card, Table, Tag, Typography, Tabs, Space, Statistic, Row, Col, Popconfirm } from "antd";
-import { PlusOutlined, DeleteOutlined, WalletOutlined, DollarOutlined, SolutionOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, WalletOutlined, DollarOutlined, SolutionOutlined, ShoppingCartOutlined } from "@ant-design/icons";
 import { useTenantData } from "@/hooks/useTenantData";
 import { useFirebaseMutations } from "@/hooks/useFirebaseMutations";
 import { FinanceiroFormDrawer } from "@/components/financeiro/FinanceiroFormDrawer";
@@ -54,10 +54,15 @@ export default function FinanceiroPage() {
   ];
 
   const renderObraFinanceiro = (obraId: string) => {
-     // 1. Lançamentos dessa obra
-     const itensObra = data.financeiro.map((f, i) => ({...f, originalIndex: i})).filter(f => f.obra === obraId);
-     const sumReal = itensObra.reduce((acc, curr) => acc + Number(curr.real || 0), 0);
-     const sumPrev = itensObra.reduce((acc, curr) => acc + Number(curr.prev || 0), 0);
+     // 1. Lançamentos dessa obra (Caixa + Compras)
+     const itensFinanceiro = data.financeiro.map((f, i) => ({...f, originalIndex: i})).filter(f => f.obra === obraId);
+     const itensCompras = data.compras.filter(c => c.obra === obraId);
+     
+     const sumFinanceiro = itensFinanceiro.reduce((acc, curr) => acc + Number(curr.real || 0), 0);
+     const sumCompras = itensCompras.reduce((acc, curr) => acc + Number(curr.vtotal || 0), 0);
+     const sumReal = sumFinanceiro + sumCompras;
+     
+     const sumPrev = itensFinanceiro.reduce((acc, curr) => acc + Number(curr.prev || 0), 0);
 
      // 2. Trabalhadores alocados nesta obra (simples contains)
      const trabsDaObra = data.trabalhadores.filter(t => t.obras?.includes(obraId) || t.obra === obraId);
@@ -103,43 +108,56 @@ export default function FinanceiroPage() {
            <Row gutter={16} style={{ marginBottom: 24 }}>
               <Col span={8}>
                  <Card bordered={false}>
-                    <Statistic title="Total Gasto (Caixa)" value={sumReal} precision={2} prefix="R$" valueStyle={{ color: '#cf1322' }} />
+                    <Statistic title="Total Gasto (Caixa)" value={sumReal} precision={2} prefix="R$" styles={{ content: { color: '#cf1322' } }} />
                  </Card>
               </Col>
               <Col span={8}>
                  <Card bordered={false}>
-                    <Statistic title="Folha (Diárias devidas)" value={equipeDireta.reduce((acc, t) => acc + t.totalDevido, 0)} precision={2} prefix="R$" valueStyle={{ color: '#cf1322' }} />
+                    <Statistic title="Folha (Diárias devidas)" value={equipeDireta.reduce((acc, t) => acc + t.totalDevido, 0)} precision={2} prefix="R$" styles={{ content: { color: '#cf1322' } }} />
                  </Card>
               </Col>
               <Col span={8}>
                  <Card bordered={false}>
-                    <Statistic title="Subcontratados (Empreita)" value={empreiteiros.reduce((acc, t) => acc + t.totalDevido, 0)} precision={2} prefix="R$" valueStyle={{ color: '#d48806' }} />
+                    <Statistic title="Subcontratados (Empreita)" value={empreiteiros.reduce((acc, t) => acc + t.totalDevido, 0)} precision={2} prefix="R$" styles={{ content: { color: '#d48806' } }} />
                  </Card>
               </Col>
            </Row>
 
-           <Card title={<><WalletOutlined /> Lançamentos Livro-Caixa</>} style={{ marginBottom: 24 }} extra={<Button onClick={() => showDrawer()} type="primary">Add Custo</Button>}>
-              <Table 
-                 columns={columnsFinanceiro} 
-                 dataSource={itensObra} 
-                 rowKey="originalIndex" 
-                 pagination={false} 
-                 size="small"
-              />
-           </Card>
+            <Card title={<><WalletOutlined /> Lançamentos Livro-Caixa</>} style={{ marginBottom: 24 }} extra={<Button onClick={() => showDrawer()} type="primary">Add Custo</Button>}>
+               <Table 
+                  columns={columnsFinanceiro} 
+                  dataSource={itensFinanceiro} 
+                  rowKey="originalIndex" 
+                  pagination={false} 
+                  size="small"
+               />
+            </Card>
 
            <Row gutter={24}>
-              <Col span={12}>
+              <Col span={8}>
                  <Card title={<><SolutionOutlined /> Folha de Pagamento (Diárias)</>}>
                     <Table columns={colTrabs} dataSource={equipeDireta} rowKey="cod" pagination={false} size="small" />
                  </Card>
               </Col>
-              <Col span={12}>
-                 <Card title={<><DollarOutlined /> Gestão de Empreiteiros</>}>
-                    <Table columns={colEmp} dataSource={empreiteiros} rowKey="cod" pagination={false} size="small" />
-                 </Card>
-              </Col>
-           </Row>
+               <Col span={8}>
+                  <Card title={<><DollarOutlined /> Gestão de Empreiteiros</>}>
+                     <Table columns={colEmp} dataSource={empreiteiros} rowKey="cod" pagination={false} size="small" />
+                  </Card>
+               </Col>
+               <Col span={8}>
+                  <Card title={<><ShoppingCartOutlined /> Compras da Obra</>}>
+                     <Table 
+                        dataSource={itensCompras.slice(0, 5)} 
+                        pagination={false} 
+                        size="small"
+                        columns={[
+                           { title: 'Material', dataIndex: 'mat', key: 'mat' },
+                           { title: 'Valor', dataIndex: 'vtotal', key: 'vtotal', render: (v) => formatBRL(v) }
+                        ]}
+                     />
+                  </Card>
+               </Col>
+            </Row>
         </div>
      );
   };
@@ -166,7 +184,7 @@ export default function FinanceiroPage() {
         </Button>
       </div>
 
-      <Card variant="borderless" style={{ background: 'transparent' }} bodyStyle={{ padding: 0 }}>
+      <Card variant="borderless" style={{ background: 'transparent' }} styles={{ body: { padding: 0 } }}>
          {loading ? (
              <p>Carregando livros contábeis...</p>
          ) : (

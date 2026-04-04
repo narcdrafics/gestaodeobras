@@ -79,7 +79,14 @@ export default function ObrasPage() {
       title: 'Progresso Físico',
       key: 'perc',
       render: (_: any, record: any) => {
-        // Cálculo Legado: Tarefas Concluídas da Obra / Total da Obra
+        // 1. Prioridade: Medições Físicas
+        const meds = data.medicao.filter(m => m.obra === record.cod);
+        if (meds.length > 0) {
+           const avg = Math.round(meds.reduce((acc, m) => acc + Number(m.avanco || 0), 0) / meds.length);
+           return <Progress percent={avg} size="small" status={avg >= 100 ? "success" : "active"} strokeColor="#52c41a" />;
+        }
+        
+        // 2. Fallback: Tarefas Concluídas / Total
         const tasks = data.tarefas.filter(t => t?.obra === record.cod);
         const concluded = tasks.filter(t => t?.status === 'Concluída').length;
         const pct = tasks.length > 0 ? Math.round((concluded / tasks.length) * 100) : 0;

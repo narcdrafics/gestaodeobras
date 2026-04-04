@@ -31,7 +31,7 @@ export default function ComprasPage() {
     { title: 'Pedido / Material', dataIndex: 'mat', key: 'mat', render: (text: string, r: any) => <b>{text} <br/> <Text type="secondary" style={{fontSize: 11}}>{r.num} - {r.etapa}</Text></b> },
     { title: 'Fornecedor', dataIndex: 'forn', key: 'forn' },
     { title: 'Valor Total', dataIndex: 'vtotal', key: 'vtotal', render: (val: number, r: any) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Text strong>{formatBRL(val)}</Text>
           {r.vorc > 0 && val > r.vorc && <Text type="danger" style={{fontSize: 10}}>Acima do orçado!</Text>}
         </Space>
@@ -72,17 +72,17 @@ export default function ComprasPage() {
            <Row gutter={16} style={{ marginBottom: 24 }}>
               <Col span={8}>
                  <Card variant="borderless">
-                    <Statistic title="Total em Compras (Obra)" value={totalGeral} precision={2} prefix="R$" valueStyle={{ color: '#1890ff' }} />
+                    <Statistic title="Total em Compras (Obra)" value={totalGeral} precision={2} prefix="R$" styles={{ content: { color: '#1890ff' } }} />
                  </Card>
               </Col>
               <Col span={8}>
                  <Card variant="borderless">
-                    <Statistic title="Pedidos Entregues" value={entregues} prefix={<TruckOutlined />} valueStyle={{ color: '#52c41a' }} />
+                    <Statistic title="Pedidos Entregues" value={entregues} prefix={<TruckOutlined />} styles={{ content: { color: '#52c41a' } }} />
                  </Card>
               </Col>
               <Col span={8}>
                  <Card variant="borderless">
-                    <Statistic title="Pedidos em Aberto" value={pendentes} prefix={<Badge status="processing" />} valueStyle={{ color: '#faad14' }} />
+                    <Statistic title="Pedidos em Aberto" value={pendentes} prefix={<Badge status="processing" />} styles={{ content: { color: '#faad14' } }} />
                  </Card>
               </Col>
            </Row>
@@ -117,7 +117,7 @@ export default function ComprasPage() {
         </div>
       </div>
 
-      <Card variant="borderless" style={{ background: 'transparent' }} bodyStyle={{ padding: 0 }}>
+      <Card variant="borderless" style={{ background: 'transparent' }} styles={{ body: { padding: 0 } }}>
          {loading ? (
              <p>Carregando pedidos...</p>
          ) : items.length > 0 ? (

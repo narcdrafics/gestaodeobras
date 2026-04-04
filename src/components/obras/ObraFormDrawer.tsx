@@ -79,7 +79,7 @@ export function ObraFormDrawer({ visible, onClose, record, recordIndex }: ObraFo
   return (
     <Drawer
       title={record ? "Editar Obra" : "Nova Obra"}
-      width={720}
+      size="large"
       onClose={onClose}
       open={visible}
       styles={{

@@ -7,6 +7,7 @@ import { useTenantData } from "@/hooks/useTenantData";
 import { useFirebaseMutations } from "@/hooks/useFirebaseMutations";
 import { TrabalhadorFormDrawer } from "@/components/trabalhadores/TrabalhadorFormDrawer";
 import { PresencaFormDrawer } from "@/components/trabalhadores/PresencaFormDrawer";
+import dayjs from "dayjs";
 
 const { Title, Text } = Typography;
 
@@ -157,7 +158,7 @@ export default function TrabalhadoresPage() {
           </Col>
           <Col span={6}>
             <Card variant="borderless">
-               <Statistic title="Custo Últimos 50 Lanç." value={totalWeeklyCost} precision={2} prefix="R$" valueStyle={{ color: '#cf1322' }} />
+               <Statistic title="Custo Últimos 50 Lanç." value={totalWeeklyCost} precision={2} prefix="R$" styles={{ content: { color: '#cf1322' } }} />
             </Card>
           </Col>
         </Row>
@@ -200,7 +201,7 @@ export default function TrabalhadoresPage() {
          <Text type="secondary">Controle diário de frequência, encargos e escala por obra.</Text>
       </div>
 
-      <Card variant="borderless" style={{ background: 'transparent' }} bodyStyle={{ padding: 0 }}>
+      <Card variant="borderless" style={{ background: 'transparent' }} styles={{ body: { padding: 0 } }}>
          {loading ? (
            <p>Sincronizando equipes...</p>
          ) : items.length > 0 ? (
@@ -234,6 +235,3 @@ export default function TrabalhadoresPage() {
     </div>
   );
 }
-
-// DayJS import for sorting and formatting
-import dayjs from "dayjs";
