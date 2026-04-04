@@ -6,7 +6,9 @@
     "node": "20"
   },
   "scripts": {
-    "build": "echo 'Static assets ready.'",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "start": "node server.js",
     "test": "vitest"
   },
@@ -16,6 +18,7 @@
   "private": true,
   "devDependencies": {
     "jsdom": "^29.0.1",
+    "vite": "^5.0.0",
     "vitest": "^4.1.2"
   }
 }
