@@ -1,0 +1,25 @@
+{
+  "name": "obra-real",
+  "version": "1.1.0",
+  "description": "Obra Real - Gestão Profissional de Obras",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node server.js",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "private": true,
+  "devDependencies": {
+    "jsdom": "^29.0.1",
+    "vite": "^8.0.3",
+    "vite-plugin-static-copy": "^4.0.1",
+    "vitest": "^4.1.2"
+  }
+}

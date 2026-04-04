@@ -1,0 +1,35 @@
+<div class="page-header">
+  <div class="page-title">Tarefas <small>Checklist de Obra</small></div>
+  <button class="btn btn-primary" onclick="openModal('modal-tarefa')">+ Nova Tarefa</button>
+</div>
+<div class="kpi-grid" id="tar-kpi"></div>
+<div class="table-wrap">
+  <div class="table-toolbar" style="flex-wrap:wrap;gap:16px;">
+    <div style="display:flex;align-items:center;gap:16px">
+      <h3 style="margin:0">Controle de Tarefas</h3>
+      <div class="view-toggle">
+        <button id="btn-view-table" class="view-btn active" onclick="setTaskView('table')">📊 Tabela</button>
+        <button id="id-view-kanban" class="view-btn" onclick="setTaskView('kanban')">📋 Quadro</button>
+      </div>
+    </div>
+    <div class="toolbar-right" style="display:flex;gap:12px;flex:1;justify-content:flex-end">
+      <select id="tar-obra-filter" class="form-control" style="width:160px" onchange="renderTarefas()">
+        <option value="">Todas obras</option>
+      </select>
+      <input class="search-input" id="tar-busca" placeholder="🔍 Buscar tarefa..." oninput="renderTarefas()" style="max-width:200px">
+    </div>
+  </div>
+  
+  <div id="tar-table-container">
+    <div class="table-responsive">
+      <table>
+        <thead><tr><th>Cód.</th><th>Obra</th><th>Etapa / Frente</th><th>Descrição</th><th>Responsável</th><th>Prior.</th><th>Status</th><th>Prazo</th><th>% Conc.</th><th>Ações</th></tr></thead>
+        <tbody id="tar-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tar-kanban-container" style="display:none; padding:16px; background:var(--bg3); border-radius:0 0 12px 12px">
+    <div id="tar-board" class="kanban-board"></div>
+  </div>
+</div>

@@ -1,0 +1,25 @@
+<div class="modal-header"><span class="modal-title">💰 Novo Lançamento Financeiro</span><button class="modal-close" onclick="closeModal('modal-financeiro')">×</button></div>
+<div class="form-grid">
+  <div class="form-group"><label class="form-label">Data *</label><input type="date" class="form-control" id="fn-data"></div>
+  <div class="form-group"><label class="form-label">Obra *</label><select class="form-control" id="fn-obra"></select></div>
+  <div class="form-group"><label class="form-label">Etapa</label><input class="form-control" id="fn-etapa" placeholder="Alvenaria"></div>
+  <div class="form-group"><label class="form-label">Tipo Custo</label>
+    <select class="form-control" id="fn-tipo"><option>Mão de obra própria</option><option>Empreiteiro</option><option>Material</option><option>Adiantamento</option><option>Equipamento</option><option>Geral</option></select></div>
+  <div class="form-group form-full"><label class="form-label">Descrição *</label><input class="form-control" id="fn-desc"></div>
+  <div class="form-group"><label class="form-label">Fornec./Benef.</label><input class="form-control" id="fn-forn"></div>
+  <div class="form-group"><label class="form-label">Vl. Previsto (R$)</label><input type="number" class="form-control" id="fn-prev" value="0" oninput="calcFinDiff()"></div>
+  <div class="form-group"><label class="form-label">Vl. Realizado (R$)</label><input type="number" class="form-control" id="fn-real" value="0" oninput="calcFinDiff()"></div>
+  <div class="form-group"><label class="form-label">Diferença (R$)</label><input type="number" class="form-control" id="fn-diff" readonly></div>
+  <div class="form-group"><label class="form-label">Forma Pgto</label>
+    <select class="form-control" id="fn-pgto"><option>PIX</option><option>Dinheiro</option><option>Boleto</option><option>Transferência</option><option>Cheque</option></select></div>
+  <div class="form-group"><label class="form-label">Status Pgto</label>
+    <select class="form-control" id="fn-status" onchange="toggleParcial('fn')"><option>Pendente</option><option>Pago</option><option>Parcial</option><option>Atrasado</option></select></div>
+  <div class="form-group" id="fn-parcial-grp" style="display:none"><label class="form-label">Vl. Pago (Parcial)</label><input type="number" step="0.01" class="form-control" id="fn-valpago" oninput="calcParcial('fn')"></div>
+  <div id="fn-parcial-msg" class="form-full" style="display:none; color: var(--orange); font-size: 13px; font-weight: bold; margin-bottom: 10px; padding: 5px; background: rgba(245, 158, 11, 0.1); border-radius: 4px;"></div>
+  <div class="form-group"><label class="form-label">NF/Comprov.</label><input class="form-control" id="fn-nf"></div>
+  <div class="form-group form-full"><label class="form-label">Obs.</label><input class="form-control" id="fn-obs"></div>
+</div>
+<div class="modal-footer">
+  <button class="btn btn-secondary" onclick="closeModal('modal-financeiro')">Cancelar</button>
+  <button class="btn btn-primary" onclick="saveFinanceiro()">Salvar</button>
+</div>

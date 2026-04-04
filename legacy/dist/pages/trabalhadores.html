@@ -1,0 +1,19 @@
+<div class="page-header">
+  <div class="page-title">Trabalhadores <small>Cadastro de mão de obra</small></div>
+  <button class="btn btn-primary" onclick="openModal('modal-trabalhador')">+ Novo Trabalhador</button>
+</div>
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <h3>Cadastro de Trabalhadores</h3>
+    <div class="toolbar-right">
+      <input class="search-input" placeholder="Buscar..." oninput="filterTable('trab-tbody', this.value, [1,2,3])">
+    </div>
+  </div>
+  <table>
+    <thead><tr>
+        <th>Cód.</th><th>Nome / Função</th><th>Assiduidade (%)</th><th>Faltas (Mês)</th>
+        <th>Saldo Acum.</th><th>Diária/Salário</th><th>Status</th><th>Ações</th>
+    </tr></thead>
+    <tbody id="trab-tbody"></tbody>
+  </table>
+</div>

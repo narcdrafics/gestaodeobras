@@ -1,0 +1,16 @@
+<div class="page-header">
+  <div class="page-title">Medição <small>Avanço físico semanal — Mestre</small></div>
+  <button class="btn btn-primary" onclick="openModal('modal-medicao')">+ Nova Medição</button>
+</div>
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <h3>Medição de Avanço Físico</h3>
+    <div class="toolbar-right">
+      <input class="search-input" placeholder="Buscar..." oninput="filterTable('med-tbody', this.value, [1,2,3])">
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>Semana</th><th>Obra</th><th>Etapa</th><th>Frente</th><th>Equipe</th><th>Serviço</th><th>Unid.</th><th>Qtd. Prev.</th><th>Qtd. Real.</th><th>Vl. Total (R$)</th><th>% Avanço</th><th>Retrabalho?</th><th>Obs.</th><th>Ações</th></tr></thead>
+    <tbody id="med-tbody"></tbody>
+  </table>
+</div>

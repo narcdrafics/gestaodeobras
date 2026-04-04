@@ -1,0 +1,85 @@
+<div class="page-header" style="flex-wrap:wrap;gap:12px; align-items: flex-end;">
+  <div class="page-title">Financeiro <small id="fin-period-subtitle">Fluxo de Caixa Mensal</small></div>
+  
+  <div class="fin-controls" style="display:flex; flex-wrap:wrap; gap:8px; align-items: center;">
+    <div class="form-group" style="margin:0;">
+      <select id="fin-view-type" class="form-control" style="padding:6px 12px; height:38px; min-width:120px;" onchange="renderFinanceiro()">
+        <option value="semanal">Visão Semanal</option>
+        <option value="quinzenal">Visão Quinzenal</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;">
+      <select id="fin-month" class="form-control" style="padding:6px 12px; height:38px; min-width:110px;" onchange="renderFinanceiro()">
+        <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+        <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+        <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+        <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;">
+      <select id="fin-year" class="form-control" style="padding:6px 12px; height:38px; min-width:80px;" onchange="renderFinanceiro()"></select>
+    </div>
+  </div>
+
+  <div style="margin-left:auto; display:flex; gap:8px;">
+    <button class="btn btn-secondary" style="border-color:var(--green);color:var(--green);font-weight:600;" onclick="prepareLotePgto()">💸 Fechar Folha</button>
+    <button class="btn btn-primary" onclick="openModal('modal-financeiro')">+ Novo Lançamento</button>
+  </div>
+</div>
+
+<!-- KPIs / Resumo por Obra -->
+<div class="fin-summary" id="fin-summary" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:12px;"></div>
+
+<!-- Tabela de Lançamentos -->
+<div class="table-wrap">
+  <div class="table-toolbar" style="flex-wrap:wrap;gap:8px;">
+    <h3 style="margin:0">💰 Lançamentos Financeiros</h3>
+    <div class="toolbar-right" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+      <div style="font-size:12px;color:var(--text3);display:flex;gap:10px;margin-right:8px;" class="hide-mobile">
+        <span>💳 Manual</span><span>⏱️ Diária</span><span>📐 Medição</span><span>🍱 Almoço</span>
+      </div>
+      <input class="search-input" id="fin-busca" placeholder="🔍 Obra, descrição, fornecedor..."
+        style="min-width:200px" oninput="filterFinanceiro()">
+      <select id="fin-tipo-filter" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px"
+        onchange="filterFinanceiro()">
+        <option value="">Todos os Tipos</option>
+        <option value="mão de obra própria">👷 Mão de Obra (Diárias)</option>
+        <option value="empreiteiro">🔨 Empreiteiro</option>
+        <option value="almoço empreiteiro">🍱 Almoço Empreiteiro</option>
+        <option value="material">🧱 Material</option>
+      </select>
+      <select id="fin-status-filter" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px"
+        onchange="filterFinanceiro()">
+        <option value="">Todos os Status</option>
+        <option value="pendente">⏳ Pendente</option>
+        <option value="pago">✅ Pago</option>
+        <option value="parcial">⚠️ Parcial</option>
+      </select>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table>
+      <thead><tr>
+        <th>Data</th><th>Obra</th><th>Etapa</th><th>Tipo</th>
+        <th>Descrição</th><th>Fornec./Benef.</th>
+        <th>Vl. Prev.</th><th>Vl. Real.</th><th>Diferença</th>
+        <th>Pgto</th><th>Status</th><th>NF</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="fin-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+@media (max-width: 767px) {
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .toolbar-right { width: 100%; }
+  .toolbar-right .search-input,
+  .toolbar-right .form-control { width: 100% !important; }
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #fin-summary { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  #fin-summary { grid-template-columns: 1fr; }
+}
+</style>

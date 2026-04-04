@@ -1,0 +1,33 @@
+<div class="modal-header">
+  <span class="modal-title">💸 Fechamento de Folha (Lote)</span>
+  <button class="modal-close" onclick="closeModal('modal-lote')">×</button>
+</div>
+<div style="padding:15px; background:var(--bg2); border-bottom:1px solid var(--border); font-size:13px; color:var(--text2)">
+   Selecione os trabalhadores que você está pagando agora. O sistema dará baixa automática e recalculará os painéis de Custo do Dashboard Baseado nas presenças da semana.
+</div>
+<div class="table-wrap" style="max-height: 400px; overflow-y: auto;">
+  <table style="margin:0;">
+    <thead>
+      <tr>
+        <th style="width:40px;text-align:center"><input type="checkbox" id="ck-lote-all" onchange="toggleLoteAll(this)" style="transform:scale(1.2)"></th>
+        <th>Trabalhador</th>
+        <th>Qtd. Diárias</th>
+        <th style="text-align:right">Forma Recomendada</th>
+        <th style="text-align:right">Valor Devido</th>
+        <th style="width:60px;text-align:center">Ações</th>
+      </tr>
+    </thead>
+    <tbody id="lote-tbody">
+      <!-- Injetado dinamicamente -->
+    </tbody>
+  </table>
+</div>
+<div class="modal-footer" style="justify-content:space-between; flex-wrap:wrap; gap:10px;">
+  <div>
+    <b style="font-size:18px">Total a Pagar: <span id="lote-total-sel" style="color:var(--green)">R$ 0,00</span></b>
+  </div>
+  <div style="display:flex; gap:10px;">
+    <button class="btn btn-secondary" onclick="closeModal('modal-lote')">Cancelar</button>
+    <button class="btn btn-primary" onclick="processLotePgto()">Confirmar Pagamentos</button>
+  </div>
+</div>

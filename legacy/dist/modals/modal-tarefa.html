@@ -1,0 +1,30 @@
+<div class="modal-header"><span class="modal-title">📋 Nova Tarefa</span><button class="modal-close" onclick="closeModal('modal-tarefa')">×</button></div>
+<div class="form-grid">
+  <div class="form-group"><label class="form-label">Cód.</label><input class="form-control" id="tf-cod" placeholder="TF001" readonly></div>
+  <div class="form-group"><label class="form-label">Obra *</label><select class="form-control" id="tf-obra"></select></div>
+  <div class="form-group"><label class="form-label">Etapa</label><input class="form-control" id="tf-etapa" placeholder="Alvenaria"></div>
+  <div class="form-group"><label class="form-label">Frente Serviço</label><input class="form-control" id="tf-frente" placeholder="Alvenaria ext."></div>
+  <div class="form-group form-full"><label class="form-label">Descrição *</label><input class="form-control" id="tf-desc"></div>
+  <div class="form-group"><label class="form-label">Responsável</label><input class="form-control" id="tf-resp" placeholder="Equipe Pedreiros"></div>
+  <div class="form-group"><label class="form-label">Prioridade</label>
+    <select class="form-control" id="tf-prior"><option>Alta</option><option>Média</option><option>Baixa</option></select></div>
+  <div class="form-group"><label class="form-label">Status</label>
+    <select class="form-control" id="tf-status"><option>A fazer</option><option>Em andamento</option><option>Concluída</option><option>Atrasada</option><option>Pausada</option></select></div>
+  <div class="form-group"><label class="form-label">Data Criação</label><input type="date" class="form-control" id="tf-criacao"></div>
+  <div class="form-group"><label class="form-label">Prazo</label><input type="date" class="form-control" id="tf-prazo"></div>
+  <div class="form-group"><label class="form-label">Data Conclusão</label><input type="date" class="form-control" id="tf-conclusao"></div>
+  <div class="form-group"><label class="form-label">% Concluído</label><input type="number" class="form-control" id="tf-perc" min="0" max="100" value="0"></div>
+  <div class="form-group form-full"><label class="form-label">Obs.</label><input class="form-control" id="tf-obs"></div>
+  <div class="form-group form-full">
+    <label class="form-label">📸 Foto/Evidência da Tarefa</label>
+    <input type="file" id="tf-file" class="form-control" accept="image/*" capture="camera" onchange="handleFileUpload(this, 'tf-photo-preview', 'tf-photo-url')">
+    <input type="hidden" id="tf-photo-url">
+    <div id="tf-photo-preview" style="margin-top:10px; display:none">
+       <img src="" style="max-width:100%; border-radius:8px; border:1px solid var(--border)">
+    </div>
+  </div>
+</div>
+<div class="modal-footer">
+  <button class="btn btn-secondary" onclick="closeModal('modal-tarefa')">Cancelar</button>
+  <button class="btn btn-primary" onclick="saveTarefa()">Salvar</button>
+</div>

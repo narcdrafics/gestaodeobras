@@ -1,0 +1,131 @@
+<div class="page-header" style="flex-wrap:wrap;gap:8px;">
+  <div class="page-title">Presença <small>Ponto do Dia</small></div>
+  <button class="btn btn-primary" onclick="openModal('modal-presenca')">+ Lançar Presença</button>
+</div>
+<div class="kpi-grid" id="pres-kpi"></div>
+
+<div class="table-wrap" style="margin-bottom: 24px;">
+  <div class="table-toolbar">
+    <h3>📅 Quadro de Presença Semanal</h3>
+    <div class="toolbar-right" style="display:flex; gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="changeWeek(-1)">◀ Semana Anterior</button>
+      <button class="btn btn-secondary btn-sm" onclick="changeWeek(1)">Próxima Semana ▶</button>
+      <button class="btn btn-primary btn-sm" onclick="openModal('modal-presenca')">+ Lançar</button>
+    </div>
+  </div>
+  <div id="pres-quadro-semanal" style="overflow-x: auto; padding: 10px;">
+    <!-- Renderizado via JS -->
+  </div>
+</div>
+
+<!-- Removido almoco-avulso-container -->
+<!-- Tabela de Registros -->
+<div class="table-wrap">
+  <div class="table-toolbar" style="flex-wrap:wrap;gap:8px;">
+    <h3 style="margin:0">Registros de Presença</h3>
+    <div class="toolbar-right" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+      <input class="search-input" id="pres-busca" placeholder="🔍 Nome, obra ou data..." style="min-width:180px"
+        oninput="filterPresenca(this.value)">
+      <select id="pres-group-select" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px" onchange="renderPresenca()">
+        <option value="trab" selected>👤 Por Peão</option>
+        <option value="obra">🏗️ Por Obra</option>
+        <option value="">📋 Lista Plana</option>
+      </select>
+      <select id="pres-sort-select" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px" onchange="renderPresenca()">
+        <option value="data_desc">⬇ Mais Recentes</option>
+        <option value="data_asc">⬆ Mais Antigas</option>
+      </select>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table>
+      <thead><tr>
+        <th>Data / Local</th><th>Profissional</th><th>Horários</th><th>Horas (N+E)</th>
+        <th>Status</th><th>Valor Total</th><th>Pgto</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="pres-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Tchau Almoços -->
+<!-- Fechamento Diárias -->
+<div class="table-wrap" style="margin-top:12px">
+  <div class="table-toolbar">
+    <h3 style="margin:0">📅 Fechamento — Diárias (por data)</h3>
+  </div>
+  <div id="pres-totais" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px"></div>
+</div>
+
+<!-- Fechamento Empreitada -->
+<div class="table-wrap" style="margin-top:12px">
+  <div class="table-toolbar">
+    <h3 style="margin:0">🔨 Fechamento — Empreitada (por trabalhador)</h3>
+  </div>
+  <div id="pres-empreitada" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
+</div>
+
+<!-- Pagamentos Pendentes -->
+<div class="table-wrap" style="margin-top:12px">
+  <div class="table-toolbar"><h3 style="margin:0">⚠️ Pagamentos Pendentes (Semana por Obra)</h3></div>
+  <div id="pres-pgto-pendentes" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+</div>
+
+<style>
+/* Quadro de Presença - Otimizações Mobile e Desktop */
+.presence-board { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 600px; }
+.presence-board th, .presence-board td { border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); padding: 8px 4px; text-align: center; vertical-align: middle; }
+.presence-board th { border-top: 1px solid var(--border); background: var(--bg2); }
+.presence-board th:first-child, .presence-board td:first-child { border-left: 1px solid var(--border); }
+
+/* Congela a primeira coluna para scroll horizontal perfeito no mobile */
+.presence-board th.worker-info, .presence-board td.worker-info {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  z-index: 2;
+  min-width: 140px;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+.presence-board th.worker-info {
+  background: var(--bg2);
+  z-index: 3;
+}
+
+.day-header { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.day-name { font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--text2); }
+.day-date { font-size: 10px; color: var(--text3); }
+
+.presence-cell {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; min-height: 44px; cursor: pointer;
+  border-radius: 6px; transition: background 0.2s;
+}
+.presence-cell:hover { background: var(--bg2); box-shadow: inset 0 0 0 1px var(--accent); }
+.pres-icon { font-size: 20px; line-height: 1; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1)); }
+.pres-icon.none { opacity: 0.2; font-size: 12px; }
+
+/* Mobile: quebras de linha e tabela responsiva */
+@media (max-width: 767px) {
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .toolbar-right { width: 100%; }
+  .toolbar-right .search-input { width: 100% !important; }
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #pres-totais, #pres-empreitada, #pres-almocos, #pres-pgto-pendentes {
+    grid-template-columns: 1fr 1fr;
+  }
+  .presence-board th, .presence-board td { padding: 8px 2px; }
+  .presence-board th.worker-info, .presence-board td.worker-info { min-width: 110px; font-size: 13px; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+@media (max-width: 480px) {
+  #pres-totais, #pres-empreitada, #pres-almocos, #pres-pgto-pendentes {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

@@ -1,0 +1,34 @@
+<div class="page-header">
+  <div class="page-title">Relatórios e Vistoria <small>Consolidação de dados para auditoria</small></div>
+</div>
+
+<div class="form-grid" style="max-width: 800px; margin: 20px 0; background: var(--bg2); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+  <div class="form-group" style="flex: 2;">
+    <label class="form-label">Selecione a Obra para Auditoria</label>
+    <select class="form-control" id="rel-obra" onchange="checkRelObra()"></select>
+  </div>
+  <div class="form-group" style="flex: 1; align-self: flex-end;">
+    <button class="btn btn-primary" style="width: 100%; height: 42px;" onclick="generateAuditReport()">
+        🔍 Gerar Laudo de Vistoria
+    </button>
+  </div>
+</div>
+
+<div id="rel-preview-area" style="margin-top: 30px;">
+    <div class="ui-empty-state">
+        <div class="ui-empty-icon">📂</div>
+        <div class="ui-empty-title">Pronto para Auditar</div>
+        <div class="ui-empty-text">Selecione uma obra acima para compilar todos os gastos, fotos de campo e saldos em um único documento profissional.</div>
+    </div>
+</div>
+
+<script>
+  // Preenche o select de obras
+  (function() {
+    const sel = document.getElementById('rel-obra');
+    if (sel && typeof DB !== 'undefined') {
+      sel.innerHTML = '<option value="">-- Escolha uma Obra --</option>' + 
+        DB.obras.map(o => `<option value="${o.cod}">${o.nome}</option>`).join('');
+    }
+  })();
+</script>

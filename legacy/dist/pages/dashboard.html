@@ -1,0 +1,22 @@
+<div class="page-header" style="flex-wrap: wrap; gap: 12px;">
+  <div class="page-title">Dashboard Executivo <small>Visão geral em tempo real</small></div>
+  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+    <div id="dash-updated" style="font-size:12px;color:var(--text3); margin-right: 8px;"></div>
+    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-file').click()">📥 Importar</button>
+    <input type="file" id="import-file" style="display:none" accept=".json" onchange="importarBackup(event)">
+    <button class="btn btn-secondary btn-sm" onclick="exportarBackup()">💾 Exportar Banco</button>
+    
+    <button class="btn btn-primary btn-sm" onclick="exportarImagemDashboard()">📸 WhatsApp (Img)</button>
+    <button class="btn btn-primary btn-sm" onclick="window.print()">🖨️ PDF / Imprimir</button>
+  </div>
+</div>
+<div class="kpi-grid" id="kpi-grid"></div>
+<div class="section-title">⚠️ Alertas do Dia</div>
+<div class="alerts-grid" id="alerts-grid"></div>
+<div class="section-title" style="margin-top:8px">📊 Resumo por Obra</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Obra</th><th>Status</th><th>Mestre</th><th>Orç. Prev.</th><th>Diárias (Sem.)</th><th>Custo Sem.</th><th>Custo Mês</th><th>Total Real.</th><th>% Custo</th><th>Tarefas</th></tr></thead>
+    <tbody id="dash-obras-tbody"></tbody>
+  </table>
+</div>

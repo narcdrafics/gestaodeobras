@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-G67ZEEZ6L3"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-G67ZEEZ6L3');
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Obra Real — O Controle Absoluto do seu Canteiro de Obras</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --lp-bg: #09090b;
+      --lp-text: #fafafa;
+      --lp-accent: #6366f1;
+      /* default indigo */
+      --lp-zinc: #27272a;
+    }
+
+    :root[data-theme="amber"] {
+      --lp-accent: #f59e0b;
+    }
+
+    :root[data-theme="emerald"] {
+      --lp-accent: #10b981;
+    }
+
+    body {
+      background: var(--lp-bg);
+      color: var(--lp-text);
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* NAV ENHANCED */
+    nav.nav-custom {
+      height: 72px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: rgba(9, 9, 11, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+    }
+
+    nav.nav-custom .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+
+    nav.nav-custom.scrolled {
+      height: 60px;
+      background: rgba(9, 9, 11, 0.95);
+      border-bottom-color: var(--lp-accent);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    }
+
+    .nav-left,
+    .nav-right,
+    .nav-center {
+      display: flex;
+      align-items: center;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-text {
+      font-weight: 800;
+      font-size: 22px;
+      letter-spacing: -1.5px;
+      color: var(--lp-text);
+      white-space: nowrap;
+      text-decoration: none;
+    }
+
+    .brand-text span {
+      background: linear-gradient(90deg, #fff 0%, var(--lp-accent) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-link {
+      display: flex;
+      align-items: center;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      cursor: pointer;
+    }
+
+    .logo-link:hover {
+      transform: scale(1.15) rotate(5deg);
+      filter: drop-shadow(0 0 8px var(--lp-accent));
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 20px;
+    }
+
+    .theme-switcher {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding-right: 16px;
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      margin-right: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 6px 16px;
+      border-radius: 20px;
+    }
+
+    .color-btn {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .color-btn:hover {
+      transform: scale(1.3);
+    }
+
+    .color-btn.active {
+      box-shadow: 0 0 0 2px var(--lp-bg), 0 0 0 4px var(--lp-text);
+    }
+
+    .color-btn.indigo {
+      background: #6366f1;
+    }
+
+    .color-btn.amber {
+      background: #f59e0b;
+    }
+
+    .color-btn.emerald {
+      background: #10b981;
+    }
+
+    .nav-links a {
+      color: #a1a1aa;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: #fff;
+    }
+
+    /* HERO */
+    .hero {
+      padding: 100px 0 120px;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: 64px;
+      line-height: 1.1;
+      font-weight: 800;
+      letter-spacing: -2px;
+      margin-bottom: 24px;
+      background: linear-gradient(to bottom, #fff 0%, #a1a1aa 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      font-size: 20px;
+      color: #a1a1aa;
+      max-width: 700px;
+      margin: 0 auto 40px;
+    }
+
+    .cta-group {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+    }
+
+    .btn-hero {
+      padding: 14px 32px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    /* MOCKUP AREA */
+    .dashboard-preview {
+      margin-top: 80px;
+      position: relative;
+    }
+
+    .dashboard-preview img {
+      width: 100%;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8);
+    }
+
+    .glow {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.15), transparent 70%);
+      z-index: -1;
+    }
+
+    /* FEATURES */
+    .features {
+      padding: 100px 0;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      margin-top: 60px;
+    }
+
+    .feature-card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      padding: 32px;
+      border-radius: 16px;
+      transition: transform 0.2s;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-8px);
+    }
+
+    .feature-card .icon {
+      font-size: 32px;
+      margin-bottom: 20px;
+    }
+
+    .feature-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .feature-card p {
+      font-size: 14px;
+      color: #71717a;
+    }
+
+    /* WHO IS IT FOR */
+    .who-is-it-for {
+      padding: 60px 0 100px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .who-content {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 20px;
+      padding: 48px;
+      max-width: 800px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .who-content h2 {
+      font-size: 32px;
+      margin-bottom: 32px;
+      text-align: center;
+      letter-spacing: -1px;
+    }
+
+    .who-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .who-list li {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 18px;
+      color: #e4e4e7;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 16px 24px;
+      border-radius: 12px;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .who-list li:hover {
+      background: rgba(255, 255, 255, 0.06);
+      transform: translateX(4px);
+    }
+
+    .who-list .icon {
+      font-size: 24px;
+    }
+
+    @media(max-width: 768px) {
+      .who-content {
+        padding: 32px 20px;
+      }
+
+      .who-list li {
+        font-size: 16px;
+        padding: 12px 16px;
+      }
+    }
+
+    /* VISUAL PROOF */
+    .visual-proof {
+      padding: 80px 0;
+    }
+
+    .proof-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 32px;
+    }
+
+    .proof-card {
+      background: var(--lp-zinc, #27272a);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: transform 0.2s;
+    }
+
+    .proof-card:hover {
+      transform: translateY(-4px);
+    }
+
+    .proof-card img {
+      width: 100%;
+      height: 280px;
+      object-fit: cover;
+      object-position: top;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .proof-card h4 {
+      padding: 20px 20px 8px;
+      font-size: 18px;
+      margin: 0;
+      color: #fff;
+    }
+
+    .proof-card p {
+      padding: 0 20px 20px;
+      font-size: 14px;
+      color: #a1a1aa;
+      margin: 0;
+    }
+
+    /* CTA HUMAN */
+    .cta-human {
+      padding: 80px 0;
+      display: flex;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .cta-human-content {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.0) 100%), #18181b;
+      border: 1px solid var(--lp-accent);
+      border-radius: 20px;
+      padding: 64px 32px;
+      max-width: 800px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(99, 102, 241, 0.15);
+    }
+
+    .cta-human-content h2 {
+      font-size: 36px;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+
+    .cta-human-content p {
+      font-size: 18px;
+      color: #a1a1aa;
+      margin-bottom: 40px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .btn-whatsapp {
+      background: #25D366;
+      color: #fff;
+      font-weight: 700;
+      padding: 16px 32px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 18px;
+      text-decoration: none;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    .btn-whatsapp:hover {
+      background: #20BA56;
+      transform: translateY(-2px);
+    }
+
+    .btn-whatsapp svg {
+      fill: currentColor;
+    }
+
+    /* WHATSAPP FLOAT */
+    .whatsapp-float {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 60px;
+      height: 60px;
+      background-color: #25D366;
+      color: #FFF;
+      border-radius: 50%;
+      box-shadow: 0 8px 24px rgba(37, 211, 102, 0.3);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s;
+    }
+
+    .whatsapp-float:hover {
+      transform: scale(1.1);
+    }
+
+    .whatsapp-float svg {
+      fill: currentColor;
+    }
+
+    @media(max-width: 768px) {
+      .cta-human-content {
+        padding: 40px 20px;
+      }
+
+      .cta-human-content h2 {
+        font-size: 28px;
+      }
+
+      .btn-whatsapp {
+        width: 100%;
+        justify-content: center;
+        padding: 14px 20px;
+      }
+
+      .whatsapp-float {
+        bottom: 20px;
+        right: 20px;
+        width: 50px;
+        height: 50px;
+      }
+    }
+
+    /* PRICING */
+    .pricing {
+      padding-bottom: 120px;
+      text-align: center;
+    }
+
+    .price-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-top: 60px;
+      align-items: flex-start;
+    }
+
+    .price-card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 20px;
+      padding: 32px 24px;
+      position: relative;
+      transition: transform 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .price-card.featured {
+      border: 2px solid var(--lp-accent);
+      background: #1c1c1f;
+      transform: scale(1.03);
+      z-index: 2;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .price-card:hover:not(.featured) {
+      transform: translateY(-8px);
+    }
+
+    .price-card .tag {
+      position: absolute;
+      top: -15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--lp-accent);
+      padding: 4px 16px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .price-card h3 {
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+
+    .price-card.has-tag h3 {
+      margin-top: 10px;
+    }
+
+    .price-card .desc {
+      font-size: 13px;
+      color: #71717a;
+      margin-bottom: 20px;
+    }
+
+    .price-val {
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin: 10px 0;
+      color: #fff;
+    }
+
+    .price-val small {
+      font-size: 14px;
+      font-weight: 400;
+      color: #71717a;
+    }
+
+    ul.check-list {
+      list-style: none;
+      text-align: left;
+      margin: 32px 0;
+    }
+
+    ul.check-list li {
+      margin-bottom: 12px;
+      display: flex;
+      gap: 12px;
+      font-size: 15px;
+      color: #a1a1aa;
+    }
+
+    ul.check-list li::before {
+      content: '✓';
+      color: var(--lp-accent);
+      font-weight: 900;
+    }
+
+    /* FOOTER */
+    footer {
+      padding: 60px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      text-align: center;
+      color: #52525b;
+      font-size: 14px;
+    }
+
+    @media(max-width: 1024px) {
+      .price-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media(max-width: 768px) {
+      .hero h1 { font-size: 36px; padding: 0 10px; }
+      .hero p { font-size: 16px; }
+
+      nav.nav-custom .container {
+        justify-content: space-between;
+      }
+
+      .nav-links.hide-mobile, 
+      .nav-right a.hide-mobile {
+        display: none !important;
+      }
+
+      .nav-center {
+        font-size: 18px;
+        justify-content: center;
+      }
+
+      .nav-right {
+        gap: 12px;
+      }
+
+      .nav-right .btn-primary {
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+      }
+    }
+  </style>
+  <script>
+    // SaaS: Redireciona para o portal se um subdomínio for detectado
+    (function () {
+      const host = window.location.hostname;
+      const parts = host.split('.');
+      // Ignora www e domínios padrão do Firebase
+      const isFirebase = host.includes('web.app') || host.includes('firebaseapp.com');
+      const isWWW = parts[0] === 'www';
+
+      if (parts.length > 2 && !isWWW && !isFirebase) {
+        // Redireciona para o login mantendo o subdomínio e possíveis parâmetros
+        window.location.href = 'login.html' + window.location.search;
+      }
+
+      // Restore theme
+      const savedTheme = localStorage.getItem('obra_real_theme');
+      if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+      }
+    })();
+
+    function setTheme(themeName) {
+      document.documentElement.setAttribute('data-theme', themeName);
+      localStorage.setItem('obra_real_theme', themeName);
+      // update active state
+      document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelector('.color-btn.' + themeName)?.classList.add('active');
+    }
+
+    // Set active dot on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const current = localStorage.getItem('obra_real_theme') || 'indigo';
+      document.querySelector('.color-btn.' + current)?.classList.add('active');
+    });
+  </script>
+  <link rel="stylesheet" crossorigin href="/assets/app-OR96I7_Q.css">
+</head>
+
+<body>
+
+  <nav class="nav-custom">
+    <div class="container">
+      <!-- Left: Logo + Name (Identity) -->
+      <div class="nav-left">
+        <a href="#" class="logo-link" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;" title="Voltar ao início">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+        </a>
+        <a href="#" class="brand-text" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;">
+          Obra <span>Real</span>
+        </a>
+      </div>
+
+      <!-- Right: Links & Theme (Menu) -->
+      <div class="nav-right nav-links">
+        <a href="#features" class="hide-mobile">Recursos</a>
+        <a href="#precos" class="hide-mobile">Preços</a>
+
+        <!-- Theme Switcher -->
+        <div class="theme-switcher hide-mobile" title="Ajustar cores">
+          <button class="color-btn indigo active" onclick="setTheme('indigo')" aria-label="Tema Indigo"></button>
+          <button class="color-btn amber" onclick="setTheme('amber')" aria-label="Tema Laranja"></button>
+          <button class="color-btn emerald" onclick="setTheme('emerald')" aria-label="Tema Verde (Construtora)"></button>
+        </div>
+
+        <a href="login.html">Entrar</a>
+        <a href="login.html#signup" class="btn btn-primary" style="padding: 10px 20px; font-family:inherit; text-decoration:none; display:flex; align-items:center;">Testar Grátis</a>
+      </div>
+    </div>
+  </nav>
+
+  <script>
+    // Navbar effect on scroll
+    window.addEventListener('scroll', () => {
+      const nav = document.querySelector('.nav-custom');
+      if (window.scrollY > 50) {
+        nav.classList.add('scrolled');
+      } else {
+        nav.classList.remove('scrolled');
+      }
+    });
+  </script>
+
+  <header class="hero container">
+    <div class="glow"></div>
+    <h1>Controle sua obra sem planilhas, improviso e desperdício</h1>
+    <p>Organize equipe, materiais, etapas, custos e andamento da obra em um só lugar — direto do celular.</p>
+    <div class="cta-group">
+      <a href="login.html#signup" class="btn btn-primary btn-hero">Começar Teste Grátis</a>
+      <button onclick="openDemoModal()" class="btn btn-secondary btn-hero" style="font-family:inherit; border:none; cursor:pointer;">Agendar demonstração</button>
+    </div>
+
+    <div class="dashboard-preview">
+      <img src="/assets/dashboard-CzFyspIF.png" alt="Obra Real Dashboard Preview" id="dashboard-mock">
+    </div>
+  </header>
+
+  <!-- SEÇÃO DE PROVA VISUAL DA OBRA REAL -->
+  <section class="visual-proof container" id="funcionamento">
+    <div style="text-align: center; margin-bottom: 50px;">
+      <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -1px; margin-bottom: 16px;">Veja a Obra Real
+        funcionando na prática</h2>
+      <p style="color: #a1a1aa; font-size: 18px; max-width: 600px; margin: 0 auto;">Poder total. De relatórios de campo
+        à gestão de diárias e tarefas, direto do seu celular e computador.</p>
+    </div>
+
+    <div class="proof-grid">
+      <!-- Card: Presença -->
+      <div class="proof-card">
+        <img src="/assets/print-presenca-B-Pr3Yay.png?v=2" alt="Tela de Presença Diária">
+        <h4>Presença e Diárias</h4>
+        <p>Folha de ponto diária e cálculos automáticos do que pagar para cada funcionário.</p>
+      </div>
+
+      <!-- Card: Estoque -->
+      <div class="proof-card">
+        <img src="/assets/print-estoque-vUodP6sF.png?v=2" alt="Tela de Estoque">
+        <h4>Estoque Controlado</h4>
+        <p>Entradas, saídas e rastreio de cada saco de cimento. Acabou a surpresa no canteiro.</p>
+      </div>
+
+      <!-- Card: Financeiro -->
+      <div class="proof-card">
+        <img src="/assets/print-financeiro-bHxkqlF-.png?v=2" alt="Tela Financeira">
+        <h4>Caixa e Financeiro</h4>
+        <p>Saiba quanto gastou hoje, quem recebeu vales, e tudo integrado ao orçamento geral da obra.</p>
+      </div>
+
+      <!-- Card: Cronograma -->
+      <div class="proof-card">
+        <img src="/assets/print-cronograma-B72HkfVs.png?v=2" alt="Tela do Cronograma">
+        <h4>Cronograma e Etapas</h4>
+        <p>Tabela visual tipo Kanban mostrando exatamente o andamento físico da obra.</p>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <!-- SEÇÃO PRA QUEM É -->
+  <section class="who-is-it-for container" id="publico">
+    <div class="who-content">
+      <h2>A Obra Real é para:</h2>
+      <ul class="who-list">
+        <li><span class="icon">✅</span><span>Engenheiros que gerenciam obra</span></li>
+        <li><span class="icon">✅</span><span>Empreiteiros que precisam controlar equipe e material</span></li>
+        <li><span class="icon">✅</span><span>Construtoras pequenas e médias</span></li>
+        <li><span class="icon">✅</span><span>Mestres de obra que querem sair do improviso</span></li>
+        <li><span class="icon">✅</span><span>Quem está cansado de obra no caderno + WhatsApp + planilha</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="features" class="features container">
+    <div style="text-align:center">
+      <h2 style="font-size:32px; letter-spacing:-1px">Construído por quem entende de obra.</h2>
+      <p style="color:#71717a">Tudo que você precisa em uma única aba.</p>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="icon">📦</div>
+        <h3 style="line-height: 1.3; margin-bottom: 8px;">Saiba onde o material está indo antes que ele suma da obra
+        </h3>
+        <p>Controle rigoroso de entradas e saídas. Sem mais surpresas e trabalho parado por falta de cimento ou areia.
+        </p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">👷</div>
+        <h3 style="line-height: 1.3; margin-bottom: 8px;">Pare de se perder em faltas, diárias e pagamentos</h3>
+        <p>Histórico claro de presenças para você fechar a conta da semana em 5 minutos e fugir de passivos
+          trabalhistas.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">💰</div>
+        <h3 style="line-height: 1.3; margin-bottom: 8px;">Veja rápido quando sua obra está saindo do orçamento</h3>
+        <p>Acompanhe na palma da mão o previsto vs. realizado. Descubra e estanque os sangramentos de caixa na hora.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📏</div>
+        <h3 style="line-height: 1.3; margin-bottom: 8px;">Acompanhe o que foi feito e o que está atrasando a entrega
+        </h3>
+        <p>Painel de medições de empreitas. Saiba o que travou e só pague por aquilo que o empreiteiro realmente
+          executou.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📸</div>
+        <h3 style="line-height: 1.3; margin-bottom: 8px;">Acabe com as eternas cobranças do cliente no WhatsApp</h3>
+        <p>Linha do tempo visual da obra na nuvem. Preste contas mostrando imagens da evolução antes mesmo do cliente
+          perguntar.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📱</div>
+        <h3 style="line-height: 1.3; margin-bottom: 8px;">Sua obra inteira guardada no bolso da calça</h3>
+        <p>Não precisa de computador chique no escritório. Aconteceu no canteiro? Você puxa o celular e registra na
+          hora.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA HUMAN -> DEMO -->
+  <section class="cta-human container">
+    <div class="cta-human-content">
+      <h2>Quer ver a Obra Real aplicada na sua realidade?</h2>
+      <p>Te mostro em poucos minutos como organizar equipe, material, etapas e custos da sua obra.</p>
+      <button onclick="openDemoModal()" class="btn btn-primary btn-whatsapp" style="border:none; cursor:pointer; font-family:inherit; width:auto; padding: 14px 32px; display:inline-flex; align-items:center; gap:8px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+        </svg>
+        Agendar demonstração gratuita
+      </button>
+    </div>
+  </section>
+
+  <section id="precos" class="pricing container">
+    <h2 style="font-size:32px; letter-spacing:-1px">Planos para todos os tamanhos de obra.</h2>
+    <p style="color:#71717a">Escolha o plano ideal para profissionalizar sua gestão hoje.</p>
+
+    <div class="price-grid">
+      <!-- PLANO START -->
+      <div class="price-card">
+        <h3>Plano Start</h3>
+        <p class="desc">Ideal para quem está começando a organizar pequenas obras.</p>
+        <div class="price-val">R$ 69,90 <small>/ mês</small></div>
+
+        <ul class="check-list">
+          <li>Até 2 Obras</li>
+          <li>Até 2 Usuários Internos</li>
+          <li>Trabalhadores Ilimitados</li>
+          <li>Suporte via chat</li>
+        </ul>
+
+        <button onclick="openDemoModal('Plano Start')" class="btn btn-secondary"
+          style="width:100%; margin-top:auto; padding: 12px; border:none; cursor:pointer; font-family:inherit;">Quero demonstração</button>
+      </div>
+
+      <!-- PLANO PRO -->
+      <div class="price-card">
+        <h3>Plano Pro</h3>
+        <p class="desc">Para construtores e engenheiros com bom volume de obras.</p>
+        <div class="price-val">R$ 105,90 <small>/ mês</small></div>
+
+        <ul class="check-list">
+          <li>Até 5 Obras</li>
+          <li>Até 5 Usuários Internos</li>
+          <li>DRE e Financeiro Integrado</li>
+          <li>Estoque de Materiais</li>
+        </ul>
+
+        <button onclick="handleProCheckout()" class="btn btn-primary" style="width:100%; border:none; cursor:pointer; font-family:inherit; margin-top:auto; padding: 12px; text-align:center; font-weight:700;">Assinar plano Pro</button>
+      </div>
+
+      <script>
+        function handleProCheckout() {
+          if (typeof gtag === 'function') {
+            gtag('event', 'begin_checkout', {
+              currency: 'BRL',
+              value: 105.90,
+              items: [{
+                item_id: 'plano_pro_lp',
+                item_name: 'Obra Real - Plano Pro',
+                item_category: 'Assinatura',
+                price: 105.90,
+                quantity: 1
+              }]
+            });
+          }
+          // Checkout direto sem tenantId (será vinculado no webhook via email do cliente)
+          window.location.href = 'https://pay.kiwify.com.br/UeoKVpn';
+        }
+      </script>
+
+      <!-- PLANO ILIMITADO -->
+      <div class="price-card featured has-tag">
+        <div class="tag">Mais Escolhido</div>
+        <h3>Plano Ilimitado</h3>
+        <p class="desc">Obras sem limite, acesso para toda a equipe e relatórios fluidos.</p>
+        <div class="price-val">R$ 149,90 <small>/ mês</small></div>
+
+        <ul class="check-list">
+          <li><b>Obras Ilimitadas</b></li>
+          <li><b>Usuários Ilimitados</b></li>
+          <li>Relatórios Gerenciais</li>
+          <li>Contato Premium no WhatsApp</li>
+        </ul>
+
+        <a href="login.html#signup" class="btn btn-primary" style="width:100%; text-decoration:none; display:inline-block; margin-top:auto; padding: 12px; text-align:center; font-weight:700;">Testar Grátis</a>
+      </div>
+
+      <!-- PLANO FULL ANUAL -->
+      <div class="price-card has-tag">
+        <div class="tag" style="background:#10b981; color:#fff">Sucesso Total</div>
+        <h3>Full Anual</h3>
+        <p class="desc">Contrate 1 ano com desconto e libere o controle total de vez.</p>
+        <div class="price-val">R$ 1.500 <small>/ ano</small></div>
+
+        <ul class="check-list">
+          <li><b>Tudo do Plano Ilimitado</b></li>
+          <li>Prioridade no Suporte (SLAs)</li>
+          <li>Reunião de Setup / Onboarding</li>
+          <li>Acesso a Novas Funções (Beta)</li>
+        </ul>
+
+        <button onclick="openDemoModal('Full Anual')" class="btn btn-secondary"
+          style="width:100%; margin-top:auto; padding: 12px; border:none; cursor:pointer; font-family:inherit;">Agendar demonstração</button>
+      </div>
+    </div>
+
+    <p style="margin-top:40px; font-size:14px; color:#52525b">Precisa de algo personalizado? <a
+        href="https://wa.me/5598985262006" style="color:var(--lp-accent); font-weight:600;">Chamar no WhatsApp</a></p>
+  </section>
+
+  <footer class="container">
+    <p>&copy; 2026 Obra Real. Todos os direitos reservados.</p>
+    <div style="margin-top:10px">
+      <a href="login.html" style="color:#52525b; text-decoration:none; margin:0 10px">Login</a>
+      <a href="admin-login.html" style="color:#52525b; text-decoration:none; margin:0 10px">Admin</a>
+      <a href="https://wa.me/5598985262006" target="_blank"
+        style="color:#52525b; text-decoration:none; margin:0 10px">Suporte WhatsApp</a>
+    </div>
+  </footer>
+
+  <a href="https://wa.me/5598985262006?text=Olá! Gostaria de tirar algumas dúvidas sobre a Obra Real."
+    class="whatsapp-float" target="_blank" aria-label="Fale conosco no WhatsApp">
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24">
+      <path
+        d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+    </svg>
+  </a>
+
+  <script>
+    // Placeholder image swap once generated
+    function updateMockup(url) {
+      document.getElementById('dashboard-mock').src = url;
+    }
+
+    // Formulário Curto Demonstração
+    let selectedPlan = "";
+    function openDemoModal(plan = "") {
+      selectedPlan = plan;
+      document.getElementById('demo-modal').style.display = 'flex';
+    }
+
+    function closeDemoModal() {
+      document.getElementById('demo-modal').style.display = 'none';
+      document.getElementById('demo-form').reset();
+    }
+
+    function submitDemo(e) {
+      e.preventDefault();
+      
+      const nome = document.getElementById('dm-nome').value;
+      const wpp = document.getElementById('dm-wpp').value;
+      const emp = document.getElementById('dm-empresa').value;
+      const qtd = document.getElementById('dm-obras').value;
+      const dif = document.getElementById('dm-dif').value;
+
+      let planText = selectedPlan ? ` (Interesse no ${selectedPlan})` : "";
+      const txt = `Olá! Gostaria de agendar uma demonstração${planText}.\n\n*Nome:* ${nome}\n*WhatsApp:* ${wpp}\n*Empresa:* ${emp}\n*Obras simultâneas:* ${qtd}\n*Dificuldade:* ${dif}`;
+      const url = `https://wa.me/5598985262006?text=${encodeURIComponent(txt)}`;
+      
+      window.open(url, '_blank');
+      closeDemoModal();
+    }
+  </script>
+
+  <!-- Modal Demo -->
+  <div id="demo-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <h3 style="margin:0; font-size:20px;">Agendar Demonstração</h3>
+        <button onclick="closeDemoModal()" style="background:transparent; border:none; color:var(--lp-text); cursor:pointer; font-size:20px;">&times;</button>
+      </div>
+      <form id="demo-form" onsubmit="submitDemo(event)" style="display:flex; flex-direction:column; gap:16px;">
+        <input type="text" id="dm-nome" placeholder="Seu Nome *" required style="padding:12px; border-radius:8px; border:1px solid #3f3f46; background:#18181b; color:#fff;">
+        <input type="tel" id="dm-wpp" placeholder="Seu WhatsApp *" required style="padding:12px; border-radius:8px; border:1px solid #3f3f46; background:#18181b; color:#fff;">
+        <input type="text" id="dm-empresa" placeholder="Empresa / Tipo de Atuação *" required style="padding:12px; border-radius:8px; border:1px solid #3f3f46; background:#18181b; color:#fff;">
+        <select id="dm-obras" required style="padding:12px; border-radius:8px; border:1px solid #3f3f46; background:#18181b; color:#fff;">
+          <option value="">Quantas obras gerencia hoje? *</option>
+          <option value="Apenas 1">Apenas 1</option>
+          <option value="2 a 4">2 a 4</option>
+          <option value="5 ou mais">5 ou mais</option>
+        </select>
+        <textarea id="dm-dif" placeholder="Principal dificuldade hoje? *" rows="3" required style="padding:12px; border-radius:8px; border:1px solid #3f3f46; background:#18181b; color:#fff; font-family:inherit;"></textarea>
+        <button type="submit" class="btn btn-primary" style="padding:14px; font-size:16px; margin-top:8px;">Pedir Demonstração</button>
+      </form>
+    </div>
+  </div>
+
+  <style>
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8); z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    .modal-box {
+      background: var(--lp-zinc); border-radius: 12px;
+      padding: 24px; width: 100%; max-width: 440px;
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    }
+  </style>
+</body>
+
+</html>

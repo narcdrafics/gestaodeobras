@@ -1,25 +1,35 @@
 {
-  "name": "obra-real",
-  "version": "1.1.0",
-  "description": "Obra Real - Gestão Profissional de Obras",
-  "engines": {
-    "node": "20"
-  },
+  "name": "temp_next",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "start": "node server.js",
-    "test": "vitest"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "@ant-design/icons": "^6.1.1",
+    "@ant-design/nextjs-registry": "^1.3.0",
+    "@ant-design/v5-patch-for-react-19": "^1.0.3",
+    "@hello-pangea/dnd": "^18.0.1",
+    "antd": "^6.3.5",
+    "dayjs": "^1.11.20",
+    "firebase": "^12.11.0",
+    "lucide-react": "^1.7.0",
+    "next": "16.2.2",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "swr": "^2.4.1"
   },
-  "private": true,
   "devDependencies": {
-    "jsdom": "^29.0.1",
-    "vite": "^8.0.3",
-    "vite-plugin-static-copy": "^4.0.1",
-    "vitest": "^4.1.2"
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }

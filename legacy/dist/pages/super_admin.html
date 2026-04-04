@@ -1,0 +1,198 @@
+<div class="page-header">
+  <div class="page-title">Painel Master <small>Controle Global da Plataforma SaaS</small></div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-value" id="master-total-tenants">0</div>
+    <div class="kpi-label">Empresas Cadastradas</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-value" id="master-total-users">0</div>
+    <div class="kpi-label">Usuários Totais</div>
+  </div>
+  <div class="kpi-card" style="border: 1px solid var(--accent);">
+    <div class="kpi-label" style="font-weight: bold; margin-bottom: 8px;">👑 Master: Segurança</div>
+    <div style="display:flex; gap:8px;">
+      <input type="password" id="master-new-password" class="form-control" placeholder="Nova Senha" style="width:100%; border-radius:4px; font-size:13px; border:1px solid var(--border);">
+      <button class="btn btn-primary btn-sm" onclick="changeMasterPassword()">Alterar</button>
+    </div>
+  </div>
+</div>
+
+<div class="table-wrap" style="margin-top: 24px; border:1px solid var(--accent);">
+  <div class="table-toolbar">
+    <h3>👑 Gestão de Administradores Mestre (Super Admins)</h3>
+    <div class="toolbar-right">
+       <input type="email" id="new-master-email" class="form-control form-control-sm" placeholder="e-mail@novo.com" style="width:200px; display:inline-block; margin-right:8px;">
+       <button class="btn btn-primary btn-sm" onclick="addMasterUser()">+ Autorizar Mestre</button>
+    </div>
+  </div>
+  <p style="font-size: 11px; color: var(--text3); margin-bottom: 10px;">Estes usuários têm acesso TOTAL a todas as empresas e configurações globais.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Nome / E-mail</th>
+        <th>Origem</th>
+        <th style="width:100px;">Ações</th>
+      </tr>
+    </thead>
+    <tbody id="master-admins-tbody">
+      <tr><td colspan="3">Carregando lista de mestres...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="table-wrap" style="margin-top: 24px;">
+  <div class="table-toolbar">
+    <h3>Gestão de Clientes (Tenants)</h3>
+    <div class="toolbar-right">
+      <button class="btn btn-primary btn-sm" onclick="openNewTenantModal()">+ Nova Empresa</button>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Empresa / Tenant ID</th>
+        <th>E-mail Admin</th>
+        <th>Limite Obras</th>
+        <th>Limite Usuários Internos</th>
+        <th style="width: 150px;">Ações</th>
+      </tr>
+    </thead>
+    <tbody id="master-tenants-tbody">
+      <tr>
+        <td colspan="5">Carregando dados globais...</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="table-wrap" style="margin-top: 24px;">
+  <div class="table-toolbar">
+    <h3>Gestão Global de Usuários</h3>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Nome do Usuário</th>
+        <th>E-mail</th>
+        <th>Cargo (Role)</th>
+        <th>Empresa (Slug) / Tenant ID</th>
+        <th style="width: 100px;">Ações</th>
+      </tr>
+    </thead>
+    <tbody id="master-users-tbody">
+      <tr>
+        <td colspan="5">Carregando usuários...</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal para editar empresa -->
+<div id="modal-master-tenant" class="modal-content-wrapper" style="display:none">
+  <h3>Editar Empresa</h3>
+  <input type="hidden" id="mt-tenant-id">
+  <input type="hidden" id="mt-old-slug">
+  <div class="form-group">
+    <label>Nome da Empresa</label>
+    <input type="text" id="mt-nome" class="form-control">
+  </div>
+  <div class="form-group">
+    <label>Subdomínio (Slug)</label>
+    <input type="text" id="mt-slug" class="form-control" style="font-family: monospace;">
+    <small style="color:var(--text3); font-size:11px;">Mudar o slug derruba a URL antiga instantaneamente.</small>
+  </div>
+  <div class="form-group">
+    <label>Forçar Vínculo (E-mail)</label>
+    <input type="email" id="mt-email" class="form-control" placeholder="Envie um usuário já logado pra cá.">
+  </div>
+  <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+    <div class="form-group">
+      <label>Limite Obras</label>
+      <input type="number" id="mt-limite-obras" class="form-control">
+    </div>
+    <div class="form-group">
+      <label>Limite Usuários Internos</label>
+      <input type="number" id="mt-limite-usr" class="form-control">
+    </div>
+    <div class="form-group">
+      <label>Plano</label>
+      <select id="mt-plano" class="form-control">
+        <option value="free_trial">Free Trial (Teste)</option>
+        <option value="premium">Premium Pro (Ativo)</option>
+        <option value="pro_anual">Pro Anual</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="mt-status" class="form-control">
+        <option value="ativo">Ativo ✅</option>
+        <option value="bloqueado_pagamento">Bloqueado 🚫</option>
+      </select>
+    </div>
+  </div>
+  <div style="margin-top:20px; display:flex; gap:10px;">
+    <button class="btn btn-primary" onclick="saveMasterTenant()">Salvar Alterações</button>
+    <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+  </div>
+</div>
+
+<!-- Modal para criar nova empresa manualmente -->
+<div id="modal-create-tenant" class="modal-content-wrapper" style="display:none">
+  <h3>Cadastrar Nova Empresa (Tenant)</h3>
+  <div class="form-group">
+    <label>Nome da Empresa</label>
+    <input type="text" id="ct-nome" class="form-control" placeholder="Ex: Construtora Silva">
+  </div>
+  <div class="form-group">
+    <label>Subdomínio (Slug)</label>
+    <input type="text" id="ct-slug" class="form-control" placeholder="Ex: construtorasilva (apenas letras minúsculas sem espaço)" style="font-family: monospace;">
+    <small style="color:var(--text3); font-size:11px;">Este nome será usado na URL. Ex: <b>construtorasilva</b>.yuriconstrucao.site</small>
+  </div>
+  <div class="form-group">
+    <label>E-mail do Administrador</label>
+    <input type="email" id="ct-email" class="form-control" placeholder="cliente@email.com">
+  </div>
+  <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+    <div class="form-group">
+      <label>Limite Obras</label>
+      <input type="number" id="ct-limite-obras" class="form-control" value="2">
+    </div>
+    <div class="form-group">
+      <label>Limite Usuários Internos</label>
+      <input type="number" id="ct-limite-usr" class="form-control" value="2">
+    </div>
+  </div>
+  <div style="margin-top:20px; display:flex; gap:10px;">
+    <button class="btn btn-primary" onclick="saveNewTenant()">Criar Empresa</button>
+    <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+  </div>
+</div>
+
+<div class="table-wrap" style="margin-top: 24px; border-top: 2px solid var(--accent); padding-top: 20px;">
+  <div class="table-toolbar">
+    <h3>🔍 Auditoria de Webhooks (Kiwify/Checkout)</h3>
+    <div class="toolbar-right">
+       <button class="btn btn-secondary btn-sm" onclick="renderWebhookLogs()">🔄 Atualizar Logs</button>
+    </div>
+  </div>
+  <p style="font-size: 12px; color: var(--text3); margin-bottom: 12px;">Monitore aqui se as notificações de pagamento estão chegando da Kiwify.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Data/Hora</th>
+        <th>Status Evento</th>
+        <th>E-mail</th>
+        <th>Tenant ID</th>
+        <th>Resultado Processamento</th>
+      </tr>
+    </thead>
+    <tbody id="webhook-logs-tbody">
+      <tr>
+        <td colspan="5">Clique em "Atualizar Logs" para carregar as últimas atividades.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

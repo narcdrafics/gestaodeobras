@@ -1,0 +1,18 @@
+<div class="modal-header"><span class="modal-title">👤 Usuário do Sistema</span><button class="modal-close" onclick="closeModal('modal-usuario')">×</button></div>
+<div class="form-grid">
+  <div class="form-group"><label class="form-label">E-mail Google Obligatório *</label><input type="email" class="form-control" id="usr-email" placeholder="nome@gmail.com"></div>
+  <div class="form-group"><label class="form-label">Nome Completo *</label><input type="text" class="form-control" id="usr-name" placeholder="João Silva"></div>
+  <div class="form-group"><label class="form-label">Perfil de Acesso *</label>
+    <select class="form-control" id="usr-role">
+      <option value="admin">Administrador (Total)</option>
+      <option value="engenheiro">Engenheiro (Gestão de Obra)</option>
+      <option value="mestre">Mestre de Obras (Operacional)</option>
+      <option value="pendente">Pendente de Aprovação</option>
+    </select>
+  </div>
+  <input type="hidden" id="usr-edit-idx" value="-1">
+</div>
+<div class="modal-footer">
+  <button class="btn btn-secondary" onclick="closeModal('modal-usuario')">Cancelar</button>
+  <button class="btn btn-primary" onclick="saveUsuario()">Salvar</button>
+</div>

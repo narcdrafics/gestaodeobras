@@ -1,0 +1,16 @@
+<div class="modal-header"><span class="modal-title">📦 Novo Item de Estoque</span><button class="modal-close" onclick="closeModal('modal-estoque')">×</button></div>
+<div class="form-grid">
+  <div class="form-group"><label class="form-label">Cód. Material *</label><input class="form-control" id="es-cod" placeholder="MT001"></div>
+  <div class="form-group"><label class="form-label">Material *</label><input class="form-control" id="es-mat" placeholder="Cimento CP-II"></div>
+  <div class="form-group"><label class="form-label">Unidade</label><input class="form-control" id="es-unid" placeholder="Saco 50kg"></div>
+  <div class="form-group"><label class="form-label">Obra</label><select class="form-control" id="es-obra"></select></div>
+  <div class="form-group"><label class="form-label">Estoque Mínimo</label><input type="number" class="form-control" id="es-min" value="0"></div>
+  <div class="form-group"><label class="form-label">Qtd. Entrada</label><input type="number" class="form-control" id="es-entrada" value="0"></div>
+  <div class="form-group"><label class="form-label">Qtd. Saída</label><input type="number" class="form-control" id="es-saida" value="0" readonly></div>
+  <div class="form-group"><label class="form-label">Custo Unit. (R$)</label><input type="number" class="form-control" id="es-custo" value="0"></div>
+  <div class="form-group form-full"><label class="form-label">Obs.</label><input class="form-control" id="es-obs"></div>
+</div>
+<div class="modal-footer">
+  <button class="btn btn-secondary" onclick="closeModal('modal-estoque')">Cancelar</button>
+  <button class="btn btn-primary" onclick="saveEstoque()">Salvar</button>
+</div>

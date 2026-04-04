@@ -1,0 +1,43 @@
+<div class="modal-header">
+  <span class="modal-title">🍱 Lançar Almoço</span>
+  <button class="modal-close" onclick="closeModal('modal-almoco')">×</button>
+</div>
+<div class="form-grid">
+  <div class="form-group">
+    <label class="form-label">Data *</label>
+    <input type="date" class="form-control" id="al-data">
+  </div>
+  <div class="form-group">
+    <label class="form-label">Obra *</label>
+    <select class="form-control" id="al-obra">
+      <!-- Populado via JS -->
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Empreiteiro / Trabalhador *</label>
+    <input class="form-control" id="al-empreiteiro" list="list-equipes" placeholder="Digite ou selecione...">
+    <datalist id="list-equipes">
+      <!-- Populado via JS -->
+    </datalist>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Quantidade de Almoços *</label>
+    <input type="number" class="form-control" id="al-qtd" value="1" oninput="calcAlmocoTotal()">
+  </div>
+  <div class="form-group">
+    <label class="form-label">Valor Unitário (R$)</label>
+    <input type="number" step="0.01" class="form-control" id="al-vunit" value="20.00" oninput="calcAlmocoTotal()">
+  </div>
+  <div class="form-group">
+    <label class="form-label">Valor Total (R$)</label>
+    <input type="number" step="0.01" class="form-control" id="al-vtotal" readonly>
+  </div>
+  <div class="form-group" style="grid-column: span 2;">
+    <label class="form-label">Observações</label>
+    <textarea class="form-control" id="al-obs" rows="2"></textarea>
+  </div>
+</div>
+<div class="modal-footer">
+  <button class="btn btn-secondary" onclick="closeModal('modal-almoco')">Cancelar</button>
+  <button class="btn btn-primary" onclick="saveAlmoco()">Salvar Lançamento</button>
+</div>
