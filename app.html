@@ -24,15 +24,23 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 <!-- HTML2Canvas for Snapshot Exports -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
+<body class="light-mode">
 
 <!-- HEADER -->
 <header class="header">
   <div class="header-left">
     <button class="menu-toggle" onclick="toggleMenu()" style="background:none; border:none; color:var(--text); font-size:20px; cursor:pointer; margin-right:8px;" title="Menu principal">☰</button>
-    <div id="brand-container" style="display:flex; align-items:center;">
+    <div id="brand-container" style="display:flex; align-items:center; width: 180px;">
        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+       <span style="margin-left:8px; font-size:18px; color:var(--text); font-weight:700;">ObraReal</span>
+    </div>
+    
+    <div class="global-search hide-mobile" style="position: relative; margin-left: 24px;">
+      <svg style="position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:var(--text3);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <input type="text" placeholder="Global Search" style="width: 320px; height: 38px; border-radius: 20px; background: var(--bg); border: 1px solid var(--border); padding: 0 16px 0 40px; color: var(--text); outline: none;">
     </div>
   </div>
   
@@ -43,9 +51,16 @@
        <button class="theme-btn indigo" onclick="setAppTheme('indigo')" aria-label="Tema Indigo"></button>
        <button class="theme-btn amber" onclick="setAppTheme('amber')" aria-label="Tema Ouro"></button>
        <button class="theme-btn emerald" onclick="setAppTheme('emerald')" aria-label="Tema Construtora"></button>
+       <button onclick="toggleDarkMode()" style="margin-left: 8px; background:none; border:none; cursor:pointer; font-size:16px; color:var(--textC);" title="Alternar Modo">🌙</button>
     </div>
-    <button onclick="shareScreen()" style="background:var(--accent); color:var(--accent-text); border:none; padding:6px 14px; border-radius:6px; font-size:13px; cursor:pointer; font-weight:600; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s;">📤 Compartilhar</button>
-    <div class="header-date" id="header-date" style="font-size: 13px; color: var(--text3); border-left: 1px solid var(--border); padding-left: 12px; height: 100%; display: flex; align-items: center;"></div>
+    
+    <div class="user-profile" style="display: flex; align-items: center; gap: 8px; border-left: 1px solid var(--border); padding-left: 12px; margin-left: 4px;">
+      <div id="header-avatar" style="width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;">U</div>
+      <div style="display: flex; flex-direction: column;">
+         <span id="header-username" style="font-size: 13px; font-weight: 600; color: var(--text);">Usuário</span>
+         <span id="header-role" style="font-size: 11px; color: var(--text3);">Admin</span>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -161,14 +176,28 @@ window.shareScreen = async function() {
     document.querySelector('.theme-btn.' + themeName)?.classList.add('active');
   }
 
+  function toggleDarkMode() {
+    const isLight = document.body.classList.contains('light-mode');
+    if(isLight) {
+      document.body.classList.remove('light-mode');
+      localStorage.setItem('obra_real_colormode', 'dark');
+    } else {
+      document.body.classList.add('light-mode');
+      localStorage.setItem('obra_real_colormode', 'light');
+    }
+  }
+
   // Define o tema verde esmeralda (esquema 3) como padrão do WebApp caso não haja escolha
   window.addEventListener('DOMContentLoaded', () => {
-    let current = localStorage.getItem('obra_real_app_theme');
-    if (!current) {
-      current = 'emerald';
-      localStorage.setItem('obra_real_app_theme', 'emerald');
+    let currentTheme = localStorage.getItem('obra_real_app_theme') || 'emerald';
+    setAppTheme(currentTheme);
+
+    let colorMode = localStorage.getItem('obra_real_colormode');
+    if(!colorMode || colorMode === 'light') {
+       document.body.classList.add('light-mode');
+    } else {
+       document.body.classList.remove('light-mode');
     }
-    setAppTheme(current);
   });
 </script>
 

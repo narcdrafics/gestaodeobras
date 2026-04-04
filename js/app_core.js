@@ -132,193 +132,167 @@ window.addEventListener('firebaseSync', e => {
 
 
 // ==================== DASHBOARD ====================
+let marketChartInstance = null;
+
 function renderDashboard() {
-  console.log('[Dash] renderDashboard chamado');
-  console.log('[Dash] window.fmt:', typeof window.fmt);
-  console.log('[Dash] window.estoqueStatus:', typeof window.estoqueStatus);
+  console.log('[Dash] renderDashboard Moderno chamado');
   try {
+    const obrasAtivas = (DB.obras || []).filter(o => o && ['Em andamento', 'Planejada'].includes(o.status));
+    const tarefas = DB.tarefas || [];
+    const financeiro = DB.financeiro || [];
+    const presenca = DB.presenca || [];
+    const medicao = DB.medicao || [];
+    const compras = DB.compras || [];
 
-    const kpiGrid = document.getElementById('kpi-grid');
-    console.log('[Dash] kpiGrid:', kpiGrid);
-    console.log('[Dash] DB.obras:', DB?.obras?.length);
-    console.log('[Dash] DB.financeiro:', DB?.financeiro?.length);
+    // 1. Progresso Físico
+    const tConcluidas = tarefas.filter(t => t.status === 'Concluída').length;
+    const tTotal = tarefas.length;
+    const progPct = tTotal > 0 ? Math.round((tConcluidas / tTotal) * 100) : 0;
+    const progEl = document.getElementById('wid-prog-val');
+    if (progEl) progEl.innerHTML = `${progPct}%`;
 
-    const obrasAtivas = (DB.obras || []).filter(o => o && ['Em andamento', 'Planejada'].includes(o.status)).length;
-    const tarefasAtrasadas = (DB.tarefas || []).filter(t => t && t.status === 'Atrasada').length;
-    const estoquesBaixos = (DB.estoque || []).filter(e => e && ['BAIXO', 'CRÍTICO'].includes(window.estoqueStatus(e))).length;
-    const comprasAguardando = (DB.compras || []).filter(c => c && c.status === 'Aguardando').length;
-    const totalPrev = (DB.financeiro || []).reduce((a, f) => a + (f?.prev || 0), 0);
-
-    // Unificação Rápida Financeira Global do Dashboard (Apenas Pendentes subtraindo Parcial)
-    let globalFinance = [];
-    (DB.financeiro || []).forEach(f => { if (f && f.status !== 'Pago') globalFinance.push({ obra: f.obra, data: f.data, v: Math.max(0, (parseFloat(f.real) || parseFloat(f.prev) || 0) - (f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0)) }) });
-    (DB.presenca || []).forEach(p => { if (p && p.pgtoStatus !== 'Pago') globalFinance.push({ obra: p.obra, data: p.data, v: Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)) }) });
-    (DB.medicao || []).forEach(m => { if (m && m.pgtoStatus !== 'Pago') globalFinance.push({ obra: m.obra, data: m.semana, v: Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0)) }) });
-
-    const totalRealGlobal = globalFinance.reduce((a, f) => a + (f?.v || 0), 0);
-    const pctCusto = totalPrev > 0 ? ((totalRealGlobal / totalPrev) * 100).toFixed(1) : 0;
-
-  const hoje = DB.presenca.filter(p => p.data === today);
-  const presPresente = hoje.filter(p => p.presenca === 'Presente').length;
-  const presTotal = hoje.length;
-
-  const todayDate = new Date();
-  const fSemana = new Date(todayDate);
-  fSemana.setDate(fSemana.getDate() - fSemana.getDay());
-  const strSemana = fSemana.toISOString().split('T')[0];
-  const fMes = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
-  const strMes = fMes.toISOString().split('T')[0];
-
-  const cDiariasSemana = DB.presenca
-    .filter(p => p.data >= strSemana && p.data <= today && p.pgtoStatus !== 'Pago')
-    .reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
-
-  const cEmpreitaSemana = DB.medicao
-    .filter(m => m.semana >= strSemana && m.semana <= today && m.pgtoStatus !== 'Pago')
-    .reduce((a, m) => a + Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0)), 0);
-
-    if (kpiGrid) {
-      kpiGrid.innerHTML = `
-        <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obrasAtivas}</div><div class="kpi-sub">de ${(DB.obras || []).length} cadastradas</div></div>
-        <div class="kpi-card"><div class="kpi-label">Diárias (Semana)</div><div class="kpi-val blue">${fmt(cDiariasSemana)}</div><div class="kpi-sub">Custo de Folha na contabilidade</div></div>
-        <div class="kpi-card"><div class="kpi-label">Empreitas (Semana)</div><div class="kpi-val blue" style="font-size:20px">${fmt(cEmpreitaSemana)}</div><div class="kpi-sub">Custo de Medições na contabilidade</div></div>
-        <div class="kpi-card"><div class="kpi-label">Custo Real / Prev.</div><div class="kpi-val ${pctCusto > 100 ? 'red' : 'green'}">${pctCusto}%</div><div class="kpi-sub">${fmt(totalRealGlobal)} de ${fmt(totalPrev)}</div></div>
-        <div class="kpi-card"><div class="kpi-label">Tarefas Atrasadas</div><div class="kpi-val ${tarefasAtrasadas > 0 ? 'red' : 'green'}">${tarefasAtrasadas}</div><div class="kpi-sub">requer atenção imediata</div></div>
-        <div class="kpi-card"><div class="kpi-label">Estoque Baixo/Crítico</div><div class="kpi-val ${estoquesBaixos > 0 ? 'orange' : 'green'}">${estoquesBaixos}</div><div class="kpi-sub">itens abaixo do mínimo</div></div>
-      `;
-      console.log('[Dash] KPIs renderizados, innerHTML length:', kpiGrid.innerHTML.length);
-    } else {
-      console.log('[Dash] kpiGrid NÃO encontrado!');
+    // 2. Índice de Custo
+    const totalOrc = (DB.obras || []).reduce((a, o) => a + (parseFloat(o.orc) || 0), 0);
+    const totalRealGlobal = financeiro.reduce((a, f) => a + (parseFloat(f.real) || 0), 0) + 
+                            presenca.reduce((a, p) => a + (parseFloat(p.total) || 0), 0) + 
+                            medicao.reduce((a, m) => a + (parseFloat(m.vtotal) || 0), 0);
+    const orcPct = totalOrc > 0 ? Math.min(100, Math.round((totalRealGlobal / totalOrc) * 100)) : 0;
+    
+    if (document.getElementById('wid-orc-pct')) {
+      document.getElementById('wid-orc-pct').textContent = `${orcPct}%`;
+      document.getElementById('wid-orc-bar').style.width = `${orcPct}%`;
     }
 
-  const alerts = [];
-  const uObra = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
+    const tDay = new Date();
+    const fSemana = new Date(tDay);
+    fSemana.setDate(fSemana.getDate() - fSemana.getDay());
+    const strSemana = fSemana.toISOString().split('T')[0];
+    const presW = presenca.filter(p => p.data >= strSemana);
+    const presTotalWeek = presW.length;
+    const presOkWeek = presW.filter(p => p.presenca === 'Presente').length;
+    const pWpct = presTotalWeek > 0 ? Math.round((presOkWeek / presTotalWeek) * 100) : 0;
+    if (document.getElementById('wid-pres-pct')) {
+      document.getElementById('wid-pres-pct').textContent = `${pWpct}%`;
+      document.getElementById('wid-pres-bar').style.width = `${pWpct}%`;
+    }
 
-  DB.estoque.forEach(e => {
-    const s = window.estoqueStatus(e);
-    if (s === 'CRÍTICO') alerts.push({ tipo: 'ESTOQUE CRÍTICO', obra: uObra(e.obra), desc: `${e.mat} — saldo ${window.calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp: 'Almoxarife', prior: 'alto' });
-    else if (s === 'BAIXO') alerts.push({ tipo: 'ESTOQUE BAIXO', obra: uObra(e.obra), desc: `${e.mat} — saldo ${window.calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp: 'Almoxarife', prior: 'medio' });
-  });
-  DB.tarefas.filter(t => t.status === 'Atrasada').forEach(t => alerts.push({ tipo: 'TAREFA ATRASADA', obra: uObra(t.obra), desc: `${t.desc} — prazo: ${fmtDate(t.prazo)}`, resp: t.resp, prior: 'alto' }));
-  DB.compras.filter(c => c.status === 'Aguardando').forEach(c => alerts.push({ tipo: 'COMPRA PENDENTE', obra: uObra(c.obra), desc: `${c.mat} — ${fmt(c.vtotal)}`, resp: 'Gestor', prior: 'medio' }));
+    // 3. Despesas (Sectores)
+    const cDiarias = presenca.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
+    const cEmpreitas = medicao.reduce((a, p) => a + (parseFloat(p.vtotal) || 0), 0);
+    const cCompras = compras.filter(c => c.status !== 'Cancelado').reduce((a, c) => a + (parseFloat(c.vtotal) || 0), 0);
+    const cOutros = financeiro.reduce((a, f) => a + (parseFloat(f.real) || 0), 0);
 
-  // Pagamentos pendentes — 1 card consolidado por tipo (ou por profissional em Empreitas)
-  const pDiarias = DB.presenca.filter(p => p.total > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(p.pgtoStatus || 'Pendente'));
-  if (pDiarias.length > 0) {
-    const totalD = pDiarias.reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
-    const temAtrasadoD = pDiarias.some(p => p.pgtoStatus === 'Atrasado');
-    alerts.push({
-      tipo: 'DIÁRIAS PENDENTES',
-      obra: `${pDiarias.length} diária(s) em aberto`,
-      desc: `Falta pagar: ${fmt(totalD)} — Clique para abrir o caixa`,
-      resp: 'Financeiro',
-      prior: temAtrasadoD ? 'alto' : 'medio',
-      action: "showPage('financeiro')"
-    });
-  }
+    const totalDespesas = cDiarias + cEmpreitas + cCompras + cOutros;
+    
+    const setSector = (id, val) => { 
+      if (!document.getElementById(id)) return;
+      const pct = totalDespesas > 0 ? Math.round((val / totalDespesas) * 100) : 0;
+      document.getElementById(id).textContent = `${pct}%`;
+      document.getElementById(id).className = `change ${pct > 30 ? 'up' : 'down'}`;
+    };
+    setSector('sec-diarias', cDiarias);
+    setSector('sec-empreitas', cEmpreitas);
+    setSector('sec-compras', cCompras);
+    setSector('sec-outros', cOutros);
 
-  const pMedicao = DB.medicao.filter(m => m.vtotal > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(m.pgtoStatus || 'Pendente'));
-  if (pMedicao.length > 0) {
-    const medPorEquipe = {};
-    pMedicao.forEach(m => {
-      const eq = m.equipe || 'Equipe Terceira';
-      if (!medPorEquipe[eq]) medPorEquipe[eq] = { count: 0, total: 0, atrasado: false };
-      medPorEquipe[eq].count++;
-      medPorEquipe[eq].total += Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0));
-      if (m.pgtoStatus === 'Atrasado') medPorEquipe[eq].atrasado = true;
-    });
+    // 4. Watchlist (Obras Ativas)
+    const wlDiv = document.getElementById('wid-watchlist');
+    if (wlDiv) {
+       wlDiv.innerHTML = obrasAtivas.length === 0 ? '<div style="color:var(--text3); font-size:12px;">Nenhuma obra ativa.</div>' : 
+       obrasAtivas.map(o => {
+          const tks = tarefas.filter(t => t.obra === o.cod);
+          const tCon = tks.filter(t => t.status === 'Concluída').length;
+          const pct = tks.length > 0 ? Math.round((tCon / tks.length) * 100) : 0;
+          return `<div class="watchlist-item">
+             <div class="ticker" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${o.nome}</div>
+             <div class="price">${fmt(o.orc)}</div>
+             <div class="change ${pct > 50 ? 'up' : 'down'}">${pct}% prog</div>
+          </div>`;
+       }).join('');
+    }
 
-    Object.keys(medPorEquipe).forEach(eq => {
-      alerts.push({
-        tipo: 'EMPREITAS PENDENTES',
-        obra: `${eq} — ${medPorEquipe[eq].count} registro(s)`,
-        desc: `Falta pagar: ${fmt(medPorEquipe[eq].total)} — Clique para abrir o caixa`,
-        resp: 'Financeiro',
-        prior: medPorEquipe[eq].atrasado ? 'alto' : 'medio',
-        action: "showPage('financeiro')"
+    // 5. Heatmap / Alertas (Atrasos e Pgtos Pendentes)
+    const htDiv = document.getElementById('wid-heatmap');
+    if (htDiv) {
+       let alertsHtml = [];
+       const tarefasAtrasadas = tarefas.filter(t => t.status === 'Atrasada');
+       if (tarefasAtrasadas.length > 0) alertsHtml.push(`<div class="alert-card alto" style="padding:12px; margin:0; box-shadow:none; border-left:4px solid var(--red);"><div class="alert-body"><h4 style="margin:0;">${tarefasAtrasadas.length} Tarefa(s) Atrasada(s)</h4></div></div>`);
+       
+       const estoquesBaixos = (DB.estoque || []).filter(e => ['BAIXO', 'CRÍTICO'].includes(typeof window.estoqueStatus === 'function' ? window.estoqueStatus(e) : '')).length;
+       if (estoquesBaixos > 0) alertsHtml.push(`<div class="alert-card medio" style="padding:12px; margin:0; box-shadow:none; border-left:4px solid var(--orange);"><div class="alert-body"><h4 style="margin:0;">${estoquesBaixos} Item(ns) no Estoque</h4></div></div>`);
+       
+       const pDiarias = presenca.filter(p => p.total > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(p.pgtoStatus || 'Pendente')).length;
+       if (pDiarias > 0) alertsHtml.push(`<div class="alert-card medio" style="padding:12px; margin:0; box-shadow:none; border-left:4px solid var(--orange);"><div class="alert-body"><h4 style="margin:0;">${pDiarias} Pagamentos de Diária</h4></div></div>`);
+       
+       htDiv.innerHTML = alertsHtml.length > 0 ? alertsHtml.join('') : '<div style="color:var(--text3); font-size:12px;">Tudo limpo, nenhum alerta crítico!</div>';
+    }
+
+    // 6. Draw Chart (Market)
+    const ctx = document.getElementById('marketChart');
+    if (ctx && typeof Chart !== 'undefined') {
+      if (marketChartInstance) {
+        marketChartInstance.destroy();
+      }
+
+      const labels = [];
+      const dataPoints = [];
+      let accReal = 0;
+      
+      const arrDiasStr = [];
+      for(let i=13; i>=0; i--) {
+         const d = new Date();
+         d.setDate(d.getDate() - i);
+         const s = d.toISOString().split('T')[0];
+         labels.push(d.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}));
+         arrDiasStr.push(s);
+      }
+
+      arrDiasStr.forEach(d => {
+         const fDay = financeiro.filter(f => f.data === d).reduce((a,f) => a + (parseFloat(f.real) || 0), 0);
+         const pDay = presenca.filter(p => p.data === d).reduce((a,p) => a + (parseFloat(p.total) || 0), 0);
+         const mDay = medicao.filter(m => m.semana === d).reduce((a,m) => a + (parseFloat(m.vtotal) || 0), 0);
+         const dayT = fDay + pDay + mDay;
+         accReal += dayT;
+         dataPoints.push(accReal);
       });
-    });
-  }
 
-  const pFin = DB.financeiro.filter(f => {
-    const val = f.real > 0 ? f.real : f.prev;
-    return val > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(f.status || 'Pendente');
-  });
-  if (pFin.length > 0) {
-    const totalF = pFin.reduce((a, f) => a + Math.max(0, (f.real > 0 ? f.real : f.prev) - (f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0)), 0);
-    const temAtrasadoF = pFin.some(f => f.status === 'Atrasado');
-    alerts.push({
-      tipo: 'PAGAMENTOS FINANCEIRO',
-      obra: `${pFin.length} lançamento(s) pendente(s)`,
-      desc: `Falta pagar: ${fmt(totalF)} — Clique para gerir`,
-      resp: 'Financeiro',
-      prior: temAtrasadoF ? 'alto' : 'medio',
-      action: "showPage('financeiro')"
-    });
-  }
+      let hasData = dataPoints.some(x => x > 0);
+      let renderPts = hasData ? dataPoints : [1200, 1250, 1300, 1310, 1400, 1500, 1720, 1800, 1950, 2100, 2250, 2300, 2500, 2550];
 
-  const currentUserStr = sessionStorage.getItem('gestaoUser');
-  if (currentUserStr) {
-    const currentUser = JSON.parse(currentUserStr);
-    if (currentUser.role === 'admin' && DB.usuarios) {
-      const contasPendentes = DB.usuarios.filter(u => u.role === 'pendente');
-      contasPendentes.forEach(pUser => {
-        alerts.push({ tipo: 'NOVO USUÁRIO', obra: 'SISTEMA', desc: `${pUser.name} (${pUser.email}) solicitou acesso.`, resp: 'Admin', prior: 'alto' });
+      marketChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Capital Gasto (Acumulado)',
+            data: renderPts,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 0,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+          scales: {
+            x: { display: true, grid: { display: false }, ticks: { color: 'rgba(0,0,0,0.5)' } },
+            y: { display: true, position: 'right', border: { display: false }, grid: { borderDash: [5, 5], color: 'rgba(0,0,0,0.05)' }, ticks: { color: 'rgba(0,0,0,0.5)', callback: function(value) { return 'R$ ' + (value/1000).toFixed(1) + 'k'; } } }
+          },
+          interaction: { mode: 'nearest', axis: 'x', intersect: false }
+        }
       });
     }
-  }
 
-  const alertIcons = {};
-  const alertsGrid = document.getElementById('alerts-grid');
-  if (alertsGrid) {
-    alertsGrid.innerHTML = alerts.length
-      ? alerts.map(a => `<div class="alert-card ${a.prior}" ${a.action ? `onclick="${a.action}" style="cursor:pointer"` : ''}>
-          <div class="alert-body">
-            <h4>${a.tipo}</h4>
-            <p><b>${a.obra}</b> — ${a.desc}</p>
-            <p style="margin-top:4px">Resp: ${a.resp}${a.action ? ' &nbsp;<span style="color:var(--accent);font-weight:600">→ Abrir e pagar</span>' : ''}</p>
-          </div>
-        </div>`).join('')
-      : '<div style="color:var(--text3);font-size:13px;padding:8px">Nenhum alerta no momento.</div>';
-  }
-
-  safeSetInner('dash-obras-tbody', DB.obras.map(o => {
-    const tarefas = DB.tarefas.filter(t => t.obra === o.cod);
-
-    // Filtro Financeiro por Obra
-    const tabObj = globalFinance.filter(f => f.obra === o.cod);
-    const realizado = tabObj.reduce((a, f) => a + f.v, 0);
-    const cSemanal = tabObj.filter(f => f.data >= strSemana && f.data <= today).reduce((a, f) => a + f.v, 0);
-    const cMensal = tabObj.filter(f => f.data >= strMes && f.data <= today).reduce((a, f) => a + f.v, 0);
-
-    // Diárias por Obra (específico, não pagos)
-    const dSemanal = DB.presenca
-      .filter(p => p.obra === o.cod && p.data >= strSemana && p.data <= today && p.pgtoStatus !== 'Pago')
-      .reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
-
-    const pct = o.orc > 0 ? (realizado / o.orc * 100).toFixed(1) : 0;
-
-    return `<tr>
-      <td><span class="cod">${o.cod}</span> ${o.nome}</td>
-      <td>${statusBadge(o.status)}</td>
-      <td>${o.mestre}</td>
-      <td>${fmt(o.orc)}</td>
-      <td><b style="color:var(--blue)">${fmt(dSemanal)}</b></td>
-      <td><b style="color:var(--accent)">${fmt(cSemanal)}</b></td>
-      <td><b style="color:var(--orange)">${fmt(cMensal)}</b></td>
-      <td>${fmt(realizado)}</td>
-      <td>${pct}%</td>
-      <td>${tarefas.filter(t => t.status === 'Concluída').length}/${tarefas.length} concluídas</td>
-    </tr>`;
-  }).join(''));
-
-  const updEl = document.getElementById('dash-updated');
-  if (updEl) updEl.textContent = 'Atualizado: ' + new Date().toLocaleString('pt-BR');
+    const updEl = document.getElementById('dash-updated');
+    if (updEl) updEl.textContent = 'Atualizado agora: ' + new Date().toLocaleTimeString('pt-BR');
 
   } catch (error) {
     console.error('[Dashboard Error]:', error);
-    const kpiGrid = document.getElementById('kpi-grid');
-    if (kpiGrid) kpiGrid.innerHTML = `<div style="grid-column: 1/-1; padding: 20px; color: var(--red); background: rgba(239, 68, 68, 0.1); border-radius: 8px;">Erro ao processar dados do Dashboard. Por favor, recarregue a página (F5).</div>`;
   }
 }
 

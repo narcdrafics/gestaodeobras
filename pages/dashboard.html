@@ -1,22 +1,154 @@
+<style>
+.modern-dashboard {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+}
+.md-main {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.md-top-widgets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+.md-card {
+  background: var(--bg2);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 20px -2px rgba(0,0,0,0.04);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+.md-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text2);
+}
+.md-chart-area {
+  flex: 1;
+  min-height: 380px;
+}
+.watchlist-item {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.watchlist-item:last-child { border-bottom: none; }
+.ticker { font-weight: 600; color: var(--text); }
+.price { color: var(--text2); font-family: 'IBM Plex Mono', monospace; text-align: right; }
+.change { text-align: right; font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
+.change.up { color: var(--green); }
+.change.down { color: var(--red); }
+
+@media(max-width: 1100px) {
+  .modern-dashboard { grid-template-columns: 1fr; }
+  .md-top-widgets { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+}
+</style>
+
 <div class="page-header" style="flex-wrap: wrap; gap: 12px;">
-  <div class="page-title">Dashboard Executivo <small>Visão geral em tempo real</small></div>
+  <div class="page-title" style="display:flex; align-items:center;">
+    Dashboard
+    <div class="sync-indicator" id="dash-updated" style="margin-left: 16px; font-weight:normal;">Atualizado agora</div>
+  </div>
   <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-    <div id="dash-updated" style="font-size:12px;color:var(--text3); margin-right: 8px;"></div>
-    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-file').click()">📥 Importar</button>
-    <input type="file" id="import-file" style="display:none" accept=".json" onchange="importarBackup(event)">
-    <button class="btn btn-secondary btn-sm" onclick="exportarBackup()">💾 Exportar Banco</button>
-    
-    <button class="btn btn-primary btn-sm" onclick="exportarImagemDashboard()">📸 WhatsApp (Img)</button>
-    <button class="btn btn-primary btn-sm" onclick="window.print()">🖨️ PDF / Imprimir</button>
+    <button class="btn btn-secondary btn-sm" onclick="exportarImagemDashboard()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg> Exportar</button>
+    <button class="btn btn-secondary btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg> Filtros</button>
   </div>
 </div>
-<div class="kpi-grid" id="kpi-grid"></div>
-<div class="section-title">⚠️ Alertas do Dia</div>
-<div class="alerts-grid" id="alerts-grid"></div>
-<div class="section-title" style="margin-top:8px">📊 Resumo por Obra</div>
-<div class="table-wrap">
-  <table>
-    <thead><tr><th>Obra</th><th>Status</th><th>Mestre</th><th>Orç. Prev.</th><th>Diárias (Sem.)</th><th>Custo Sem.</th><th>Custo Mês</th><th>Total Real.</th><th>% Custo</th><th>Tarefas</th></tr></thead>
-    <tbody id="dash-obras-tbody"></tbody>
-  </table>
+
+<div class="modern-dashboard">
+  <!-- Coluna Principal Esquerda -->
+  <div class="md-main">
+    
+    <!-- Top Widgets (3 colunas) -->
+    <div class="md-top-widgets">
+      <div class="md-card">
+        <div class="md-card-header">Progresso Físico <span>△</span></div>
+        <div id="wid-trends" style="text-align:center; flex:1; display:flex; flex-direction:column; justify-content:center;">
+          <!-- Gauge Chart Area -->
+           <h2 style="font-size:36px; color:var(--text); line-height:1;" id="wid-prog-val">0%</h2>
+           <p style="color:var(--text3); font-size:12px; margin-top:4px;">Tarefas concluídas</p>
+        </div>
+      </div>
+      
+      <div class="md-card">
+        <div class="md-card-header">Índice de Custo <span>△</span></div>
+        <div id="wid-stats" style="display:flex; flex-direction:column; justify-content:center; flex:1; gap: 16px;">
+          <!-- Custom Status Bars -->
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px; font-weight:600;"><span style="color:var(--text2)">Orçamento Global</span><span id="wid-orc-pct">0%</span></div>
+            <div class="progress-bar" style="width:100%; height:8px;"><div class="progress-fill" id="wid-orc-bar" style="width:0%; background:linear-gradient(90deg, #3b82f6, #8b5cf6);"></div></div>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px; font-weight:600;"><span style="color:var(--text2)">Presenças na Semana</span><span id="wid-pres-pct">0%</span></div>
+            <div class="progress-bar" style="width:100%; height:8px;"><div class="progress-fill" id="wid-pres-bar" style="width:0%; background:linear-gradient(90deg, #ef4444, #f59e0b);"></div></div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="md-card">
+        <div class="md-card-header">Despesas (Sectores) <span>△</span></div>
+        <div id="wid-sectors" style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:12px; font-size:13px; font-weight:500;">
+           <div style="display:flex; justify-content:space-between;"><span>1. Diárias (Folha)</span><span class="change up" id="sec-diarias">0%</span></div>
+           <div style="display:flex; justify-content:space-between;"><span>2. Empreitas</span><span class="change up" id="sec-empreitas">0%</span></div>
+           <div style="display:flex; justify-content:space-between;"><span>3. Compras</span><span class="change up" id="sec-compras">0%</span></div>
+           <div style="display:flex; justify-content:space-between;"><span>4. Outros Fixos</span><span class="change down" id="sec-outros">0%</span></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Gráfico Principal (Market) -->
+    <div class="md-card" style="flex:1;">
+      <div class="md-card-header" style="margin-bottom:0;">
+        <div style="display:flex; align-items:center; gap: 16px;">
+          <span style="font-size:16px; color:var(--text)">Gasto Contábil</span>
+          <div style="display:flex; gap:8px;">
+            <span class="badge badge-gray" style="background:var(--bg); cursor:pointer;">7d</span>
+            <span class="badge badge-gray" style="background:var(--bg); cursor:pointer;">1m</span>
+            <span class="badge badge-gray" style="background:var(--text); color:var(--bg);">3m</span>
+          </div>
+        </div>
+      </div>
+      <div class="md-chart-area">
+        <canvas id="marketChart"></canvas>
+      </div>
+    </div>
+    
+  </div>
+  
+  <!-- Coluna Lateral Direita -->
+  <div style="display:flex; flex-direction:column; gap:24px;">
+    
+    <!-- Watchlist (Obras Ativas) -->
+    <div class="md-card" style="padding-right:16px;">
+      <div class="md-card-header" style="margin-bottom:8px;">Obras Ativas (Watchlist) <span>△</span></div>
+      <div id="wid-watchlist" style="flex:1; overflow-y:auto; max-height:400px; padding-right:8px;">
+        <!-- Injetado via JS -->
+      </div>
+    </div>
+    
+    <!-- Heatmap (Alertas do Dia) -->
+    <div class="md-card">
+      <div class="md-card-header">Alertas Críticos (Heatmap) <span>△</span></div>
+      <div id="wid-heatmap" style="display:flex; flex-direction:column; gap: 12px;">
+         <!-- Injetado via JS -->
+      </div>
+      <button class="btn btn-secondary btn-sm" style="margin-top:16px; width:100%;" onclick="showPage('tarefas')">Gestão de Tarefas</button>
+    </div>
+    
+  </div>
 </div>
