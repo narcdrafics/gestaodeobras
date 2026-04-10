@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, Checkbox, message, Typography, Row, Col, Divider } from "antd";
+import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, Checkbox, App, Typography, Row, Col, Divider } from "antd";
 import { useFirebaseMutations } from "@/hooks/useFirebaseMutations";
 import { useTenantData } from "@/hooks/useTenantData";
 import { CheckSquareOutlined } from "@ant-design/icons";
@@ -21,6 +21,7 @@ interface PresencaFormDrawerProps {
 export function PresencaFormDrawer({ visible, onClose, record, recordIndex, initialObraId }: PresencaFormDrawerProps) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const { message } = App.useApp();
   const [mode, setMode] = useState<"individual" | "massa">("individual");
   const [selectedMassa, setSelectedMassa] = useState<string[]>([]);
   const [searchMassa, setSearchMassa] = useState("");
@@ -177,6 +178,7 @@ export function PresencaFormDrawer({ visible, onClose, record, recordIndex, init
       size={mode === "individual" ? "default" : "large"}
       onClose={onClose}
       open={visible}
+      forceRender={true}
       styles={{ body: { paddingBottom: 80 } }}
     >
       {!record && (

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, message, Typography, Row, Col, Alert, Tag } from "antd";
+import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, App, Typography, Row, Col, Alert, Tag } from "antd";
 import { ShoppingCartOutlined, DollarOutlined, TruckOutlined, WarningOutlined } from "@ant-design/icons";
 import { useFirebaseMutations } from "@/hooks/useFirebaseMutations";
 import { useTenantData } from "@/hooks/useTenantData";
@@ -21,6 +21,7 @@ interface CompraFormDrawerProps {
 export function CompraFormDrawer({ visible, onClose, record, recordIndex, initialObraId }: CompraFormDrawerProps) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const { message } = App.useApp();
   
   const { saveItem } = useFirebaseMutations();
   const { data } = useTenantData();
@@ -92,7 +93,32 @@ export function CompraFormDrawer({ visible, onClose, record, recordIndex, initia
 
     const success = await saveItem("compras", payload, recordIndex !== undefined ? recordIndex : -1);
     
-    // Se estiver Entregue, poderíamos atualizar o estoque aqui no futuro
+    // Integração automática com o estoque
+    if (success && values.status === "Entregue" && record?.status !== "Entregue") {
+       // Localiza se já existe esse material no estoque dessa obra
+       const estoqueAtual = data.estoque || [];
+       const itemIdx = estoqueAtual.findIndex((e: any) => e.mat === values.mat && e.obra === values.obra);
+       
+       if (itemIdx >= 0) {
+          const itemExistente = estoqueAtual[itemIdx];
+          const novoItem = {
+             ...itemExistente,
+             qtd: Number(itemExistente.qtd || 0) + Number(values.qtd),
+             ultimaAtualizacao: dayjs().format("YYYY-MM-DD HH:mm")
+          };
+          await saveItem("estoque", novoItem, itemIdx);
+       } else {
+          const novoItem = {
+             mat: values.mat,
+             qtd: Number(values.qtd),
+             unid: values.unid,
+             obra: values.obra,
+             ultimaAtualizacao: dayjs().format("YYYY-MM-DD HH:mm")
+          };
+          await saveItem("estoque", novoItem);
+       }
+       message.info(`${values.mat} adicionado ao estoque da obra!`);
+    }
     
     if (success) {
       message.success("Pedido de compra registrado!");
@@ -107,6 +133,7 @@ export function CompraFormDrawer({ visible, onClose, record, recordIndex, initia
       size="large"
       onClose={onClose}
       open={visible}
+      forceRender={true}
       styles={{ body: { paddingBottom: 80 } }}
       extra={
         <Space>

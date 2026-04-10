@@ -18,6 +18,11 @@ export default function MedicoesPage() {
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [editingIndex, setEditingIndex] = useState<number | undefined>(undefined);
   
+  const cleanText = (val: any) => {
+    if (!val || val === "undefined" || val === "indefinido") return "—";
+    return val;
+  };
+
   const formatBRL = (val: number) => (Number(val) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const showDrawer = (record?: any, index?: number) => {
@@ -28,8 +33,8 @@ export default function MedicoesPage() {
 
   const columnsMedicao = [
     { title: 'Data/Semana', dataIndex: 'semana', key: 'semana', render: (val: string) => <Tag>{val?.split('-').reverse().join('/')}</Tag> },
-    { title: 'Serviço', dataIndex: 'servico', key: 'servico', render: (text: string, r: any) => <b>{text} <br/> <Text type="secondary" style={{fontSize: 11}}>{r.etapa} - {r.frente}</Text></b> },
-    { title: 'Equipe', dataIndex: 'equipe', key: 'equipe' },
+    { title: 'Serviço', dataIndex: 'servico', key: 'servico', render: (text: string, r: any) => <b>{text} <br/> <Text type="secondary" style={{fontSize: 11}}>{cleanText(r.etapa)} - {cleanText(r.frente)}</Text></b> },
+    { title: 'Equipe', dataIndex: 'equipe', key: 'equipe', render: (val: any) => cleanText(val) },
     { title: 'Avanço', dataIndex: 'avanco', key: 'avanco', render: (val: number) => <Tag color="blue">{val}%</Tag> },
     { title: 'Valor Total', dataIndex: 'vtotal', key: 'vtotal', render: (val: number) => <Text strong>{formatBRL(val)}</Text> },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (val: string) => {

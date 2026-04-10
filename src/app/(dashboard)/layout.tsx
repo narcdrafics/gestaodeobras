@@ -13,7 +13,10 @@ import {
   ToolOutlined,
   TeamOutlined,
   FileSearchOutlined,
-  ShoppingCartOutlined
+  ShoppingCartOutlined,
+  DatabaseOutlined,
+  SolutionOutlined,
+  AuditOutlined
 } from "@ant-design/icons";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -34,7 +37,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { key: "/tarefas", icon: <CheckSquareOutlined />, label: "Tarefas e Etapas" },
     { key: "/trabalhadores", icon: <TeamOutlined />, label: "Trabalhadores" },
     { key: "/medicoes", icon: <FileSearchOutlined />, label: "Medições" },
+    { key: "/requisicoes", icon: <SolutionOutlined />, label: "Requisições" },
     { key: "/compras", icon: <ShoppingCartOutlined />, label: "Suprimentos / Compras" },
+    { key: "/estoque", icon: <DatabaseOutlined />, label: "Estoque de Materiais" },
+    { key: "/ferramental", icon: <AuditOutlined />, label: "Gestão de Ferramental" },
     { key: "/financeiro", icon: <WalletOutlined />, label: "Financeiro" },
   ];
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { ConfigProvider } from "antd";
+import { ConfigProvider, App } from "antd";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import ptBR from "antd/locale/pt_BR";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
@@ -43,9 +43,11 @@ export default function RootLayout({
               },
             }}
           >
-            <AuthProvider>
-              {children}
-            </AuthProvider>
+            <App>
+              <AuthProvider>
+                {children}
+              </AuthProvider>
+            </App>
           </ConfigProvider>
         </AntdRegistry>
       </body>

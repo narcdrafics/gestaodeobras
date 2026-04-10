@@ -4,6 +4,7 @@ import React from "react";
 import { Card, Col, Row, Statistic, Typography, Table, Progress, Tag, Alert, Button } from "antd";
 import { ToolOutlined, WarningOutlined } from "@ant-design/icons";
 import { useTenantData } from "@/hooks/useTenantData";
+import dayjs from "dayjs";
 
 const { Title, Text } = Typography;
 
@@ -19,19 +20,16 @@ export default function DashboardOverview() {
   const tarefasPendentes = data.tarefas.filter(t => t?.status !== 'Concluída');
 
   // == 2. Cálculos Financeiros Consolidados (Mês Atual) ==
-  const monthPrefix = new Date().toISOString().substring(0, 7); // ex: 2026-04
-  const financMes = data.financeiro.filter(f => f?.data?.startsWith(monthPrefix));
-  const comprasMes = data.compras.filter(c => c?.data?.startsWith(monthPrefix));
+  const monthStr = dayjs().format('YYYY-MM'); 
+  const financMes = data.financeiro.filter(f => f?.data?.startsWith(monthStr));
+  const comprasMes = data.compras.filter(c => c?.data?.startsWith(monthStr));
   
   const despesasFinanceiro = financMes.filter(f => f?.tipo === 'Saída' || !f?.tipo).reduce((acc, f) => acc + (Number(f?.real) || 0), 0);
   const despesasCompras = comprasMes.reduce((acc, c) => acc + (Number(c?.vtotal) || 0), 0);
   const despesasMes = despesasFinanceiro + despesasCompras;
   
   // == 3. Cálculos de RH e Diárias Semanal ==
-  const tDay = new Date();
-  const fSemana = new Date(tDay);
-  fSemana.setDate(fSemana.getDate() - fSemana.getDay()); // Domingo da semana atual
-  const strSemana = fSemana.toISOString().split('T')[0];
+  const strSemana = dayjs().startOf('week').format('YYYY-MM-DD'); 
   const presencaSemana = data.presenca.filter(p => p?.data && p.data >= strSemana);
   const totalDiariasSemana = presencaSemana.reduce((acc, p) => acc + (Number(p?.total) || 0), 0);
 
@@ -63,7 +61,7 @@ export default function DashboardOverview() {
       </div>
 
       {obrasAtivas.length === 0 && (
-         <Alert message="Nenhuma obra ativa encontrada. Comece cadastrando uma nova obra!" type="info" showIcon style={{ marginBottom: 24 }} />
+         <Alert title="Nenhuma obra ativa encontrada. Comece cadastrando uma nova obra!" type="info" showIcon style={{ marginBottom: 24 }} />
       )}
 
       {/* Grid de Estatísticas Topo */}
@@ -145,7 +143,7 @@ export default function DashboardOverview() {
          <Col span={24}>
             {data.compras.filter(c => c.status === "Aguardando").length > 0 && (
                 <Alert 
-                  message="Existem pedidos de compra aguardando aprovação." 
+                  title="Existem pedidos de compra aguardando aprovação." 
                   type="warning" 
                   showIcon 
                   action={<Button size="small" type="link" onClick={() => window.location.href='/compras'}>Verificar</Button>}

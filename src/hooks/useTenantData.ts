@@ -14,12 +14,15 @@ export interface TenantData {
   medicao: any[];
   compras: any[];
   estoque: any[];
+  requisicoes: any[];
+  ferramental: any[];
   trabalhadores: any[];
 }
 
 const emptyData: TenantData = {
   config: {}, obras: [], tarefas: [], financeiro: [],
-  presenca: [], medicao: [], compras: [], estoque: [], trabalhadores: []
+  presenca: [], medicao: [], compras: [], estoque: [], 
+  requisicoes: [], ferramental: [], trabalhadores: []
 };
 
 export function useTenantData() {
@@ -49,6 +52,8 @@ export function useTenantData() {
         medicao: Array.isArray(val.medicao) ? val.medicao : [],
         compras: Array.isArray(val.compras) ? val.compras : [],
         estoque: Array.isArray(val.estoque) ? val.estoque : [],
+        requisicoes: Array.isArray(val.requisicoes) ? val.requisicoes : [],
+        ferramental: Array.isArray(val.ferramental) ? val.ferramental : [],
         trabalhadores: Array.isArray(val.trabalhadores) ? val.trabalhadores : [],
       });
       setLoading(false);

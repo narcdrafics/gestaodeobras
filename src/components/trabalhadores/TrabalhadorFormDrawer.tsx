@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, Upload, message, Typography } from "antd";
+import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, Upload, App, Typography } from "antd";
 import { UploadOutlined, LoadingOutlined } from "@ant-design/icons";
 import { useFirebaseMutations } from "@/hooks/useFirebaseMutations";
 import { useTenantData } from "@/hooks/useTenantData";
@@ -26,6 +26,7 @@ export function TrabalhadorFormDrawer({ visible, onClose, record, recordIndex, i
   const [uploading, setUploading] = useState(false);
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   
+  const { message } = App.useApp();
   const { user } = useAuth();
   const { saveItem } = useFirebaseMutations();
   const { data } = useTenantData();
@@ -124,6 +125,7 @@ export function TrabalhadorFormDrawer({ visible, onClose, record, recordIndex, i
       size="large"
       onClose={onClose}
       open={visible}
+      forceRender={true}
       styles={{ body: { paddingBottom: 80 } }}
       extra={
         <Space>

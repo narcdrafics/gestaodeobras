@@ -203,7 +203,7 @@ export default function TarefasPage() {
                                     {(provided, snapshot) => (
                                        <Card
                                           size="small"
-                                          bordered={false}
+                                          variant="borderless"
                                           ref={provided.innerRef}
                                           {...provided.draggableProps}
                                           {...provided.dragHandleProps}

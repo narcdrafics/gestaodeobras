@@ -3,10 +3,11 @@
 import { ref, get, set } from "firebase/database";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
-import { message } from "antd";
+import { App } from "antd";
 
 export function useFirebaseMutations() {
   const { user } = useAuth();
+  const { message } = App.useApp();
 
   /**
    * Universal save for arrays. Supports creating and updating.

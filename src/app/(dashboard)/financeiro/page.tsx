@@ -56,7 +56,7 @@ export default function FinanceiroPage() {
   const renderObraFinanceiro = (obraId: string) => {
      // 1. Lançamentos dessa obra (Caixa + Compras)
      const itensFinanceiro = data.financeiro.map((f, i) => ({...f, originalIndex: i})).filter(f => f.obra === obraId);
-     const itensCompras = data.compras.filter(c => c.obra === obraId);
+     const itensCompras = data.compras.map((c, i) => ({...c, originalIndex: i})).filter(c => c.obra === obraId);
      
      const sumFinanceiro = itensFinanceiro.reduce((acc, curr) => acc + Number(curr.real || 0), 0);
      const sumCompras = itensCompras.reduce((acc, curr) => acc + Number(curr.vtotal || 0), 0);
@@ -68,23 +68,22 @@ export default function FinanceiroPage() {
      const trabsDaObra = data.trabalhadores.filter(t => t.obras?.includes(obraId) || t.obra === obraId);
      
      // 3. Cruzamento para Diárias
-     const calculoTrabs = trabsDaObra.map(tr => {
-         const presencasDoTrab = data.presenca.filter((p: any) => (p.trab === tr.cod || p.tr === tr.cod) && p.obra === obraId); // Support legacy property names
-         
-         // Se for Empreiteiro, a lógica de valor da empreitada vem do salário acordado/valor pacote
-         const isEmpreiteiro = tr.vinculo === "Empreiteiro";
-         
-         const qtdDias = presencasDoTrab.length;
-         const diariaVal = Number(tr.diaria || 0);
-         const totalDevido = isEmpreiteiro ? diariaVal : (qtdDias * diariaVal); // Se empreiteiro, pacote fechado. Senão, multiplica dia
+      const calculoTrabs = trabsDaObra.map(tr => {
+          const presencasDoTrab = data.presenca.filter((p: any) => (p.trab === tr.cod || p.tr === tr.cod) && p.obra === obraId);
+          
+          const isEmpreiteiro = tr.vinculo === "Empreiteiro";
+          const qtdDias = presencasDoTrab.length;
+          
+          // CRITICAL FIX: Somar o campo 'total' de cada presença, que já contém cálculos de HE e Meio-período
+          const totalDevido = presencasDoTrab.reduce((acc, p) => acc + (Number(p.total) || 0), 0);
 
-         return {
-            ...tr,
-            qtdDias,
-            totalDevido,
-            isEmpreiteiro
-         };
-     });
+          return {
+             ...tr,
+             qtdDias,
+             totalDevido,
+             isEmpreiteiro
+          };
+      });
 
      const equipeDireta = calculoTrabs.filter(t => !t.isEmpreiteiro);
      const empreiteiros = calculoTrabs.filter(t => t.isEmpreiteiro);
@@ -107,17 +106,17 @@ export default function FinanceiroPage() {
         <div>
            <Row gutter={16} style={{ marginBottom: 24 }}>
               <Col span={8}>
-                 <Card bordered={false}>
+                 <Card variant="borderless">
                     <Statistic title="Total Gasto (Caixa)" value={sumReal} precision={2} prefix="R$" styles={{ content: { color: '#cf1322' } }} />
                  </Card>
               </Col>
               <Col span={8}>
-                 <Card bordered={false}>
+                 <Card variant="borderless">
                     <Statistic title="Folha (Diárias devidas)" value={equipeDireta.reduce((acc, t) => acc + t.totalDevido, 0)} precision={2} prefix="R$" styles={{ content: { color: '#cf1322' } }} />
                  </Card>
               </Col>
               <Col span={8}>
-                 <Card bordered={false}>
+                 <Card variant="borderless">
                     <Statistic title="Subcontratados (Empreita)" value={empreiteiros.reduce((acc, t) => acc + t.totalDevido, 0)} precision={2} prefix="R$" styles={{ content: { color: '#d48806' } }} />
                  </Card>
               </Col>
@@ -149,6 +148,7 @@ export default function FinanceiroPage() {
                      <Table 
                         dataSource={itensCompras.slice(0, 5)} 
                         pagination={false} 
+                        rowKey="originalIndex"
                         size="small"
                         columns={[
                            { title: 'Material', dataIndex: 'mat', key: 'mat' },

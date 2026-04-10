@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, message, Typography } from "antd";
+import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, App, Typography } from "antd";
 import { useFirebaseMutations } from "@/hooks/useFirebaseMutations";
 import { useTenantData } from "@/hooks/useTenantData";
 import dayjs from "dayjs";
@@ -20,6 +20,7 @@ interface FinanceiroFormDrawerProps {
 export function FinanceiroFormDrawer({ visible, onClose, record, recordIndex, initialObra }: FinanceiroFormDrawerProps) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const { message } = App.useApp();
   
   const statusPgto = Form.useWatch('status', form);
   const prev = Form.useWatch('prev', form) || 0;
@@ -100,6 +101,7 @@ export function FinanceiroFormDrawer({ visible, onClose, record, recordIndex, in
       size="large"
       onClose={onClose}
       open={visible}
+      forceRender={true}
       styles={{ body: { paddingBottom: 80 } }}
       extra={
         <Space>

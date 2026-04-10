@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, message } from "antd";
+import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, App } from "antd";
 import { useFirebaseMutations } from "@/hooks/useFirebaseMutations";
 import dayjs from "dayjs";
 
@@ -17,6 +17,7 @@ interface ObraFormDrawerProps {
 export function ObraFormDrawer({ visible, onClose, record, recordIndex }: ObraFormDrawerProps) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const { message } = App.useApp();
   const { saveItem } = useFirebaseMutations();
 
   useEffect(() => {
@@ -82,6 +83,7 @@ export function ObraFormDrawer({ visible, onClose, record, recordIndex }: ObraFo
       size="large"
       onClose={onClose}
       open={visible}
+      forceRender={true}
       styles={{
         body: { paddingBottom: 80 },
       }}

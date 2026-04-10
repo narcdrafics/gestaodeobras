@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, Upload, message, Typography, Row, Col } from "antd";
+import { Drawer, Form, Input, Select, Button, Space, InputNumber, DatePicker, Upload, App, Typography, Row, Col } from "antd";
 import { UploadOutlined, LoadingOutlined } from "@ant-design/icons";
 import { useFirebaseMutations } from "@/hooks/useFirebaseMutations";
 import { useTenantData } from "@/hooks/useTenantData";
@@ -27,6 +27,7 @@ export function MedicaoFormDrawer({ visible, onClose, record, recordIndex, initi
   const [uploading, setUploading] = useState(false);
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   
+  const { message } = App.useApp();
   const { user } = useAuth();
   const { saveItem } = useFirebaseMutations();
   const { data } = useTenantData();
@@ -40,9 +41,9 @@ export function MedicaoFormDrawer({ visible, onClose, record, recordIndex, initi
       form.setFieldsValue({
         semana: record.semana ? dayjs(record.semana) : dayjs(),
         obra: record.obra || initialObraId,
-        etapa: record.etapa,
-        frente: record.frente,
-        equipe: record.equipe,
+        etapa: (record.etapa && record.etapa !== "undefined" && record.etapa !== "indefinido") ? record.etapa : "",
+        frente: (record.frente && record.frente !== "undefined" && record.frente !== "indefinido") ? record.frente : "",
+        equipe: (record.equipe && record.equipe !== "undefined" && record.equipe !== "indefinido") ? record.equipe : "",
         servico: record.servico,
         unid: record.unid,
         qprev: record.qprev || 0,
@@ -125,6 +126,7 @@ export function MedicaoFormDrawer({ visible, onClose, record, recordIndex, initi
       size="large"
       onClose={onClose}
       open={visible}
+      forceRender={true}
       styles={{ body: { paddingBottom: 80 } }}
       extra={
         <Space>
