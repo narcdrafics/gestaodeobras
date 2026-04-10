@@ -22,6 +22,8 @@ window.renderAdmin = window.renderAdmin || function () { };
 // Funções de formatação - fornecidas pelo utils.module.js via window
 const fmt = window.fmt || ((v) => v || '—');
 const fmtPct = window.fmtPct || ((v) => v || '—');
+const cleanText = (v) => (!v || v === 'undefined' || v === 'indefinido') ? '—' : v;
+const cleanInput = (v) => (!v || v === 'undefined' || v === 'indefinido') ? '' : v;
 const today = new Date().toISOString().split('T')[0];
 
 
@@ -1414,7 +1416,7 @@ function renderMedicao() {
       const av = m.qprev > 0 ? (m.qreal / m.qprev) : 0;
       return `<tr>
           <td>${fmtDate(m.semana)}</td><td>${obName(m.obra)}</td><td>${m.etapa}</td>
-          <td>${m.desc}</td><td>${m.forn}</td><td>${m.servico}</td>
+          <td>${cleanText(m.frente)}</td><td>${cleanText(m.equipe)}</td><td>${m.servico}</td>
           <td>${m.unid}</td><td>${m.qprev}</td><td>${m.qreal}</td>
           <td>${fmt(m.vtotal || 0)}</td>
           <td><div style="display:flex;align-items:center;gap:6px">
@@ -3418,11 +3420,11 @@ async function editMedicao(idx) {
   const m = DB.medicao[idx];
   document.getElementById('md-semana').value = m.semana;
   document.getElementById('md-obra').value = m.obra;
-  document.getElementById('md-etapa').value = m.etapa;
-  document.getElementById('md-frente').value = m.frente;
-  document.getElementById('md-equipe').value = m.equipe;
-  document.getElementById('md-servico').value = m.servico;
-  document.getElementById('md-unid').value = m.unid;
+  document.getElementById('md-etapa').value = cleanInput(m.etapa);
+  document.getElementById('md-frente').value = cleanInput(m.frente);
+  document.getElementById('md-equipe').value = cleanInput(m.equipe);
+  document.getElementById('md-servico').value = cleanInput(m.servico);
+  document.getElementById('md-unid').value = cleanInput(m.unid);
   document.getElementById('md-qprev').value = m.qprev;
   document.getElementById('md-qreal').value = m.qreal;
   document.getElementById('md-vunit').value = m.vunit || 0;
@@ -3439,7 +3441,7 @@ async function editMedicao(idx) {
   } else {
     preview.style.display = 'none';
   }
-  document.getElementById('md-obs').value = m.obs || '';
+  document.getElementById('md-obs').value = cleanInput(m.obs);
 }
 
 async function saveUsuario() {
