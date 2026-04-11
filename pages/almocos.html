@@ -12,7 +12,7 @@
     <div class="toolbar-right" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
       <button class="btn btn-primary" onclick="openModal('modal-almoco')">+ Novo</button>
       <input class="search-input" id="almoco-busca" placeholder="Buscar por data, obra ou empreiteiro..." style="min-width:180px"
-        oninput="renderAlmocosList()">
+        oninput="renderAlmocos()">
     </div>
   </div>
   
@@ -30,7 +30,7 @@
         </tr>
       </thead>
       <tbody id="almocos-tbody">
-        <!-- Renderizado dinamicamente via renderAlmocosList() -->
+        <!-- Renderizado dinamicamente via renderAlmocos() -->
       </tbody>
     </table>
   </div>

@@ -80,7 +80,7 @@ function renderPage(id) {
     movEstoque: renderMovEstoque, compras: renderCompras, financeiro: renderFinanceiro,
     orcamento: renderOrcamento, medicao: renderMedicao, admin: renderAdmin,
     fotos: renderFotos, super_admin: renderSuperAdmin, relatorios: renderRelatorios,
-    almocos: renderAlmocosList
+    almocos: renderAlmocos
   };
   if (r[id]) r[id]();
 }
@@ -135,15 +135,8 @@ window.addEventListener('firebaseSync', e => {
 
 // ==================== DASHBOARD ====================
 function renderDashboard() {
-  console.log('[Dash] renderDashboard chamado');
-  console.log('[Dash] window.fmt:', typeof window.fmt);
-  console.log('[Dash] window.estoqueStatus:', typeof window.estoqueStatus);
   try {
-
     const kpiGrid = document.getElementById('kpi-grid');
-    console.log('[Dash] kpiGrid:', kpiGrid);
-    console.log('[Dash] DB.obras:', DB?.obras?.length);
-    console.log('[Dash] DB.financeiro:', DB?.financeiro?.length);
 
     const obrasAtivas = (DB.obras || []).filter(o => o && ['Em andamento', 'Planejada'].includes(o.status)).length;
     const tarefasAtrasadas = (DB.tarefas || []).filter(t => t && t.status === 'Atrasada').length;
@@ -467,7 +460,7 @@ function renderTrabalhadores() {
     : uiEmptyState('Sem Trabalhadores', 'Cadastre o primeiro pedreiro, mestre ou servente para começar.', '👷‍♂️', 'Adicionar Trabalhador', 'openModal(\'modal-trabalhador\')'));
 }
 
-function renderAlmocosList() {
+function renderAlmocos() {
   const tbody = document.getElementById('almocos-tbody');
   if (!tbody) return;
 
@@ -588,7 +581,7 @@ async function saveAlmoco() {
     toast('Almoço registrado!');
   }
   closeModal('modal-almoco'); await persistDB(); 
-  if (typeof renderAlmocosList === 'function') renderAlmocosList();
+  if (typeof renderAlmocos === 'function') renderAlmocos();
 }
 
 async function editAlmoco(idx) {
@@ -744,7 +737,6 @@ function renderPresenca() {
   if (listForTable.length === 0) {
     safeSetInner('pres-tbody', uiEmptyState('Folha em Branco', 'Ninguém bateu ponto hoje. Inicie o lançamento diário da obra.', '✅', 'Lançar Presença', 'openModal(\'modal-presenca\')'));
   } else if (!groupMode) {
-    // Sem Agrupamento
     safeSetInner('pres-tbody', listForTable.map(p => `<tr>
         <td data-label="Data / Local"><b>${fmtDate(p.data)}</b><br><small style="color:var(--text3)">${obName(p.obra)}${p.frente ? ' · ' + p.frente : ''}</small></td>
         <td data-label="Profissional"><b>${p.nome}</b><br><small style="color:var(--text3)">${p.funcao}</small></td>
@@ -753,14 +745,13 @@ function renderPresenca() {
         <td data-label="Almoço"><span class="badge ${p.almoco === 'Sim' ? 'bg-success' : 'bg-secondary'}">${p.almoco || 'Não'}</span></td>
         <td data-label="Status">${statusBadge(p.presenca)}</td>
         <td data-label="Valor Total"><b>${fmt(p.total)}</b></td>
-        <td data-label="Pgto">${p.pagamentoStatus || '—'}</td>
+        <td data-label="Pgto">${p.pgtoStatus || '—'}</td>
         <td>
-          <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px"></button>
+          <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">Excluir</button>
         </td>
       </tr>`).join(''));
   } else {
-    // Com Agrupamento (Acordeão)
     let grouped = {};
     listForTable.forEach(p => {
       const g = groupMode === 'trab' ? (p.nome || 'Desconhecido') : (p.obra || 'Desconhecida');
@@ -793,9 +784,9 @@ function renderPresenca() {
                 <td data-label="Horas (N+E)">${p.hnorm || 0}h + ${p.hextra || 0}h</td>
                 <td data-label="Status">${statusBadge(p.presenca)}</td>
                 <td data-label="Valor Total"><b>${fmt(p.total)}</b></td>
-                <td data-label="Pgto">${p.pagamentoStatus || '—'}</td>
+                <td data-label="Pgto">${p.pgtoStatus || '—'}</td>
                 <td>
-                  <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px"></button>
+                  <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
                   <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">Excluir</button>
                 </td>
               </tr>`;
@@ -1047,8 +1038,6 @@ function renderCompras() {
 
 // ==================== FINANCEIRO ====================
 function renderFinanceiro() {
-  window.renderFinanceiro = renderFinanceiro; 
-  
   const selMonth = document.getElementById('fin-month');
   const selYear = document.getElementById('fin-year');
   const selView = document.getElementById('fin-view-type');
@@ -1075,7 +1064,7 @@ function renderFinanceiro() {
   
   // Consolidação Filtrada por Período
   const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, yy, mm, view) || {};
-  allFin = summary.all || [];
+  let allFin = summary.all || [];
   const perTotals = summary.totalsByPeriod || {};
 
   // Renderização de Cards de Fluxo de Caixa (Semanal/Quinzenal)
@@ -1159,7 +1148,7 @@ function renderFinanceiro() {
           <td data-label="Fornec./Benef."><small>${f.forn}</small></td>
           <td data-label="Vl. Prev.">${fmt(f.prev)}</td>
           <td data-label="Vl. Real." style="color:${valColor};font-weight:${isIncome?'600':'400'}">${fmt(f.real)}</td>
-          <td data-label="Diferença" style="color:${diff > 0 ? 'var(--red)' : diff < 1 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
+          <td data-label="Diferença" style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
           <td data-label="Pgto"><small>${f.pgto}</small></td>
           <td data-label="Status">${statusBadge(f.status)}</td>
           <td data-label="NF"><small>${f.nf}</small></td>
@@ -1435,13 +1424,6 @@ function renderMedicao() {
         </tr>`;
     }).join('')
     : uiEmptyState('Sem Medições', 'Acompanhe o avanço das empreiteiras e os laudos dos terceirizados.', '📏', 'Lançar Medição', 'openModal(\'modal-medicao\')'));
-}
-
-// Helper functions for safe DOM manipulation
-
-function safeSetStyle(id, property, value) {
-  const el = document.getElementById(id);
-  if (el) el.style[property] = value;
 }
 
 // ==================== ADMINISTRAÇÃO ====================
@@ -2032,7 +2014,7 @@ async function deleteGlobalUser(uid, email, tid) {
   }
 }
 
-function salvarConfiguracoes() {
+function saveConfig() {
   const emp = document.getElementById('cfg-empresa').value;
   const esquemaCores = document.getElementById('cfg-esquema').value;
   const tema = document.getElementById('cfg-tema').value;
@@ -2378,45 +2360,8 @@ function calcTotalManual() {
   document.getElementById('pr-total').value = total.toFixed(2);
 }
 
-function togglePresenca() {
-  const v = document.getElementById('pr-presenca').value;
-  const show = v !== 'Falta';
-  document.getElementById('pr-entrada-grp').style.display = show ? '' : 'none';
-  document.getElementById('pr-saida-grp').style.display = show ? '' : 'none';
-  if (!show) {
-    document.getElementById('pr-total').value = 0;
-  } else {
-    calcPresenca();
-  }
-}
-
-function calcMovTotal() {
-  const q = parseFloat(document.getElementById('mv-qtd').value) || 0;
-  const v = parseFloat(document.getElementById('mv-vunit').value) || 0;
-  document.getElementById('mv-vtotal').value = (q * v).toFixed(2);
-}
-function calcCompraTotal() {
-  const q = parseFloat(document.getElementById('cp-qtd').value) || 0;
-  const v = parseFloat(document.getElementById('cp-vunit').value) || 0;
-  document.getElementById('cp-vtotal').value = (q * v).toFixed(2);
-}
-function calcFinDiff() {
-  const p = parseFloat(document.getElementById('fn-prev').value) || 0;
-  const r = parseFloat(document.getElementById('fn-real').value) || 0;
-  document.getElementById('fn-diff').value = (r - p).toFixed(2);
-}
-function calcOrcTotal() {
-  const q = parseFloat(document.getElementById('oc-qtd').value) || 0;
-  const v = parseFloat(document.getElementById('oc-vunit').value) || 0;
-  document.getElementById('oc-vtotal').value = (q * v).toFixed(2);
-}
-function calcAvanco() {
-  const p = parseFloat(document.getElementById('md-qprev').value) || 0;
-  const r = parseFloat(document.getElementById('md-qreal').value) || 0;
-  const v = parseFloat(document.getElementById('md-vunit').value) || 0;
-  document.getElementById('md-avanco').value = p > 0 ? (r / p * 100).toFixed(1) : 0;
-  document.getElementById('md-vtotal').value = (r * v).toFixed(2);
-}
+// calcAvanco, calcMovTotal, calcCompraTotal, calcFinDiff, calcOrcTotal
+// declarados abaixo junto ao restante das funções de cálculo de formulário
 
 // ==================== SAVE FUNCTIONS ====================
 async function saveObra() {
@@ -2641,6 +2586,7 @@ async function savePresenca(keepOpen = false) {
   if (!dataVal) { toast('Informe a data!', 'error'); return; }
   if (!obraVal) { toast('Selecione a obra!', 'error'); return; }
 
+  let lastSavedData = null; // Captura último registro salvo para o toast fora do loop
   let trabsParaSalvar = [];
 
   if (modoMassa) {
@@ -2717,6 +2663,7 @@ async function savePresenca(keepOpen = false) {
     } else {
       DB.presenca.push(data);
     }
+    lastSavedData = data; // Captura para uso no toast após o loop
   }
 
   if (keepOpen) {
@@ -2741,7 +2688,7 @@ async function savePresenca(keepOpen = false) {
   try {
     await persistDB();
     let tmsg = currentEditIdx >= 0 ? 'Presença atualizada!' : 'Presença registrada!';
-    if (data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.total - data.valpago).toFixed(2).replace('.', ',')}`;
+    if (lastSavedData?.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${((lastSavedData.total || 0) - (lastSavedData.valpago || 0)).toFixed(2).replace('.', ',')}`;
     toast(tmsg);
   } catch (err) {
     // Mesmo que a nuvem falhe, os dados já estão no DB local em memória
@@ -2826,12 +2773,13 @@ async function editPresenca(idx) {
 function togglePresenca() {
   const v = document.getElementById('pr-presenca').value;
   const show = v !== 'Falta';
-  safeSetDisplay('pr-entrada-grp', show ? '' : 'none');
-  safeSetDisplay('pr-saida-grp', show ? '' : 'none');
-  // pr-almoco removido
+  const entGrp = document.getElementById('pr-entrada-grp');
+  const saiGrp = document.getElementById('pr-saida-grp');
+  if (entGrp) entGrp.style.display = show ? '' : 'none';
+  if (saiGrp) saiGrp.style.display = show ? '' : 'none';
   if (!show) {
-    document.getElementById('pr-total').value = 0;
-    // pr-almoco removido
+    const totalEl = document.getElementById('pr-total');
+    if (totalEl) totalEl.value = 0;
   }
 }
 
@@ -2861,6 +2809,7 @@ window.calcParcial = function (prefix) {
   }
 };
 
+// ==================== CÁLCULOS DE FORMULÁRIO ====================
 function calcMovTotal() {
   const q = parseFloat(document.getElementById('mv-qtd').value) || 0;
   const v = parseFloat(document.getElementById('mv-vunit').value) || 0;
@@ -2876,15 +2825,12 @@ function calcFinDiff() {
   const r = parseFloat(document.getElementById('fn-real').value) || 0;
   document.getElementById('fn-diff').value = (r - p).toFixed(2);
 }
-function calcOrcTotal() {
-  const q = parseFloat(document.getElementById('oc-qtd').value) || 0;
-  const v = parseFloat(document.getElementById('oc-vunit').value) || 0;
-  document.getElementById('oc-vtotal').value = (q * v).toFixed(2);
-}
 function calcAvanco() {
   const p = parseFloat(document.getElementById('md-qprev').value) || 0;
   const r = parseFloat(document.getElementById('md-qreal').value) || 0;
+  const v = parseFloat(document.getElementById('md-vunit').value) || 0;
   document.getElementById('md-avanco').value = p > 0 ? (r / p * 100).toFixed(1) : 0;
+  document.getElementById('md-vtotal').value = (r * v).toFixed(2);
 }
 
 window.toggleDestinoMov = function () {
@@ -3590,11 +3536,8 @@ async function saveNewTenant() {
       return toast(`O subdomínio "${slugVal}" já está sendo usado por outra empresa!`, 'error');
     }
 
-    // Gerar um ID único para a nova empresa
-    const res = await firebase.database().ref('tenants').push();
-    const tenantId = res.key;
-
     // 1. Criar Estrutura do Tenant (Padrão SaaS Unificado)
+    // Nota: o ID do tenant é o próprio slug para facilitar lookup direto
     await firebase.database().ref(`tenants/${slugVal}`).set({
       nomeEmpresa: nome,
       slug: slugVal,
