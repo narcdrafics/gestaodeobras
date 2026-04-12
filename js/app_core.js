@@ -2325,12 +2325,13 @@ function calcPresenca() {
   const hTrabalhadas = Math.max(0, (sh * 60 + sm - eh * 60 - em) / 60);
 
   const hnorm = Math.min(hTrabalhadas, 8);
-  const hextra = isInformal ? 0 : Math.max(0, hTrabalhadas - 8);
+  const hextra = 0; // Hora extra agora deve ser informada explicitamente conforme pedido do usuário
 
   document.getElementById('pr-hnorm').value = hnorm.toFixed(1);
   document.getElementById('pr-hextra').value = hextra.toFixed(1);
 
-  const total = hTrabalhadas > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
+  // O total automático agora considera apenas a diária básica (8h ou proporcional se < 8h)
+  const total = hTrabalhadas > 0 ? diaria : 0;
   document.getElementById('pr-total').value = total.toFixed(2);
 }
 

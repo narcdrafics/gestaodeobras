@@ -200,7 +200,19 @@ body {
 .nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
 body.light-mode .nav-item:hover { background: rgba(0,0,0,0.05); }
 .nav-item.active { background: var(--sb-active-bg); color: var(--accent); font-weight: 600; }
-.nav-item .ico { font-size: 16px; width: 22px; text-align: center; }
+.nav-item .ico { font-size: 18px; min-width: 24px; text-align: center; }
+
+/* SIDEBAR COLLAPSED (Desktop) */
+@media(min-width: 769px) {
+  .sidebar { transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+  .sidebar.collapsed { width: 70px; overflow-x: hidden; }
+  .sidebar.collapsed .nav-section, 
+  .sidebar.collapsed .nav-item span:not(.ico) { display: none !important; }
+  .sidebar.collapsed .nav-item { justify-content: center; margin: 4px 8px; padding: 10px 0; }
+  .sidebar.collapsed .nav-section span:last-child { display: none !important; } /* Seta do grupo */
+  
+  .layout { transition: margin-left 0.3s ease; }
+}
 
 /* MAIN */
 .main { flex: 1; padding: 32px; overflow-x: hidden; }
@@ -395,7 +407,8 @@ select.form-control option { background: var(--bg2); }
 /* COD TAG */
 .cod { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text2); background: rgba(255,255,255,.05); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);}
 
-.menu-toggle { display: none; background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer; margin-right: 16px; }
+.menu-toggle { display: block; background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer; margin-right: 16px; transition: color 0.2s; }
+.menu-toggle:hover { color: var(--accent); }
 
 /* RESPONSIVE */
 @media(max-width: 768px) {

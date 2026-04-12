@@ -53,49 +53,49 @@
 <!-- SIDEBAR -->
 <nav class="sidebar">
   <div class="nav-section">Principal</div>
-  <div class="nav-item active" onclick="showPage('dashboard')">Dashboard</div>
+  <div class="nav-item active" onclick="showPage('dashboard')"><span class="ico">📊</span> <span>Dashboard</span></div>
 
   <div class="nav-section" onclick="toggleGroup('grp-op', 'ic-op')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
-    <span>Operação</span>
-    <span id="ic-op" style="font-size:12px; color:var(--text3)">▼</span>
+    <span><span class="ico">🏗️</span> Operação</span>
+    <span id="ic-op" style="font-size:12px; color:var(--text3)">▶</span>
   </div>
-  <div class="nav-item grp-op" onclick="showPage('obras')">Obras</div>
-  <div class="nav-item grp-op" onclick="showPage('tarefas')">Tarefas</div>
-  <div class="nav-item grp-op" onclick="showPage('trabalhadores')">Trabalhadores</div>
-  <div class="nav-item grp-op" onclick="showPage('almocos')">Almoços</div>
+  <div class="nav-item grp-op" style="display:none" onclick="showPage('obras')"><span class="ico">🏢</span> <span>Obras</span></div>
+  <div class="nav-item grp-op" style="display:none" onclick="showPage('tarefas')"><span class="ico">📋</span> <span>Tarefas</span></div>
+  <div class="nav-item grp-op" style="display:none" onclick="showPage('trabalhadores')"><span class="ico">👷</span> <span>Trabalhadores</span></div>
+  <div class="nav-item grp-op" style="display:none" onclick="showPage('almocos')"><span class="ico">🍱</span> <span>Almoços</span></div>
 
   <div class="nav-section" onclick="toggleGroup('grp-prod', 'ic-prod')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
-    <span>Produção (Canteiro)</span>
-    <span id="ic-prod" style="font-size:12px; color:var(--text3)">▼</span>
+    <span><span class="ico">🛠️</span> Produção (Canteiro)</span>
+    <span id="ic-prod" style="font-size:12px; color:var(--text3)">▶</span>
   </div>
-  <div class="nav-item grp-prod" onclick="showPage('presenca')">Presença (Ponto)</div>
-  <div class="nav-item grp-prod" onclick="showPage('medicao')">Medições (Empreitas)</div>
-  <div class="nav-item grp-prod" onclick="showPage('fotos')">Galeria de Fotos</div>
+  <div class="nav-item grp-prod" style="display:none" onclick="showPage('presenca')"><span class="ico">✅</span> <span>Presença (Ponto)</span></div>
+  <div class="nav-item grp-prod" style="display:none" onclick="showPage('medicao')"><span class="ico">📐</span> <span>Medições</span></div>
+  <div class="nav-item grp-prod" style="display:none" onclick="showPage('fotos')"><span class="ico">📸</span> <span>Galeria de Fotos</span></div>
 
   <div class="nav-section" onclick="toggleGroup('grp-sup', 'ic-sup')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
-    <span>Suprimentos</span>
-    <span id="ic-sup" style="font-size:12px; color:var(--text3)">▼</span>
+    <span><span class="ico">📦</span> Suprimentos</span>
+    <span id="ic-sup" style="font-size:12px; color:var(--text3)">▶</span>
   </div>
-  <div class="nav-item grp-sup" onclick="showPage('estoque')">Estoque Central</div>
-  <div class="nav-item grp-sup" onclick="showPage('movEstoque')">Movimentações</div>
+  <div class="nav-item grp-sup" style="display:none" onclick="showPage('estoque')"><span class="ico">🏪</span> <span>Estoque</span></div>
+  <div class="nav-item grp-sup" style="display:none" onclick="showPage('movEstoque')"><span class="ico">🔄</span> <span>Movimentações</span></div>
 
   <div class="nav-section" onclick="toggleGroup('grp-fin', 'ic-fin')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
-    <span>Escritório</span>
-    <span id="ic-fin" style="font-size:12px; color:var(--text3)">▼</span>
+    <span><span class="ico">🏢</span> Escritório</span>
+    <span id="ic-fin" style="font-size:12px; color:var(--text3)">▶</span>
   </div>
-  <div class="nav-item grp-fin" onclick="showPage('orcamento')">Orçamento Previsto</div>
-  <div class="nav-item grp-fin" onclick="showPage('compras')">Compras e Pedidos</div>
-  <div class="nav-item grp-fin" onclick="showPage('financeiro')">Fechamento Financeiro</div>
-  <div class="nav-item grp-fin" onclick="showPage('relatorios')">Relatórios e Vistoria</div>
+  <div class="nav-item grp-fin" style="display:none" onclick="showPage('orcamento')"><span class="ico">💰</span> <span>Orçamento</span></div>
+  <div class="nav-item grp-fin" style="display:none" onclick="showPage('compras')"><span class="ico">🛒</span> <span>Compras</span></div>
+  <div class="nav-item grp-fin" style="display:none" onclick="showPage('financeiro')"><span class="ico">⚖️</span> <span>Financeiro</span></div>
+  <div class="nav-item grp-fin" style="display:none" onclick="showPage('relatorios')"><span class="ico">📄</span> <span>Relatórios</span></div>
 
   <div class="nav-section admin-only" style="display:none">Sistema</div>
-  <div class="nav-item admin-only" style="display:none" onclick="showPage('admin')">Administração</div>
+  <div class="nav-item admin-only" style="display:none" onclick="showPage('admin')"><span class="ico">⚙️</span> <span>Administração</span></div>
 
   <div class="nav-section super-admin-only" style="display:none">SaaS Master</div>
-  <div class="nav-item super-admin-only" style="display:none" onclick="showPage('super_admin')">Painel Master</div>
+  <div class="nav-item super-admin-only" style="display:none" onclick="showPage('super_admin')"><span class="ico">👑</span> <span>Painel Master</span></div>
   
   <div class="nav-section">Acesso</div>
-  <div class="nav-item" onclick="doLogout()">Sair do Sistema</div>
+  <div class="nav-item" onclick="doLogout()"><span class="ico">🚪</span> <span>Sair do Sistema</span></div>
 </nav>
 
 <!-- DYNAMIC MAIN CONTENT -->
@@ -182,12 +182,8 @@ window.shareScreen = async function() {
 <script defer src="js/auth_core.js?v=20260402003"></script>
 <script defer src="js/app_core.js?v=20260402003"></script>
 
-<!-- Stubs para onclick handlers -->
-<script>
 if (typeof showPage !== 'function') window.showPage = function() { console.log('Carregando...'); };
-if (typeof toggleMenu !== 'function') window.toggleMenu = function() {};
 if (typeof toggleGroup !== 'function') window.toggleGroup = function() {};
-</script>
 
 <!-- Floating Support Button -->
 <a href="https://wa.me/5598985262006?text=Olá, preciso de ajuda com o sistema Obra Real." target="_blank" style="position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; background: #25d366; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 9999; text-decoration: none; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">

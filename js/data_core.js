@@ -520,7 +520,13 @@ function importarBackup(event) {
 
 function toggleMenu() {
   const sidebar = document.querySelector('.sidebar');
-  if (sidebar) sidebar.classList.toggle('open');
+  if (!sidebar) return;
+  
+  if (window.innerWidth <= 768) {
+    sidebar.classList.toggle('open');
+  } else {
+    sidebar.classList.toggle('collapsed');
+  }
 }
 
 // Retirado initDB() automático para SaaS. Será chamado em auth.js após login.
