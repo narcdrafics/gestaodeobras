@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "express": "^4.18.2",
+    "firebase": "^12.12.0",
     "firebase-tools": "^15.14.0"
   },
   "private": true,

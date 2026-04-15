@@ -18,10 +18,13 @@ window.renderFinanceiro = window.renderFinanceiro || function () { };
 window.renderOrcamento = window.renderOrcamento || function () { };
 window.renderMedicao = window.renderMedicao || function () { };
 window.renderAdmin = window.renderAdmin || function () { };
+window.renderFotos = window.renderFotos || function () { };
+window.renderSuperAdmin = window.renderSuperAdmin || function () { };
+window.renderAlmocos = window.renderAlmocos || function () { };
+window.renderRelatorios = window.renderRelatorios || function () { };
 
 // Funções de formatação - fornecidas pelo utils.module.js via window
-const fmt = window.fmt || ((v) => v || '—');
-const fmtPct = window.fmtPct || ((v) => v || '—');
+// NOTA: fmt, fmtPct, fmtDate são declarados em utils.module.js e atribuídos ao window
 const cleanText = (v) => (!v || v === 'undefined' || v === 'indefinido') ? '—' : v;
 const cleanInput = (v) => (!v || v === 'undefined' || v === 'indefinido') ? '' : v;
 const today = new Date().toISOString().split('T')[0];
@@ -497,7 +500,7 @@ function renderAlmocos() {
 function renderAlmocosKPI(list) {
   const container = document.getElementById('almocos-kpi');
   if(!container) return;
-  const hoje = getToday();
+  const hoje = today;
   const almoHoje = list.filter(a => a.data === hoje).reduce((acc, a) => acc + (parseFloat(a.qtd)||0), 0);
   const custoHoje = list.filter(a => a.data === hoje).reduce((acc, a) => acc + (parseFloat(a.vtotal)||0), 0);
   
@@ -573,8 +576,9 @@ async function saveAlmoco() {
     vtotal: parseFloat(document.getElementById('al-vtotal').value) || 0,
     obs: document.getElementById('al-obs').value
   };
-  if (currentEditIdx >= 0) {
-    DB.almocos[currentEditIdx] = data;
+  const editIdx = parseInt(document.getElementById('al-edit-idx').value) || -1;
+  if (editIdx >= 0) {
+    DB.almocos[editIdx] = data;
     toast('Lançamento de almoço atualizado!');
   } else {
     DB.almocos.push(data);
@@ -586,7 +590,7 @@ async function saveAlmoco() {
 
 async function editAlmoco(idx) {
   await openModal('modal-almoco');
-  currentEditIdx = idx;
+  document.getElementById('al-edit-idx').value = idx;
   const a = DB.almocos[idx];
   document.getElementById('al-data').value = a.data;
   document.getElementById('al-obra').value = a.obra;
@@ -742,7 +746,6 @@ function renderPresenca() {
         <td data-label="Profissional"><b>${p.nome}</b><br><small style="color:var(--text3)">${p.funcao}</small></td>
         <td data-label="Horários">${p.entrada || '—'} - ${p.saida || '—'}</td>
         <td data-label="Horas (N+E)">${p.hnorm || 0}h + ${p.hextra || 0}h</td>
-        <td data-label="Almoço"><span class="badge ${p.almoco === 'Sim' ? 'bg-success' : 'bg-secondary'}">${p.almoco || 'Não'}</span></td>
         <td data-label="Status">${statusBadge(p.presenca)}</td>
         <td data-label="Valor Total"><b>${fmt(p.total)}</b></td>
         <td data-label="Pgto">${p.pgtoStatus || '—'}</td>
@@ -854,7 +857,6 @@ function renderPresenca() {
 
   console.log('renderPresenca concluído.');
   // Almoços movidos para nova tela.
-  applyRoleLocks();
   renderQuadroSemanal();
 }
 
@@ -898,7 +900,7 @@ function renderTarefas() {
   const total = tasks.length;
   const conc = tasks.filter(t => t.status === 'Concluída').length;
   const andam = tasks.filter(t => t.status === 'Em andamento').length;
-  const pend = tasks.filter(t => t.status === 'Pendente' || !t.status).length;
+  const pend = tasks.filter(t => t.status === 'Pendente' || t.status === 'A fazer' || !t.status).length;
   
   safeSetInner('tar-kpi', `
     <div class="kpi-card"><div class="kpi-label">Total Filtrado</div><div class="kpi-val">${total}</div></div>
@@ -1525,118 +1527,14 @@ function renderFotos() {
     : '<div style="color:var(--text3); padding: 40px; text-align: center; grid-column: 1/-1;">📸 Nenhuma foto encontrada para esta consulta.</div>';
 }
 
-// SaaS: Render Billing Info
+// SaaS: renderBilling é fornecida por renderBillingSection() em data_core.js
+// Mantém alias para compatibilidade de chamadas legadas
 function renderBilling() {
-  if (DB.config) {
-    // Prioriza os limites dentro do nó config, mas aceita fallbacks na raiz do tenant
-    const limitObras = DB.config.limiteObras || DB.limiteObras || 1;
-    const limitTrab = DB.config.limiteTrabalhadores || DB.limiteTrabalhadores || 10;
-
-    // Novo motor baseado no Plano Real do usuário (via DB central)
-    // Se tiver algum limite em 99 (Ilimitado), o sistema o reconhece como Pro automaticamente para maior resiliência
-    const isPro = (DB.plano && DB.plano !== 'free_trial') || limitObras === 99 || limitTrab === 99;
-
-    let planText = isPro ? (DB.plano === 'pro_anual' ? 'PLANO PRO ANUAL ⭐' : 'PLANO PRO MENSAL ⭐') : 'PLANO INICIAL (Teste Grátis)';
-
-    // Calcula dias restantes se for trial
-    let diasRestantes = 0;
-    if (!isPro && DB.trialExpiracao) {
-      const diffMs = DB.trialExpiracao - Date.now();
-      diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-      if (diasRestantes < 0) diasRestantes = 0;
-    }
-
-    // Injeta visual de dias restantes progressivo
-    const timerElem = document.getElementById('trial-timer-display');
-    const subInfoElem = document.getElementById('subscription-info');
-
-    if (!isPro && DB.trialExpiracao) {
-      if (!timerElem) {
-        const painel = document.getElementById('plan-name').parentNode;
-        painel.insertAdjacentHTML('afterend', `
-              <div id="trial-timer-display" style="background:#fff3cd; color:#b45309; padding:10px 12px; border-radius:6px; margin: 12px 0; font-size:13px; font-weight:600; border:1px solid #fde68a; display:flex; align-items:center; gap:8px;">
-                <span style="font-size:18px;">⏳</span> 
-                <span>Faltam <b id="trial-days" style="color:var(--danger)">${diasRestantes}</b> dias para acabar o seu Teste Grátis.</span>
-              </div>
-            `);
-      } else {
-        timerElem.style.display = 'flex';
-        const tDays = document.getElementById('trial-days');
-        if(tDays) tDays.innerText = diasRestantes;
-      }
-      if(subInfoElem) subInfoElem.innerHTML = '';
-    } else {
-      if(timerElem) timerElem.style.display = 'none';
-      
-      // Se for PRO, injeta informações da assinatura
-      if(isPro && subInfoElem) {
-        subInfoElem.innerHTML = `
-          <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--green); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
-            <div style="color: var(--green); font-weight: 600; font-size: 13px; margin-bottom: 4px;">Assinatura Ativa ✅</div>
-            <div style="font-size: 12px; opacity: 0.8;">
-               ${DB.planoVencimento ? `Próxima cobrança: <b>${fmtDate(DB.planoVencimento)}</b>` : 'Renovação automática ativada.'}
-            </div>
-            <div style="font-size: 11px; opacity: 0.6; margin-top: 5px;">Status: Pagamento em dia</div>
-          </div>
-        `;
-      }
-    }
-
-    safeSetText('plan-name', planText);
-    safeSetText('limit-obras', limitObras === 99 ? 'Ilimitado' : limitObras);
-    safeSetText('limit-trab', limitTrab === 99 ? 'Ilimitado' : limitTrab);
-
-    const btnUpgrade = document.getElementById('btn-upgrade');
-    const footerText = document.getElementById('billing-footer-text');
-
-    if (btnUpgrade) {
-      if (isPro) {
-        btnUpgrade.textContent = "⚙️ Suporte e Cancelamento";
-        btnUpgrade.style.background = "var(--bg3)";
-        btnUpgrade.style.borderColor = "var(--border)";
-        btnUpgrade.style.color = "var(--text2)";
-        btnUpgrade.onclick = () => window.open('https://wa.me/5598985262006?text=Olá, preciso de ajuda com minha assinatura do Obra Real.', '_blank');
-        if(footerText) footerText.style.display = 'none';
-      } else {
-        btnUpgrade.textContent = "Assinar plano Pro";
-        btnUpgrade.style.background = "#6366f1";
-        btnUpgrade.style.borderColor = "#6366f1";
-        btnUpgrade.style.color = "#fff";
-        btnUpgrade.onclick = () => startKiwifyCheckout();
-        if(footerText) footerText.style.display = 'block';
-      }
-      btnUpgrade.style.display = 'block';
-    }
-  }
+  if (typeof renderBillingSection === 'function') renderBillingSection();
 }
 
-async function startKiwifyCheckout() {
-  const user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
-  if (!user.tenantId) return toast('Erro: Conta não identificada.', 'error');
-
-  // GA4 Event - begin_checkout
-  if (typeof gtag === 'function') {
-    gtag('event', 'begin_checkout', {
-      currency: 'BRL',
-      value: 197.00,
-      items: [{
-        item_id: 'plano_pro',
-        item_name: 'Obra Real - Plano Pro',
-        item_category: 'Assinatura',
-        price: 197.00,
-        quantity: 1
-      }]
-    });
-  }
-
-  toast('Abrindo Checkout Seguro da Kiwify...', 'success');
-
-  setTimeout(() => {
-    const userEmail = user.email || user.username || '';
-    const checkoutUrl = `https://pay.kiwify.com.br/UeoKVpn?email=${encodeURIComponent(userEmail)}&external_id=${user.tenantId}`;
-    window.open(checkoutUrl, '_self'); // Alterado para _self para redirecionamento direto conforme solicitado
-  }, 1000);
-}
+// startKiwifyCheckout é fornecida por data_core.js (window.startKiwifyCheckout)
+// Removida duplicata local para evitar sobrescrita
 
 // ==================== SUPER ADMIN (MASTER) ====================
 async function renderSuperAdmin() {
@@ -2038,7 +1936,6 @@ function saveConfig() {
 
 async function editUsuario(idx) {
   await openModal('modal-usuario');
-  currentEditIdx = idx;
   const u = DB.usuarios[idx];
   document.getElementById('usr-edit-idx').value = idx;
   document.getElementById('usr-email').value = u.email || u.username || '';
@@ -2115,8 +2012,6 @@ async function applySuperAdminTenant() {
 }
 
 async function openModal(id) {
-  currentEditIdx = -1; // Reset to "Create New" mode by default. Edit functions will override this after opening.
-
   const modalContainer = document.getElementById('modal-container');
   const modalContent = document.getElementById('modal-content');
 
@@ -2144,7 +2039,8 @@ async function openModal(id) {
       // Pré-carga total antes do filtro
       tsel.innerHTML = DB.trabalhadores.filter(t => t.status === 'Ativo').map(t => `<option value="${t.cod}">${t.nome}</option>`).join('');
       // Auto-preenche apenas ao criar novo (não ao editar)
-      if (currentEditIdx === -1) {
+      const prEditIdx = document.getElementById('pr-edit-idx') ? parseInt(document.getElementById('pr-edit-idx').value) : -1;
+      if (prEditIdx === -1) {
         document.getElementById('pr-data').value = today;
         filterTrabByObra(); // Dispara o filtro inteligente de obras imediatamente ao abrir limpo
         calcPresenca();
@@ -2159,12 +2055,22 @@ async function openModal(id) {
     document.getElementById('cp-num').value = nextCod(DB.compras, 'PC');
     document.getElementById('cp-data').value = today;
   }
-  if (id === 'modal-financeiro' && currentEditIdx === -1) document.getElementById('fn-data').value = today;
-  if (id === 'modal-presenca' && currentEditIdx === -1) calcPresenca();
-  if (id === 'modal-obra' && currentEditIdx === -1) document.getElementById('ob-cod').value = nextCod(DB.obras, 'OB');
+  if (id === 'modal-financeiro') {
+    const fnEditIdx = document.getElementById('fn-edit-idx') ? parseInt(document.getElementById('fn-edit-idx').value) : -1;
+    if (fnEditIdx === -1) document.getElementById('fn-data').value = today;
+  }
+  if (id === 'modal-presenca') {
+    const prEditIdx = document.getElementById('pr-edit-idx') ? parseInt(document.getElementById('pr-edit-idx').value) : -1;
+    if (prEditIdx === -1) calcPresenca();
+  }
+  if (id === 'modal-obra') {
+    const obEditIdx = document.getElementById('ob-edit-idx') ? parseInt(document.getElementById('ob-edit-idx').value) : -1;
+    if (obEditIdx === -1) document.getElementById('ob-cod').value = nextCod(DB.obras, 'OB');
+  }
   if (id === 'modal-trabalhador') {
     window._currentTrFoto = null;
-    if (currentEditIdx === -1) {
+    const trEditIdx = document.getElementById('tr-idx') ? parseInt(document.getElementById('tr-idx').value) : -1;
+    if (trEditIdx === -1) {
       document.getElementById('tr-cod').value = nextCod(DB.trabalhadores, 'TR');
       document.getElementById('tr-admissao').value = today;
     }
@@ -2185,7 +2091,10 @@ async function openModal(id) {
       };
     }
   }
-  if (id === 'modal-estoque' && currentEditIdx === -1) document.getElementById('es-cod').value = nextCod(DB.estoque, 'ES');
+  if (id === 'modal-estoque') {
+    const esEditIdx = document.getElementById('es-edit-idx') ? parseInt(document.getElementById('es-edit-idx').value) : -1;
+    if (esEditIdx === -1) document.getElementById('es-cod').value = nextCod(DB.estoque, 'ES');
+  }
   if (id === 'modal-movest') {
     document.getElementById('mv-data').value = today;
     const msel = document.getElementById('mv-mat');
@@ -2222,6 +2131,28 @@ function closeModal(id) {
   document.getElementById('modal-container').classList.remove('open');
   const editIdx = document.getElementById('usr-edit-idx');
   if (id === 'modal-usuario' && editIdx) editIdx.value = '-1';
+  const alEditIdx = document.getElementById('al-edit-idx');
+  if (id === 'modal-almoco' && alEditIdx) alEditIdx.value = '-1';
+  const tfEditIdx = document.getElementById('tf-edit-idx');
+  if (id === 'modal-tarefa' && tfEditIdx) tfEditIdx.value = '-1';
+  const obEditIdx = document.getElementById('ob-edit-idx');
+  if (id === 'modal-obra' && obEditIdx) obEditIdx.value = '-1';
+  const prEditIdx = document.getElementById('pr-edit-idx');
+  if (id === 'modal-presenca' && prEditIdx) prEditIdx.value = '-1';
+  const esEditIdx = document.getElementById('es-edit-idx');
+  if (id === 'modal-estoque' && esEditIdx) esEditIdx.value = '-1';
+  const mvEditIdx = document.getElementById('mv-edit-idx');
+  if (id === 'modal-movest' && mvEditIdx) mvEditIdx.value = '-1';
+  const cpEditIdx = document.getElementById('cp-edit-idx');
+  if (id === 'modal-compra' && cpEditIdx) cpEditIdx.value = '-1';
+  const fnEditIdx = document.getElementById('fn-edit-idx');
+  if (id === 'modal-financeiro' && fnEditIdx) fnEditIdx.value = '-1';
+  const ocEditIdx = document.getElementById('oc-edit-idx');
+  if (id === 'modal-orcamento' && ocEditIdx) ocEditIdx.value = '-1';
+  const mdEditIdx = document.getElementById('md-edit-idx');
+  if (id === 'modal-medicao' && mdEditIdx) mdEditIdx.value = '-1';
+  const trEditIdx = document.getElementById('tr-idx');
+  if (id === 'modal-trabalhador' && trEditIdx) trEditIdx.value = '-1';
 }
 
 function filterTrabByObra() {
@@ -2369,8 +2300,9 @@ async function saveObra() {
 
   const cod = document.getElementById('ob-cod').value.trim();
   if (!cod) { toast('Informe o código da obra', 'error'); return; }
+  const editIdx = parseInt(document.getElementById('ob-edit-idx').value) || -1;
   // Verifica unicidade do código (exceto ao editar o próprio registro)
-  const duplicado = DB.obras.some((o, i) => o.cod === cod && i !== currentEditIdx);
+  const duplicado = DB.obras.some((o, i) => o.cod === cod && i !== editIdx);
   if (duplicado) { toast(`Código "${cod}" já existe! Use outro.`, 'error'); return; }
   const data = {
     cod, nome: document.getElementById('ob-nome').value,
@@ -2387,8 +2319,8 @@ async function saveObra() {
     contrato_tipo: document.getElementById('ob-contrato-tipo').value,
     obs: document.getElementById('ob-obs').value
   };
-  if (currentEditIdx >= 0) {
-    DB.obras[currentEditIdx] = data;
+  if (editIdx >= 0) {
+    DB.obras[editIdx] = data;
     toast('Obra atualizada!');
   } else {
     // Validação SaaS: Limite de Obras
@@ -2405,7 +2337,7 @@ async function saveObra() {
 
 async function editObra(idx) {
   await openModal('modal-obra');
-  currentEditIdx = idx;
+  document.getElementById('ob-edit-idx').value = idx;
   const o = DB.obras[idx];
   document.getElementById('ob-cod').value = o.cod;
   document.getElementById('ob-nome').value = o.nome;
@@ -2425,9 +2357,9 @@ async function editObra(idx) {
 
 async function saveTrabalhador() {
 
-  // Tenta obter o índice do campo oculto (mais seguro que global)
+  // Obtém o índice do campo oculto (mais seguro que variável global)
   const hiddenIdxVal = document.getElementById('tr-idx') ? document.getElementById('tr-idx').value : '-1';
-  const editIdx = parseInt(hiddenIdxVal) >= 0 ? parseInt(hiddenIdxVal) : currentEditIdx;
+  const editIdx = parseInt(hiddenIdxVal) >= 0 ? parseInt(hiddenIdxVal) : -1;
 
   const cod = document.getElementById('tr-cod').value.trim();
   if (!cod) { toast('Informe o código', 'error'); return; }
@@ -2451,7 +2383,7 @@ async function saveTrabalhador() {
     admissao: document.getElementById('tr-admissao').value,
     endereco: document.getElementById('tr-endereco').value,
     cidade: document.getElementById('tr-cidade').value,
-    foto: window._currentTrFoto || (currentEditIdx >= 0 ? DB.trabalhadores[currentEditIdx].foto : null)
+    foto: window._currentTrFoto || (editIdx >= 0 ? DB.trabalhadores[editIdx].foto : null)
   };
   if (editIdx >= 0 && DB.trabalhadores[editIdx]) {
     // 1. Captura Segura dos Dados Antigos ANTES de atualizar
@@ -2540,7 +2472,6 @@ async function saveTrabalhador() {
 
 async function editTrabalhador(idx) {
   await openModal('modal-trabalhador');
-  currentEditIdx = idx;
   if (document.getElementById('tr-idx')) {
      document.getElementById('tr-idx').value = idx;
   }
@@ -2583,6 +2514,7 @@ async function savePresenca(keepOpen = false) {
   const modoMassa = document.querySelector('input[name="pr-modo"]:checked')?.value === 'massa';
   const dataVal = document.getElementById('pr-data').value;
   const obraVal = document.getElementById('pr-obra').value;
+  const editIdx = parseInt(document.getElementById('pr-edit-idx').value) || -1;
   
   if (!dataVal) { toast('Informe a data!', 'error'); return; }
   if (!obraVal) { toast('Selecione a obra!', 'error'); return; }
@@ -2607,7 +2539,7 @@ async function savePresenca(keepOpen = false) {
     const jaExiste = DB.presenca.some((p, idx) => 
       p.data === dataVal && 
       p.trab === tsel && 
-      (currentEditIdx < 0 || idx !== currentEditIdx)
+      (editIdx < 0 || idx !== editIdx)
     );
 
     if (jaExiste) {
@@ -2651,7 +2583,7 @@ async function savePresenca(keepOpen = false) {
         return parseFloat(document.getElementById('pr-total').value) || 0;
       })(),
 
-      pgtoStatus: document.getElementById('pr-pgto-status').value,
+      pgtoStatus: document.getElementById('pr-pgto-status').value || 'Pendente',
       valpago: parseFloat(document.getElementById('pr-valpago').value) || 0,
       // Almoco agora é captado na tela de Gestão de Almoços
       lancador: document.getElementById('pr-lancador').value,
@@ -2659,8 +2591,8 @@ async function savePresenca(keepOpen = false) {
       obs: document.getElementById('pr-obs').value
     };
 
-    if (currentEditIdx >= 0 && !modoMassa) {
-      DB.presenca[currentEditIdx] = data;
+    if (editIdx >= 0 && !modoMassa) {
+      DB.presenca[editIdx] = data;
     } else {
       DB.presenca.push(data);
     }
@@ -2680,7 +2612,7 @@ async function savePresenca(keepOpen = false) {
     document.getElementById('pr-obs').value = '';
     if (document.getElementById('pr-parcial-grp')) document.getElementById('pr-parcial-grp').style.display = 'none';
     if (document.getElementById('pr-parcial-msg')) document.getElementById('pr-parcial-msg').style.display = 'none';
-    currentEditIdx = -1;
+    document.getElementById('pr-edit-idx').value = '-1';
     togglePresenca();
   } else {
     closeModal('modal-presenca');
@@ -2688,7 +2620,7 @@ async function savePresenca(keepOpen = false) {
 
   try {
     await persistDB();
-    let tmsg = currentEditIdx >= 0 ? 'Presença atualizada!' : 'Presença registrada!';
+    let tmsg = editIdx >= 0 ? 'Presença atualizada!' : 'Presença registrada!';
     if (lastSavedData?.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${((lastSavedData.total || 0) - (lastSavedData.valpago || 0)).toFixed(2).replace('.', ',')}`;
     toast(tmsg);
   } catch (err) {
@@ -2728,7 +2660,7 @@ function selectAllTrabs(check) {
 
 async function editPresenca(idx) {
   await openModal('modal-presenca');
-  currentEditIdx = idx;
+  document.getElementById('pr-edit-idx').value = idx;
   const p = DB.presenca[idx];
   document.getElementById('pr-data').value = p.data;
   document.getElementById('pr-obra').value = p.obra;
@@ -2951,8 +2883,9 @@ async function saveTarefa() {
     photoUrl: document.getElementById('tf-photo-url').value || '',
     obs: document.getElementById('tf-obs').value
   };
-  if (currentEditIdx >= 0) {
-    DB.tarefas[currentEditIdx] = data;
+  const editIdx = parseInt(document.getElementById('tf-edit-idx').value) || -1;
+  if (editIdx >= 0) {
+    DB.tarefas[editIdx] = data;
     toast('Tarefa atualizada!');
   } else {
     DB.tarefas.push(data);
@@ -2963,7 +2896,7 @@ async function saveTarefa() {
 
 async function editTarefa(idx) {
   await openModal('modal-tarefa');
-  currentEditIdx = idx;
+  document.getElementById('tf-edit-idx').value = idx;
   const t = DB.tarefas[idx];
   document.getElementById('tf-cod').value = t.cod;
   document.getElementById('tf-obra').value = t.obra;
@@ -3001,11 +2934,12 @@ async function saveEstoque() {
     custo: parseFloat(document.getElementById('es-custo').value) || 0,
     obs: document.getElementById('es-obs').value
   };
-  if (currentEditIdx >= 0) {
-    if (DB.estoque[currentEditIdx].saida !== undefined) {
-      data.saida = DB.estoque[currentEditIdx].saida; // preserve existing usage counter
+  const editIdx = parseInt(document.getElementById('es-edit-idx').value) || -1;
+  if (editIdx >= 0) {
+    if (DB.estoque[editIdx].saida !== undefined) {
+      data.saida = DB.estoque[editIdx].saida; // preserve existing usage counter
     }
-    DB.estoque[currentEditIdx] = data;
+    DB.estoque[editIdx] = data;
     toast('Item de estoque atualizado!');
   } else {
     DB.estoque.push(data);
@@ -3016,7 +2950,7 @@ async function saveEstoque() {
 
 async function editEstoque(idx) {
   await openModal('modal-estoque');
-  currentEditIdx = idx;
+  document.getElementById('es-edit-idx').value = idx;
   const e = DB.estoque[idx];
   document.getElementById('es-cod').value = e.cod;
   document.getElementById('es-mat').value = e.mat;
@@ -3108,8 +3042,9 @@ async function saveMovEstoque() {
       vtotal: parseFloat(document.getElementById('mv-vtotal').value) || 0,
       obs: document.getElementById('mv-obs').value
     };
-    if (currentEditIdx >= 0) {
-      DB.movEstoque[currentEditIdx] = data;
+    const editIdx = parseInt(document.getElementById('mv-edit-idx').value) || -1;
+    if (editIdx >= 0) {
+      DB.movEstoque[editIdx] = data;
       toast('Movimentação atualizada!');
     } else {
       DB.movEstoque.push(data);
@@ -3122,7 +3057,7 @@ async function saveMovEstoque() {
 
 async function editMovEstoque(idx) {
   await openModal('modal-movest');
-  currentEditIdx = idx;
+  document.getElementById('mv-edit-idx').value = idx;
   const m = DB.movEstoque[idx];
   document.getElementById('mv-data').value = m.data;
   document.getElementById('mv-mat').value = m.codMat;
@@ -3168,8 +3103,9 @@ async function saveCompra() {
     conf: document.getElementById('cp-conf').value,
     obs: document.getElementById('cp-obs').value
   };
-  if (currentEditIdx >= 0) {
-    DB.compras[currentEditIdx] = data;
+  const editIdx = parseInt(document.getElementById('cp-edit-idx').value) || -1;
+  if (editIdx >= 0) {
+    DB.compras[editIdx] = data;
     toast('Compra atualizada!');
   } else {
     DB.compras.push(data);
@@ -3180,7 +3116,7 @@ async function saveCompra() {
 
 async function editCompra(idx) {
   await openModal('modal-compra');
-  currentEditIdx = idx;
+  document.getElementById('cp-edit-idx').value = idx;
   const c = DB.compras[idx];
   document.getElementById('cp-num').value = c.num;
   document.getElementById('cp-data').value = c.data;
@@ -3233,8 +3169,9 @@ async function saveFinanceiro() {
     obs: document.getElementById('fn-obs').value
   };
 
-  if (currentEditIdx >= 0) {
-    DB.financeiro[currentEditIdx] = data;
+  const editIdx = parseInt(document.getElementById('fn-edit-idx').value) || -1;
+  if (editIdx >= 0) {
+    DB.financeiro[editIdx] = data;
     let tmsg = 'Lançamento financeiro atualizado!';
     if (status === 'Parcial') {
       const falta = (real > 0 ? real : prev) - valpago;
@@ -3259,7 +3196,7 @@ async function saveFinanceiro() {
 
 async function editFinanceiro(idx) {
   await openModal('modal-financeiro');
-  currentEditIdx = idx;
+  document.getElementById('fn-edit-idx').value = idx;
   const f = DB.financeiro[idx];
   document.getElementById('fn-data').value = f.data;
   document.getElementById('fn-obra').value = f.obra;
@@ -3299,11 +3236,12 @@ async function saveOrcamento() {
     vunit, vtotal: qtd * vunit, vreal: 0,
     obs: document.getElementById('oc-obs').value
   };
-  if (currentEditIdx >= 0) {
-    if (DB.orcamento[currentEditIdx].vreal !== undefined) {
-      data.vreal = DB.orcamento[currentEditIdx].vreal; // preserve the current progress amount
+  const editIdx = parseInt(document.getElementById('oc-edit-idx').value) || -1;
+  if (editIdx >= 0) {
+    if (DB.orcamento[editIdx].vreal !== undefined) {
+      data.vreal = DB.orcamento[editIdx].vreal; // preserve the current progress amount
     }
-    DB.orcamento[currentEditIdx] = data;
+    DB.orcamento[editIdx] = data;
     toast('Item de orçamento atualizado!');
   } else {
     DB.orcamento.push(data);
@@ -3314,7 +3252,7 @@ async function saveOrcamento() {
 
 async function editOrcamento(idx) {
   await openModal('modal-orcamento');
-  currentEditIdx = idx;
+  document.getElementById('oc-edit-idx').value = idx;
   const o = DB.orcamento[idx];
   document.getElementById('oc-obra').value = o.obra;
   document.getElementById('oc-etapa').value = o.etapa;
@@ -3347,8 +3285,9 @@ async function saveMedicao() {
     photoUrl: document.getElementById('md-photo-url').value || '',
     obs: document.getElementById('md-obs').value
   };
-  if (currentEditIdx >= 0) {
-    DB.medicao[currentEditIdx] = data;
+  const editIdx = parseInt(document.getElementById('md-edit-idx').value) || -1;
+  if (editIdx >= 0) {
+    DB.medicao[editIdx] = data;
     let tmsg = 'Medição atualizada!';
     if (data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.vtotal - data.valpago).toFixed(2).replace('.', ',')}`;
     toast(tmsg);
@@ -3363,7 +3302,7 @@ async function saveMedicao() {
 
 async function editMedicao(idx) {
   await openModal('modal-medicao');
-  currentEditIdx = idx;
+  document.getElementById('md-edit-idx').value = idx;
   const m = DB.medicao[idx];
   document.getElementById('md-semana').value = m.semana;
   document.getElementById('md-obra').value = m.obra;
@@ -3449,6 +3388,10 @@ async function saveUsuario() {
 // ==================== DELETE ====================
 function deleteItem(table, idx) {
   if (!confirm('Remover este registro?')) return;
+  if (idx < 0 || idx >= DB[table].length) {
+    toast('Erro: Índice inválido. Recarregue a página.', 'error');
+    return;
+  }
   DB[table].splice(idx, 1);
   persistDB();
   const activePageEl = document.querySelector('.page.active');

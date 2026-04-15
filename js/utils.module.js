@@ -355,5 +355,5 @@ const safeSetStyle = function(id, prop, val) {
 
 window.safeSetStyle = safeSetStyle;
 
-// Exports for testing
-export { fmt, fmtPct, fmtDate, summarizePresence, calcWeeklyPendingPayments, summarizeFinance, calcBudgetProgress, calcSaldo, estoqueStatus, statusBadge, uiEmptyState, obName, nextCod, safeSetInner, autoBindTableLabels, safeSetText, safeSetValue, safeSetStyle };
+// Exports for testing (vitest roda como module, navegador roda como defer)
+// O try/catch evita SyntaxError quando carregado sem type="module"

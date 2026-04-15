@@ -173,8 +173,8 @@ window.shareScreen = async function() {
 </script>
 
 
-<!-- MODULOS DE LOGICA (TESTAVEIS) -->
-<script type="module" src="js/utils.module.js?v=20260402003"></script>
+<!-- MODULOS DE LOGICA — carregado primeiro (blocking) para popular window.* antes dos defer -->
+<script src="js/utils.module.js?v=20260402003"></script>
 
 <script defer src="js/pix_logic.js?v=20260402003"></script>
 <script defer src="js/pix_ui.js?v=20260402003"></script>
@@ -182,8 +182,10 @@ window.shareScreen = async function() {
 <script defer src="js/auth_core.js?v=20260402003"></script>
 <script defer src="js/app_core.js?v=20260402003"></script>
 
+<script>
 if (typeof showPage !== 'function') window.showPage = function() { console.log('Carregando...'); };
 if (typeof toggleGroup !== 'function') window.toggleGroup = function() {};
+</script>
 
 <!-- Floating Support Button -->
 <a href="https://wa.me/5598985262006?text=Olá, preciso de ajuda com o sistema Obra Real." target="_blank" style="position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; background: #25d366; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 9999; text-decoration: none; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">

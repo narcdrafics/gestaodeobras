@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcSaldo, estoqueStatus, fmt, fmtDate, summarizePresence, calcWeeklyPendingPayments, summarizeFinance, calcBudgetProgress } from '../js/utils.module.js';
+import { calcSaldo, estoqueStatus, fmt, fmtDate, summarizePresence, calcWeeklyPendingPayments, summarizeFinance, calcBudgetProgress } from './utils_wrapper.js';
 
 describe('Cálculos de Estoque', () => {
   it('deve calcular o saldo corretamente', () => {
