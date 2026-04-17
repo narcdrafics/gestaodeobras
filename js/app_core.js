@@ -162,7 +162,9 @@ function renderDashboard() {
 
   const todayDate = new Date();
   const fSemana = new Date(todayDate);
-  fSemana.setDate(fSemana.getDate() - fSemana.getDay());
+  const dayOfWeek = todayDate.getDay();
+  const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo vira 6, segunda vira 0, etc.
+  fSemana.setDate(todayDate.getDate() - diff);
   const strSemana = fSemana.toISOString().split('T')[0];
   const fMes = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
   const strMes = fMes.toISOString().split('T')[0];
@@ -506,7 +508,9 @@ function renderAlmocosKPI(list) {
   
   const todayDate = new Date();
   const fSemana = new Date(todayDate);
-  fSemana.setDate(fSemana.getDate() - fSemana.getDay());
+  const dayOfWeek = todayDate.getDay();
+  const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo vira 6, segunda vira 0, etc.
+  fSemana.setDate(todayDate.getDate() - diff);
   const strSemana = fSemana.toISOString().split('T')[0];
   const qtdSemana = list.filter(a => a.data >= strSemana && a.data <= hoje).reduce((acc, a) => acc + (parseFloat(a.qtd)||0), 0);
   const custoSemana = list.filter(a => a.data >= strSemana && a.data <= hoje).reduce((acc, a) => acc + (parseFloat(a.vtotal)||0), 0);
@@ -614,12 +618,14 @@ function renderQuadroSemanal() {
   if (!container) return;
 
   const todayObj = new Date();
-  // Ajusta para o início da semana (Domingo) + o offset
+  // Ajusta para o início da semana (Segunda-feira) + o offset
   const startOfWeek = new Date(todayObj);
-  startOfWeek.setDate(todayObj.getDate() - todayObj.getDay() + (currentWeekOffset * 7));
+  const dayOfWeek = todayObj.getDay();
+  const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo vira 6, segunda vira 0, etc.
+  startOfWeek.setDate(todayObj.getDate() - diff + (currentWeekOffset * 7));
   
   const days = [];
-  const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const dayNames = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
   
   for (let i = 0; i < 7; i++) {
     const d = new Date(startOfWeek);

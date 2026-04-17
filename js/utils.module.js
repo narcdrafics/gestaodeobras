@@ -62,7 +62,9 @@ window.summarizePresence = summarizePresence;
 const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) => {
   const todayObj = new Date(todayStr);
   const startOfWeek = new Date(todayObj);
-  startOfWeek.setDate(todayObj.getDate() - todayObj.getDay());
+  const dayOfWeek = todayObj.getDay();
+  const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo vira 6, segunda vira 0, etc.
+  startOfWeek.setDate(todayObj.getDate() - diff);
   const strWeek = startOfWeek.toISOString().split('T')[0];
 
   return obrasArray.map(o => {
