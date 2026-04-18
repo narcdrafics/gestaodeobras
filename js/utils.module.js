@@ -227,7 +227,7 @@ const calcBudgetProgress = (orcamento, financeiro, compras) => {
   });
 
   return orcamento.map(o => {
-    const key = `${o.obra}|${o.etapa}`;
+    const key = `${o.obra}|${o.etapa || 'Material'}`;
     const vreal = realCosts[key] || 0;
     const vtotal = parseFloat(o.vtotal) || 0;
     return {

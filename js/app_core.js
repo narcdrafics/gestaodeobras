@@ -2199,7 +2199,9 @@ function filterTrabByObra() {
 }
 
 function fillTrabInfo() {
-  const sel = document.getElementById('pr-trab').value;
+  const trabEl = document.getElementById('pr-trab');
+  if (!trabEl) return;
+  const sel = trabEl.value;
   const t = DB.trabalhadores.find(x => x.cod === sel);
   
   // Regra SaaS: Informal não tem Hora Extra
@@ -3267,6 +3269,7 @@ async function editOrcamento(idx) {
   document.getElementById('oc-qtd').value = o.qtd;
   document.getElementById('oc-unid').value = o.unid;
   document.getElementById('oc-vunit').value = o.vunit;
+  document.getElementById('oc-vtotal').value = o.vtotal;
   document.getElementById('oc-obs').value = o.obs || '';
 }
 
