@@ -1,22 +1,22 @@
 // ==================== DASHBOARD MODULE ====================
 
 function renderDashboard() {
-  if (typeof DB === 'undefined' || !DB) {
+  if (!window.DB) {
     console.warn('[Dashboard] DB global não encontrado.');
     return;
   }
   try {
     const kpiGrid = document.getElementById('kpi-grid');
 
-    const obrasAtivas = (DB.obras || []).filter(o => o && ['Em andamento', 'Planejada'].includes(o.status)).length;
-    const tarefasAtrasadas = (DB.tarefas || []).filter(t => t && t.status === 'Atrasada').length;
-    const estoquesBaixos = (DB.estoque || []).filter(e => e && ['BAIXO', 'CRÍTICO'].includes(window.estoqueStatus(e))).length;
-    const comprasAguardando = (DB.compras || []).filter(c => c && c.status === 'Aguardando').length;
-    const totalPrev = (DB.financeiro || []).reduce((a, f) => a + (f?.prev || 0), 0);
+    const obrasAtivas = (window.DB.obras || []).filter(o => o && ['Em andamento', 'Planejada'].includes(o.status)).length;
+    const tarefasAtrasadas = (window.DB.tarefas || []).filter(t => t && t.status === 'Atrasada').length;
+    const estoquesBaixos = (window.DB.estoque || []).filter(e => e && ['BAIXO', 'CRÍTICO'].includes(window.estoqueStatus(e))).length;
+    const comprasAguardando = (window.DB.compras || []).filter(c => c && c.status === 'Aguardando').length;
+    const totalPrev = (window.DB.financeiro || []).reduce((a, f) => a + (f?.prev || 0), 0);
 
     // Unificação Rápida Financeira Global do Dashboard (Apenas Pendentes subtraindo Parcial)
     let globalFinance = [];
-    (DB.financeiro || []).forEach(f => {
+    (window.DB.financeiro || []).forEach(f => {
       if (f && f.status !== 'Pago') {
         globalFinance.push({
           obra: f.obra,
@@ -25,7 +25,7 @@ function renderDashboard() {
         });
       }
     });
-    (DB.presenca || []).forEach(p => {
+    (window.DB.presenca || []).forEach(p => {
       if (p && p.pgtoStatus !== 'Pago') {
         globalFinance.push({
           obra: p.obra,
@@ -34,7 +34,7 @@ function renderDashboard() {
         });
       }
     });
-    (DB.medicao || []).forEach(m => {
+    (window.DB.medicao || []).forEach(m => {
       if (m && m.pgtoStatus !== 'Pago') {
         globalFinance.push({
           obra: m.obra,
@@ -47,7 +47,7 @@ function renderDashboard() {
     const totalRealGlobal = globalFinance.reduce((a, f) => a + (f?.v || 0), 0);
     const pctCusto = totalPrev > 0 ? ((totalRealGlobal / totalPrev) * 100).toFixed(1) : 0;
 
-    const hoje = DB.presenca.filter(p => p.data === today);
+    const hoje = window.DB.presenca.filter(p => p.data === today);
     const presPresente = hoje.filter(p => p.presenca === 'Presente').length;
     const presTotal = hoje.length;
 
@@ -60,17 +60,17 @@ function renderDashboard() {
     const fMes = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
     const strMes = fMes.toISOString().split('T')[0];
 
-    const cDiariasSemana = DB.presenca
+    const cDiariasSemana = window.DB.presenca
       .filter(p => p.data >= strSemana && p.data <= today && p.pgtoStatus !== 'Pago')
       .reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
 
-    const cEmpreitaSemana = DB.medicao
+    const cEmpreitaSemana = window.DB.medicao
       .filter(m => m.semana >= strSemana && m.semana <= today && m.pgtoStatus !== 'Pago')
       .reduce((a, m) => a + Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0)), 0);
 
     if (kpiGrid) {
       safeSetInner(kpiGrid, `
-        <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obrasAtivas}</div><div class="kpi-sub">de ${(DB.obras || []).length} cadastradas</div></div>
+        <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obrasAtivas}</div><div class="kpi-sub">de ${(window.DB.obras || []).length} cadastradas</div></div>
         <div class="kpi-card"><div class="kpi-label">Diárias (Semana)</div><div class="kpi-val blue">${fmt(cDiariasSemana)}</div><div class="kpi-sub">Custo de Folha na contabilidade</div></div>
         <div class="kpi-card"><div class="kpi-label">Empreitas (Semana)</div><div class="kpi-val blue" style="font-size:20px">${fmt(cEmpreitaSemana)}</div><div class="kpi-sub">Custo de Medições na contabilidade</div></div>
         <div class="kpi-card"><div class="kpi-label">Custo Real / Prev.</div><div class="kpi-val ${pctCusto > 100 ? 'red' : 'green'}">${pctCusto}%</div><div class="kpi-sub">${fmt(totalRealGlobal)} de ${fmt(totalPrev)}</div></div>
@@ -80,17 +80,17 @@ function renderDashboard() {
     }
 
     const alerts = [];
-    const uObra = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
+    const uObra = (c) => { const o = window.DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
 
-    DB.estoque.forEach(e => {
+    window.DB.estoque.forEach(e => {
       const s = window.estoqueStatus(e);
       if (s === 'CRÍTICO') alerts.push({ tipo: 'ESTOQUE CRÍTICO', obra: uObra(e.obra), desc: `${e.mat} — saldo ${window.calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp: 'Almoxarife', prior: 'alto' });
       else if (s === 'BAIXO') alerts.push({ tipo: 'ESTOQUE BAIXO', obra: uObra(e.obra), desc: `${e.mat} — saldo ${window.calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp: 'Almoxarife', prior: 'medio' });
     });
-    DB.tarefas.filter(t => t.status === 'Atrasada').forEach(t => alerts.push({ tipo: 'TAREFA ATRASADA', obra: uObra(t.obra), desc: `${t.desc} — prazo: ${fmtDate(t.prazo)}`, resp: t.resp, prior: 'alto' }));
-    DB.compras.filter(c => c.status === 'Aguardando').forEach(c => alerts.push({ tipo: 'COMPRA PENDENTE', obra: uObra(c.obra), desc: `${c.mat} — ${fmt(c.vtotal)}`, resp: 'Gestor', prior: 'medio' }));
+    window.DB.tarefas.filter(t => t.status === 'Atrasada').forEach(t => alerts.push({ tipo: 'TAREFA ATRASADA', obra: uObra(t.obra), desc: `${t.desc} — prazo: ${fmtDate(t.prazo)}`, resp: t.resp, prior: 'alto' }));
+    window.DB.compras.filter(c => c.status === 'Aguardando').forEach(c => alerts.push({ tipo: 'COMPRA PENDENTE', obra: uObra(c.obra), desc: `${c.mat} — ${fmt(c.vtotal)}`, resp: 'Gestor', prior: 'medio' }));
 
-    const pDiarias = DB.presenca.filter(p => p.total > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(p.pgtoStatus || 'Pendente'));
+    const pDiarias = window.DB.presenca.filter(p => p.total > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(p.pgtoStatus || 'Pendente'));
     if (pDiarias.length > 0) {
       const totalD = pDiarias.reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
       const temAtrasadoD = pDiarias.some(p => p.pgtoStatus === 'Atrasado');
@@ -104,7 +104,7 @@ function renderDashboard() {
       });
     }
 
-    const pMedicao = DB.medicao.filter(m => m.vtotal > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(m.pgtoStatus || 'Pendente'));
+    const pMedicao = window.DB.medicao.filter(m => m.vtotal > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(m.pgtoStatus || 'Pendente'));
     if (pMedicao.length > 0) {
       const medPorEquipe = {};
       pMedicao.forEach(m => {
@@ -127,7 +127,7 @@ function renderDashboard() {
       });
     }
 
-    const pFin = DB.financeiro.filter(f => {
+    const pFin = window.DB.financeiro.filter(f => {
       const val = f.real > 0 ? f.real : f.prev;
       return val > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(f.status || 'Pendente');
     });
@@ -147,8 +147,8 @@ function renderDashboard() {
     const currentUserStr = sessionStorage.getItem('gestaoUser');
     if (currentUserStr) {
       const currentUser = JSON.parse(currentUserStr);
-      if (currentUser.role === 'admin' && DB.usuarios) {
-        const contasPendentes = DB.usuarios.filter(u => u.role === 'pendente');
+      if (currentUser.role === 'admin' && window.DB.usuarios) {
+        const contasPendentes = window.DB.usuarios.filter(u => u.role === 'pendente');
         contasPendentes.forEach(pUser => {
           alerts.push({ tipo: 'NOVO USUÁRIO', obra: 'SISTEMA', desc: `${pUser.name} (${pUser.email}) solicitou acesso.`, resp: 'Admin', prior: 'alto' });
         });
@@ -168,14 +168,14 @@ function renderDashboard() {
         : '<div style="color:var(--text3);font-size:13px;padding:8px">Nenhum alerta no momento.</div>';
     }
 
-    safeSetInner('dash-obras-tbody', DB.obras.map(o => {
-      const tarefas = DB.tarefas.filter(t => t.obra === o.cod);
+    safeSetInner('dash-obras-tbody', window.DB.obras.map(o => {
+      const tarefas = window.DB.tarefas.filter(t => t.obra === o.cod);
       const tabObj = globalFinance.filter(f => f.obra === o.cod);
       const realizado = tabObj.reduce((a, f) => a + f.v, 0);
       const cSemanal = tabObj.filter(f => f.data >= strSemana && f.data <= today).reduce((a, f) => a + f.v, 0);
       const cMensal = tabObj.filter(f => f.data >= strMes && f.data <= today).reduce((a, f) => a + f.v, 0);
 
-      const dSemanal = DB.presenca
+      const dSemanal = window.DB.presenca
         .filter(p => p.obra === o.cod && p.data >= strSemana && p.data <= today && p.pgtoStatus !== 'Pago')
         .reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
 

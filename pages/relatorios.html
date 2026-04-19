@@ -57,7 +57,7 @@
     const selYear = document.getElementById('rel-year');
     
     // Preenche Obras (com sanitização XSS)
-    if (selObra && typeof DB !== 'undefined') {
+    if (selObra && window.DB) {
       const safeSanitize = typeof sanitizeHTML === 'function' ? sanitizeHTML : (s) => String(s || '');
       selObra.innerHTML = '<option value="">-- Todas as Obras / Geral --</option>' + 
         DB.obras.map(o => `<option value="${safeSanitize(o.cod)}">${safeSanitize(o.nome)}</option>`).join('');

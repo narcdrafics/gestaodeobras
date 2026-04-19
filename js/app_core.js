@@ -77,15 +77,8 @@ async function showPage(id) {
 }
 
 function renderPage(id) {
-  const r = {
-    dashboard: renderDashboard, obras: renderObras, trabalhadores: renderTrabalhadores,
-    presenca: renderPresenca, tarefas: renderTarefas, estoque: renderEstoque,
-    movEstoque: renderMovEstoque, compras: renderCompras, financeiro: renderFinanceiro,
-    orcamento: renderOrcamento, medicao: renderMedicao, admin: renderAdmin,
-    fotos: renderFotos, super_admin: renderSuperAdmin, relatorios: renderRelatorios,
-    almocos: renderAlmocos
-  };
-  if (r[id]) r[id]();
+  const fn = window[`render${id.charAt(0).toUpperCase()}${id.slice(1)}`];
+  if (typeof fn === 'function') fn();
 }
 // Renderiza o banner de trial progressivo
 function renderTrialBanner(daysLeft) {
