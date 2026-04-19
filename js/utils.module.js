@@ -4,9 +4,6 @@
  * Atribui diretamente ao window para evitar conflitos de declaração.
  */
 
-window.todayDate = new Date();
-window.today = window.todayDate.toISOString().split('T')[0];
-
 const fmt = (v) => v != null && !isNaN(v)
   ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   : '—';
@@ -245,13 +242,13 @@ const calcBudgetProgress = (orcamento, financeiro, compras) => {
 window.calcBudgetProgress = calcBudgetProgress;
 
 // Funções para window (evita declaração no escopo global)
-const calcSaldo = function(item) {
+const calcSaldo = function (item) {
   return (parseFloat(item.entrada) || 0) - (parseFloat(item.saida) || 0);
 };
 
 window.calcSaldo = calcSaldo;
 
-const estoqueStatus = function(item) {
+const estoqueStatus = function (item) {
   const saldo = window.calcSaldo(item);
   if (saldo <= 0) return 'SEM ESTOQUE';
   if (saldo <= item.min) return 'CRÍTICO';
@@ -262,7 +259,7 @@ const estoqueStatus = function(item) {
 window.estoqueStatus = estoqueStatus;
 
 // Funções utilitárias do UI
-const statusBadge = function(s) {
+const statusBadge = function (s) {
   const map = {
     'Em andamento': 'badge-blue', 'Ativo': 'badge-green', 'Presente': 'badge-green',
     'Concluída': 'badge-green', 'Concluído': 'badge-green', 'Entregue': 'badge-green', 'Pago': 'badge-green', 'Aprovada': 'badge-green',
@@ -278,7 +275,7 @@ const statusBadge = function(s) {
 
 window.statusBadge = statusBadge;
 
-const uiEmptyState = function(message, subMessage, icon, actionText, actionFn) {
+const uiEmptyState = function (message, subMessage, icon, actionText, actionFn) {
   return `<tr class="empty-row" style="background:transparent;border:none;box-shadow:none;">
    <td colspan="100%" style="text-align:center;padding:48px 20px;border:none;background:transparent;">
        <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px;">${message}</div>
@@ -290,7 +287,7 @@ const uiEmptyState = function(message, subMessage, icon, actionText, actionFn) {
 
 window.uiEmptyState = uiEmptyState;
 
-const obName = function(cStr) {
+const obName = function (cStr) {
   if (!cStr) return '—';
   return cStr.split(',').map(c => {
     const o = window.DB?.obras?.find(x => x.cod === c.trim());
@@ -300,14 +297,14 @@ const obName = function(cStr) {
 
 window.obName = obName;
 
-const nextCod = function(arr, prefix) {
+const nextCod = function (arr, prefix) {
   const nums = arr.map(x => parseInt((x.cod || x.num || '0').replace(/\D/g, '')) || 0);
   return prefix + String(Math.max(0, ...nums) + 1).padStart(3, '0');
 };
 
 window.nextCod = nextCod;
 
-const sanitizeHTML = function(str) {
+const sanitizeHTML = function (str) {
   if (!str || typeof str !== 'string') return str;
   const map = {
     '&': '&amp;',
@@ -316,22 +313,12 @@ const sanitizeHTML = function(str) {
     '"': '&quot;',
     "'": '&#039;'
   };
-  return str.replace(/[&<>"']/g, function(m) { return map[m]; });
+  return str.replace(/[&<>"']/g, function (m) { return map[m]; });
 };
 
 window.sanitizeHTML = sanitizeHTML;
 
-// Debug logger - desativado em produção por padrão
-// Para ativar: window.DEBUG = true no console
-const debugLog = function(tag, ...args) {
-  if (window.DEBUG) {
-    console.log(`[${tag}]`, ...args);
-  }
-};
-
-window.debugLog = debugLog;
-
-const safeSetInner = function(id, html) {
+const safeSetInner = function (id, html) {
   const el = document.getElementById(id);
   if (el) {
     el.innerHTML = html;
@@ -343,7 +330,7 @@ const safeSetInner = function(id, html) {
 
 window.safeSetInner = safeSetInner;
 
-const autoBindTableLabels = function(tbody) {
+const autoBindTableLabels = function (tbody) {
   try {
     const table = tbody.closest('table');
     if (!table) return;
@@ -363,21 +350,21 @@ const autoBindTableLabels = function(tbody) {
 
 window.autoBindTableLabels = autoBindTableLabels;
 
-const safeSetText = function(id, text) {
+const safeSetText = function (id, text) {
   const el = document.getElementById(id);
   if (el) el.textContent = text;
 };
 
 window.safeSetText = safeSetText;
 
-const safeSetValue = function(id, val) {
+const safeSetValue = function (id, val) {
   const el = document.getElementById(id);
   if (el) el.value = val;
 };
 
 window.safeSetValue = safeSetValue;
 
-const safeSetStyle = function(id, prop, val) {
+const safeSetStyle = function (id, prop, val) {
   const el = document.getElementById(id);
   if (el) el.style[prop] = val;
 };
@@ -537,9 +524,9 @@ function getWeekNumber(dateStr) {
   const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
   const firstMonday = new Date(firstDay);
   firstMonday.setDate(1 + (8 - firstDay.getDay()) % 7);
-  
+
   if (d < firstMonday) return 1;
-  
+
   const diffDays = Math.floor((d - firstMonday) / (1000 * 60 * 60 * 24));
   return Math.floor(diffDays / 7) + 2;
 }
@@ -658,7 +645,7 @@ const generateDetailedWeeklyPaymentReport = (pres, med, trab, year, month) => {
 
   // Coleta todas as semanas do mês
   const allWeeks = new Set();
-  
+
   // Pagamentos a trabalhadores (diárias) - agrupados por semana
   const workerPayments = {};
   pres.forEach(p => {
@@ -668,7 +655,7 @@ const generateDetailedWeeklyPaymentReport = (pres, med, trab, year, month) => {
 
     const weekLabel = getWeekLabel(p.data);
     allWeeks.add(weekLabel);
-    
+
     const key = p.trab || p.nome;
     if (!workerPayments[key]) {
       const trabData = trab.find(t => t.cod === p.trab);
@@ -682,11 +669,11 @@ const generateDetailedWeeklyPaymentReport = (pres, med, trab, year, month) => {
         dias: 0
       };
     }
-    
+
     if (!workerPayments[key].weekly[weekLabel]) {
       workerPayments[key].weekly[weekLabel] = { total: 0, dias: 0 };
     }
-    
+
     workerPayments[key].weekly[weekLabel].total += parseFloat(p.total) || 0;
     workerPayments[key].weekly[weekLabel].dias++;
     workerPayments[key].total += parseFloat(p.total) || 0;
@@ -703,7 +690,7 @@ const generateDetailedWeeklyPaymentReport = (pres, med, trab, year, month) => {
 
     const weekLabel = getWeekLabel(dMed);
     allWeeks.add(weekLabel);
-    
+
     const key = m.equipe;
     if (!contractorPayments[key]) {
       contractorPayments[key] = {
@@ -715,11 +702,11 @@ const generateDetailedWeeklyPaymentReport = (pres, med, trab, year, month) => {
         medicoes: 0
       };
     }
-    
+
     if (!contractorPayments[key].weekly[weekLabel]) {
       contractorPayments[key].weekly[weekLabel] = { total: 0, medicoes: 0 };
     }
-    
+
     contractorPayments[key].weekly[weekLabel].total += parseFloat(m.vtotal) || 0;
     contractorPayments[key].weekly[weekLabel].medicoes++;
     contractorPayments[key].total += parseFloat(m.vtotal) || 0;
@@ -729,7 +716,7 @@ const generateDetailedWeeklyPaymentReport = (pres, med, trab, year, month) => {
   // Converte para arrays e ordena por total (maior para menor)
   const workers = Object.values(workerPayments).sort((a, b) => b.total - a.total);
   const contractors = Object.values(contractorPayments).sort((a, b) => b.total - a.total);
-  
+
   // Ordena as semanas
   const weeks = Array.from(allWeeks).sort((a, b) => {
     const getWeekNum = (label) => {
@@ -744,7 +731,7 @@ const generateDetailedWeeklyPaymentReport = (pres, med, trab, year, month) => {
   weeks.forEach(w => {
     weeklyTotals[w] = { workers: 0, contractors: 0, total: 0 };
   });
-  
+
   workers.forEach(w => {
     weeks.forEach(week => {
       if (w.weekly[week]) {
@@ -753,7 +740,7 @@ const generateDetailedWeeklyPaymentReport = (pres, med, trab, year, month) => {
       }
     });
   });
-  
+
   contractors.forEach(c => {
     weeks.forEach(week => {
       if (c.weekly[week]) {

@@ -1,19 +1,6 @@
 // ==================== HELPERS ====================
+let currentEditIdx = -1; // Global variable to identify if we are creating new (-1) or editing an existing record.
 
-/**
- * Persiste o banco de dados com tratamento de erros.
- * Retorna true se salvou com sucesso, false se falhou.
- */
-async function safePersistDB(force = false) {
-  try {
-    await persistDB(force);
-    return true;
-  } catch (err) {
-    console.error('[Persist] Erro ao salvar:', err);
-    toast('Erro ao salvar dados. Tente novamente.', 'error');
-    return false;
-  }
-}
 
 // ==================== SYSTEM GLOBALS (ANTI-REFERENCE ERROR) ====================
 // Cria 'stubs' para evitar que saves de uma página "crachem" tentando dar reload em UI de outra página
@@ -38,7 +25,9 @@ window.renderRelatorios = window.renderRelatorios || function () { };
 
 // Funções de formatação - fornecidas pelo utils.module.js via window
 // NOTA: fmt, fmtPct, fmtDate são declarados em utils.module.js e atribuídos ao window
+const cleanText = (v) => (!v || v === 'undefined' || v === 'indefinido') ? '—' : v;
 const cleanInput = (v) => (!v || v === 'undefined' || v === 'indefinido') ? '' : v;
+const today = new Date().toISOString().split('T')[0];
 
 
 
@@ -88,28 +77,15 @@ async function showPage(id) {
 }
 
 function renderPage(id) {
-  // Usa window[id] para garantir que pega a função mais recente (após módulos carregarem)
-  const renderers = {
-    dashboard: () => window.renderDashboard?.(),
-    obras: () => window.renderObras?.(),
-    trabalhadores: () => window.renderTrabalhadores?.(),
-    presenca: () => window.renderPresenca?.(),
-    tarefas: () => window.renderTarefas?.(),
-    estoque: () => window.renderEstoque?.(),
-    movEstoque: () => window.renderMovEstoque?.(),
-    compras: () => window.renderCompras?.(),
-    financeiro: () => window.renderFinanceiro?.(),
-    orcamento: () => window.renderOrcamento?.(),
-    medicao: () => window.renderMedicao?.(),
-    admin: () => window.renderAdmin?.(),
-    fotos: () => window.renderFotos?.(),
-    super_admin: () => window.renderSuperAdmin?.(),
-    relatorios: () => window.renderRelatorios?.(),
-    almocos: () => window.renderAlmocos?.()
+  const r = {
+    dashboard: renderDashboard, obras: renderObras, trabalhadores: renderTrabalhadores,
+    presenca: renderPresenca, tarefas: renderTarefas, estoque: renderEstoque,
+    movEstoque: renderMovEstoque, compras: renderCompras, financeiro: renderFinanceiro,
+    orcamento: renderOrcamento, medicao: renderMedicao, admin: renderAdmin,
+    fotos: renderFotos, super_admin: renderSuperAdmin, relatorios: renderRelatorios,
+    almocos: renderAlmocos
   };
-  if (renderers[id]) {
-    renderers[id]();
-  }
+  if (r[id]) r[id]();
 }
 // Renderiza o banner de trial progressivo
 function renderTrialBanner(daysLeft) {
@@ -130,7 +106,7 @@ function renderTrialBanner(daysLeft) {
 // Escuta atualizações do Firebase para gerenciar o banner de Trial e Atualizar a UI Autonamente
 window.addEventListener('firebaseSync', e => {
   const data = e.detail;
-  
+
   // 1. Atualiza Banner de Trial
   if (data.plano === 'free_trial' && data.daysLeftTrial !== undefined && data.daysLeftTrial <= 14 && data.daysLeftTrial > 0) {
     renderTrialBanner(data.daysLeftTrial);
@@ -377,7 +353,7 @@ async function saveObra() {
     DB.obras.push(data);
     toast('Obra cadastrada!');
   }
-  closeModal('modal-obra'); await safePersistDB(); renderObras(); renderDashboard();
+  closeModal('modal-obra'); await persistDB(); renderObras(); renderDashboard();
 }
 
 async function editObra(idx) {
@@ -408,7 +384,7 @@ async function saveTrabalhador() {
 
   const cod = document.getElementById('tr-cod').value.trim();
   if (!cod) { toast('Informe o código', 'error'); return; }
-  
+
   // Verifica unicidade do código (desconsiderando o registro em edição)
   const duplicado = DB.trabalhadores.some((t, i) => t.cod === cod && i !== editIdx);
   if (duplicado) { toast(`Código "${cod}" já existe! Use outro.`, 'error'); return; }
@@ -435,12 +411,12 @@ async function saveTrabalhador() {
     const oldWorker = { ...DB.trabalhadores[editIdx] };
     const oldName = (oldWorker.nome || '').trim();
     const oldCod = (oldWorker.cod || '').trim();
-    
+
     const newName = (data.nome || '').trim();
     const newCod = (data.cod || '').trim();
 
     DB.trabalhadores[editIdx] = data; // Atualiza o cadastro principal
-    
+
     // 2. Propagação em Cascata (Se Nome OU Código mudaram)
     if ((oldName !== newName && newName) || (oldCod !== newCod && newCod)) {
       console.log(`[Sync] Propagando alteração de "${oldName}" (${oldCod}) para "${newName}" (${newCod})...`);
@@ -518,7 +494,7 @@ async function saveTrabalhador() {
 async function editTrabalhador(idx) {
   await openModal('modal-trabalhador');
   if (document.getElementById('tr-idx')) {
-     document.getElementById('tr-idx').value = idx;
+    document.getElementById('tr-idx').value = idx;
   }
   const t = DB.trabalhadores[idx];
   document.getElementById('tr-cod').value = t.cod;
@@ -537,7 +513,7 @@ async function editTrabalhador(idx) {
   document.getElementById('tr-admissao').value = t.admissao;
   document.getElementById('tr-endereco').value = t.endereco || '';
   document.getElementById('tr-cidade').value = t.cidade || '';
-  
+
   // Foto Preview
   const fPreview = document.getElementById('tr-foto-preview');
   if (fPreview && t.foto) {
@@ -560,7 +536,7 @@ async function savePresenca(keepOpen = false) {
   const dataVal = document.getElementById('pr-data').value;
   const obraVal = document.getElementById('pr-obra').value;
   const editIdx = parseInt(document.getElementById('pr-edit-idx').value) || -1;
-  
+
   if (!dataVal) { toast('Informe a data!', 'error'); return; }
   if (!obraVal) { toast('Selecione a obra!', 'error'); return; }
 
@@ -579,11 +555,11 @@ async function savePresenca(keepOpen = false) {
 
   for (const tsel of trabsParaSalvar) {
     const t = DB.trabalhadores.find(x => x.cod === tsel);
-    
+
     // Bloqueia duplicidade de data para o mesmo trabalhador
-    const jaExiste = DB.presenca.some((p, idx) => 
-      p.data === dataVal && 
-      p.trab === tsel && 
+    const jaExiste = DB.presenca.some((p, idx) =>
+      p.data === dataVal &&
+      p.trab === tsel &&
       (editIdx < 0 || idx !== editIdx)
     );
 
@@ -594,10 +570,10 @@ async function savePresenca(keepOpen = false) {
       return;
     }
 
-  // Vínculo Automático: Se o peão não estiver engajado na Obra em sua ficha local, anexa a tag!
-  if (t && (!t.obras || !t.obras.includes(obraVal))) {
-    t.obras = t.obras && t.obras.trim() !== '' ? (t.obras + ", " + obraVal) : obraVal;
-  }
+    // Vínculo Automático: Se o peão não estiver engajado na Obra em sua ficha local, anexa a tag!
+    if (t && (!t.obras || !t.obras.includes(obraVal))) {
+      t.obras = t.obras && t.obras.trim() !== '' ? (t.obras + ", " + obraVal) : obraVal;
+    }
 
     const isInformal = t && t.vinculo === 'Informal';
 
@@ -685,7 +661,7 @@ function togglePresencaModo() {
   const indivGrp = document.getElementById('pr-indiv-grp');
   const massaGrp = document.getElementById('pr-massa-grp');
   const hExtGrp = document.getElementById('pr-hextra-grp');
-  
+
   if (modo === 'massa') {
     indivGrp.style.display = 'none';
     massaGrp.style.display = '';
@@ -880,7 +856,7 @@ window.processLotePgto = async function () {
 
   toast(`${cks.length} pagamentos realizados com sucesso!`);
   closeModal('modal-lote');
-  await safePersistDB();
+  await persistDB();
 
   renderPresenca();
   renderFinanceiro();
@@ -915,7 +891,7 @@ async function saveTarefa() {
     DB.tarefas.push(data);
     toast('Tarefa criada!');
   }
-  closeModal('modal-tarefa'); await safePersistDB(); renderTarefas();
+  closeModal('modal-tarefa'); await persistDB(); renderTarefas();
 }
 
 async function editTarefa(idx) {
@@ -969,7 +945,7 @@ async function saveEstoque() {
     DB.estoque.push(data);
     toast('Item de estoque cadastrado!');
   }
-  closeModal('modal-estoque'); await safePersistDB(); renderEstoque();
+  closeModal('modal-estoque'); await persistDB(); renderEstoque();
 }
 
 async function editEstoque(idx) {
@@ -1076,7 +1052,7 @@ async function saveMovEstoque() {
     }
   }
 
-  closeModal('modal-movest'); await safePersistDB(); renderMovEstoque(); renderEstoque();
+  closeModal('modal-movest'); await persistDB(); renderMovEstoque(); renderEstoque();
 }
 
 async function editMovEstoque(idx) {
@@ -1135,7 +1111,7 @@ async function saveCompra() {
     DB.compras.push(data);
     toast('Compra registrada!');
   }
-  closeModal('modal-compra'); await safePersistDB(); renderCompras();
+  closeModal('modal-compra'); await persistDB(); renderCompras();
 }
 
 async function editCompra(idx) {
@@ -1215,7 +1191,7 @@ async function saveFinanceiro() {
     }
     toast(tmsg);
   }
-  closeModal('modal-financeiro'); await safePersistDB(); renderFinanceiro(); renderDashboard();
+  closeModal('modal-financeiro'); await persistDB(); renderFinanceiro(); renderDashboard();
 }
 
 async function editFinanceiro(idx) {
@@ -1266,7 +1242,7 @@ async function saveOrcamento() {
     DB.orcamento.push(data);
     toast('Item de orçamento salvo!');
   }
-  closeModal('modal-orcamento'); await safePersistDB(); renderOrcamento();
+  closeModal('modal-orcamento'); await persistDB(); renderOrcamento();
 }
 
 async function editOrcamento(idx) {
@@ -1317,7 +1293,7 @@ async function saveMedicao() {
     if (data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.vtotal - data.valpago).toFixed(2).replace('.', ',')}`;
     toast(tmsg);
   }
-  closeModal('modal-medicao'); await safePersistDB(); renderMedicao && renderMedicao(); renderFinanceiro && renderFinanceiro(); renderDashboard && renderDashboard();
+  closeModal('modal-medicao'); await persistDB(); renderMedicao && renderMedicao(); renderFinanceiro && renderFinanceiro(); renderDashboard && renderDashboard();
 }
 
 async function editMedicao(idx) {
@@ -1626,7 +1602,7 @@ if (typeof window.safeCheckAuth === 'function') {
 document.addEventListener('click', (event) => {
   const sidebar = document.querySelector('.sidebar');
   const menuToggle = document.querySelector('.menu-toggle');
-  
+
   if (sidebar && sidebar.classList.contains('open')) {
     // Se o clique não foi dentro da sidebar E não foi no botão de abrir o menu...
     if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
@@ -1639,7 +1615,7 @@ document.addEventListener('click', (event) => {
 window.addEventListener('syncStatus', (e) => {
   const { status, code } = e.detail;
   let indicator = document.getElementById('sync-indicator');
-  
+
   if (!indicator) {
     const container = document.querySelector('.header-right');
     if (!container) return;
@@ -1659,12 +1635,12 @@ window.addEventListener('syncStatus', (e) => {
     indicator.innerHTML = '<div class="sync-dot"></div><span>Sincronizado</span>';
     indicator.className = 'sync-indicator synced';
     setTimeout(() => {
-      if (indicator.classList.contains('synced')) indicator.style.opacity = '0.3'; 
+      if (indicator.classList.contains('synced')) indicator.style.opacity = '0.3';
     }, 3000);
   } else if (status === 'error') {
-    const msg = code === 'PERMISSION_DENIED' ? 'Acesso Negado (Firebase)' : 
-                code === 'DISCONNECTED' ? 'Sem Conexão' : 'Erro na Nuvem';
-    
+    const msg = code === 'PERMISSION_DENIED' ? 'Acesso Negado (Firebase)' :
+      code === 'DISCONNECTED' ? 'Sem Conexão' : 'Erro na Nuvem';
+
     indicator.innerHTML = `<div class="sync-dot"></div><span>${msg}</span> 
                            <button class="sync-retry-btn" onclick="persistDB(true); event.stopPropagation();">🔄 Tentar Agora</button>`;
     indicator.className = 'sync-indicator error';
