@@ -1,3 +1,9 @@
+// ==================== CONSTANTS ====================
+const TRIAL_DURATION_DAYS = 30; // Duração do período de teste gratuito
+const TRIAL_WARNING_DAYS = 14; // Dias restantes para exibir aviso
+const PERSIST_TIMEOUT_MS = 20000; // Timeout para persistência (20 segundos)
+const DEBOUNCE_DELAY_MS = 800; // Delay para debounce de persistência
+
 const staticDB = {
   config: {
     nomeEmpresa: 'Obra Real',
@@ -37,6 +43,7 @@ if (!firebase.apps.length) {
 
 let dbRef = null;
 let DB = JSON.parse(JSON.stringify(staticDB));
+window.DB = DB; // Expose to window for modules
 let isFirstLoad = true;
 let CURRENT_TENANT_ID = null; // SaaS: Armazena o ID do tenant detectado por subdomínio
 
@@ -150,6 +157,7 @@ function initDB(tenantId) {
       if (cached._tenantId === tenantId) {
         console.log('DB carregado via Cache Local para tenant:', tenantId);
         DB = ensureSchema(cached);
+        window.DB = DB;
         processCloudUpdate();
       }
     } catch(e) { console.warn('Erro ao ler cache local:', e); }
@@ -185,7 +193,7 @@ function _onFirebaseValue(snapshot) {
       return;
     }
 
-    // SaaS: Trava de Tempo do Free Trial (30 dias)
+    // SaaS: Trava de Tempo do Free Trial
     if (data.plano === 'free_trial' && data.trialExpiracao) {
       const msLeft = data.trialExpiracao - Date.now();
       const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
@@ -194,13 +202,14 @@ function _onFirebaseValue(snapshot) {
       DB.daysLeftTrial = daysLeft;
 
       if (msLeft <= 0) {
-        alert('⏰ O seu período de Teste Grátis de 30 dias chegou ao fim!\n\nEsperamos que tenha gostado do sistema. Para continuar usando o Gestão de Obras, assine um de nossos planos.');
+        alert(`⏰ O seu período de Teste Grátis de ${TRIAL_DURATION_DAYS} dias chegou ao fim!\n\nEsperamos que tenha gostado do sistema. Para continuar usando o Gestão de Obras, assine um de nossos planos.`);
         if (typeof doLogout === 'function') doLogout();
         return;
       }
     }
 
     DB = ensureSchema(data);
+    window.DB = DB;
 
     // Restaura fotos do localStorage separado (não são salvas na nuvem por serem base64)
     try {
@@ -221,6 +230,7 @@ function _onFirebaseValue(snapshot) {
   }
   // Se não houver dados no Firebase para este tenant, inicializa vazio e NÃO tenta recuperar localmente (evita Ghost Data de outros tenants)
   DB = ensureSchema({});
+  window.DB = DB;
   processCloudUpdate();
 }
 
@@ -239,10 +249,8 @@ function processCloudUpdate() {
     }
   }
 
-  const activePage = document.querySelector('.page.active');
-  if (activePage && typeof renderPage === 'function' && !document.querySelector('.modal-overlay.open')) {
-    renderPage(activePage.id.replace('page-', ''));
-  }
+  // NOTA: renderPage() removido daqui - o listener firebaseSync em app_core.js já cuida da atualização da UI
+  // Isso evita renderização duplicada a cada atualização do Firebase
 }
 
 function loadTheme(externalCfg) {
@@ -269,16 +277,22 @@ function loadTheme(externalCfg) {
       el.textContent = cfg.nomeEmpresa || 'Obra Real';
     });
 
-    // 4. Aplica Logo ou Fallback
+    // 4. Aplica Logo ou Fallback (com sanitização XSS)
     const container = document.getElementById('brand-container');
     if (container) {
-      if (cfg.logoUrl) {
+      const safeNomeEmpresa = typeof sanitizeHTML === 'function' ? sanitizeHTML(String(cfg.nomeEmpresa || 'Obra Real')) : String(cfg.nomeEmpresa || 'Obra Real');
+      // Valida URL do logo - apenas http/https permitidos
+      const logoUrl = cfg.logoUrl || '';
+      const isValidLogoUrl = /^https?:\/\/.+/i.test(logoUrl);
+      const safeLogoUrl = isValidLogoUrl ? logoUrl.replace(/"/g, '&quot;') : '';
+      
+      if (isValidLogoUrl) {
         container.innerHTML = `
-                <img src="${cfg.logoUrl}" class="header-logo" alt="${cfg.nomeEmpresa}" style="max-height: 40px; width: auto; object-fit: contain;">
-                <span class="app-brand-name" style="margin-left: 8px;">${cfg.nomeEmpresa || 'Obra Real'}</span>
+                <img src="${safeLogoUrl}" class="header-logo" alt="${safeNomeEmpresa}" style="max-height: 40px; width: auto; object-fit: contain;">
+                <span class="app-brand-name" style="margin-left: 8px;">${safeNomeEmpresa}</span>
             `;
       } else {
-        container.innerHTML = `<span id="brand-icon">🏗️</span> <span class="app-brand-name">${cfg.nomeEmpresa || 'Obra Real'}</span>`;
+        container.innerHTML = `<span id="brand-icon">🏗️</span> <span class="app-brand-name">${safeNomeEmpresa}</span>`;
       }
     }
   }
@@ -295,10 +309,25 @@ const subdomainContextPromise = (async function initSubdomainContext() {
       loadTheme(tenant.data.config);
       return tenant;
     } else {
+      console.warn(`Contexto de subdomínio '${slug}' não encontrado no banco.`);
+      
+      // Se for localhost ou ambiente de desenvolvimento interno do Firebase, não bloqueia a tela por segurança
+      // Isso permite que o desenvolvedor use a aplicação localmente sem precisar de um subdomínio válido
+      const isDev = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1' || 
+                    window.location.hostname.includes('web.app') || 
+                    window.location.hostname.includes('firebaseapp.com');
+
+      if (isDev) {
+        console.log('Ambiente de desenvolvimento detectado. Bloqueio de tela ignorado.');
+        return null;
+      }
+
       console.error(`ALERTA: O subdomínio "${slug}" não corresponde a nenhuma Empresa registrada! O acesso foi interrompido por segurança.`);
+      const safeSlug = typeof sanitizeHTML === 'function' ? sanitizeHTML(String(slug || '')) : String(slug || '');
       document.body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding:20px">
         <h1 style="color:#ef4444;margin-bottom:10px">❌ Empresa Inexistente ou URL Incorreta</h1>
-        <p style="color:#cbd5e1;max-width:500px">O subdomínio <b>${slug}</b> não está vinculado a nenhuma empresa no sistema. Por favor, verifique se a URL da sua empresa está correta ou contrate um plano.</p>
+        <p style="color:#cbd5e1;max-width:500px">O subdomínio <b>${safeSlug}</b> não está vinculado a nenhuma empresa no sistema. Por favor, verifique se a URL da sua empresa está correta ou contrate um plano.</p>
         <p style="color:#94a3b8;font-size:12px;margin-top:20px">Obra Real SaaS Security</p>
       </div>`;
       throw new Error('Tenant não encontrado para este subdomínio.');
@@ -395,6 +424,7 @@ function persistDB(force = false) {
 
       // Garante estrutura válida antes de salvar
       DB = ensureSchema(DB);
+      window.DB = DB;
 
       // ⚠️ SANITIZAÇÃO: Remove fotos base64 antes de enviar ao Firebase.
       // Firebase RTDB tem limite de 10MB por escrita. Imagens base64 de trabalhadores
@@ -476,6 +506,7 @@ async function loadTenantAsSuperAdmin(tenantId, tenantNome) {
   const snap = await firebase.database().ref('tenants/' + tenantId).once('value');
   const data = snap.val();
   DB = ensureSchema(data || {});
+  window.DB = DB;
   superAdminActiveTenant = { id: tenantId, nome: tenantNome };
   window.dispatchEvent(new CustomEvent('firebaseSync', { detail: DB }));
   if (typeof renderPage === 'function') {

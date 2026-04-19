@@ -4,6 +4,9 @@
  * Atribui diretamente ao window para evitar conflitos de declaração.
  */
 
+window.todayDate = new Date();
+window.today = window.todayDate.toISOString().split('T')[0];
+
 const fmt = (v) => v != null && !isNaN(v)
   ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   : '—';
@@ -118,7 +121,7 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
         tipo: 'Mão de obra própria',
         desc: `[Diária] ${p.nome}`,
         forn: p.nome || '',
-        real: parseFloat(p.total), prev: 0,
+        real: parseFloat(p.total) || 0, prev: 0,
         status: p.pgtoStatus || 'Pendente'
       });
     }
@@ -134,7 +137,7 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
         tipo: 'Empreiteiro',
         desc: `[Medição] ${m.servico}`,
         forn: m.equipe || '',
-        real: parseFloat(m.vtotal), prev: 0,
+        real: parseFloat(m.vtotal) || 0, prev: 0,
         status: m.pgtoStatus || 'Pendente'
       });
     }
@@ -149,7 +152,7 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
         tipo: 'Almoço Empreiteiro',
         desc: `[Almoço] ${a.empreiteiro}`,
         forn: a.empreiteiro || '',
-        real: parseFloat(a.vtotal), prev: 0,
+        real: parseFloat(a.vtotal) || 0, prev: 0,
         status: 'Pendente'
       });
     }
@@ -304,6 +307,30 @@ const nextCod = function(arr, prefix) {
 
 window.nextCod = nextCod;
 
+const sanitizeHTML = function(str) {
+  if (!str || typeof str !== 'string') return str;
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return str.replace(/[&<>"']/g, function(m) { return map[m]; });
+};
+
+window.sanitizeHTML = sanitizeHTML;
+
+// Debug logger - desativado em produção por padrão
+// Para ativar: window.DEBUG = true no console
+const debugLog = function(tag, ...args) {
+  if (window.DEBUG) {
+    console.log(`[${tag}]`, ...args);
+  }
+};
+
+window.debugLog = debugLog;
+
 const safeSetInner = function(id, html) {
   const el = document.getElementById(id);
   if (el) {
@@ -357,5 +384,414 @@ const safeSetStyle = function(id, prop, val) {
 
 window.safeSetStyle = safeSetStyle;
 
-// Exports for testing (vitest roda como module, navegador roda como defer)
-// O try/catch evita SyntaxError quando carregado sem type="module"
+/**
+ * Gera relatório detalhado de pagamentos semanais.
+ * Retorna array com dados de cada semana do mês.
+ */
+const generateWeeklyPaymentReport = (fin, pres, med, alm, year, month) => {
+  const report = [];
+  const filterDate = (d) => {
+    if (!year || !month) return true;
+    if (!d) return false;
+    const parts = d.split('-');
+    return parseInt(parts[0]) === parseInt(year) && parseInt(parts[1]) === parseInt(month);
+  };
+
+  // Coleta todos os lançamentos do mês
+  let all = [];
+
+  // Lançamentos manuais
+  fin.forEach((f, i) => {
+    if (filterDate(f.data) && (f.status === 'Pago' || f.status === 'Parcial')) {
+      all.push({
+        source: 'fin', idx: i, ...f,
+        real: parseFloat(f.real) || 0,
+        prev: parseFloat(f.prev) || 0
+      });
+    }
+  });
+
+  // Presença (apenas pagos)
+  pres.forEach((p, i) => {
+    if ((p.total || 0) > 0 && filterDate(p.data) && p.pgtoStatus === 'Pago') {
+      all.push({
+        source: 'pre', idx: i,
+        data: p.data, obra: p.obra,
+        tipo: 'Mão de obra própria',
+        desc: `[Diária] ${p.nome}`,
+        forn: p.nome || '',
+        real: parseFloat(p.total) || 0, prev: 0,
+        status: 'Pago'
+      });
+    }
+  });
+
+  // Medições (apenas pagas)
+  med.forEach((m, i) => {
+    const dMed = m.semana || m.data;
+    if ((m.vtotal || 0) > 0 && filterDate(dMed) && m.pgtoStatus === 'Pago') {
+      all.push({
+        source: 'med', idx: i,
+        data: dMed, obra: m.obra,
+        tipo: 'Empreiteiro',
+        desc: `[Medição] ${m.servico}`,
+        forn: m.equipe || '',
+        real: parseFloat(m.vtotal) || 0, prev: 0,
+        status: 'Pago'
+      });
+    }
+  });
+
+  // Almoços
+  (alm || []).forEach((a, i) => {
+    if ((a.vtotal || 0) > 0 && filterDate(a.data)) {
+      all.push({
+        source: 'alm', idx: i,
+        data: a.data, obra: a.obra,
+        tipo: 'Almoço Empreiteiro',
+        desc: `[Almoço] ${a.empreiteiro}`,
+        forn: a.empreiteiro || '',
+        real: parseFloat(a.vtotal) || 0, prev: 0,
+        status: 'Pago'
+      });
+    }
+  });
+
+  // Agrupa por semana
+  const weeks = {};
+  all.forEach(item => {
+    if (!item.data) return;
+    const weekLabel = getWeekLabel(item.data);
+    if (!weeks[weekLabel]) {
+      weeks[weekLabel] = {
+        label: weekLabel,
+        startDate: getWeekStart(item.data),
+        endDate: getWeekEnd(item.data),
+        total: 0,
+        count: 0,
+        byType: {},
+        byObra: {},
+        items: []
+      };
+    }
+    weeks[weekLabel].total += item.real;
+    weeks[weekLabel].count++;
+    weeks[weekLabel].items.push(item);
+
+    // Agrupa por tipo
+    const tipo = item.tipo || 'Outros';
+    if (!weeks[weekLabel].byType[tipo]) weeks[weekLabel].byType[tipo] = 0;
+    weeks[weekLabel].byType[tipo] += item.real;
+
+    // Agrupa por obra
+    const obra = item.obra || 'Geral';
+    if (!weeks[weekLabel].byObra[obra]) weeks[weekLabel].byObra[obra] = 0;
+    weeks[weekLabel].byObra[obra] += item.real;
+  });
+
+  // Converte para array e ordena
+  return Object.values(weeks).sort((a, b) => a.startDate.localeCompare(b.startDate));
+};
+
+window.generateWeeklyPaymentReport = generateWeeklyPaymentReport;
+
+/**
+ * Retorna o rótulo da semana (ex: "Semana 1 (01/04 - 07/04)")
+ */
+function getWeekLabel(dateStr) {
+  const start = getWeekStart(dateStr);
+  const end = getWeekEnd(dateStr);
+  const weekNum = getWeekNumber(dateStr);
+  return `Semana ${weekNum} (${formatDateShort(start)} - ${formatDateShort(end)})`;
+}
+
+/**
+ * Retorna a data de início da semana (segunda-feira)
+ */
+function getWeekStart(dateStr) {
+  const parts = dateStr.split('-');
+  const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Ajusta para segunda-feira
+  const monday = new Date(d.setDate(diff));
+  return formatDateISO(monday);
+}
+
+/**
+ * Retorna a data de fim da semana (domingo)
+ */
+function getWeekEnd(dateStr) {
+  const start = getWeekStart(dateStr);
+  const parts = start.split('-');
+  const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  d.setDate(d.getDate() + 6); // Domingo
+  return formatDateISO(d);
+}
+
+/**
+ * Retorna o número da semana do mês
+ */
+function getWeekNumber(dateStr) {
+  const parts = dateStr.split('-');
+  const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
+  const firstMonday = new Date(firstDay);
+  firstMonday.setDate(1 + (8 - firstDay.getDay()) % 7);
+  
+  if (d < firstMonday) return 1;
+  
+  const diffDays = Math.floor((d - firstMonday) / (1000 * 60 * 60 * 24));
+  return Math.floor(diffDays / 7) + 2;
+}
+
+/**
+ * Formata data para ISO (YYYY-MM-DD)
+ */
+function formatDateISO(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Formata data curta (DD/MM)
+ */
+function formatDateShort(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  return `${parts[2]}/${parts[1]}`;
+}
+
+/**
+ * Gera relatório de pagamentos por funcionário e empreiteiro.
+ * Retorna objeto com arrays de trabalhadores e empreiteiros, com totais pagos.
+ */
+const generateWorkerPaymentReport = (pres, med, trab, year, month) => {
+  const filterDate = (d) => {
+    if (!year || !month) return true;
+    if (!d) return false;
+    const parts = d.split('-');
+    return parseInt(parts[0]) === parseInt(year) && parseInt(parts[1]) === parseInt(month);
+  };
+
+  // Pagamentos a trabalhadores (diárias)
+  const workerPayments = {};
+  pres.forEach(p => {
+    if (!filterDate(p.data)) return;
+    if (p.pgtoStatus !== 'Pago') return;
+    if (!p.nome || !(p.total > 0)) return;
+
+    const key = p.trab || p.nome;
+    if (!workerPayments[key]) {
+      const trabData = trab.find(t => t.cod === p.trab);
+      workerPayments[key] = {
+        cod: p.trab || '',
+        nome: p.nome,
+        funcao: trabData?.funcao || '',
+        equipe: trabData?.equipe || '',
+        total: 0,
+        dias: 0,
+        datas: []
+      };
+    }
+    workerPayments[key].total += parseFloat(p.total) || 0;
+    workerPayments[key].dias++;
+    workerPayments[key].datas.push(p.data);
+  });
+
+  // Pagamentos a empreiteiros (medições)
+  const contractorPayments = {};
+  med.forEach(m => {
+    const dMed = m.semana || m.data;
+    if (!filterDate(dMed)) return;
+    if (m.pgtoStatus !== 'Pago') return;
+    if (!m.equipe || !(m.vtotal > 0)) return;
+
+    const key = m.equipe;
+    if (!contractorPayments[key]) {
+      contractorPayments[key] = {
+        equipe: m.equipe,
+        obra: m.obra || '',
+        servico: m.servico || '',
+        total: 0,
+        medicoes: 0,
+        datas: []
+      };
+    }
+    contractorPayments[key].total += parseFloat(m.vtotal) || 0;
+    contractorPayments[key].medicoes++;
+    contractorPayments[key].datas.push(dMed);
+  });
+
+  // Converte para arrays e ordena por total (maior para menor)
+  const workers = Object.values(workerPayments).sort((a, b) => b.total - a.total);
+  const contractors = Object.values(contractorPayments).sort((a, b) => b.total - a.total);
+
+  // Totais
+  const totalWorkers = workers.reduce((sum, w) => sum + w.total, 0);
+  const totalContractors = contractors.reduce((sum, c) => sum + c.total, 0);
+
+  return {
+    workers,
+    contractors,
+    totalWorkers,
+    totalContractors,
+    grandTotal: totalWorkers + totalContractors,
+    period: year && month ? `${month}/${year}` : 'Todos'
+  };
+};
+
+window.generateWorkerPaymentReport = generateWorkerPaymentReport;
+
+/**
+ * Gera relatório detalhado de pagamentos por semana para cada funcionário e empreiteiro.
+ * Retorna objeto com breakdown semanal para cada pessoa/equipe.
+ */
+const generateDetailedWeeklyPaymentReport = (pres, med, trab, year, month) => {
+  const filterDate = (d) => {
+    if (!year || !month) return true;
+    if (!d) return false;
+    const parts = d.split('-');
+    return parseInt(parts[0]) === parseInt(year) && parseInt(parts[1]) === parseInt(month);
+  };
+
+  // Coleta todas as semanas do mês
+  const allWeeks = new Set();
+  
+  // Pagamentos a trabalhadores (diárias) - agrupados por semana
+  const workerPayments = {};
+  pres.forEach(p => {
+    if (!filterDate(p.data)) return;
+    if (p.pgtoStatus !== 'Pago') return;
+    if (!p.nome || !(p.total > 0)) return;
+
+    const weekLabel = getWeekLabel(p.data);
+    allWeeks.add(weekLabel);
+    
+    const key = p.trab || p.nome;
+    if (!workerPayments[key]) {
+      const trabData = trab.find(t => t.cod === p.trab);
+      workerPayments[key] = {
+        cod: p.trab || '',
+        nome: p.nome,
+        funcao: trabData?.funcao || '',
+        equipe: trabData?.equipe || '',
+        weekly: {},
+        total: 0,
+        dias: 0
+      };
+    }
+    
+    if (!workerPayments[key].weekly[weekLabel]) {
+      workerPayments[key].weekly[weekLabel] = { total: 0, dias: 0 };
+    }
+    
+    workerPayments[key].weekly[weekLabel].total += parseFloat(p.total) || 0;
+    workerPayments[key].weekly[weekLabel].dias++;
+    workerPayments[key].total += parseFloat(p.total) || 0;
+    workerPayments[key].dias++;
+  });
+
+  // Pagamentos a empreiteiros (medições) - agrupados por semana
+  const contractorPayments = {};
+  med.forEach(m => {
+    const dMed = m.semana || m.data;
+    if (!filterDate(dMed)) return;
+    if (m.pgtoStatus !== 'Pago') return;
+    if (!m.equipe || !(m.vtotal > 0)) return;
+
+    const weekLabel = getWeekLabel(dMed);
+    allWeeks.add(weekLabel);
+    
+    const key = m.equipe;
+    if (!contractorPayments[key]) {
+      contractorPayments[key] = {
+        equipe: m.equipe,
+        obra: m.obra || '',
+        servico: m.servico || '',
+        weekly: {},
+        total: 0,
+        medicoes: 0
+      };
+    }
+    
+    if (!contractorPayments[key].weekly[weekLabel]) {
+      contractorPayments[key].weekly[weekLabel] = { total: 0, medicoes: 0 };
+    }
+    
+    contractorPayments[key].weekly[weekLabel].total += parseFloat(m.vtotal) || 0;
+    contractorPayments[key].weekly[weekLabel].medicoes++;
+    contractorPayments[key].total += parseFloat(m.vtotal) || 0;
+    contractorPayments[key].medicoes++;
+  });
+
+  // Converte para arrays e ordena por total (maior para menor)
+  const workers = Object.values(workerPayments).sort((a, b) => b.total - a.total);
+  const contractors = Object.values(contractorPayments).sort((a, b) => b.total - a.total);
+  
+  // Ordena as semanas
+  const weeks = Array.from(allWeeks).sort((a, b) => {
+    const getWeekNum = (label) => {
+      const match = label.match(/Semana (\d+)/);
+      return match ? parseInt(match[1]) : 0;
+    };
+    return getWeekNum(a) - getWeekNum(b);
+  });
+
+  // Calcula totais por semana
+  const weeklyTotals = {};
+  weeks.forEach(w => {
+    weeklyTotals[w] = { workers: 0, contractors: 0, total: 0 };
+  });
+  
+  workers.forEach(w => {
+    weeks.forEach(week => {
+      if (w.weekly[week]) {
+        weeklyTotals[week].workers += w.weekly[week].total;
+        weeklyTotals[week].total += w.weekly[week].total;
+      }
+    });
+  });
+  
+  contractors.forEach(c => {
+    weeks.forEach(week => {
+      if (c.weekly[week]) {
+        weeklyTotals[week].contractors += c.weekly[week].total;
+        weeklyTotals[week].total += c.weekly[week].total;
+      }
+    });
+  });
+
+  // Totais gerais
+  const totalWorkers = workers.reduce((sum, w) => sum + w.total, 0);
+  const totalContractors = contractors.reduce((sum, c) => sum + c.total, 0);
+
+  return {
+    workers,
+    contractors,
+    weeks,
+    weeklyTotals,
+    totalWorkers,
+    totalContractors,
+    grandTotal: totalWorkers + totalContractors,
+    period: year && month ? `${month}/${year}` : 'Todos'
+  };
+};
+
+window.generateDetailedWeeklyPaymentReport = generateDetailedWeeklyPaymentReport;
+
+try {
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+      fmt, fmtPct, fmtDate, summarizePresence, calcWeeklyPendingPayments,
+      summarizeFinance, getPeriodLabel, calcBudgetProgress, calcSaldo,
+      estoqueStatus, statusBadge, uiEmptyState, obName, nextCod,
+      sanitizeHTML, safeSetInner, autoBindTableLabels, safeSetText,
+      safeSetValue, safeSetStyle, generateWeeklyPaymentReport,
+      generateWorkerPaymentReport, generateDetailedWeeklyPaymentReport
+    };
+  }
+} catch (e) {
+  // Ignora erro em ambientes sem suporte a CommonJS/Modules (navegador legado)
+}

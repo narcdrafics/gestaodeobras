@@ -371,7 +371,9 @@ function setRestrictions(user) {
     userNameSpan.style.color = 'var(--text2)';
     userNameSpan.style.marginLeft = '12px';
     userNameSpan.style.fontWeight = '500';
-    userNameSpan.innerHTML = `👤 ${user.name} <span style="opacity:0.6;font-size:10px">(${(user.role || 'admin').toUpperCase()})</span>`;
+    // Sanitiza nome do usuário para prevenir XSS
+    const safeUserName = typeof sanitizeHTML === 'function' ? sanitizeHTML(String(user.name || '')) : String(user.name || '');
+    userNameSpan.innerHTML = `👤 ${safeUserName} <span style="opacity:0.6;font-size:10px">(${(user.role || 'admin').toUpperCase()})</span>`;
 
     // Adiciona o nome antes da data, e o botão sair por último
     if (headerDate) {

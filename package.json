@@ -6,11 +6,12 @@
     "node": "20"
   },
   "scripts": {
-    "build": "echo 'Static assets ready.'",
+    "build": "node scripts/build.js && echo 'Static assets ready.'",
     "start": "node server.js",
     "test": "vitest"
   },
   "dependencies": {
+    "dotenv": "^16.6.1",
     "express": "^4.18.2",
     "firebase": "^12.12.0",
     "firebase-tools": "^15.14.0"

@@ -10,6 +10,7 @@
     },
     "tenants": {
       ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
+      ".indexOn": ["config/slug"],
       "$tenantId": {
         ".read": "auth != null && (data.child('emailAdmin').val() === auth.token.email || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
         ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')"

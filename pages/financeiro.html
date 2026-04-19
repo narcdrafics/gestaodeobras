@@ -30,6 +30,48 @@
 <!-- KPIs / Resumo por Obra -->
 <div class="fin-summary" id="fin-summary" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:12px;"></div>
 
+<!-- Relatório de Pagamentos Semanais -->
+<div class="weekly-report" id="weekly-report" style="margin-bottom:16px;">
+  <div class="table-wrap">
+    <div class="table-toolbar">
+      <h3 style="margin:0">📊 Relatório de Pagamentos Semanais</h3>
+      <div class="toolbar-right">
+        <button class="btn btn-secondary btn-sm" id="btn-toggle-weekly">📋 Detalhes</button>
+      </div>
+    </div>
+    <div id="weekly-report-content"></div>
+  </div>
+</div>
+
+<!-- Relatório de Pagamentos por Funcionário e Empreiteiro -->
+<div class="worker-report" id="worker-report" style="margin-bottom:16px;">
+  <div class="table-wrap">
+    <div class="table-toolbar">
+      <h3 style="margin:0">👷 Relatório de Pagamentos por Funcionário/Empreiteiro</h3>
+      <div class="toolbar-right">
+        <button class="btn btn-primary btn-sm" id="btn-copy-worker">📋 Copiar</button>
+        <button class="btn btn-secondary btn-sm" id="btn-toggle-worker">👁️ Ocultar</button>
+      </div>
+    </div>
+    <div id="worker-report-content"></div>
+  </div>
+</div>
+
+<!-- Relatório Detalhado de Pagamentos Semanais por Pessoa -->
+<div class="detailed-weekly-report" id="detailed-weekly-report" style="margin-bottom:16px;">
+  <div class="table-wrap">
+    <div class="table-toolbar">
+      <h3 style="margin:0">📅 Pagamentos Semanais por Funcionário/Empreiteiro</h3>
+      <div class="toolbar-right">
+        <button class="btn btn-primary btn-sm" id="btn-copy-detailed">📋 Copiar</button>
+        <button class="btn btn-secondary btn-sm" id="btn-print-detailed">🖨️ Imprimir</button>
+        <button class="btn btn-secondary btn-sm" id="btn-toggle-detailed">👁️ Ocultar</button>
+      </div>
+    </div>
+    <div id="detailed-weekly-report-content"></div>
+  </div>
+</div>
+
 <!-- Tabela de Lançamentos -->
 <div class="table-wrap">
   <div class="table-toolbar" style="flex-wrap:wrap;gap:8px;">

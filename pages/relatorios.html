@@ -1,15 +1,43 @@
 <div class="page-header">
-  <div class="page-title">Relatórios e Vistoria <small>Consolidação de dados para auditoria</small></div>
+  <div class="page-title">Relatórios e Auditoria <small>Consolidação de dados para auditoria e fechamentos</small></div>
 </div>
 
-<div class="form-grid" style="max-width: 800px; margin: 20px 0; background: var(--bg2); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
-  <div class="form-group" style="flex: 2;">
-    <label class="form-label">Selecione a Obra para Auditoria</label>
-    <select class="form-control" id="rel-obra" onchange="checkRelObra()"></select>
+<div class="form-grid" style="max-width: 1000px; margin: 20px 0; background: var(--bg2); padding: 24px; border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 20px;">
+  
+  <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+    <div class="form-group" style="flex: 2; min-width: 250px;">
+      <label class="form-label">Obra (Opcional para alguns relatórios)</label>
+      <select class="form-control" id="rel-obra" onchange="checkRelObra()"></select>
+    </div>
+    
+    <div class="form-group" style="flex: 1; min-width: 150px;">
+      <label class="form-label">Mês Referência</label>
+      <select id="rel-month" class="form-control">
+        <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+        <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+        <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+        <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+      </select>
+    </div>
+
+    <div class="form-group" style="flex: 0.5; min-width: 100px;">
+      <label class="form-label">Ano</label>
+      <select id="rel-year" class="form-control"></select>
+    </div>
   </div>
-  <div class="form-group" style="flex: 1; align-self: flex-end;">
-    <button class="btn btn-primary" style="width: 100%; height: 42px;" onclick="generateAuditReport()">
+
+  <div class="report-actions" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; padding-top: 10px; border-top: 1px solid var(--border);">
+    <button class="btn btn-primary" onclick="generateAuditReport()" title="Laudo técnico com fotos e gastos por categoria">
         🔍 Gerar Laudo de Vistoria
+    </button>
+    <button class="btn btn-secondary" onclick="printEmployeePaymentReport()" title="Extrato de diárias por trabalhador">
+        👷 Pagamentos (Diárias)
+    </button>
+    <button class="btn btn-secondary" onclick="printWeeklySummaryReport()" title="Consolidação de todos os custos por semana">
+        📅 Resumo Semanal
+    </button>
+    <button class="btn btn-secondary" onclick="printPaidContractsReport()" title="Relatório de medições quitadas">
+        🔨 Empreitadas Pagas
     </button>
   </div>
 </div>
@@ -17,18 +45,38 @@
 <div id="rel-preview-area" style="margin-top: 30px;">
     <div class="ui-empty-state">
         <div class="ui-empty-icon">📂</div>
-        <div class="ui-empty-title">Pronto para Auditar</div>
-        <div class="ui-empty-text">Selecione uma obra acima para compilar todos os gastos, fotos de campo e saldos em um único documento profissional.</div>
+        <div class="ui-empty-title">Pronto para Gerar</div>
+        <div class="ui-empty-text">Selecione uma obra e o período acima para gerar documentos profissionais e auditorias completas.</div>
     </div>
 </div>
 
 <script>
-  // Preenche o select de obras
   (function() {
-    const sel = document.getElementById('rel-obra');
-    if (sel && typeof DB !== 'undefined') {
-      sel.innerHTML = '<option value="">-- Escolha uma Obra --</option>' + 
-        DB.obras.map(o => `<option value="${o.cod}">${o.nome}</option>`).join('');
+    const selObra = document.getElementById('rel-obra');
+    const selMonth = document.getElementById('rel-month');
+    const selYear = document.getElementById('rel-year');
+    
+    // Preenche Obras (com sanitização XSS)
+    if (selObra && typeof DB !== 'undefined') {
+      const safeSanitize = typeof sanitizeHTML === 'function' ? sanitizeHTML : (s) => String(s || '');
+      selObra.innerHTML = '<option value="">-- Todas as Obras / Geral --</option>' + 
+        DB.obras.map(o => `<option value="${safeSanitize(o.cod)}">${safeSanitize(o.nome)}</option>`).join('');
+    }
+
+    // Preenche Ano
+    if (selYear) {
+      const curYear = new Date().getFullYear();
+      for (let y = curYear; y >= 2024; y--) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        selYear.appendChild(opt);
+      }
+    }
+
+    // Set Mês Atual
+    if (selMonth) {
+      selMonth.value = new Date().getMonth() + 1;
     }
   })();
 </script>
