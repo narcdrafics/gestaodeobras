@@ -6,6 +6,7 @@ function renderDashboard() {
     return;
   }
   try {
+    const today = new Date().toISOString().split('T')[0];
     const kpiGrid = document.getElementById('kpi-grid');
 
     const obrasAtivas = (window.DB.obras || []).filter(o => o && ['Em andamento', 'Planejada'].includes(o.status)).length;
