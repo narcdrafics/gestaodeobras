@@ -1,6 +1,18 @@
 const functions = require("firebase-functions");
-const admin = require("firebase-admin");
-admin.initializeApp();
+const { onRequest } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
+const admin = require('firebase-admin');
+const OpenAI = require('openai');
+const axios = require('axios');
+
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
+const OPENAI_KEY = defineSecret('OPENAI_KEY');
+const TWILIO_SID = defineSecret('TWILIO_SID');
+const TWILIO_TOKEN = defineSecret('TWILIO_TOKEN');
+const TWILIO_WHATSAPP_FROM = defineSecret('TWILIO_WHATSAPP_FROM');
 
 // ============================================================
 // MAPEAMENTO DE PRODUTOS KIWIFY → PLANO
@@ -267,3 +279,212 @@ exports.syncTenantClaim = functions.database.ref('/users/{emailSafe}')
          return null;
       }
    });
+
+// ============================================================
+// WEBHOOK WHATSAPP (TWILIO + OPENAI)
+// ============================================================
+exports.whatsappWebhook = onRequest({
+  secrets: [OPENAI_KEY, TWILIO_SID, TWILIO_TOKEN, TWILIO_WHATSAPP_FROM],
+  cors: true
+}, async (req, res) => {
+  // Twilio exige resposta 200 rápida e em formato TwiML (XML)
+  res.status(200).type('text/xml').send('<Response></Response>');
+
+  // Twilio envia dados como urlencoded. Vamos garantir a extração correta:
+  const data = req.body || {};
+  const From = data.From || req.query.From;
+  const Body = data.Body || req.query.Body;
+  const MediaUrl0 = data.MediaUrl0 || req.query.MediaUrl0;
+  const MediaContentType0 = data.MediaContentType0 || req.query.MediaContentType0;
+  
+  let textoTarefa = Body;
+
+  console.log(`📡 Mensagem recebida de: ${From}. Mídia: ${MediaUrl0 ? 'Sim' : 'Não'}`);
+  
+  if (!From) {
+    console.error('❌ Erro: "From" não encontrado no corpo da requisição. Body:', JSON.stringify(req.body));
+    return;
+  }
+
+  try {
+    const openai = new OpenAI({ apiKey: OPENAI_KEY.value() });
+    const db = admin.database();
+    
+    // 1. Valida se o número pode criar tarefa
+    const telefoneAlvo = From.replace('whatsapp:', '').replace('+', '');
+    console.log(`🔍 Buscando usuário para o telefone: ${telefoneAlvo}`);
+    
+    const usersSnap = await db.ref('users').once('value');
+    const usersData = usersSnap.val() || {};
+    
+    let user = null;
+    let userKey = null;
+
+    // Busca manual para garantir que funcione independente de índice ou tipo de dado
+    for (const key in usersData) {
+      const u = usersData[key];
+      const telUser = String(u.telefone || '').replace('+', '');
+      if (telUser === telefoneAlvo) {
+        user = u;
+        userKey = key;
+        break;
+      }
+    }
+
+    if (!user) {
+      console.log(`⚠️ Usuário não encontrado para: ${telefoneAlvo}`);
+      await responderWhatsApp(From, `Seu número não está autorizado. (Tel: ${telefoneAlvo})`);
+      return;
+    }
+    
+    console.log(`✅ Usuário encontrado: ${user.nome} (Tenant: ${user.tenantId})`);
+    const tenantId = user.tenantId;
+    const telefone = From.replace('whatsapp:', ''); // Define telefone para uso posterior
+
+    // 2. Se mandou áudio, transcreve com Whisper
+    if (MediaUrl0 && MediaContentType0?.includes('audio')) {
+      const response = await axios.get(MediaUrl0, {
+        responseType: 'arraybuffer',
+        auth: { username: TWILIO_SID.value(), password: TWILIO_TOKEN.value() }
+      });
+
+      // Whisper exige um arquivo com nome e extensão
+      const buffer = Buffer.from(response.data);
+      // Criar um blob simulado para o SDK da OpenAI
+      const transcription = await openai.audio.transcriptions.create({
+        file: await OpenAI.toFile(buffer, 'audio.ogg'),
+        model: 'whisper-1',
+        language: 'pt'
+      });
+      textoTarefa = transcription.text;
+    }
+
+    if (!textoTarefa) return;
+
+    // 3. Usa GPT pra extrair os campos da tarefa
+    const extracao = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      response_format: { type: "json_object" },
+      messages: [{
+        role: 'system',
+        content: 'Você extrai dados de tarefas de obra. Retorne JSON: {titulo, descricao, obra_nome_ou_id, responsavel, prazo}. Se não tiver prazo, use null. Data hoje: ' + new Date().toLocaleDateString('pt-BR')
+      }, {
+        role: 'user',
+        content: textoTarefa
+      }]
+    });
+
+    const dados = JSON.parse(extracao.choices[0].message.content);
+
+    // 4. Busca a obra pelo nome ou ID
+    let obraId = null;
+    let obraCod = null; // Código da obra (ex: OB001) usado pelo frontend
+    let obraNomeEncontrado = dados.obra_nome_ou_id;
+
+    // Busca a obra no tenant
+    const obrasSnap = await db.ref(`tenants/${tenantId}/obras`).once('value');
+    const obras = obrasSnap.val();
+    
+    if (obras) {
+      const termo = String(dados.obra_nome_ou_id || '').toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      
+      // Converte para lista unificada (trata array ou objeto)
+      const listaObras = Array.isArray(obras) 
+        ? obras.map((o, index) => ({ ...o, _id: String(index) }))
+        : Object.entries(obras).map(([id, o]) => ({ ...o, _id: id }));
+
+      const match = listaObras.find(o => {
+        if (!o || !o.nome) return false;
+        const nomeObra = String(o.nome).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const codObra = String(o.cod || '').toLowerCase().trim();
+        
+        return nomeObra.includes(termo) || termo.includes(nomeObra) || codObra === termo || o._id === termo;
+      });
+
+      if (match) {
+        obraId = match._id;
+        obraCod = match.cod || null; // ex: "OB001" — campo usado pelo frontend para filtrar tarefas
+        obraNomeEncontrado = match.nome;
+        console.log(`✅ Obra encontrada: ${obraNomeEncontrado} (COD: ${obraCod}, ID: ${obraId})`);
+      } else {
+        console.log(`❌ Nenhuma obra encontrada para o termo: "${termo}"`);
+      }
+    }
+
+    if (!obraId) {
+      await responderWhatsApp(From, `Não achei a obra "${dados.obra_nome_ou_id}". Confere o nome/ID e manda de novo.`);
+      return;
+    }
+
+    // 5. Cria a tarefa no Realtime Database
+    const tarefasRef = db.ref(`tenants/${tenantId}/tarefas`);
+    const tarefasSnap = await tarefasRef.once('value');
+    let listaTarefas = tarefasSnap.val() || [];
+    if (!Array.isArray(listaTarefas)) listaTarefas = Object.values(listaTarefas || {});
+
+    // Gera o próximo código TF001, TF002...
+    const nums = listaTarefas.map(x => {
+      const val = String(x.cod || '').replace('TF', '');
+      return parseInt(val) || 0;
+    });
+    const max = nums.length > 0 ? Math.max(...nums) : 0;
+    const novoCod = `TF${String(max + 1).padStart(3, '0')}`;
+
+    const novaTarefa = {
+      cod: novoCod,
+      obra: obraCod || obraId, // Usa o código da obra (ex: OB001) para o frontend filtrar por obra
+      etapa: 'WhatsApp',
+      frente: 'WhatsApp',
+      desc: dados.titulo,
+      resp: dados.responsavel || 'Equipe',
+      prior: 'Média',
+      status: 'Pendente',
+      prazo: dados.prazo || null,
+      perc: 0,
+      criadoPor: user.nome || 'WhatsApp Bot',
+      criadoEm: admin.database.ServerValue.TIMESTAMP,
+      origem: 'WhatsApp',
+      telefoneAutor: telefone
+    };
+
+    listaTarefas.push(novaTarefa);
+    await tarefasRef.set(listaTarefas);
+
+    // 6. Confirma no WhatsApp
+    const msg = `✅ Tarefa "${String(dados.titulo).trim()}" criada na obra "${String(obraNomeEncontrado).trim()}"`;
+    await responderWhatsApp(From, msg);
+
+  } catch (err) {
+    console.error('Erro webhook whatsapp:', err);
+    await responderWhatsApp(From, 'Deu erro aqui. Tenta mandar de novo com: Tarefa X na obra Y');
+  }
+});
+
+async function responderWhatsApp(para, msg) {
+  const sid = TWILIO_SID.value();
+  const token = TWILIO_TOKEN.value();
+  let from = TWILIO_WHATSAPP_FROM.value();
+
+  // Garante que o From tenha o prefixo whatsapp:
+  if (from && !from.startsWith('whatsapp:')) {
+    from = `whatsapp:${from}`;
+  }
+
+  if (!sid || !token || !from) {
+    console.error('❌ Erro: Credenciais Twilio incompletas nos Secrets.');
+    return;
+  }
+
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
+  try {
+    await axios.post(url, new URLSearchParams({
+      To: para,
+      From: from,
+      Body: msg
+    }), {
+      auth: { username: sid, password: token }
+    });
+  } catch (e) {
+    console.error('Erro ao responder WhatsApp:', e.response?.data || e.message);
+  }
+}
