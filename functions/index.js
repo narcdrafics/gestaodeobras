@@ -361,13 +361,39 @@ exports.whatsappWebhook = onRequest({
 
     if (!textoTarefa) return;
 
-    // 3. Usa GPT pra extrair os campos da tarefa
+    // 3. Usa GPT para identificar a INTENÇÃO e extrair os campos
     const extracao = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       response_format: { type: "json_object" },
       messages: [{
         role: 'system',
-        content: 'Você extrai dados de tarefas de obra. Retorne JSON: {titulo, descricao, obra_nome_ou_id, responsavel, prazo}. Se não tiver prazo, use null. Data hoje: ' + new Date().toLocaleDateString('pt-BR')
+        content: `Você é um assistente de gestão de obras. Analise a mensagem e retorne JSON com a intenção e os dados.
+Data de hoje: ${new Date().toISOString().split('T')[0]}
+
+Retorne exatamente neste formato:
+{
+  "intencao": "criar_tarefa" | "lancar_ponto" | "desconhecido",
+  "tarefa": {
+    "titulo": "...",
+    "obra_nome": "...",
+    "responsavel": "...",
+    "prazo": "YYYY-MM-DD ou null"
+  },
+  "ponto": {
+    "trabalhadores": ["Nome1", "Nome2"],
+    "presenca": "Presente" | "Falta" | "Meio período",
+    "obra_nome": "...",
+    "data": "YYYY-MM-DD",
+    "obs": "..."
+  }
+}
+
+Regras:
+- Se falar em tarefa, serviço, problema a resolver → intencao = "criar_tarefa"
+- Se falar em presença, ponto, falta, trabalhador, peão, chegou, trabalhou → intencao = "lancar_ponto"
+- Para ponto sem data explícita, use a data de hoje
+- Para ponto sem status, assuma "Presente"
+- Pode listar múltiplos trabalhadores para ponto`
       }, {
         role: 'user',
         content: textoTarefa
@@ -375,84 +401,167 @@ exports.whatsappWebhook = onRequest({
     });
 
     const dados = JSON.parse(extracao.choices[0].message.content);
+    console.log(`🤖 Intenção detectada: ${dados.intencao}`, JSON.stringify(dados));
 
-    // 4. Busca a obra pelo nome ou ID
-    let obraId = null;
-    let obraCod = null; // Código da obra (ex: OB001) usado pelo frontend
-    let obraNomeEncontrado = dados.obra_nome_ou_id;
+    // ==================== HELPER: busca obra ====================
+    const buscarObra = async () => {
+      const nomeOuId = (dados.intencao === 'criar_tarefa' ? dados.tarefa?.obra_nome : dados.ponto?.obra_nome) || '';
+      const obrasSnap = await db.ref(`tenants/${tenantId}/obras`).once('value');
+      const obras = obrasSnap.val();
+      if (!obras || !nomeOuId) return null;
 
-    // Busca a obra no tenant
-    const obrasSnap = await db.ref(`tenants/${tenantId}/obras`).once('value');
-    const obras = obrasSnap.val();
-    
-    if (obras) {
-      const termo = String(dados.obra_nome_ou_id || '').toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      
-      // Converte para lista unificada (trata array ou objeto)
-      const listaObras = Array.isArray(obras) 
-        ? obras.map((o, index) => ({ ...o, _id: String(index) }))
+      const termo = nomeOuId.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const listaObras = Array.isArray(obras)
+        ? obras.map((o, i) => ({ ...o, _id: String(i) }))
         : Object.entries(obras).map(([id, o]) => ({ ...o, _id: id }));
 
-      const match = listaObras.find(o => {
+      return listaObras.find(o => {
         if (!o || !o.nome) return false;
         const nomeObra = String(o.nome).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const codObra = String(o.cod || '').toLowerCase().trim();
-        
         return nomeObra.includes(termo) || termo.includes(nomeObra) || codObra === termo || o._id === termo;
       });
-
-      if (match) {
-        obraId = match._id;
-        obraCod = match.cod || null; // ex: "OB001" — campo usado pelo frontend para filtrar tarefas
-        obraNomeEncontrado = match.nome;
-        console.log(`✅ Obra encontrada: ${obraNomeEncontrado} (COD: ${obraCod}, ID: ${obraId})`);
-      } else {
-        console.log(`❌ Nenhuma obra encontrada para o termo: "${termo}"`);
-      }
-    }
-
-    if (!obraId) {
-      await responderWhatsApp(From, `Não achei a obra "${dados.obra_nome_ou_id}". Confere o nome/ID e manda de novo.`);
-      return;
-    }
-
-    // 5. Cria a tarefa no Realtime Database
-    const tarefasRef = db.ref(`tenants/${tenantId}/tarefas`);
-    const tarefasSnap = await tarefasRef.once('value');
-    let listaTarefas = tarefasSnap.val() || [];
-    if (!Array.isArray(listaTarefas)) listaTarefas = Object.values(listaTarefas || {});
-
-    // Gera o próximo código TF001, TF002...
-    const nums = listaTarefas.map(x => {
-      const val = String(x.cod || '').replace('TF', '');
-      return parseInt(val) || 0;
-    });
-    const max = nums.length > 0 ? Math.max(...nums) : 0;
-    const novoCod = `TF${String(max + 1).padStart(3, '0')}`;
-
-    const novaTarefa = {
-      cod: novoCod,
-      obra: obraCod || obraId, // Usa o código da obra (ex: OB001) para o frontend filtrar por obra
-      etapa: 'WhatsApp',
-      frente: 'WhatsApp',
-      desc: dados.titulo,
-      resp: dados.responsavel || 'Equipe',
-      prior: 'Média',
-      status: 'Pendente',
-      prazo: dados.prazo || null,
-      perc: 0,
-      criadoPor: user.nome || 'WhatsApp Bot',
-      criadoEm: admin.database.ServerValue.TIMESTAMP,
-      origem: 'WhatsApp',
-      telefoneAutor: telefone
     };
 
-    listaTarefas.push(novaTarefa);
-    await tarefasRef.set(listaTarefas);
+    // ==================== FLUXO: CRIAR TAREFA ====================
+    if (dados.intencao === 'criar_tarefa') {
+      const obraMatch = await buscarObra();
+      if (!obraMatch) {
+        await responderWhatsApp(From, `Não achei a obra "${dados.tarefa?.obra_nome}". Confere o nome e manda de novo.`);
+        return;
+      }
 
-    // 6. Confirma no WhatsApp
-    const msg = `✅ Tarefa "${String(dados.titulo).trim()}" criada na obra "${String(obraNomeEncontrado).trim()}"`;
-    await responderWhatsApp(From, msg);
+      const tarefasRef = db.ref(`tenants/${tenantId}/tarefas`);
+      const tarefasSnap = await tarefasRef.once('value');
+      let listaTarefas = tarefasSnap.val() || [];
+      if (!Array.isArray(listaTarefas)) listaTarefas = Object.values(listaTarefas || {});
+
+      const nums = listaTarefas.map(x => parseInt(String(x.cod || '').replace('TF', '')) || 0);
+      const novoCod = `TF${String((nums.length > 0 ? Math.max(...nums) : 0) + 1).padStart(3, '0')}`;
+
+      const novaTarefa = {
+        cod: novoCod,
+        obra: obraMatch.cod || obraMatch._id,
+        etapa: 'WhatsApp',
+        frente: 'WhatsApp',
+        desc: dados.tarefa.titulo,
+        resp: dados.tarefa.responsavel || 'Equipe',
+        prior: 'Média',
+        status: 'Pendente',
+        prazo: dados.tarefa.prazo || null,
+        perc: 0,
+        criadoPor: user.nome || 'WhatsApp Bot',
+        criadoEm: admin.database.ServerValue.TIMESTAMP,
+        origem: 'WhatsApp',
+        telefoneAutor: telefone
+      };
+
+      listaTarefas.push(novaTarefa);
+      await tarefasRef.set(listaTarefas);
+      console.log(`✅ Tarefa ${novoCod} criada na obra ${obraMatch.nome}`);
+
+      const msg = `✅ Tarefa "${String(dados.tarefa.titulo).trim()}" criada na obra "${String(obraMatch.nome).trim()}" (${novoCod})`;
+      await responderWhatsApp(From, msg);
+
+    // ==================== FLUXO: LANÇAR PONTO ====================
+    } else if (dados.intencao === 'lancar_ponto') {
+      const obraMatch = await buscarObra();
+      if (!obraMatch) {
+        await responderWhatsApp(From, `Não achei a obra "${dados.ponto?.obra_nome}". Confere o nome e manda de novo.`);
+        return;
+      }
+
+      // Carrega trabalhadores do tenant
+      const trabSnap = await db.ref(`tenants/${tenantId}/trabalhadores`).once('value');
+      const trabalhadores = trabSnap.val() || [];
+      const listaTrab = Array.isArray(trabalhadores) ? trabalhadores : Object.values(trabalhadores);
+
+      const presencaRef = db.ref(`tenants/${tenantId}/presenca`);
+      const presencaSnap = await presencaRef.once('value');
+      let listaPresenca = presencaSnap.val() || [];
+      if (!Array.isArray(listaPresenca)) listaPresenca = Object.values(listaPresenca || {});
+
+      const nomesTrab = dados.ponto?.trabalhadores || [];
+      if (nomesTrab.length === 0) {
+        await responderWhatsApp(From, 'Não entendi quem é o trabalhador. Tenta: "João presente hoje na Timbumba"');
+        return;
+      }
+
+      const dataLanc = dados.ponto?.data || new Date().toISOString().split('T')[0];
+      const statusPresenca = dados.ponto?.presenca || 'Presente';
+      const resultados = [];
+
+      for (const nomeBuscado of nomesTrab) {
+        const termoBusca = nomeBuscado.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+        // Busca fuzzy pelo nome do trabalhador
+        const trab = listaTrab.find(t => {
+          if (!t || !t.nome) return false;
+          const nomeTNorm = String(t.nome).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return nomeTNorm.includes(termoBusca) || termoBusca.includes(nomeTNorm);
+        });
+
+        if (!trab) {
+          resultados.push(`⚠️ "${nomeBuscado}" não encontrado`);
+          continue;
+        }
+
+        // Verifica duplicidade (mesmo trabalhador, mesma data, mesma obra)
+        const jaExiste = listaPresenca.some(p =>
+          p && p.data === dataLanc && p.trab === trab.cod && p.obra === (obraMatch.cod || obraMatch._id)
+        );
+
+        if (jaExiste) {
+          resultados.push(`⚠️ ${trab.nome} já tem ponto em ${dataLanc}`);
+          continue;
+        }
+
+        // Calcula o total com base na presença e diária
+        let totalDia = 0;
+        if (statusPresenca === 'Presente') totalDia = trab.diaria || 0;
+        else if (statusPresenca === 'Meio período') totalDia = (trab.diaria || 0) / 2;
+
+        const novoRegistro = {
+          data: dataLanc,
+          obra: obraMatch.cod || obraMatch._id,
+          trab: trab.cod,
+          nome: trab.nome,
+          funcao: trab.funcao || '',
+          vinculo: trab.vinculo || 'Informal',
+          equipe: trab.equipe || '',
+          frente: '',
+          entrada: '',
+          saida: '',
+          hnorm: statusPresenca === 'Presente' ? 8 : statusPresenca === 'Meio período' ? 4 : 0,
+          hextra: 0,
+          presenca: statusPresenca,
+          justif: dados.ponto?.obs || '',
+          diaria: trab.diaria || 0,
+          total: totalDia,
+          pgtoStatus: 'Pendente',
+          valpago: 0,
+          lancador: user.nome || 'WhatsApp Bot',
+          hrLanc: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          obs: dados.ponto?.obs || '',
+          origem: 'WhatsApp',
+          telefoneAutor: telefone
+        };
+
+        listaPresenca.push(novoRegistro);
+        resultados.push(`✅ ${trab.nome} — ${statusPresenca}`);
+        console.log(`✅ Ponto lançado: ${trab.nome} em ${dataLanc} (${statusPresenca})`);
+      }
+
+      await presencaRef.set(listaPresenca);
+
+      const dataFmt = new Date(dataLanc + 'T12:00:00').toLocaleDateString('pt-BR');
+      const resumo = resultados.join('\n');
+      await responderWhatsApp(From, `📋 Ponto lançado em "${String(obraMatch.nome).trim()}" — ${dataFmt}:\n${resumo}`);
+
+    // ==================== FLUXO: INTENÇÃO DESCONHECIDA ====================
+    } else {
+      await responderWhatsApp(From, `Não entendi. Você pode me pedir:\n📌 *Criar tarefa:* "Rebocar parede da Timbumba"\n👷 *Lançar ponto:* "João e Vicente presentes hoje na Timbumba"`);
+    }
 
   } catch (err) {
     console.error('Erro webhook whatsapp:', err);
