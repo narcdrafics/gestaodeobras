@@ -27,7 +27,7 @@ window.renderRelatorios = window.renderRelatorios || function () { };
 // NOTA: fmt, fmtPct, fmtDate são declarados em utils.module.js e atribuídos ao window
 const cleanText = (v) => (!v || v === 'undefined' || v === 'indefinido') ? '—' : v;
 const cleanInput = (v) => (!v || v === 'undefined' || v === 'indefinido') ? '' : v;
-const today = new Date().toISOString().split('T')[0];
+const today = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0');
 
 
 
@@ -405,7 +405,7 @@ function shareObraWhatsApp(obraCod) {
   const fReal = DB.financeiro.filter(f => f.obra === obraCod).reduce((a, f) => a + (Number(f.real) || 0), 0);
   
   // Busca presenças do dia de hoje para esta obra
-  const tDay = new Date().toISOString().split('T')[0];
+  const tDay = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0');
   const pres = (DB.presenca || []).filter(p => p.obra === obraCod && p.data === tDay);
   const presentCount = pres.filter(p => p.presenca === 'Presente').length;
 
@@ -618,7 +618,7 @@ function renderQuadroSemanal() {
   if (!container) return;
 
   const todayObj = new Date();
-  // Ajusta para o início da semana (Segunda-feira) + o offset
+  todayObj.setHours(0, 0, 0, 0);
   const startOfWeek = new Date(todayObj);
   const dayOfWeek = todayObj.getDay();
   const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo vira 6, segunda vira 0, etc.
@@ -631,7 +631,7 @@ function renderQuadroSemanal() {
     const d = new Date(startOfWeek);
     d.setDate(startOfWeek.getDate() + i);
     days.push({
-      date: d.toISOString().split('T')[0],
+      date: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'),
       name: dayNames[i],
       display: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
     });

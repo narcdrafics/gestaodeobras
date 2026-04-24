@@ -14,6 +14,58 @@ const TWILIO_SID = defineSecret('TWILIO_SID');
 const TWILIO_TOKEN = defineSecret('TWILIO_TOKEN');
 const TWILIO_WHATSAPP_FROM = defineSecret('TWILIO_WHATSAPP_FROM');
 
+// ==================== FUZZY MATCHING ====================
+// Normaliza string: minúsculo, sem acento, sem espaço duplo
+function norm(str) {
+  return String(str || '')
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .replace(/[^a-z0-9 ]/g, '')     // remove caracteres especiais
+    .replace(/\s+/g, ' ');          // colapsa espaços
+}
+
+// Distância de Levenshtein (edição mínima entre duas strings)
+function levenshtein(a, b) {
+  const la = a.length, lb = b.length;
+  if (la === 0) return lb;
+  if (lb === 0) return la;
+  const dp = Array.from({ length: la + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= lb; j++) dp[0][j] = j;
+  for (let i = 1; i <= la; i++) {
+    for (let j = 1; j <= lb; j++) {
+      dp[i][j] = a[i-1] === b[j-1]
+        ? dp[i-1][j-1]
+        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+    }
+  }
+  return dp[la][lb];
+}
+
+// Score de similaridade entre 0 e 1 (1 = idêntico)
+function similarity(a, b) {
+  const na = norm(a), nb = norm(b);
+  if (!na || !nb) return 0;
+  // Bônus se um contém o outro (útil para "Ruan" vs "Ruan muro")
+  if (na.includes(nb) || nb.includes(na)) return 0.95;
+  const dist = levenshtein(na, nb);
+  const maxLen = Math.max(na.length, nb.length);
+  return 1 - dist / maxLen;
+}
+
+// Busca o item mais similar numa lista, acima do threshold mínimo
+function melhorMatch(termo, lista, getFn, threshold = 0.6) {
+  let best = null, bestScore = threshold - 0.001;
+  for (const item of lista) {
+    const score = similarity(termo, getFn(item));
+    if (score > bestScore) { bestScore = score; best = item; }
+  }
+  return best;
+}
+// ========================================================
+
+
 // ============================================================
 // MAPEAMENTO DE PRODUTOS KIWIFY → PLANO
 // Preencha com os IDs reais dos seus produtos na Kiwify:
@@ -362,13 +414,16 @@ exports.whatsappWebhook = onRequest({
     if (!textoTarefa) return;
 
     // 3. Usa GPT para identificar a INTENÇÃO e extrair os campos
+    // ✅ Ajuste de Fuso Horário: Brasil (UTC-3)
+    const dataHojeBR = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"})).toISOString().split('T')[0];
+
     const extracao = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       response_format: { type: "json_object" },
       messages: [{
         role: 'system',
         content: `Você é um assistente de gestão de obras. Analise a mensagem e retorne JSON com a intenção e os dados.
-Data de hoje: ${new Date().toISOString().split('T')[0]}
+Data de hoje: ${dataHojeBR}
 
 Retorne exatamente neste formato:
 {
@@ -393,7 +448,9 @@ Regras:
 - Se falar em presença, ponto, falta, trabalhador, peão, chegou, trabalhou → intencao = "lancar_ponto"
 - Para ponto sem data explícita, use a data de hoje
 - Para ponto sem status, assuma "Presente"
-- Pode listar múltiplos trabalhadores para ponto`
+- Pode listar múltiplos trabalhadores para ponto
+- Se a obra não for mencionada explicitamente, coloque obra_nome como "nao_informada"
+- NUNCA coloque obra_nome como null`
       }, {
         role: 'user',
         content: textoTarefa
@@ -403,24 +460,40 @@ Regras:
     const dados = JSON.parse(extracao.choices[0].message.content);
     console.log(`🤖 Intenção detectada: ${dados.intencao}`, JSON.stringify(dados));
 
-    // ==================== HELPER: busca obra ====================
-    const buscarObra = async () => {
-      const nomeOuId = (dados.intencao === 'criar_tarefa' ? dados.tarefa?.obra_nome : dados.ponto?.obra_nome) || '';
+    // ==================== HELPER: busca obra (com fuzzy) ====================
+    const buscarObra = async (nomeOuIdOverride) => {
+      const nomeOuId = nomeOuIdOverride ||
+        (dados.intencao === 'criar_tarefa' ? dados.tarefa?.obra_nome : dados.ponto?.obra_nome) || '';
       const obrasSnap = await db.ref(`tenants/${tenantId}/obras`).once('value');
       const obras = obrasSnap.val();
-      if (!obras || !nomeOuId) return null;
+      if (!obras) return null;
 
-      const termo = nomeOuId.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const listaObras = Array.isArray(obras)
         ? obras.map((o, i) => ({ ...o, _id: String(i) }))
         : Object.entries(obras).map(([id, o]) => ({ ...o, _id: id }));
 
-      return listaObras.find(o => {
-        if (!o || !o.nome) return false;
-        const nomeObra = String(o.nome).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const codObra = String(o.cod || '').toLowerCase().trim();
-        return nomeObra.includes(termo) || termo.includes(nomeObra) || codObra === termo || o._id === termo;
+      const listaAtivas = listaObras.filter(o => o && o.nome && o.status !== 'Concluída');
+
+      // Se não veio nome ou veio "nao_informada", retorna a única obra ativa (se só tiver uma)
+      if (!nomeOuId || nomeOuId === 'nao_informada') {
+        if (listaAtivas.length === 1) {
+          console.log(`ℹ️ Obra não informada, usando única ativa: ${listaAtivas[0].nome}`);
+          return listaAtivas[0];
+        }
+        return null; // ambíguo demais
+      }
+
+      // 1ª tentativa: busca exata / parcial (mais rápida)
+      const exata = listaAtivas.find(o => {
+        const n = norm(o.nome), t = norm(nomeOuId);
+        return n.includes(t) || t.includes(n) || norm(o.cod) === t || o._id === norm(nomeOuId);
       });
+      if (exata) return exata;
+
+      // 2ª tentativa: fuzzy (Levenshtein) — threshold 60%
+      const fuzzy = melhorMatch(nomeOuId, listaAtivas, o => o.nome, 0.6);
+      if (fuzzy) console.log(`🔍 Fuzzy obra: "${nomeOuId}" → "${fuzzy.nome}" (${(similarity(nomeOuId, fuzzy.nome)*100).toFixed(0)}%)`);
+      return fuzzy;
     };
 
     // ==================== FLUXO: CRIAR TAREFA ====================
@@ -467,7 +540,12 @@ Regras:
     } else if (dados.intencao === 'lancar_ponto') {
       const obraMatch = await buscarObra();
       if (!obraMatch) {
-        await responderWhatsApp(From, `Não achei a obra "${dados.ponto?.obra_nome}". Confere o nome e manda de novo.`);
+        const obraCitada = dados.ponto?.obra_nome;
+        if (!obraCitada || obraCitada === 'nao_informada') {
+          await responderWhatsApp(From, `Qual é a obra? Você tem mais de uma ativa. Repita com o nome da obra. Ex: "João presente na Timbumba"`);
+        } else {
+          await responderWhatsApp(From, `Não achei a obra "${obraCitada}". Suas obras ativas são: Timbumba, Muro Timbumba, SOL E MAR. Confere o nome.`);
+        }
         return;
       }
 
@@ -477,9 +555,6 @@ Regras:
       const listaTrab = Array.isArray(trabalhadores) ? trabalhadores : Object.values(trabalhadores);
 
       const presencaRef = db.ref(`tenants/${tenantId}/presenca`);
-      const presencaSnap = await presencaRef.once('value');
-      let listaPresenca = presencaSnap.val() || [];
-      if (!Array.isArray(listaPresenca)) listaPresenca = Object.values(listaPresenca || {});
 
       const nomesTrab = dados.ponto?.trabalhadores || [];
       if (nomesTrab.length === 0) {
@@ -487,34 +562,31 @@ Regras:
         return;
       }
 
-      const dataLanc = dados.ponto?.data || new Date().toISOString().split('T')[0];
+      const dataLanc = dados.ponto?.data || dataHojeBR;
       const statusPresenca = dados.ponto?.presenca || 'Presente';
       const resultados = [];
 
       for (const nomeBuscado of nomesTrab) {
-        const termoBusca = nomeBuscado.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-        // Busca fuzzy pelo nome do trabalhador
-        const trab = listaTrab.find(t => {
+        // Busca com fuzzy: exata primeiro, depois Levenshtein
+        const exata = listaTrab.find(t => {
           if (!t || !t.nome) return false;
-          const nomeTNorm = String(t.nome).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          return nomeTNorm.includes(termoBusca) || termoBusca.includes(nomeTNorm);
+          const n = norm(t.nome), b = norm(nomeBuscado);
+          return n.includes(b) || b.includes(n);
         });
+
+        const trab = exata || melhorMatch(nomeBuscado, listaTrab.filter(t => t && t.nome), t => t.nome, 0.6);
+
+        if (!exata && trab) {
+          const score = (similarity(nomeBuscado, trab.nome) * 100).toFixed(0);
+          console.log(`🔍 Fuzzy trab: "${nomeBuscado}" → "${trab.nome}" (${score}%)`);
+        }
 
         if (!trab) {
           resultados.push(`⚠️ "${nomeBuscado}" não encontrado`);
           continue;
         }
 
-        // Verifica duplicidade (mesmo trabalhador, mesma data, mesma obra)
-        const jaExiste = listaPresenca.some(p =>
-          p && p.data === dataLanc && p.trab === trab.cod && p.obra === (obraMatch.cod || obraMatch._id)
-        );
 
-        if (jaExiste) {
-          resultados.push(`⚠️ ${trab.nome} já tem ponto em ${dataLanc}`);
-          continue;
-        }
 
         // Calcula o total com base na presença e diária
         let totalDia = 0;
@@ -530,8 +602,8 @@ Regras:
           vinculo: trab.vinculo || 'Informal',
           equipe: trab.equipe || '',
           frente: '',
-          entrada: '',
-          saida: '',
+          entrada: '07:00',
+          saida: statusPresenca === 'Meio período' ? '12:00' : '17:00',
           hnorm: statusPresenca === 'Presente' ? 8 : statusPresenca === 'Meio período' ? 4 : 0,
           hextra: 0,
           presenca: statusPresenca,
@@ -547,12 +619,30 @@ Regras:
           telefoneAutor: telefone
         };
 
-        listaPresenca.push(novoRegistro);
-        resultados.push(`✅ ${trab.nome} — ${statusPresenca}`);
-        console.log(`✅ Ponto lançado: ${trab.nome} em ${dataLanc} (${statusPresenca})`);
-      }
+        // ✅ Transaction atômica: lê o estado ATUAL do banco antes de escrever.
+        // Evita sobrescrita dos dados do frontend quando ambos salvam ao mesmo tempo.
+        let pontoSalvo = false;
+        await presencaRef.transaction((currentData) => {
+          let lista = Array.isArray(currentData) ? currentData : Object.values(currentData || {});
+          
+          // Revalida duplicidade com o estado real do banco (não a cópia em memória)
+          const duplicado = lista.some(p =>
+            p && p.data === dataLanc && p.trab === trab.cod && p.obra === (obraMatch.cod || obraMatch._id)
+          );
+          if (duplicado) { pontoSalvo = false; return currentData; }
+          
+          lista.push(novoRegistro);
+          pontoSalvo = true;
+          return lista;
+        });
 
-      await presencaRef.set(listaPresenca);
+        if (pontoSalvo) {
+          resultados.push(`✅ ${trab.nome} — ${statusPresenca}`);
+          console.log(`✅ Ponto lançado: ${trab.nome} em ${dataLanc} (${statusPresenca})`);
+        } else {
+          resultados.push(`⚠️ ${trab.nome} já tem ponto em ${dataLanc} (duplicidade)`);
+        }
+      }
 
       const dataFmt = new Date(dataLanc + 'T12:00:00').toLocaleDateString('pt-BR');
       const resumo = resultados.join('\n');
