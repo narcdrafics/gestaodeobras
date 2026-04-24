@@ -190,11 +190,12 @@ exports.whatsappWebhook = onRequest({
         let total = 0, hnorm = 0;
         if (statusP === 'Presente') { total = trab.diaria || 0; hnorm = 8; }
         else if (statusP === 'Meio período') { total = (trab.diaria || 0) / 2; hnorm = 4; }
+        else if (statusP === 'Falta') { total = 0; hnorm = 0; }
 
         novos.push({
           data: dataLanc, obra: obraMatch.cod || obraMatch._id, trab: trab.cod, nome: trab.nome,
           funcao: trab.funcao || '', vinculo: trab.vinculo || 'Informal', equipe: trab.equipe || '',
-          entrada: '07:00', saida: statusP === 'Meio período' ? '12:00' : '17:00',
+          entrada: statusP === 'Falta' ? '00:00' : '07:00', saida: statusP === 'Meio período' ? '12:00' : (statusP === 'Falta' ? '00:00' : '17:00'),
           hnorm, hextra: 0, presenca: statusP, diaria: parseFloat(trab.diaria) || 0, total: parseFloat(total),
           pgtoStatus: 'Pendente', valpago: 0, lancador: user.nome || 'WhatsApp Bot', 
           hrLanc: new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date()), 
@@ -206,21 +207,23 @@ exports.whatsappWebhook = onRequest({
         await presencaRef.transaction((current) => {
           let lista = Array.isArray(current) ? current : Object.values(current || {});
           for (const n of novos) {
-            const idx = lista.findIndex(p => p && p.data === n.data && p.trab === n.trab && p.obra === n.obra);
+            // Busca o registro do trabalhador no dia, independente da obra para permitir ALTERAR a obra ou o status.
+            const idx = lista.findIndex(p => p && p.data === n.data && p.trab === n.trab);
             const { _s, ...final } = n;
             if (idx === -1) {
               lista.push(final);
               resultados.push(`✅ ${n.nome} — ${_s}`);
             } else {
+              // Se já existe, subscreve para permitir alteração (ex: de Presente para Falta, ou troca de Obra)
               lista[idx] = { ...lista[idx], ...final };
-              resultados.push(`🔄 ${n.nome} atualizado para ${_s}`);
+              resultados.push(`🔄 ${n.nome} alterado para ${_s} em ${obraMatch.nome}`);
             }
           }
           return lista;
         });
       }
       const dataFmt = formatarDataBR(dataLanc);
-      await responderWhatsApp(From, `📋 Ponto — ${obraMatch.nome} — ${dataFmt}:\n${resultados.join('\n')}`);
+      await responderWhatsApp(From, `📋 Presença — ${dataFmt}:\n${resultados.join('\n')}`);
     }
   } catch (err) {
     console.error('Erro:', err);
