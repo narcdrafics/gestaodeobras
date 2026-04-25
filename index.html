@@ -5,6 +5,11 @@
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-G67ZEEZ6L3"></script>
   <script>
+    window.APP_WHATSAPP = "5598985262006";
+    window.openWhatsApp = function(text) {
+      const url = `https://wa.me/${window.APP_WHATSAPP}${text ? '?text=' + encodeURIComponent(text) : ''}`;
+      window.open(url, '_blank');
+    };
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
@@ -947,7 +952,7 @@
     </div>
 
     <p style="margin-top:40px; font-size:14px; color:#52525b">Precisa de algo personalizado? <a
-        href="https://wa.me/5598985262006" style="color:var(--lp-accent); font-weight:600;">Chamar no WhatsApp</a></p>
+        href="javascript:void(0)" onclick="openWhatsApp('')" style="color:var(--lp-accent); font-weight:600;">Chamar no WhatsApp</a></p>
   </section>
 
   <footer class="container">
@@ -955,12 +960,12 @@
     <div style="margin-top:10px">
       <a href="login.html" style="color:#52525b; text-decoration:none; margin:0 10px">Login</a>
       <a href="admin-login.html" style="color:#52525b; text-decoration:none; margin:0 10px">Admin</a>
-      <a href="https://wa.me/5598985262006" target="_blank"
+      <a href="javascript:void(0)" onclick="openWhatsApp('')" target="_blank"
         style="color:#52525b; text-decoration:none; margin:0 10px">Suporte WhatsApp</a>
     </div>
   </footer>
 
-  <a href="https://wa.me/5598985262006?text=Olá! Gostaria de tirar algumas dúvidas sobre a Obra Real."
+  <a href="javascript:void(0)" onclick="openWhatsApp('Olá! Gostaria de tirar algumas dúvidas sobre a Obra Real.')"
     class="whatsapp-float" target="_blank" aria-label="Fale conosco no WhatsApp">
     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24">
       <path
@@ -997,7 +1002,7 @@
 
       let planText = selectedPlan ? ` (Interesse no ${selectedPlan})` : "";
       const txt = `Olá! Gostaria de agendar uma demonstração${planText}.\n\n*Nome:* ${nome}\n*WhatsApp:* ${wpp}\n*Empresa:* ${emp}\n*Obras simultâneas:* ${qtd}\n*Dificuldade:* ${dif}`;
-      const url = `https://wa.me/5598985262006?text=${encodeURIComponent(txt)}`;
+      const url = `https://wa.me/${window.APP_WHATSAPP}?text=${encodeURIComponent(txt)}`;
       
       window.open(url, '_blank');
       closeDemoModal();

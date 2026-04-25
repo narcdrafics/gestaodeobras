@@ -1,3 +1,9 @@
+window.APP_WHATSAPP = "5598985262006";
+window.openWhatsApp = function(text) {
+  const url = `https://wa.me/${window.APP_WHATSAPP}${text ? '?text=' + encodeURIComponent(text) : ''}`;
+  window.open(url, '_blank');
+};
+
 const staticDB = {
   config: {
     nomeEmpresa: 'Obra Real',

@@ -99,7 +99,7 @@ function renderTrialBanner(daysLeft) {
   const msg = daysLeft <= 1 ? 'últimas 24 horas' : `${daysLeft} dias restantes`;
   banner.innerHTML = `
     <span>⏳ <b>${msg}</b> no seu teste grátis. Assine agora e nunca perca seus dados.</span>
-    <button class="btn-pay" onclick="window.open('https://wa.me/5598985262006?text=Olá, quero assinar o plano Pro do Obra Real!', '_blank')">Assinar Pro →</button>
+    <button class="btn-pay" onclick="openWhatsApp('Olá, quero assinar o plano Pro do Obra Real!')">Assinar Pro →</button>
   `;
 }
 

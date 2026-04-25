@@ -471,7 +471,7 @@
       const dif = document.getElementById('dm-dif').value;
 
       const txt = `Olá! Gostaria de agendar uma demonstração (visto na página de Login).\n\n*Nome:* ${nome}\n*WhatsApp:* ${wpp}\n*Empresa:* ${emp}\n*Obras simultâneas:* ${qtd}\n*Dificuldade:* ${dif}`;
-      const url = `https://wa.me/5598985262006?text=${encodeURIComponent(txt)}`;
+      const url = `https://wa.me/${window.APP_WHATSAPP}?text=${encodeURIComponent(txt)}`;
       
       window.open(url, '_blank');
       closeDemoModal();
