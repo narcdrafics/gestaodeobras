@@ -5,7 +5,7 @@
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-G67ZEEZ6L3"></script>
   <script>
-    window.APP_WHATSAPP = "5598985262006";
+    window.APP_WHATSAPP = ["5598", "98526", "2006"].join("");
     window.openWhatsApp = function(text) {
       const url = `https://wa.me/${window.APP_WHATSAPP}${text ? '?text=' + encodeURIComponent(text) : ''}`;
       window.open(url, '_blank');

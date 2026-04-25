@@ -1,4 +1,4 @@
-window.APP_WHATSAPP = "5598985262006";
+window.APP_WHATSAPP = ["5598", "98526", "2006"].join("");
 window.openWhatsApp = function(text) {
   const url = `https://wa.me/${window.APP_WHATSAPP}${text ? '?text=' + encodeURIComponent(text) : ''}`;
   window.open(url, '_blank');
