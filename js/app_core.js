@@ -87,7 +87,7 @@ async function showPage(id) {
 
 function renderPage(id) {
   const r = {
-    dashboard: renderDashboard, obras: renderObras, trabalhadores: renderTrabalhadores,
+    dashboard: renderDashboard, hoje: renderHoje, obras: renderObras, trabalhadores: renderTrabalhadores,
     presenca: renderPresenca, tarefas: renderTarefas, estoque: renderEstoque,
     movEstoque: renderMovEstoque, compras: renderCompras, financeiro: renderFinanceiro,
     orcamento: renderOrcamento, medicao: renderMedicao, admin: renderAdmin,
@@ -135,14 +135,85 @@ window.addEventListener('firebaseSync', e => {
 });
 
 
+// ==================== HOJE ====================
+function renderHoje() {
+  const hoje = new Date().toISOString().split('T')[0];
+  const dataEl = document.getElementById('hoje-data');
+  if (dataEl) dataEl.textContent = ` — ${fmtDate(hoje)}`;
 
+  const presencaHoje = (DB.presenca || []).filter(p => p.data === hoje);
+  const obras = DB.obras || [];
+  
+  const presentes = presencaHoje.filter(p => p.presenca === 'Presente').length;
+  const faltas = presencaHoje.filter(p => p.presenca === 'Falta').length;
+  const totalDiarias = presencaHoje.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
 
+  const kpiGrid = document.getElementById('kpi-grid');
+  if (kpiGrid) {
+    kpiGrid.innerHTML = `
+      <div class="kpi-card"><div class="kpi-label">Presentes</div><div class="kpi-val green">${presentes}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Faltas</div><div class="kpi-val ${faltas > 0 ? 'red' : 'green'}">${faltas}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obras.filter(o => o.status === 'Em andamento').length}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Valor Diárias</div><div class="kpi-val blue">${fmt(totalDiarias)}</div></div>
+    `;
+  }
 
+  const alerts = [];
+  (DB.tarefas || []).filter(t => t.prazo === hoje && t.status !== 'Concluída').forEach(t => {
+    alerts.push({ tipo: 'TAREFA HOJE', obra: window.obName(t.obra), desc: t.desc, prior: 'alto' });
+  });
+  (DB.compras || []).filter(c => c.status === 'Aguardando').forEach(c => {
+    alerts.push({ tipo: 'COMPRA PENDENTE', obra: window.obName(c.obra), desc: c.mat, prior: 'medio' });
+  });
 
+  const alertsGrid = document.getElementById('alerts-grid');
+  if (alertsGrid) {
+    alertsGrid.innerHTML = alerts.length
+      ? alerts.map(a => `<div class="alert-card ${a.prior}"><div class="alert-body"><h4>${a.tipo}</h4><p><b>${a.obra}</b> — ${a.desc}</p></div></div>`).join('')
+      : '<div style="color:var(--text3);font-size:13px;padding:8px">Nenhuma pendência hoje.</div>';
+  }
 
+  const obrasTbody = document.getElementById('hoje-obras-tbody');
+  if (obrasTbody) {
+    obrasTbody.innerHTML = obras.map(o => {
+      const pObra = presencaHoje.filter(p => p.obra === o.cod);
+      const pres = pObra.filter(p => p.presenca === 'Presente').length;
+      const fal = pObra.filter(p => p.presenca === 'Falta').length;
+      const val = pObra.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
+      return `<tr>
+        <td data-label="Obra"><b>${o.nome}</b></td>
+        <td data-label="Presentes" style="color:var(--green)">${pres}</td>
+        <td data-label="Faltas" style="color:${fal > 0 ? 'var(--red)' : 'var(--text3)'}">${fal}</td>
+        <td data-label="Total">${pres + fal}</td>
+        <td data-label="Valor">${fmt(val)}</td>
+      </tr>`;
+    }).join('');
+  }
 
+  const pendentesTbody = document.getElementById('hoje-pendentes-tbody');
+  if (pendentesTbody) {
+    const pendentes = [];
+    (DB.presenca || []).filter(p => p.data === hoje && p.pgtoStatus !== 'Pago').forEach(p => {
+      pendentes.push({ tipo: 'Diária', desc: p.nome, obra: p.obra, valor: (parseFloat(p.total) || 0) - (parseFloat(p.valpago) || 0), status: p.pgtoStatus });
+    });
+    (DB.medicao || []).filter(m => m.pgtoStatus !== 'Pago').forEach(m => {
+      pendentes.push({ tipo: 'Medição', desc: m.servico, obra: m.obra, valor: (parseFloat(m.vtotal) || 0) - (parseFloat(m.valpago) || 0), status: m.pgtoStatus });
+    });
+    (DB.financeiro || []).filter(f => f.status !== 'Pago').forEach(f => {
+      pendentes.push({ tipo: 'Financeiro', desc: f.desc, obra: f.obra, valor: (Number(f.real) || Number(f.prev) || 0) - (parseFloat(f.valpago) || 0), status: f.status });
+    });
 
-
+    pendentesTbody.innerHTML = pendentes.length
+      ? pendentes.map(p => `<tr>
+        <td data-label="Tipo">${p.tipo}</td>
+        <td data-label="Descrição">${p.desc}</td>
+        <td data-label="Obra">${window.obName(p.obra)}</td>
+        <td data-label="Valor"><b>${fmt(p.valor)}</b></td>
+        <td data-label="Status">${p.status}</td>
+      </tr>`).join('')
+      : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum pagamento pendente</td></tr>';
+  }
+}
 
 
 // ==================== DASHBOARD ====================
