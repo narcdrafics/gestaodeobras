@@ -1120,8 +1120,8 @@ function renderFinanceiro() {
     // Header do Grupo
     tbodyHtml += `<tr class="group-header-fin" data-group="${type.toLowerCase()}" style="background:var(--bg3); font-weight:700;">
       <td colspan="6" style="text-transform:uppercase; font-size:11px; color:var(--accent); letter-spacing:1px">📂 ${type} <small style="color:var(--text3); font-weight:400">(${rows.length})</small></td>
-      <td style="font-family:'IBM Plex Mono', monospace; font-size:12px">${fmt(subPrev)}</td>
-      <td style="font-family:'IBM Plex Mono', monospace; font-size:12px">${fmt(subReal)}</td>
+      <td style="font-family: ui-monospace, monospace; font-size:12px">${fmt(subPrev)}</td>
+      <td style="font-family: ui-monospace, monospace; font-size:12px">${fmt(subReal)}</td>
       <td colspan="5" style="color:${subReal > subPrev ? 'var(--red)' : 'var(--green)'}; font-size:12px; font-weight:bold">Subtotal: ${fmt(subReal - subPrev)}</td>
     </tr>`;
 
@@ -1293,7 +1293,7 @@ function generateAuditReport() {
   let totalReal = realMat + realMao;
 
   let html = `
-    <div id="print-area" style="padding: 40px; background: white; color: #1e293b; font-family: 'IBM Plex Sans', sans-serif; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+    <div id="print-area" style="padding: 40px; background: white; color: #1e293b; font-family: system-ui, sans-serif; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
       <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px;">
         <div>
           <h1 style="margin:0; font-size:28px; color:var(--accent)">LAUDO DE VISTORIA E AUDITORIA</h1>
