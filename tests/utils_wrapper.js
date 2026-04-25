@@ -32,3 +32,4 @@ export const autoBindTableLabels = window.autoBindTableLabels;
 export const safeSetText = window.safeSetText;
 export const safeSetValue = window.safeSetValue;
 export const safeSetStyle = window.safeSetStyle;
+export const escapeHTML = window.escapeHTML;

@@ -39,11 +39,20 @@ const today = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1)
 
 // ==================== PAGE NAVIGATION (DYNAMIC FETCH) ====================
 const cachePaginas = {};
+const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
 const HTML_CACHE_VERSION = '202603260845';
 
+function clearPageCache() {
+  const keys = Object.keys(cachePaginas);
+  if (keys.length > MAX_CACHE_SIZE) {
+    keys.slice(0, keys.length - MAX_CACHE_SIZE).forEach(k => delete cachePaginas[k]);
+  }
+}
+
 async function carregarHTML(caminho) {
+  clearPageCache();
   if (cachePaginas[caminho]) return cachePaginas[caminho];
   try {
     const urlComVersionamento = `${caminho}?v=${HTML_CACHE_VERSION}`;
@@ -203,7 +212,7 @@ function renderDashboard() {
   DB.compras.filter(c => c.status === 'Aguardando').forEach(c => alerts.push({ tipo: 'COMPRA PENDENTE', obra: uObra(c.obra), desc: `${c.mat} — ${fmt(c.vtotal)}`, resp: 'Gestor', prior: 'medio' }));
 
   // Pagamentos pendentes — 1 card consolidado por tipo (ou por profissional em Empreitas)
-  const pDiarias = DB.presenca.filter(p => p.total > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(p.pgtoStatus || 'Pendente'));
+  const pDiarias = DB.presenca.filter(p => Number(p.total) > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(p.pgtoStatus || 'Pendente'));
   if (pDiarias.length > 0) {
     const totalD = pDiarias.reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
     const temAtrasadoD = pDiarias.some(p => p.pgtoStatus === 'Atrasado');
@@ -217,7 +226,7 @@ function renderDashboard() {
     });
   }
 
-  const pMedicao = DB.medicao.filter(m => m.vtotal > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(m.pgtoStatus || 'Pendente'));
+  const pMedicao = DB.medicao.filter(m => Number(m.vtotal) > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(m.pgtoStatus || 'Pendente'));
   if (pMedicao.length > 0) {
     const medPorEquipe = {};
     pMedicao.forEach(m => {
@@ -241,11 +250,11 @@ function renderDashboard() {
   }
 
   const pFin = DB.financeiro.filter(f => {
-    const val = f.real > 0 ? f.real : f.prev;
+    const val = Number(f.real) || Number(f.prev) || 0;
     return val > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(f.status || 'Pendente');
   });
   if (pFin.length > 0) {
-    const totalF = pFin.reduce((a, f) => a + Math.max(0, (f.real > 0 ? f.real : f.prev) - (f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0)), 0);
+    const totalF = pFin.reduce((a, f) => a + Math.max(0, (Number(f.real) || Number(f.prev) || 0) - (f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0)), 0);
     const temAtrasadoF = pFin.some(f => f.status === 'Atrasado');
     alerts.push({
       tipo: 'PAGAMENTOS FINANCEIRO',
@@ -3157,7 +3166,7 @@ async function saveFinanceiro() {
   // - Status "Pendente" ou "Atrasado": valpago deve ser zero
   // - Status "Parcial": valpago é o que o usuário digitou
   if (status === 'Pago') {
-    valpago = real > 0 ? real : prev;
+    valpago = Number(real) > 0 ? real : prev;
   } else if (status === 'Pendente' || status === 'Atrasado') {
     valpago = 0;
   }
@@ -3182,7 +3191,7 @@ async function saveFinanceiro() {
     DB.financeiro[editIdx] = data;
     let tmsg = 'Lançamento financeiro atualizado!';
     if (status === 'Parcial') {
-      const falta = (real > 0 ? real : prev) - valpago;
+      const falta = (Number(real) > 0 ? real : prev) - valpago;
       tmsg = falta > 0
         ? `Status Parcial: Falta Pagar R$ ${falta.toFixed(2).replace('.', ',')}`
         : 'Status Parcial: Totalmente quitado.';
@@ -3192,7 +3201,7 @@ async function saveFinanceiro() {
     DB.financeiro.push(data);
     let tmsg = 'Lançamento financeiro salvo!';
     if (status === 'Parcial') {
-      const falta = (real > 0 ? real : prev) - valpago;
+      const falta = (Number(real) > 0 ? real : prev) - valpago;
       tmsg = falta > 0
         ? `Status Parcial: Falta Pagar R$ ${falta.toFixed(2).replace('.', ',')}`
         : 'Status Parcial: Totalmente quitado.';

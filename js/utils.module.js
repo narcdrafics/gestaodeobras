@@ -35,6 +35,15 @@ const fmtDate = (d) => {
 
 window.fmtDate = fmtDate;
 
+const escapeHTML = (str) => {
+  if (str == null) return '';
+  const div = document.createElement('div');
+  div.textContent = String(str);
+  return div.innerHTML;
+};
+
+window.escapeHTML = escapeHTML;
+
 // --- NOVAS FUNÇÕES DE LÓGICA DE NEGÓCIO ---
 
 /**

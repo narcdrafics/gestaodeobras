@@ -91,3 +91,19 @@ describe('Progresso de Orçamento', () => {
     expect(res[0].perc).toBe("60.0");
   });
 });
+
+describe('Escape HTML', () => {
+  it('deve escapar caracteres HTML especiais', () => {
+    expect(escapeHTML('<script>')).toBe('&lt;script&gt;');
+    expect(escapeHTML('A & B')).toBe('A &amp; B');
+  });
+
+  it('deve retornar string vazia para null/undefined', () => {
+    expect(escapeHTML(null)).toBe('');
+    expect(escapeHTML(undefined)).toBe('');
+  });
+
+  it('deve retornar o mesmo valor para strings sem HTML', () => {
+    expect(escapeHTML('teste normal')).toBe('teste normal');
+  });
+});
