@@ -1293,7 +1293,7 @@ function generateAuditReport() {
   let totalReal = realMat + realMao;
 
   let html = `
-    <div id="print-area" style="padding: 40px; background: white; color: #1e293b; font-family: system-ui, sans-serif; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+    <div id="print-area" style="padding: 40px; background: white; color: #1e293b; font-family: system-ui, sans-serif; border-radius: 8px; border: 1px solid #cbd5e1;">
       <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px;">
         <div>
           <h1 style="margin:0; font-size:28px; color:var(--accent)">LAUDO DE VISTORIA E AUDITORIA</h1>

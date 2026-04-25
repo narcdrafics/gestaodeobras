@@ -53,7 +53,7 @@ nav.nav-custom.scrolled {
   height: 60px;
   background: rgba(9, 9, 11, 0.95);
   border-bottom-color: var(--lp-accent);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid var(--lp-accent);
 }
 
 .nav-left,
@@ -123,7 +123,7 @@ nav.nav-custom.scrolled {
   border: none;
   cursor: pointer;
   padding: 0;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s, border-color 0.2s;
 }
 
 .color-btn:hover {
@@ -131,7 +131,7 @@ nav.nav-custom.scrolled {
 }
 
 .color-btn.active {
-  box-shadow: 0 0 0 2px var(--lp-bg), 0 0 0 4px var(--lp-text);
+  border: 1px solid var(--lp-text);
 }
 
 .color-btn.indigo {
@@ -205,7 +205,7 @@ nav.nav-custom.scrolled {
   width: 100%;
   border-radius: 16px;
   border: 1px solid var(--border);
-  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .glow {
@@ -271,7 +271,7 @@ nav.nav-custom.scrolled {
   padding: 48px;
   max-width: 800px;
   width: 100%;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  border: 1px solid #27272a;
 }
 
 .who-content h2 {
@@ -383,7 +383,7 @@ nav.nav-custom.scrolled {
   padding: 64px 32px;
   max-width: 800px;
   width: 100%;
-  box-shadow: 0 20px 40px rgba(99, 102, 241, 0.15);
+  border: 1px solid var(--lp-accent);
 }
 
 .cta-human-content h2 {
@@ -434,7 +434,7 @@ nav.nav-custom.scrolled {
   background-color: #25D366;
   color: #FFF;
   border-radius: 50%;
-  box-shadow: 0 8px 24px rgba(37, 211, 102, 0.3);
+  border: 1px solid rgba(37, 211, 102, 0.5);
   z-index: 100;
   display: flex;
   align-items: center;
@@ -504,7 +504,7 @@ nav.nav-custom.scrolled {
   background: #1c1c1f;
   transform: scale(1.03);
   z-index: 2;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  border: 2px solid var(--lp-accent);
 }
 
 .price-card:hover:not(.featured) {
