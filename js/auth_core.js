@@ -215,6 +215,24 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
     sessionStorage.setItem('gestaoUser', JSON.stringify(userProfile));
     if (typeof initDB === 'function') initDB(userProfile.tenantId);
 
+    // 6. Garante que as Custom Claims foram propagadas pelo backend antes de liberar o app (Evita Permission Denied no Storage)
+    console.log('[AuthTrace] Aguardando propagação das Custom Claims...');
+    let claimsProntas = false;
+    for (let i = 0; i < 6; i++) {
+      const tokenResult = await firebase.auth().currentUser.getIdTokenResult(true);
+      if (tokenResult.claims && (tokenResult.claims.tenantId === userProfile.tenantId || tokenResult.claims.role === 'super_admin')) {
+        claimsProntas = true;
+        console.log('[AuthTrace] Custom Claims confirmadas!');
+        break;
+      }
+      console.log(`[AuthTrace] Aguardando claims... tentativa ${i + 1}/6`);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+
+    if (!claimsProntas) {
+      console.warn('[AuthTrace] Timeout aguardando claims. A primeira escrita no Storage pode falhar.');
+    }
+
     window.location.href = 'app.html';
 
   } catch (error) {
