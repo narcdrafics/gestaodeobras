@@ -29,17 +29,12 @@ body {
 
 /* NAV ENHANCED */
 nav.nav-custom {
-  height: 72px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  height: 64px;
+  border-bottom: 1px solid var(--lp-zinc);
   position: sticky;
   top: 0;
   z-index: 1000;
-  background: rgba(9, 9, 11, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
+  background: var(--lp-bg);
 }
 
 nav.nav-custom .container {
@@ -51,8 +46,7 @@ nav.nav-custom .container {
 
 nav.nav-custom.scrolled {
   height: 60px;
-  background: rgba(9, 9, 11, 0.95);
-  border-bottom-color: var(--lp-accent);
+  background: var(--lp-bg);
   border-bottom: 1px solid var(--lp-accent);
 }
 
@@ -79,22 +73,17 @@ nav.nav-custom.scrolled {
 }
 
 .brand-text span {
-  background: linear-gradient(90deg, #fff 0%, var(--lp-accent) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--lp-accent);
 }
 
 .logo-link {
   display: flex;
   align-items: center;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   cursor: pointer;
 }
 
 .logo-link:hover {
-  transform: scale(1.15) rotate(5deg);
-  filter: drop-shadow(0 0 8px var(--lp-accent));
+  opacity: 0.8;
 }
 
 .nav-right {
@@ -170,10 +159,7 @@ nav.nav-custom.scrolled {
   font-weight: 800;
   letter-spacing: -2px;
   margin-bottom: 24px;
-  background: linear-gradient(to bottom, #fff 0%, #a1a1aa 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #fff;
 }
 
 .hero p {
@@ -197,24 +183,17 @@ nav.nav-custom.scrolled {
 
 /* MOCKUP AREA */
 .dashboard-preview {
-  margin-top: 80px;
-  position: relative;
+  margin-top: 60px;
 }
 
 .dashboard-preview img {
   width: 100%;
-  border-radius: 16px;
+  border-radius: 8px;
   border: 1px solid var(--border);
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .glow {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  top: 0;
-  background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.15), transparent 70%);
-  z-index: -1;
+  display: none;
 }
 
 /* FEATURES */
@@ -377,13 +356,12 @@ nav.nav-custom.scrolled {
 }
 
 .cta-human-content {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.0) 100%), #18181b;
+  background: var(--bg2);
   border: 1px solid var(--lp-accent);
-  border-radius: 20px;
-  padding: 64px 32px;
+  border-radius: 12px;
+  padding: 48px 24px;
   max-width: 800px;
   width: 100%;
-  border: 1px solid var(--lp-accent);
 }
 
 .cta-human-content h2 {
@@ -404,12 +382,12 @@ nav.nav-custom.scrolled {
 .btn-whatsapp {
   background: #25D366;
   color: #fff;
-  font-weight: 700;
-  padding: 16px 32px;
-  border-radius: 12px;
+  font-weight: 600;
+  padding: 14px 24px;
+  border-radius: 8px;
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   font-size: 18px;
   text-decoration: none;
   transition: transform 0.2s, background 0.2s;
