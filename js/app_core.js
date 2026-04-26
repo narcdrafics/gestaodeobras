@@ -247,8 +247,8 @@ function renderDashboard() {
     const comprasAguardando = (DB.compras || []).filter(c => c && c.status === 'Aguardando').length;
     const totalPrev = (DB.financeiro || []).reduce((a, f) => a + (f?.prev || 0), 0);
 
-    // Unificação Rápida Financeira Global do Dashboard (Apenas Pendentes subtraindo Parcial)
-    let globalFinance = [];
+// Unificação Rápida Financeira Global do Dashboard (Apenas Pendentes subtraindo Parcial)
+    const globalFinance = [];
     (DB.financeiro || []).forEach(f => { if (f && f.status !== 'Pago') globalFinance.push({ obra: f.obra, data: f.data, v: Math.max(0, (parseFloat(f.real) || parseFloat(f.prev) || 0) - (f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0)) }) });
     (DB.presenca || []).forEach(p => { if (p && p.pgtoStatus !== 'Pago') globalFinance.push({ obra: p.obra, data: p.data, v: Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)) }) });
     (DB.medicao || []).forEach(m => { if (m && m.pgtoStatus !== 'Pago') globalFinance.push({ obra: m.obra, data: m.semana, v: Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0)) }) });
@@ -256,30 +256,14 @@ function renderDashboard() {
     const totalRealGlobal = globalFinance.reduce((a, f) => a + (f?.v || 0), 0);
     const pctCusto = totalPrev > 0 ? ((totalRealGlobal / totalPrev) * 100).toFixed(1) : 0;
 
-  const hoje = DB.presenca.filter(p => p.data === today);
-  const presPresente = hoje.filter(p => p.presenca === 'Presente').length;
-  const presTotal = hoje.length;
-
-  const todayDate = new Date();
-  const fSemana = new Date(todayDate);
-  const dayOfWeek = todayDate.getDay();
-  const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo vira 6, segunda vira 0, etc.
-  fSemana.setDate(todayDate.getDate() - diff);
-  const strSemana = fSemana.toISOString().split('T')[0];
-  const fMes = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
-  const strMes = fMes.toISOString().split('T')[0];
-
   const custosDiarias = window.calcCustosDiarias(DB.presenca, { tipo: 'semana' });
   const custosMedicoes = window.calcCustosMedicoes(DB.medicao, { tipo: 'semana' });
 
-  const cDiariasSemana = custosDiarias.pendenteTotal;
-  const cEmpreitaSemana = custosMedicoes.pendenteTotal;
-
-    if (kpiGrid) {
-      kpiGrid.innerHTML = `
+  if (kpiGrid) {
+    kpiGrid.innerHTML = `
         <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obrasAtivas}</div><div class="kpi-sub">de ${(DB.obras || []).length} cadastradas</div></div>
-        <div class="kpi-card"><div class="kpi-label">Diárias (Semana)</div><div class="kpi-val blue">${fmt(cDiariasSemana)}</div><div class="kpi-sub">Custo de Folha na contabilidade</div></div>
-        <div class="kpi-card"><div class="kpi-label">Empreitas (Semana)</div><div class="kpi-val blue" style="font-size:20px">${fmt(cEmpreitaSemana)}</div><div class="kpi-sub">Custo de Medições na contabilidade</div></div>
+        <div class="kpi-card"><div class="kpi-label">Diárias (Semana)</div><div class="kpi-val blue">${fmt(custosDiarias.pendenteTotal)}</div><div class="kpi-sub">Custo de Folha na contabilidade</div></div>
+        <div class="kpi-card"><div class="kpi-label">Empreitas (Semana)</div><div class="kpi-val blue" style="font-size:20px">${fmt(custosMedicoes.pendenteTotal)}</div><div class="kpi-sub">Custo de Medições na contabilidade</div></div>
         <div class="kpi-card"><div class="kpi-label">Custo Real / Prev.</div><div class="kpi-val ${pctCusto > 100 ? 'red' : 'green'}">${pctCusto}%</div><div class="kpi-sub">${fmt(totalRealGlobal)} de ${fmt(totalPrev)}</div></div>
         <div class="kpi-card"><div class="kpi-label">Tarefas Atrasadas</div><div class="kpi-val ${tarefasAtrasadas > 0 ? 'red' : 'green'}">${tarefasAtrasadas}</div><div class="kpi-sub">requer atenção imediata</div></div>
         <div class="kpi-card"><div class="kpi-label">Estoque Baixo/Crítico</div><div class="kpi-val ${estoquesBaixos > 0 ? 'orange' : 'green'}">${estoquesBaixos}</div><div class="kpi-sub">itens abaixo do mínimo</div></div>
