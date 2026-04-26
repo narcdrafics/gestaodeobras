@@ -134,13 +134,13 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
       const total = parseFloat(p.total) || 0;
       const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
       const pendente = p.pgtoStatus !== 'Pago' ? Math.max(0, total - pago) : 0;
-      all.push({
+       all.push({
         source: 'pre', idx: i,
         data: p.data, obra: p.obra,
         tipo: 'Mão de obra própria',
         desc: `[Diária] ${p.nome}`,
         forn: p.nome || '',
-        real: pendente, prev: 0,
+        real: p.pgtoStatus === 'Pago' ? total : pendente, prev: 0,
         status: p.pgtoStatus || 'Pendente',
         totalBruto: total,
         jaPago: pago
@@ -160,7 +160,7 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
         tipo: 'Empreiteiro',
         desc: `[Medição] ${m.servico}`,
         forn: m.equipe || '',
-        real: pendente, prev: 0,
+        real: m.pgtoStatus === 'Pago' ? total : pendente, prev: 0,
         status: m.pgtoStatus || 'Pendente',
         totalBruto: total,
         jaPago: pago
