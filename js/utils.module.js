@@ -394,14 +394,9 @@ function getPeriodLabel(dateStr, viewType) {
     return d.getDate() <= 15 ? '1ª Quinzena' : '2ª Quinzena';
   }
 
-  // Semanal (Inicia no Domingo)
-  const firstOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-  const firstSunday = new Date(firstOfMonth);
-  firstSunday.setDate(1 + (7 - firstOfMonth.getDay()) % 7);
-
-  if (d < firstSunday) return 'Semana 1';
-  const diffDays = Math.floor((d.getTime() - firstSunday.getTime()) / (1000 * 60 * 60 * 24));
-  const weekNum = Math.floor(diffDays / 7) + 2;
+  // Semanal (divisão simples por dia do mês)
+  const dayOfMonth = d.getDate();
+  const weekNum = Math.ceil(dayOfMonth / 7); // 1-7→1, 8-14→2, etc.
   return `Semana ${weekNum}`;
 }
 

@@ -1189,6 +1189,8 @@ function renderFinanceiro() {
   const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, yy, mm, view) || {};
   let allFin = summary.all || [];
   const perTotals = summary.totalsByPeriod || {};
+  console.log('[Finance Debug] perTotals:', perTotals);
+  console.log('[Finance Debug] view:', view, 'year:', yy, 'month:', mm);
 
   // Renderização de Cards de Fluxo de Caixa (Semanal/Quinzenal)
   let sumHtml = '';
