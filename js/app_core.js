@@ -240,6 +240,18 @@ function renderHoje() {
 function renderDashboard() {
   try {
     const kpiGrid = document.getElementById('kpi-grid');
+    
+    // Calculate date ranges for weekly/monthly filtering
+    const todayDate = new Date();
+    const fSemana = new Date(todayDate);
+    const dayOfWeek = todayDate.getDay();
+    const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo vira 6, segunda vira 0, etc.
+    fSemana.setDate(todayDate.getDate() - diff);
+    const strSemana = fSemana.toISOString().split('T')[0];
+    
+    const fMes = new Date(todayDate);
+    fMes.setDate(1); // First day of current month
+    const strMes = fMes.toISOString().split('T')[0];
 
     const obrasAtivas = (DB.obras || []).filter(o => o && ['Em andamento', 'Planejada'].includes(o.status)).length;
     const tarefasAtrasadas = (DB.tarefas || []).filter(t => t && t.status === 'Atrasada').length;
