@@ -1189,6 +1189,8 @@ function renderFinanceiro() {
   const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, yy, mm, view) || {};
   let allFin = summary.all || [];
   const perTotals = summary.totalsByPeriod || {};
+  console.log('[Finance Debug] perTotals:', perTotals);
+  console.log('[Finance Debug] view:', view, 'year:', yy, 'month:', mm);
 
   // Renderização de Cards de Fluxo de Caixa (Semanal/Quinzenal)
   let sumHtml = '';
@@ -1207,84 +1209,80 @@ function renderFinanceiro() {
 
   safeSetInner('fin-summary', sumHtml);
 
-// Separar tabelas por tipo: custos diários, empreiteiros, almoços
-  const diarios = allFin.filter(f => f.source === 'pre');
-  const empreiteiros = allFin.filter(f => f.source === 'med');
-  const almocos = allFin.filter(f => f.source === 'alm');
-
-  // Tabela 1: Custos Diários (Mão de obra própria)
-  let tbodyDiarios = '';
-  diarios.forEach(f => {
-    const diff = f.real - f.prev;
-    let editBtn = `<button class="btn btn-secondary btn-sm" onclick="editPresenca(${f.idx})" style="margin-right:8px"></button>`;
-    let delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${f.idx})">Excluir</button>`;
-    let payBtn = f.status !== 'Pago' ? `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('pre', ${f.idx})" style="margin-right:8px;background:var(--green);border-color:var(--green);" title="Pagar via PIX">💸</button>` : '';
-    tbodyDiarios += `<tr class="fin-row" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}">
-      <td data-label="Data">${fmtDate(f.data)}</td>
-      <td data-label="Obra">${getNome(f.obra)}</td>
-      <td data-label="Etapa"><small>${f.etapa}</small></td>
-      <td data-label="Tipo" style="white-space:nowrap">${f.tipo}${f.source !== 'fin' ? '<span class="badge badge-gray" style="font-size:10px;margin-left:4px;opacity:0.7">Automático</span>' : ''}</td>
-      <td data-label="Descrição"><b>${f.desc}</b></td>
-      <td data-label="Fornec./Benef."><small>${f.forn}</small></td>
-      <td data-label="Vl. Prev.">${fmt(f.prev)}</td>
-      <td data-label="Vl. Real." style="color:${f.real > 0 ? 'var(--green)' : 'var(--text)'};font-weight:600">${fmt(f.real)}</td>
-      <td data-label="Diferença" style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
-      <td data-label="Pgto"><small>${f.pgto}</small></td>
-      <td data-label="Status">${statusBadge(f.status)}</td>
-      <td data-label="NF"><small>${f.nf}</small></td>
-      <td>${payBtn}${editBtn}${delBtn}</td>
-    </tr>`;
+  // Agrupamento por Tipo para evitar lista infinita
+  const grouped = {};
+  allFin.forEach(f => {
+    const type = f.tipo || 'Outros';
+    if (!grouped[type]) grouped[type] = [];
+    grouped[type].push(f);
   });
-  safeSetInner('fin-diarios-tbody', tbodyDiarios || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem diárias pendentes</td></tr>');
 
-  // Tabela 2: Empreiteiros (Medições)
-  let tbodyEmpreiteiros = '';
-  empreiteiros.forEach(f => {
-    const diff = f.real - f.prev;
-    let editBtn = `<button class="btn btn-secondary btn-sm" onclick="editMedicao(${f.idx})" style="margin-right:8px"> Med.</button>`;
-    let delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${f.idx})">Excluir</button>`;
-    let payBtn = f.status !== 'Pago' ? `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('med', ${f.idx})" style="margin-right:8px;background:var(--green);border-color:var(--green);" title="Pagar via PIX">💸</button>` : '';
-    tbodyEmpreiteiros += `<tr class="fin-row" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}">
-      <td data-label="Data">${fmtDate(f.data)}</td>
-      <td data-label="Obra">${getNome(f.obra)}</td>
-      <td data-label="Etapa"><small>${f.etapa}</small></td>
-      <td data-label="Tipo" style="white-space:nowrap">${f.tipo}${f.source !== 'fin' ? '<span class="badge badge-gray" style="font-size:10px;margin-left:4px;opacity:0.7">Automático</span>' : ''}</td>
-      <td data-label="Descrição"><b>${f.desc}</b></td>
-      <td data-label="Fornec./Benef."><small>${f.forn}</small></td>
-      <td data-label="Vl. Prev.\">${fmt(f.prev)}</td>
-      <td data-label="Vl. Real." style="color:${f.real > 0 ? 'var(--green)' : 'var(--text)'};font-weight:600">${fmt(f.real)}</td>
-      <td data-label="Diferença" style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
-      <td data-label="Pgto"><small>${f.pgto}</small></td>
-      <td data-label="Status">${statusBadge(f.status)}</td>
-      <td data-label="NF"><small>${f.nf}</small></td>
-      <td>${payBtn}${editBtn}${delBtn}</td>
-    </tr>`;
+  // Ordem sugerida: Mão de obra, Materiais, Equipamentos, etc.
+  const typeOrder = ['mão de obra própria', 'empreiteiro', 'material', 'equipamento', 'almoço empreiteiro'];
+  const sortedKeys = Object.keys(grouped).sort((a, b) => {
+    const ia = typeOrder.indexOf(a.toLowerCase());
+    const ib = typeOrder.indexOf(b.toLowerCase());
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b);
   });
-  safeSetInner('fin-empreiteiros-tbody', tbodyEmpreiteiros || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem medições pendentes</td></tr>');
 
-  // Tabela 3: Almoços
-  let tbodyAlmocos = '';
-  almocos.forEach(f => {
-    const diff = f.real - f.prev;
-    let editBtn = `<button class="btn btn-secondary btn-sm" onclick="editAlmoco(${f.idx})" style="margin-right:8px"></button>`;
-    let delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${f.idx})">Excluir</button>`;
-    tbodyAlmocos += `<tr class="fin-row" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}">
-      <td data-label="Data">${fmtDate(f.data)}</td>
-      <td data-label="Obra">${getNome(f.obra)}</td>
-      <td data-label="Etapa"><small>${f.etapa}</small></td>
-      <td data-label="Tipo" style="white-space:nowrap">${f.tipo}</td>
-      <td data-label="Descrição"><b>${f.desc}</b></td>
-      <td data-label="Fornec./Benef."><small>${f.forn}</small></td>
-      <td data-label="Vl. Prev.">${fmt(f.prev)}</td>
-      <td data-label="Vl. Real." style="color:${f.real > 0 ? 'var(--green)' : 'var(--text)'};font-weight:600">${fmt(f.real)}</td>
-      <td data-label="Diferença" style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
-      <td data-label="Pgto"><small>${f.pgto}</small></td>
-      <td data-label="Status">${statusBadge(f.status)}</td>
-      <td data-label="NF"><small>${f.nf}</small></td>
-      <td>${editBtn}${delBtn}</td>
+  let tbodyHtml = '';
+  sortedKeys.forEach(type => {
+    const rows = grouped[type];
+    const subPrev = rows.reduce((a, b) => a + (Number(b.prev) || 0), 0);
+    const subReal = rows.reduce((a, b) => a + (Number(b.real) || 0), 0);
+
+    // Header do Grupo
+    tbodyHtml += `<tr class="group-header-fin" data-group="${type.toLowerCase()}" style="background:var(--bg3); font-weight:700;">
+      <td colspan="6" style="text-transform:uppercase; font-size:11px; color:var(--accent); letter-spacing:1px">📂 ${type} <small style="color:var(--text3); font-weight:400">(${rows.length})</small></td>
+      <td style="font-family: ui-monospace, monospace; font-size:12px">${fmt(subPrev)}</td>
+      <td style="font-family: ui-monospace, monospace; font-size:12px">${fmt(subReal)}</td>
+      <td colspan="5" style="color:${subReal > subPrev ? 'var(--red)' : 'var(--green)'}; font-size:12px; font-weight:bold">Subtotal: ${fmt(subReal - subPrev)}</td>
     </tr>`;
+
+    rows.forEach(f => {
+      const diff = f.real - f.prev;
+      let editBtn = '';
+      if (f.source === 'fin') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px"></button>`;
+      else if (f.source === 'med') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editMedicao(${f.idx})" style="margin-right:8px"> Med.</button>`;
+      else if (f.source === 'pre') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editPresenca(${f.idx})" style="margin-right:8px"> Dia.</button>`;
+      else if (f.source === 'alm') editBtn = `<button class="btn btn-secondary btn-sm" onclick="editAlmoco(${f.idx})" style="margin-right:8px"> Alm.</button>`;
+
+      let delBtn = '';
+      if (f.source === 'fin') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">Excluir</button>`;
+      else if (f.source === 'alm') delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${f.idx})">Excluir</button>`;
+
+      let payBtn = '';
+      if (f.status !== 'Pago') payBtn = `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('${f.source}', ${f.idx})" style="margin-right:8px; background:var(--green); border-color:var(--green);" title="Pagar via PIX">💸</button>`;
+
+      const isIncome = (f.tipo || '').toLowerCase().includes('receita') || (f.tipo || '').toLowerCase().includes('entrada');
+      const valColor = isIncome ? 'var(--green)' : 'var(--text)';
+      
+      const sourceMap = { 'fin': { icon: '💳' }, 'pre': { icon: '⏱️' }, 'med': { icon: '📐' }, 'alm': { icon: '🍱' } };
+      const src = sourceMap[f.source] || { icon: '❓' };
+      const srcBadge = f.source !== 'fin' ? `<span class="badge badge-gray" style="font-size:10px;margin-left:4px;opacity:0.7">Automático</span>` : '';
+
+      tbodyHtml += `<tr class="fin-row" data-group-ref="${type.toLowerCase()}" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}" data-busca="${getNome(f.obra).toLowerCase()} ${(f.desc||'').toLowerCase()} ${(f.forn||'').toLowerCase()}">
+          <td data-label="Data">${fmtDate(f.data)}</td>
+          <td data-label="Obra">${getNome(f.obra)}</td>
+          <td data-label="Etapa"><small>${f.etapa}</small></td>
+          <td data-label="Tipo" style="white-space:nowrap">${src.icon} ${f.tipo}${srcBadge}</td>
+          <td data-label="Descrição"><b>${f.desc}</b></td>
+          <td data-label="Fornec./Benef."><small>${f.forn}</small></td>
+          <td data-label="Vl. Prev.">${fmt(f.prev)}</td>
+          <td data-label="Vl. Real." style="color:${valColor};font-weight:${isIncome?'600':'400'}">${fmt(f.real)}</td>
+          <td data-label="Diferença" style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
+          <td data-label="Pgto"><small>${f.pgto}</small></td>
+          <td data-label="Status">${statusBadge(f.status)}</td>
+          <td data-label="NF"><small>${f.nf}</small></td>
+          <td>${payBtn}${editBtn}${delBtn}</td>
+        </tr>`;
+    });
   });
-  safeSetInner('fin-almocos-tbody', tbodyAlmocos || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem almoços pendentes</td></tr>');
+
+  safeSetInner('fin-tbody', tbodyHtml || uiEmptyState('Financeiro Limpo', 'Suas contas a pagar, recebimentos e extratos aparecerão agrupados aqui.', '💰', 'Lançar Custo ou Receita', "openModal('modal-financeiro')"));
 
   window._allFinRows = allFin;
   
