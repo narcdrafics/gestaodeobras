@@ -928,11 +928,22 @@ function renderPresenca() {
   try {
     const porTrab = {};
     validPres.forEach(p => {
-      if (!p.nome || !Number(p.total)) return;
+      if (!p.nome || !p.presenca) return;
       const k = p.nome;
-      if (!porTrab[k]) porTrab[k] = { total: 0, dias: 0, obra: p.obra };
-      porTrab[k].total += Number(p.total) || 0;
-      porTrab[k].dias++;
+      if (!porTrab[k]) porTrab[k] = { total: 0, pendente: 0, diasTrabalhados: 0, diasFalta: 0, obra: p.obra };
+      
+      const total = Number(p.total) || 0;
+      const pago = p.pgtoStatus === 'Parcial' ? (Number(p.valpago) || 0) : 0;
+      porTrab[k].total += total;
+      if (p.pgtoStatus !== 'Pago') {
+        porTrab[k].pendente += Math.max(0, total - pago);
+      }
+      
+      if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
+        porTrab[k].diasTrabalhados++;
+      } else if (p.presenca === 'Falta') {
+        porTrab[k].diasFalta++;
+      }
     });
 
     const keys = Object.keys(porTrab).sort();
@@ -940,8 +951,9 @@ function renderPresenca() {
       const d = porTrab[nome];
       return `<div class="kpi-card">
         <div class="kpi-label" style="font-weight:600">${nome}</div>
-        <div style="font-size:13px;color:var(--text2);margin:4px 0">${obName(d.obra)} · ${d.dias} dia(s)</div>
-        <div style="font-size:20px;font-weight:bold;color:var(--accent)">${fmt(d.total)}</div>
+        <div style="font-size:13px;color:var(--text2);margin:4px 0">${obName(d.obra)} · ${d.diasTrabalhados} trab. · ${d.diasFalta} falta(s)</div>
+        <div style="font-size:16px;font-weight:bold;color:var(--accent)">Total: ${fmt(d.total)}</div>
+        <div style="font-size:14px;color:var(--red)">Pendente: ${fmt(d.pendente)}</div>
       </div>`;
     }).join('');
 

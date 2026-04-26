@@ -72,7 +72,7 @@ const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) => {
   const todayObj = new Date(todayStr);
   const startOfWeek = new Date(todayObj);
   const dayOfWeek = todayObj.getDay();
-  const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo vira 6, segunda vira 0, etc.
+  const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   startOfWeek.setDate(todayObj.getDate() - diff);
   const strWeek = startOfWeek.toISOString().split('T')[0];
 
@@ -81,13 +81,18 @@ const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) => {
       p.obra === o.cod &&
       p.data >= strWeek &&
       p.data <= todayStr &&
-      p.pgtoStatus === 'Pendente' &&
+      ['Pendente', 'Parcial', 'Atrasado'].includes(p.pgtoStatus || 'Pendente') &&
       Number(p.total) > 0
     );
+    const totalPendente = pPendentes.reduce((a, r) => {
+      const total = Number(r.total) || 0;
+      const pago = r.pgtoStatus === 'Parcial' ? (Number(r.valpago) || 0) : 0;
+      return a + Math.max(0, total - pago);
+    }, 0);
     return {
       obraCod: o.cod,
       obraNome: o.nome,
-      totalPendente: pPendentes.reduce((a, r) => a + (Number(r.total) || 0), 0),
+      totalPendente,
       count: pPendentes.length
     };
   }).filter(res => res.count > 0);
@@ -121,14 +126,19 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
   // Presença
   pres.forEach((p, i) => {
     if ((p.total || 0) > 0 && filterDate(p.data)) {
+      const total = parseFloat(p.total) || 0;
+      const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
+      const pendente = p.pgtoStatus !== 'Pago' ? Math.max(0, total - pago) : 0;
       all.push({
         source: 'pre', idx: i,
         data: p.data, obra: p.obra,
         tipo: 'Mão de obra própria',
         desc: `[Diária] ${p.nome}`,
         forn: p.nome || '',
-        real: parseFloat(p.total), prev: 0,
-        status: p.pgtoStatus || 'Pendente'
+        real: pendente, prev: 0,
+        status: p.pgtoStatus || 'Pendente',
+        totalBruto: total,
+        jaPago: pago
       });
     }
   });
@@ -137,14 +147,19 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
   med.forEach((m, i) => {
     const dMed = m.semana || m.data;
     if ((m.vtotal || 0) > 0 && filterDate(dMed)) {
+      const total = parseFloat(m.vtotal) || 0;
+      const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
+      const pendente = m.pgtoStatus !== 'Pago' ? Math.max(0, total - pago) : 0;
       all.push({
         source: 'med', idx: i,
         data: dMed, obra: m.obra,
         tipo: 'Empreiteiro',
         desc: `[Medição] ${m.servico}`,
         forn: m.equipe || '',
-        real: parseFloat(m.vtotal), prev: 0,
-        status: m.pgtoStatus || 'Pendente'
+        real: pendente, prev: 0,
+        status: m.pgtoStatus || 'Pendente',
+        totalBruto: total,
+        jaPago: pago
       });
     }
   });
