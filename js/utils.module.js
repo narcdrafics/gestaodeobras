@@ -129,7 +129,6 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
     }
   });
 
-  // Presença - SEM deduplicação para mostrar todos registros no financeiro
   pres.forEach((p, i) => {
     if ((p.total || 0) > 0 && filterDate(p.data)) {
       const total = parseFloat(p.total) || 0;
@@ -149,7 +148,6 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
     }
   });
 
-  // Medições - SEM deduplicação
   med.forEach((m, i) => {
     const dMed = m.semana || m.data;
     if ((m.vtotal || 0) > 0 && filterDate(dMed)) {
@@ -167,41 +165,6 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
         totalBruto: total,
         jaPago: pago
       });
-    }
-  });
-
-  // Almoços
-  (alm || []).forEach((a, i) => {
-    if ((a.vtotal || 0) > 0 && filterDate(a.data)) {
-      all.push({
-        source: 'alm', idx: i,
-        data: a.data, obra: a.obra,
-        tipo: 'Almoço Empreiteiro',
-        desc: `[Almoço] ${a.empreiteiro}`,
-        forn: a.empreiteiro || '',
-        real: parseFloat(a.vtotal), prev: 0,
-        status: 'Pendente'
-      });
-    }
-  });
-
-  // Agrupamento por Obra (Legado/Total) e por Período (Novo)
-  const totalsByObra = {};
-  const totalsByPeriod = {};
-
-  all.forEach(f => {
-    const cod = f.obra || 'Geral';
-    if (!totalsByObra[cod]) totalsByObra[cod] = { prev: 0, real: 0, diff: 0 };
-    totalsByObra[cod].prev += f.prev;
-    totalsByObra[cod].real += f.real;
-    totalsByObra[cod].diff = totalsByObra[cod].real - totalsByObra[cod].prev;
-
-    // Lógica de Agrupamento por Período (Semanal/Quinzenal)
-    if (f.data) {
-      const pId = getPeriodLabel(f.data, viewType || 'semanal');
-      if (!totalsByPeriod[pId]) totalsByPeriod[pId] = { real: 0, items: 0 };
-      totalsByPeriod[pId].real += f.real;
-      totalsByPeriod[pId].items++;
     }
   });
 
@@ -394,7 +357,7 @@ function getPeriodLabel(dateStr, viewType) {
     return d.getDate() <= 15 ? '1ª Quinzena' : '2ª Quinzena';
   }
 
-  // Semanal (Inicia no Domingo)
+  // Semanal (Inicia no Domingo) - retorna rótulo compatível com o dashboard (1-5)
   const firstOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
   const firstSunday = new Date(firstOfMonth);
   firstSunday.setDate(1 + (7 - firstOfMonth.getDay()) % 7);
@@ -402,7 +365,8 @@ function getPeriodLabel(dateStr, viewType) {
   if (d < firstSunday) return 'Semana 1';
   const diffDays = Math.floor((d.getTime() - firstSunday.getTime()) / (1000 * 60 * 60 * 24));
   const weekNum = Math.floor(diffDays / 7) + 2;
-  return `Semana ${weekNum}`;
+  // Limita a 5 semanas no mês (última semana pode ser parcial)
+  return weekNum <= 5 ? `Semana ${weekNum}` : 'Semana 5';
 }
 
 /**
