@@ -168,6 +168,26 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
     }
   });
 
+  // Agrupamento por Obra (Legado/Total) e por Período (Novo)
+  const totalsByObra = {};
+  const totalsByPeriod = {};
+
+  all.forEach(f => {
+    const cod = f.obra || 'Geral';
+    if (!totalsByObra[cod]) totalsByObra[cod] = { prev: 0, real: 0, diff: 0 };
+    totalsByObra[cod].prev += f.prev;
+    totalsByObra[cod].real += f.real;
+    totalsByObra[cod].diff = totalsByObra[cod].real - totalsByObra[cod].prev;
+
+    // Lógica de Agrupamento por Período (Semanal/Quinzenal)
+    if (f.data) {
+      const pId = getPeriodLabel(f.data, viewType || 'semanal');
+      if (!totalsByPeriod[pId]) totalsByPeriod[pId] = { real: 0, items: 0 };
+      totalsByPeriod[pId].real += f.real;
+      totalsByPeriod[pId].items++;
+    }
+  });
+
   return { all, totalsByObra, totalsByPeriod };
 };
 
