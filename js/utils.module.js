@@ -76,14 +76,20 @@ const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) => {
   startOfWeek.setDate(todayObj.getDate() - diff);
   const strWeek = startOfWeek.toISOString().split('T')[0];
 
+  const seen = new Set();
+  const filteredAll = presencaArray.filter(p => {
+    if (!['Pendente', 'Parcial', 'Atrasado'].includes(p.pgtoStatus || 'Pendente')) return false;
+    if (!(Number(p.total) > 0)) return false;
+    if (p.data < strWeek || p.data > todayStr) return false;
+    const trabKey = p.trab || p.nome;
+    const uniqueKey = `${p.data}_${trabKey}`;
+    if (seen.has(uniqueKey)) return false;
+    seen.add(uniqueKey);
+    return true;
+  });
+
   return obrasArray.map(o => {
-    const pPendentes = presencaArray.filter(p =>
-      p.obra === o.cod &&
-      p.data >= strWeek &&
-      p.data <= todayStr &&
-      ['Pendente', 'Parcial', 'Atrasado'].includes(p.pgtoStatus || 'Pendente') &&
-      Number(p.total) > 0
-    );
+    const pPendentes = filteredAll.filter(p => p.obra === o.cod);
     const totalPendente = pPendentes.reduce((a, r) => {
       const total = Number(r.total) || 0;
       const pago = r.pgtoStatus === 'Parcial' ? (Number(r.valpago) || 0) : 0;
@@ -124,8 +130,14 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
   });
 
   // Presença
+  const seenPres = new Set();
   pres.forEach((p, i) => {
     if ((p.total || 0) > 0 && filterDate(p.data)) {
+      const trabKey = p.trab || p.nome;
+      const uniqueKey = `${p.data}_${trabKey}`;
+      if (seenPres.has(uniqueKey)) return;
+      seenPres.add(uniqueKey);
+
       const total = parseFloat(p.total) || 0;
       const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
       const pendente = p.pgtoStatus !== 'Pago' ? Math.max(0, total - pago) : 0;
@@ -144,9 +156,14 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
   });
 
   // Medições
+  const seenMed = new Set();
   med.forEach((m, i) => {
     const dMed = m.semana || m.data;
     if ((m.vtotal || 0) > 0 && filterDate(dMed)) {
+      const uniqueKey = `${dMed}_${m.equipe || m.servico}`;
+      if (seenMed.has(uniqueKey)) return;
+      seenMed.add(uniqueKey);
+
       const total = parseFloat(m.vtotal) || 0;
       const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
       const pendente = m.pgtoStatus !== 'Pago' ? Math.max(0, total - pago) : 0;
@@ -209,9 +226,16 @@ window.summarizeFinance = summarizeFinance;
  */
 const calcCustosDiarias = (presenca, options = {}) => {
   const { dataInicio, dataFim } = getPeriodoOptions(options);
-  const diarias = (presenca || []).filter(p => 
-    p && p.data && p.data >= dataInicio && p.data <= dataFim && (parseFloat(p.total) || 0) > 0
-  );
+  
+  const seen = new Set();
+  const diarias = (presenca || []).filter(p => {
+    if (!p || !p.data || p.data < dataInicio || p.data > dataFim || !(parseFloat(p.total) || 0) > 0) return false;
+    const trabKey = p.trab || p.nome;
+    const uniqueKey = `${p.data}_${trabKey}`;
+    if (seen.has(uniqueKey)) return false;
+    seen.add(uniqueKey);
+    return true;
+  });
   
   const custoTotal = diarias.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
   const pendente = diarias.filter(p => p.pgtoStatus !== 'Pago');
@@ -235,9 +259,15 @@ const calcCustosDiarias = (presenca, options = {}) => {
  */
 const calcCustosMedicoes = (medicao, options = {}) => {
   const { dataInicio, dataFim } = getPeriodoOptions(options);
+  
+  const seen = new Set();
   const medicoes = (medicao || []).filter(m => {
     const d = m.semana || m.data;
-    return d && d >= dataInicio && d <= dataFim && (parseFloat(m.vtotal) || 0) > 0;
+    if (!d || d < dataInicio || d > dataFim || !(parseFloat(m.vtotal) || 0) > 0) return false;
+    const uniqueKey = `${d}_${m.equipe || m.servico}`;
+    if (seen.has(uniqueKey)) return false;
+    seen.add(uniqueKey);
+    return true;
   });
   
   const custoTotal = medicoes.reduce((a, m) => a + (parseFloat(m.vtotal) || 0), 0);
@@ -262,9 +292,15 @@ const calcCustosMedicoes = (medicao, options = {}) => {
  */
 const calcCustosFinanceiro = (financeiro, options = {}) => {
   const { dataInicio, dataFim } = getPeriodoOptions(options);
-  const lancamentos = (financeiro || []).filter(f => 
-    f && f.data && f.data >= dataInicio && f.data <= dataFim
-  );
+  
+  const seen = new Set();
+  const lancamentos = (financeiro || []).filter(f => {
+    if (!f || !f.data || f.data < dataInicio || f.data > dataFim) return false;
+    const uniqueKey = `${f.data}_${f.desc || f.forn}`;
+    if (seen.has(uniqueKey)) return false;
+    seen.add(uniqueKey);
+    return true;
+  });
   
   const custoTotal = lancamentos.reduce((a, f) => {
     const val = Number(f.real) || Number(f.prev) || 0;
