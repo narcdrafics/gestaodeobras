@@ -1300,14 +1300,14 @@ function filterFinanceiro() {
   const status = (document.getElementById('fin-status-filter')?.value || '').toLowerCase().trim();
   const busca  = (document.getElementById('fin-busca')?.value         || '').toLowerCase().trim();
   
-  // Mapeia headers para controle de visibilidade
-  const headers = {};
-  document.querySelectorAll('#fin-tbody .group-header-fin').forEach(h => {
-    headers[h.dataset.group] = h;
-    h.style.display = 'none'; // Oculta inicialmente
-  });
+  // Seleciona todas as linhas das três tabelas
+  const rows = [
+    ...document.querySelectorAll('#fin-diarios-tbody .fin-row'),
+    ...document.querySelectorAll('#fin-empreiteiros-tbody .fin-row'),
+    ...document.querySelectorAll('#fin-almocos-tbody .fin-row')
+  ];
 
-  document.querySelectorAll('#fin-tbody .fin-row').forEach(row => {
+  rows.forEach(row => {
     const rt = (row.dataset.tipo   || '');
     const rs = (row.dataset.status || '');
     const rb = (row.dataset.busca  || '') + ' ' + (row.innerText || '').toLowerCase();
@@ -1315,13 +1315,7 @@ function filterFinanceiro() {
             && (!status || rs.includes(status))
             && (!busca  || rb.includes(busca));
     
-    if (ok) {
-      row.style.display = '';
-      const groupRef = row.dataset.groupRef;
-      if (headers[groupRef]) headers[groupRef].style.display = '';
-    } else {
-      row.style.display = 'none';
-    }
+    row.style.display = ok ? '' : 'none';
   });
 }
 window.filterFinanceiro = filterFinanceiro;
