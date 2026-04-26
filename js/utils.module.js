@@ -129,15 +129,9 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
     }
   });
 
-  // Presença
-  const seenPres = new Set();
+  // Presença - SEM deduplicação para mostrar todos registros no financeiro
   pres.forEach((p, i) => {
     if ((p.total || 0) > 0 && filterDate(p.data)) {
-      const trabKey = p.trab || p.nome;
-      const uniqueKey = `${p.data}_${trabKey}`;
-      if (seenPres.has(uniqueKey)) return;
-      seenPres.add(uniqueKey);
-
       const total = parseFloat(p.total) || 0;
       const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
       const pendente = p.pgtoStatus !== 'Pago' ? Math.max(0, total - pago) : 0;
@@ -155,15 +149,10 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
     }
   });
 
-  // Medições
-  const seenMed = new Set();
+  // Medições - SEM deduplicação
   med.forEach((m, i) => {
     const dMed = m.semana || m.data;
     if ((m.vtotal || 0) > 0 && filterDate(dMed)) {
-      const uniqueKey = `${dMed}_${m.equipe || m.servico}`;
-      if (seenMed.has(uniqueKey)) return;
-      seenMed.add(uniqueKey);
-
       const total = parseFloat(m.vtotal) || 0;
       const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
       const pendente = m.pgtoStatus !== 'Pago' ? Math.max(0, total - pago) : 0;
@@ -222,10 +211,20 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
 window.summarizeFinance = summarizeFinance;
 
 /**
- * Calcula custos de diárias por período (semana atual por padrão)
+ * Calcula custos de diárias por período
+ * options pode ter: tipo ('semana', 'mes', 'hoje') OU dataInicio/dataFim
  */
 const calcCustosDiarias = (presenca, options = {}) => {
-  const { dataInicio, dataFim } = getPeriodoOptions(options);
+  let dataInicio, dataFim;
+  
+  if (options.dataInicio && options.dataFim) {
+    dataInicio = options.dataInicio;
+    dataFim = options.dataFim;
+  } else {
+    const periodo = getPeriodoOptions(options);
+    dataInicio = periodo.dataInicio;
+    dataFim = periodo.dataFim;
+  }
   
   const seen = new Set();
   const diarias = (presenca || []).filter(p => {
