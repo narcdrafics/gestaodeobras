@@ -541,7 +541,6 @@ const safeSetStyle = function(id, prop, val) {
 };
 
 window.safeSetStyle = safeSetStyle;
-window.renderFinanceiro = renderFinanceiro;
 
 // Exports for testing (vitest roda como module, navegador roda como defer)
 // O try/catch evita SyntaxError quando carregado sem type="module"
