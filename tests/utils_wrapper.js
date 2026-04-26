@@ -33,3 +33,7 @@ export const safeSetText = window.safeSetText;
 export const safeSetValue = window.safeSetValue;
 export const safeSetStyle = window.safeSetStyle;
 export const escapeHTML = window.escapeHTML;
+export const calcCustosDiarias = window.calcCustosDiarias;
+export const calcCustosMedicoes = window.calcCustosMedicoes;
+export const calcCustosFinanceiro = window.calcCustosFinanceiro;
+export const getPeriodoOptions = window.getPeriodoOptions;

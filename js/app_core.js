@@ -141,12 +141,15 @@ function renderHoje() {
   const dataEl = document.getElementById('hoje-data');
   if (dataEl) dataEl.textContent = ` — ${fmtDate(hoje)}`;
 
-  const presencaHoje = (DB.presenca || []).filter(p => p.data === hoje);
+  const custosDiariasHoje = window.calcCustosDiarias(DB.presenca, { tipo: 'hoje' });
+  const custosMedicoes = window.calcCustosMedicoes(DB.medicao, { tipo: 'semana' });
+  const custosFinanceiro = window.calcCustosFinanceiro(DB.financeiro, { tipo: 'semana' });
+
+  const presencaHoje = custosDiariasHoje.porObra ? Object.values(custosDiariasHoje.porObra).flat() : [];
   const obras = DB.obras || [];
   
   const presentes = presencaHoje.filter(p => p.presenca === 'Presente').length;
   const faltas = presencaHoje.filter(p => p.presenca === 'Falta').length;
-  const totalDiarias = presencaHoje.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
 
   const kpiGrid = document.getElementById('kpi-grid');
   if (kpiGrid) {
@@ -154,7 +157,7 @@ function renderHoje() {
       <div class="kpi-card"><div class="kpi-label">Presentes</div><div class="kpi-val green">${presentes}</div></div>
       <div class="kpi-card"><div class="kpi-label">Faltas</div><div class="kpi-val ${faltas > 0 ? 'red' : 'green'}">${faltas}</div></div>
       <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obras.filter(o => o.status === 'Em andamento').length}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Valor Diárias</div><div class="kpi-val blue">${fmt(totalDiarias)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Diárias Hoje</div><div class="kpi-val blue">${fmt(custosDiariasHoje.custoTotal)}</div></div>
     `;
   }
 
@@ -193,14 +196,23 @@ function renderHoje() {
   const pendentesTbody = document.getElementById('hoje-pendentes-tbody');
   if (pendentesTbody) {
     const pendentes = [];
-    (DB.presenca || []).filter(p => p.data === hoje && p.pgtoStatus !== 'Pago').forEach(p => {
-      pendentes.push({ tipo: 'Diária', desc: p.nome, obra: p.obra, valor: (parseFloat(p.total) || 0) - (parseFloat(p.valpago) || 0), status: p.pgtoStatus });
+    
+    custosDiariasHoje.pendente.forEach(p => {
+      const total = parseFloat(p.total) || 0;
+      const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
+      pendentes.push({ tipo: 'Diária', desc: p.nome, obra: p.obra, valor: Math.max(0, total - pago), status: p.pgtoStatus });
     });
-    (DB.medicao || []).filter(m => m.pgtoStatus !== 'Pago').forEach(m => {
-      pendentes.push({ tipo: 'Medição', desc: m.servico, obra: m.obra, valor: (parseFloat(m.vtotal) || 0) - (parseFloat(m.valpago) || 0), status: m.pgtoStatus });
+    
+    custosMedicoes.pendente.forEach(m => {
+      const total = parseFloat(m.vtotal) || 0;
+      const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
+      pendentes.push({ tipo: 'Medição', desc: m.servico, obra: m.obra, valor: Math.max(0, total - pago), status: m.pgtoStatus });
     });
-    (DB.financeiro || []).filter(f => f.status !== 'Pago').forEach(f => {
-      pendentes.push({ tipo: 'Financeiro', desc: f.desc, obra: f.obra, valor: (Number(f.real) || Number(f.prev) || 0) - (parseFloat(f.valpago) || 0), status: f.status });
+    
+    custosFinanceiro.pendente.forEach(f => {
+      const total = Number(f.real) || Number(f.prev) || 0;
+      const pago = f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0;
+      pendentes.push({ tipo: 'Financeiro', desc: f.desc, obra: f.obra, valor: Math.max(0, total - pago), status: f.status });
     });
 
     pendentesTbody.innerHTML = pendentes.length
@@ -249,13 +261,11 @@ function renderDashboard() {
   const fMes = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
   const strMes = fMes.toISOString().split('T')[0];
 
-  const cDiariasSemana = DB.presenca
-    .filter(p => p.data >= strSemana && p.data <= today && p.pgtoStatus !== 'Pago')
-    .reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
+  const custosDiarias = window.calcCustosDiarias(DB.presenca, { tipo: 'semana' });
+  const custosMedicoes = window.calcCustosMedicoes(DB.medicao, { tipo: 'semana' });
 
-  const cEmpreitaSemana = DB.medicao
-    .filter(m => m.semana >= strSemana && m.semana <= today && m.pgtoStatus !== 'Pago')
-    .reduce((a, m) => a + Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0)), 0);
+  const cDiariasSemana = custosDiarias.pendenteTotal;
+  const cEmpreitaSemana = custosMedicoes.pendenteTotal;
 
     if (kpiGrid) {
       kpiGrid.innerHTML = `
@@ -282,29 +292,27 @@ function renderDashboard() {
   DB.tarefas.filter(t => t.status === 'Atrasada').forEach(t => alerts.push({ tipo: 'TAREFA ATRASADA', obra: uObra(t.obra), desc: `${t.desc} — prazo: ${fmtDate(t.prazo)}`, resp: t.resp, prior: 'alto' }));
   DB.compras.filter(c => c.status === 'Aguardando').forEach(c => alerts.push({ tipo: 'COMPRA PENDENTE', obra: uObra(c.obra), desc: `${c.mat} — ${fmt(c.vtotal)}`, resp: 'Gestor', prior: 'medio' }));
 
-  // Pagamentos pendentes — 1 card consolidado por tipo (ou por profissional em Empreitas)
-  const pDiarias = DB.presenca.filter(p => Number(p.total) > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(p.pgtoStatus || 'Pendente'));
-  if (pDiarias.length > 0) {
-    const totalD = pDiarias.reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
-    const temAtrasadoD = pDiarias.some(p => p.pgtoStatus === 'Atrasado');
+  if (custosDiarias.pendente.length > 0) {
+    const temAtrasadoD = custosDiarias.pendente.some(p => p.pgtoStatus === 'Atrasado');
     alerts.push({
       tipo: 'DIÁRIAS PENDENTES',
-      obra: `${pDiarias.length} diária(s) em aberto`,
-      desc: `Falta pagar: ${fmt(totalD)} — Clique para abrir o caixa`,
+      obra: `${custosDiarias.pendente.length} diária(s) em aberto`,
+      desc: `Falta pagar: ${fmt(custosDiarias.pendenteTotal)} — Clique para abrir o caixa`,
       resp: 'Financeiro',
       prior: temAtrasadoD ? 'alto' : 'medio',
       action: "showPage('financeiro')"
     });
   }
 
-  const pMedicao = DB.medicao.filter(m => Number(m.vtotal) > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(m.pgtoStatus || 'Pendente'));
-  if (pMedicao.length > 0) {
+  if (custosMedicoes.pendente.length > 0) {
     const medPorEquipe = {};
-    pMedicao.forEach(m => {
+    custosMedicoes.pendente.forEach(m => {
       const eq = m.equipe || 'Equipe Terceira';
       if (!medPorEquipe[eq]) medPorEquipe[eq] = { count: 0, total: 0, atrasado: false };
       medPorEquipe[eq].count++;
-      medPorEquipe[eq].total += Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0));
+      const total = parseFloat(m.vtotal) || 0;
+      const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
+      medPorEquipe[eq].total += Math.max(0, total - pago);
       if (m.pgtoStatus === 'Atrasado') medPorEquipe[eq].atrasado = true;
     });
 
@@ -320,17 +328,13 @@ function renderDashboard() {
     });
   }
 
-  const pFin = DB.financeiro.filter(f => {
-    const val = Number(f.real) || Number(f.prev) || 0;
-    return val > 0 && ['Pendente', 'Parcial', 'Atrasado'].includes(f.status || 'Pendente');
-  });
-  if (pFin.length > 0) {
-    const totalF = pFin.reduce((a, f) => a + Math.max(0, (Number(f.real) || Number(f.prev) || 0) - (f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0)), 0);
-    const temAtrasadoF = pFin.some(f => f.status === 'Atrasado');
+  const custosFinanceiro = window.calcCustosFinanceiro(DB.financeiro, { tipo: 'semana' });
+  if (custosFinanceiro.pendente.length > 0) {
+    const temAtrasadoF = custosFinanceiro.pendente.some(f => f.status === 'Atrasado');
     alerts.push({
       tipo: 'PAGAMENTOS FINANCEIRO',
-      obra: `${pFin.length} lançamento(s) pendente(s)`,
-      desc: `Falta pagar: ${fmt(totalF)} — Clique para gerir`,
+      obra: `${custosFinanceiro.pendente.length} lançamento(s) pendente(s)`,
+      desc: `Falta pagar: ${fmt(custosFinanceiro.pendenteTotal)} — Clique para gerir`,
       resp: 'Financeiro',
       prior: temAtrasadoF ? 'alto' : 'medio',
       action: "showPage('financeiro')"
@@ -747,7 +751,12 @@ function renderQuadroSemanal() {
       </td>`;
     
     days.forEach(d => {
-      const pIdx = (DB.presenca || []).findIndex(record => (record && (record.trab === w.cod || record.nome === w.nome) && record.data === d.date));
+      const pIdx = (DB.presenca || []).findIndex(record => 
+        record && record.data === d.date && (
+          record.trab === w.cod || 
+          (record.trab == null || record.trab === '') && record.nome === w.nome
+        )
+      );
       const p = pIdx !== -1 ? DB.presenca[pIdx] : null;
 
       let iconClass = 'none';

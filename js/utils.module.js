@@ -190,6 +190,149 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
 window.summarizeFinance = summarizeFinance;
 
 /**
+ * Calcula custos de diárias por período (semana atual por padrão)
+ */
+const calcCustosDiarias = (presenca, options = {}) => {
+  const { dataInicio, dataFim } = getPeriodoOptions(options);
+  const diarias = (presenca || []).filter(p => 
+    p && p.data && p.data >= dataInicio && p.data <= dataFim && (parseFloat(p.total) || 0) > 0
+  );
+  
+  const custoTotal = diarias.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
+  const pendente = diarias.filter(p => p.pgtoStatus !== 'Pago');
+  const pendenteTotal = pendente.reduce((a, p) => {
+    const total = parseFloat(p.total) || 0;
+    const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
+    return a + Math.max(0, total - pago);
+  }, 0);
+  
+  return {
+    registros: diarias.length,
+    custoTotal,
+    pendente,
+    pendenteTotal,
+    porObra: groupedByObra(diarias)
+  };
+};
+
+/**
+ * Calcula custos de medições (empreitas) por período
+ */
+const calcCustosMedicoes = (medicao, options = {}) => {
+  const { dataInicio, dataFim } = getPeriodoOptions(options);
+  const medicoes = (medicao || []).filter(m => {
+    const d = m.semana || m.data;
+    return d && d >= dataInicio && d <= dataFim && (parseFloat(m.vtotal) || 0) > 0;
+  });
+  
+  const custoTotal = medicoes.reduce((a, m) => a + (parseFloat(m.vtotal) || 0), 0);
+  const pendente = medicoes.filter(m => m.pgtoStatus !== 'Pago');
+  const pendenteTotal = pendente.reduce((a, m) => {
+    const total = parseFloat(m.vtotal) || 0;
+    const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
+    return a + Math.max(0, total - pago);
+  }, 0);
+  
+  return {
+    registros: medicoes.length,
+    custoTotal,
+    pendente,
+    pendenteTotal,
+    porObra: groupedByObra(medicoes)
+  };
+};
+
+/**
+ * Calcula custos financeiros por período
+ */
+const calcCustosFinanceiro = (financeiro, options = {}) => {
+  const { dataInicio, dataFim } = getPeriodoOptions(options);
+  const lancamentos = (financeiro || []).filter(f => 
+    f && f.data && f.data >= dataInicio && f.data <= dataFim
+  );
+  
+  const custoTotal = lancamentos.reduce((a, f) => {
+    const val = Number(f.real) || Number(f.prev) || 0;
+    return a + val;
+  }, 0);
+  
+  const pendente = lancamentos.filter(f => f.status !== 'Pago');
+  const pendenteTotal = pendente.reduce((a, f) => {
+    const total = Number(f.real) || Number(f.prev) || 0;
+    const pago = f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0;
+    return a + Math.max(0, total - pago);
+  }, 0);
+  
+  return {
+    registros: lancamentos.length,
+    custoTotal,
+    pendente,
+    pendenteTotal,
+    porObra: groupedByObra(lancamentos)
+  };
+};
+
+/**
+ * Retorna opções de período (semana atual, mês atual, etc)
+ */
+function getPeriodoOptions(options = {}) {
+  const hoje = new Date();
+  const { tipo = 'semana' } = options;
+  
+  if (tipo === 'hoje') {
+    const todayStr = hoje.toISOString().split('T')[0];
+    return { dataInicio: todayStr, dataFim: todayStr };
+  }
+  
+  if (tipo === 'semana') {
+    const startOfWeek = new Date(hoje);
+    const day = startOfWeek.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    startOfWeek.setDate(hoje.getDate() - diff);
+    return {
+      dataInicio: startOfWeek.toISOString().split('T')[0],
+      dataFim: hoje.toISOString().split('T')[0]
+    };
+  }
+  
+  if (tipo === 'mes') {
+    const startOfMonth = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    return {
+      dataInicio: startOfMonth.toISOString().split('T')[0],
+      dataFim: hoje.toISOString().split('T')[0]
+    };
+  }
+  
+  // Default: semana
+  const startOfWeek = new Date(hoje);
+  const day = startOfWeek.getDay();
+  const diff = day === 0 ? 6 : day - 1;
+  startOfWeek.setDate(hoje.getDate() - diff);
+  return {
+    dataInicio: startOfWeek.toISOString().split('T')[0],
+    dataFim: hoje.toISOString().split('T')[0]
+  };
+}
+
+/**
+ * Agrupa array por obra
+ */
+function groupedByObra(arr) {
+  const grouped = {};
+  arr.forEach(item => {
+    const obra = item.obra || 'Geral';
+    if (!grouped[obra]) grouped[obra] = [];
+    grouped[obra].push(item);
+  });
+  return grouped;
+}
+
+window.calcCustosDiarias = calcCustosDiarias;
+window.calcCustosMedicoes = calcCustosMedicoes;
+window.calcCustosFinanceiro = calcCustosFinanceiro;
+window.getPeriodoOptions = getPeriodoOptions;
+
+/**
  * Define em qual período (Semana/Quinzena) uma data se encaixa dentro do mês.
  */
 function getPeriodLabel(dateStr, viewType) {
