@@ -927,8 +927,17 @@ function renderPresenca() {
   // ➕ FECHAMENTO POR TRABALHADOR (EMPREITADA)
   try {
     const porTrab = {};
+    const seenKeys = new Set(); // Para evitar duplicatas no cálculo
+    
     validPres.forEach(p => {
       if (!p.nome || !p.presenca) return;
+      
+      // Chave única: data + trabalhador
+      const trabKey = p.trab || p.nome;
+      const uniqueKey = `${p.data}_${trabKey}`;
+      if (seenKeys.has(uniqueKey)) return; // Pula duplicata
+      seenKeys.add(uniqueKey);
+      
       const k = p.nome;
       if (!porTrab[k]) porTrab[k] = { total: 0, pendente: 0, diasTrabalhados: 0, diasFalta: 0, obra: p.obra };
       
@@ -2644,12 +2653,15 @@ async function savePresenca(keepOpen = false) {
   for (const tsel of trabsParaSalvar) {
     const t = DB.trabalhadores.find(x => x.cod === tsel);
     
-    // Bloqueia duplicidade de data para o mesmo trabalhador
-    const jaExiste = DB.presenca.some((p, idx) => 
-      p.data === dataVal && 
-      p.trab === tsel && 
-      (editIdx < 0 || idx !== editIdx)
-    );
+    // Bloqueia duplicidade de data para o mesmo trabalhador (checando por código ou nome)
+    const jaExiste = DB.presenca.some((p, idx) => {
+      if (editIdx >= 0 && idx === editIdx) return false;
+      if (p.data !== dataVal) return false;
+      // Compara por código do trabalhador ou por nome (legado)
+      if (p.trab === tsel) return true;
+      if (!p.trab && p.nome === (t ? t.nome : tsel)) return true;
+      return false;
+    });
 
     if (jaExiste) {
       const nomeTrab = t ? t.nome : tsel;
