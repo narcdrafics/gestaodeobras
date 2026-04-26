@@ -27,7 +27,15 @@ window.renderRelatorios = window.renderRelatorios || function () { };
 // NOTA: fmt, fmtPct, fmtDate são declarados em utils.module.js e atribuídos ao window
 const cleanText = (v) => (!v || v === 'undefined' || v === 'indefinido') ? '—' : v;
 const cleanInput = (v) => (!v || v === 'undefined' || v === 'indefinido') ? '' : v;
-const today = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0');
+
+// Data atual no fuso horário brasileiro (America/Sao_Paulo)
+function getTodayBR() {
+  const now = new Date();
+  const tz = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  return tz.getFullYear() + '-' + String(tz.getMonth() + 1).padStart(2, '0') + '-' + String(tz.getDate()).padStart(2, '0');
+}
+
+const today = getTodayBR();
 
 
 
@@ -137,11 +145,11 @@ window.addEventListener('firebaseSync', e => {
 
 // ==================== HOJE ====================
 function renderHoje() {
-  const hoje = new Date().toISOString().split('T')[0];
+  const hoje = getTodayBR();
   const dataEl = document.getElementById('hoje-data');
   if (dataEl) dataEl.textContent = ` — ${fmtDate(hoje)}`;
 
-  const custosDiariasHoje = window.calcCustosDiarias(DB.presenca, { tipo: 'hoje' });
+  const custosDiariasHoje = window.calcCustosDiarias(DB.presenca, { dataInicio: hoje, dataFim: hoje });
   const custosMedicoes = window.calcCustosMedicoes(DB.medicao, { tipo: 'semana' });
   const custosFinanceiro = window.calcCustosFinanceiro(DB.financeiro, { tipo: 'semana' });
 
