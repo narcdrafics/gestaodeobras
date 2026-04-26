@@ -1175,6 +1175,7 @@ function renderFinanceiro() {
       selYear.appendChild(opt);
     });
     selMonth.value = new Date().getMonth() + 1;
+    selYear.value = curY;
   }
 
   const mm = selMonth.value;
