@@ -82,7 +82,7 @@ const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) => {
     if (!(Number(p.total) > 0)) return false;
     if (p.data < strWeek || p.data > todayStr) return false;
     const trabKey = p.trab || p.nome;
-    const uniqueKey = `${p.data}_${trabKey}`;
+    const uniqueKey = `${p.data}_${p.obra}_${trabKey}`;
     if (seen.has(uniqueKey)) return false;
     seen.add(uniqueKey);
     return true;
@@ -129,6 +129,7 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
     }
   });
 
+  // Presença
   pres.forEach((p, i) => {
     if ((p.total || 0) > 0 && filterDate(p.data)) {
       const total = parseFloat(p.total) || 0;
@@ -138,32 +139,54 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
         source: 'pre', idx: i,
         data: p.data, obra: p.obra,
         tipo: 'Mão de obra própria',
-        desc: `[Diária] ${p.nome}`,
+        desc: '[Diária] ' + p.nome,
         forn: p.nome || '',
-        real: p.pgtoStatus === 'Pago' ? total : pendente, prev: 0,
+        real: total, prev: 0,
         status: p.pgtoStatus || 'Pendente',
         totalBruto: total,
+        pendente: p.pgtoStatus !== 'Pago' ? Math.max(0, total - (pago || 0)) : 0,
         jaPago: pago
       });
     }
   });
 
+  // Medições
   med.forEach((m, i) => {
     const dMed = m.semana || m.data;
     if ((m.vtotal || 0) > 0 && filterDate(dMed)) {
       const total = parseFloat(m.vtotal) || 0;
       const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
       const pendente = m.pgtoStatus !== 'Pago' ? Math.max(0, total - pago) : 0;
-      all.push({
+       all.push({
         source: 'med', idx: i,
         data: dMed, obra: m.obra,
         tipo: 'Empreiteiro',
-        desc: `[Medição] ${m.servico}`,
+        desc: '[Medição] ' + m.servico,
         forn: m.equipe || '',
-        real: m.pgtoStatus === 'Pago' ? total : pendente, prev: 0,
+        real: total, prev: 0,
         status: m.pgtoStatus || 'Pendente',
         totalBruto: total,
+        pendente: m.pgtoStatus !== 'Pago' ? Math.max(0, total - (pago || 0)) : 0,
         jaPago: pago
+      });
+    }
+  });
+
+  // Almoços
+  alm.forEach(a => {
+    if ((a.vtotal || 0) > 0 && filterDate(a.data)) {
+      const total = parseFloat(a.vtotal) || 0;
+      all.push({
+        source: 'alm', idx: -1,
+        data: a.data, obra: a.obra,
+        tipo: 'Almoço Empreiteiro',
+        desc: '[Almoço] ' + a.empreiteiro,
+        forn: a.empreiteiro || '',
+        real: total, prev: 0,
+        status: 'Pendente',
+        totalBruto: total,
+        pendente: total,
+        jaPago: 0
       });
     }
   });

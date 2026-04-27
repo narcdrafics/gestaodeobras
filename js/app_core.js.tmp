@@ -1276,7 +1276,7 @@ function renderFinanceiro() {
       <td data-label="Descrição"><b>${f.desc}</b></td>
       <td data-label="Fornec./Benef."><small>${f.forn}</small></td>
       <td data-label="Vl. Prev.">${fmt(f.prev)}</td>
-       <td data-label="Vl. Real." style="color:${f.status === 'Pago' ? (f.real > 0 ? 'var(--green)' : 'var(--text)') : 'var(--orange)'};font-weight:600">${f.status === 'Pago' ? fmt(f.real) : fmt(f.pendente)}</td>
+      <td data-label="Vl. Real." style="color:${f.real > 0 ? 'var(--green)' : 'var(--text)'};font-weight:600">${fmt(f.real)}</td>
       <td data-label="Diferença" style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
       <td data-label="Pgto"><small>${f.pgto}</small></td>
       <td data-label="Status">${statusBadge(f.status)}</td>

@@ -11,7 +11,17 @@ if (typeof window === 'undefined') {
 }
 
 // Importa o arquivo (que popula window.*)
-import '../js/utils.module.js';
+import '../js/utils.module.js?v=20260402010';
+
+// Debug: log summarizeFinance after import
+if (typeof window !== 'undefined') {
+  const original = window.summarizeFinance;
+  window.summarizeFinance = (...args) => {
+    const result = original(...args);
+    console.log('[DEBUG] summarizeFinance result totalsByObra:', result.totalsByObra);
+    return result;
+  };
+}
 
 // Exporta do window para ESM
 export const fmt = window.fmt;
