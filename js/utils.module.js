@@ -329,43 +329,50 @@ const calcCustosFinanceiro = (financeiro, options = {}) => {
 };
 
 /**
- * Retorna opções de período (semana atual, mês atual, etc) no fuso brasileiro
+ * Retorna opções de período (semana atual, mês atual, etc)
+ * Se baseDate for fornecida (YYYY-MM-DD), calcula o período em relação a ela.
  */
 function getPeriodoOptions(options = {}) {
-  const now = new Date();
-  const hoje = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-  const { tipo = 'semana' } = options;
+  const { tipo = 'semana', baseDate } = options;
+  let reference;
+  
+  if (baseDate) {
+    const parts = baseDate.split('-');
+    reference = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  } else {
+    const now = new Date();
+    reference = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  }
   
   if (tipo === 'hoje') {
-    const todayStr = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-' + String(hoje.getDate()).padStart(2, '0');
-    return { dataInicio: todayStr, dataFim: todayStr };
+    const dStr = reference.getFullYear() + '-' + String(reference.getMonth() + 1).padStart(2, '0') + '-' + String(reference.getDate()).padStart(2, '0');
+    return { dataInicio: dStr, dataFim: dStr };
   }
   
   if (tipo === 'semana') {
-    const startOfWeek = new Date(hoje);
+    const startOfWeek = new Date(reference);
     const day = startOfWeek.getDay();
-    const diff = day === 0 ? 6 : day - 1;
-    startOfWeek.setDate(hoje.getDate() - diff);
+    const diff = day === 0 ? 6 : day - 1; // Segunda-feira como início
+    startOfWeek.setDate(reference.getDate() - diff);
     const dataInicio = startOfWeek.getFullYear() + '-' + String(startOfWeek.getMonth() + 1).padStart(2, '0') + '-' + String(startOfWeek.getDate()).padStart(2, '0');
-    const dataFim = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-' + String(hoje.getDate()).padStart(2, '0');
+    const dataFim = reference.getFullYear() + '-' + String(reference.getMonth() + 1).padStart(2, '0') + '-' + String(reference.getDate()).padStart(2, '0');
     return { dataInicio, dataFim };
   }
   
   if (tipo === 'mes') {
-    const startOfMonth = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-    const dataInicio = startOfMonth.getFullYear() + '-' + String(startOfMonth.getMonth() + 1).padStart(2, '0') + '-' + String(startOfMonth.getDate()).padStart(2, '0');
-    const dataFim = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-' + String(hoje.getDate()).padStart(2, '0');
+    const dataInicio = reference.getFullYear() + '-' + String(reference.getMonth() + 1).padStart(2, '0') + '-01';
+    const dataFim = reference.getFullYear() + '-' + String(reference.getMonth() + 1).padStart(2, '0') + '-' + String(reference.getDate()).padStart(2, '0');
     return { dataInicio, dataFim };
   }
   
   // Default: semana
-  const startOfWeek = new Date(hoje);
+  const startOfWeek = new Date(reference);
   const day = startOfWeek.getDay();
   const diff = day === 0 ? 6 : day - 1;
-  startOfWeek.setDate(hoje.getDate() - diff);
+  startOfWeek.setDate(reference.getDate() - diff);
   return {
     dataInicio: startOfWeek.toISOString().split('T')[0],
-    dataFim: hoje.toISOString().split('T')[0]
+    dataFim: reference.toISOString().split('T')[0]
   };
 }
 

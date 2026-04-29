@@ -145,18 +145,18 @@ window.addEventListener('firebaseSync', e => {
 
 // ==================== HOJE ====================
 function renderHoje(targetDate) {
-  const hoje = targetDate || getTodayBR();
-  
-  // Atualiza o input de data se ele existir
   const picker = document.getElementById('hoje-date-picker');
-  if (picker && !picker.value) picker.value = hoje;
+  const hoje = targetDate || (picker ? picker.value : '') || getTodayBR();
+  
+  // Atualiza o input de data para manter sincronia
+  if (picker) picker.value = hoje;
 
   const dataEl = document.getElementById('hoje-data');
   if (dataEl) dataEl.textContent = ` — ${fmtDate(hoje)}`;
 
   const custosDiariasHoje = window.calcCustosDiarias(DB.presenca, { dataInicio: hoje, dataFim: hoje });
-  const custosMedicoes = window.calcCustosMedicoes(DB.medicao, { tipo: 'semana' });
-  const custosFinanceiro = window.calcCustosFinanceiro(DB.financeiro, { tipo: 'semana' });
+  const custosMedicoes = window.calcCustosMedicoes(DB.medicao, { tipo: 'semana', baseDate: hoje });
+  const custosFinanceiro = window.calcCustosFinanceiro(DB.financeiro, { tipo: 'semana', baseDate: hoje });
 
   const presencaHoje = custosDiariasHoje.porObra ? Object.values(custosDiariasHoje.porObra).flat() : [];
   const obras = DB.obras || [];
