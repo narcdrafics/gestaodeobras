@@ -149,7 +149,10 @@ function renderHoje(targetDate) {
   const hoje = targetDate || (picker ? picker.value : '') || getTodayBR();
   
   // Atualiza o input de data para manter sincronia
-  if (picker) picker.value = hoje;
+  if (picker) {
+    picker.value = hoje;
+    picker.max = getTodayBR(); // Não permite datas futuras
+  }
 
   const dataEl = document.getElementById('hoje-data');
   if (dataEl) dataEl.textContent = ` — ${fmtDate(hoje)}`;
@@ -238,6 +241,29 @@ function renderHoje(targetDate) {
       </tr>`).join('')
       : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum pagamento pendente</td></tr>';
   }
+  }
+}
+
+// ==================== HOJE DATE HELPERS ====================
+function changeHojeDate(offset) {
+  const picker = document.getElementById('hoje-date-picker');
+  if (!picker) return;
+  const current = picker.value ? new Date(picker.value + 'T00:00:00') : new Date();
+  current.setDate(current.getDate() + offset);
+  const y = current.getFullYear();
+  const m = String(current.getMonth() + 1).padStart(2, '0');
+  const d = String(current.getDate()).padStart(2, '0');
+  const newDate = `${y}-${m}-${d}`;
+  picker.value = newDate;
+  renderHoje(newDate);
+}
+
+function setHojeToday() {
+  const picker = document.getElementById('hoje-date-picker');
+  if (!picker) return;
+  const today = getTodayBR();
+  picker.value = today;
+  renderHoje(today);
 }
 
 window.exportHoje = function exportHoje() {

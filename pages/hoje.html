@@ -1,7 +1,10 @@
 <div class="page-header">
   <div class="page-title">Relatório <small id="hoje-data"></small></div>
-  <div class="btn-group" style="display:flex; gap:8px; align-items:center;">
+  <div class="btn-group" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <button class="btn btn-secondary btn-sm" onclick="changeHojeDate(-1)" title="Dia anterior">◀</button>
     <input type="date" id="hoje-date-picker" class="form-control" style="width:140px; padding:4px 8px; font-size:13px;" onchange="renderHoje(this.value)">
+    <button class="btn btn-secondary btn-sm" onclick="setHojeToday()" title="Ir para hoje" style="font-weight:600;">Hoje</button>
+    <button class="btn btn-secondary btn-sm" onclick="changeHojeDate(1)" title="Próximo dia">▶</button>
     <button class="btn btn-secondary btn-sm" onclick="renderHoje(document.getElementById('hoje-date-picker').value)">🔄 Atualizar</button>
     <button class="btn btn-primary btn-sm" onclick="exportHoje()">📤 Exportar</button>
   </div>
