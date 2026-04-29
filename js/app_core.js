@@ -144,8 +144,13 @@ window.addEventListener('firebaseSync', e => {
 
 
 // ==================== HOJE ====================
-function renderHoje() {
-  const hoje = getTodayBR();
+function renderHoje(targetDate) {
+  const hoje = targetDate || getTodayBR();
+  
+  // Atualiza o input de data se ele existir
+  const picker = document.getElementById('hoje-date-picker');
+  if (picker && !picker.value) picker.value = hoje;
+
   const dataEl = document.getElementById('hoje-data');
   if (dataEl) dataEl.textContent = ` — ${fmtDate(hoje)}`;
 
@@ -240,42 +245,40 @@ window.exportHoje = function exportHoje() {
   const originalContent = document.body.innerHTML;
   
   // Create a print-friendly version
-  const printContent = `
-    <html>
-      <head>
-        <title>Relatório do Dia - Obra Real</title>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          .page-header { margin-bottom: 20px; }
-          .page-title { font-size: 24px; font-weight: bold; }
-          .btn-group { display: none; } /* Hide buttons in print */
-          .section-title { margin-top: 15px; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
-          .table-wrap { overflow-x: auto; margin-bottom: 20px; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-          th { background-color: #f2f2f2; }
-          .kpi-grid, .alerts-grid { margin-bottom: 20px; }
-          @media print {
-            .no-print { display: none; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="page-header">
-          <div class="page-title">Relatório do Dia - Obra Real</div>
-          <div id="hoje-data" style="font-weight: normal;"></div>
-        </div>
-        ${document.querySelector('.btn-group') ? document.querySelector('.btn-group').outerHTML : ''}
-        ${document.getElementById('kpi-grid') ? document.getElementById('kpi-grid').outerHTML : ''}
-        ${document.getElementById('alerts-grid') ? document.getElementById('alerts-grid').outerHTML : ''}
-        ${document.querySelector('.section-title:nth-of-type(1)') ? document.querySelector('.section-title:nth-of-type(1)').outerHTML : ''}
-        ${document.querySelector('.table-wrap:nth-of-type(1)') ? document.querySelector('.table-wrap:nth-of-type(1)').outerHTML : ''}
-        ${document.querySelector('.section-title:nth-of-type(2)') ? document.querySelector('.section-title:nth-of-type(2)').outerHTML : ''}
-        ${document.querySelector('.table-wrap:nth-of-type(2)') ? document.querySelector('.table-wrap:nth-of-type(2)').outerHTML : ''}
-      </body>
-    </html>
-  \`;
+  const printContent = '<html>' +
+    '<head>' +
+      '<title>Relatório do Dia - Obra Real</title>' +
+      '<meta charset="utf-8">' +
+      '<style>' +
+        'body { font-family: Arial, sans-serif; margin: 20px; }' +
+        '.page-header { margin-bottom: 20px; }' +
+        '.page-title { font-size: 24px; font-weight: bold; }' +
+        '.btn-group { display: none; } /* Hide buttons in print */' +
+        '.section-title { margin-top: 15px; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }' +
+        '.table-wrap { overflow-x: auto; margin-bottom: 20px; }' +
+        'table { width: 100%; border-collapse: collapse; }' +
+        'th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }' +
+        'th { background-color: #f2f2f2; }' +
+        '.kpi-grid, .alerts-grid { margin-bottom: 20px; }' +
+        '@media print {' +
+          '.no-print { display: none; }' +
+        '}' +
+      '</style>' +
+    '</head>' +
+    '<body>' +
+      '<div class="page-header">' +
+        '<div class="page-title">Relatório do Dia - Obra Real</div>' +
+        '<div style="font-weight: normal; margin-top: 5px;">' + (document.getElementById('hoje-data')?.textContent || '') + '</div>' +
+      '</div>' +
+      (document.querySelector('.btn-group') ? document.querySelector('.btn-group').outerHTML : '') +
+      (document.getElementById('kpi-grid') ? document.getElementById('kpi-grid').outerHTML : '') +
+      (document.getElementById('alerts-grid') ? document.getElementById('alerts-grid').outerHTML : '') +
+      (document.querySelector('.section-title:nth-of-type(1)') ? document.querySelector('.section-title:nth-of-type(1)').outerHTML : '') +
+      (document.querySelector('.table-wrap:nth-of-type(1)') ? document.querySelector('.table-wrap:nth-of-type(1)').outerHTML : '') +
+      (document.querySelector('.section-title:nth-of-type(2)') ? document.querySelector('.section-title:nth-of-type(2)').outerHTML : '') +
+      (document.querySelector('.table-wrap:nth-of-type(2)') ? document.querySelector('.table-wrap:nth-of-type(2)').outerHTML : '') +
+    '</body>' +
+  '</html>';
   
   // Open print window
   const printWindow = window.open('', '_blank');

@@ -1,7 +1,8 @@
 <div class="page-header">
-  <div class="page-title">Hoje <small id="hoje-data"></small></div>
-  <div class="btn-group">
-    <button class="btn btn-secondary btn-sm" onclick="renderHoje()">🔄 Atualizar</button>
+  <div class="page-title">Relatório <small id="hoje-data"></small></div>
+  <div class="btn-group" style="display:flex; gap:8px; align-items:center;">
+    <input type="date" id="hoje-date-picker" class="form-control" style="width:140px; padding:4px 8px; font-size:13px;" onchange="renderHoje(this.value)">
+    <button class="btn btn-secondary btn-sm" onclick="renderHoje(document.getElementById('hoje-date-picker').value)">🔄 Atualizar</button>
     <button class="btn btn-primary btn-sm" onclick="exportHoje()">📤 Exportar</button>
   </div>
 </div>
