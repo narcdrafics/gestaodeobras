@@ -161,11 +161,14 @@ function renderHoje(targetDate) {
   const custosMedicoes = window.calcCustosMedicoes(DB.medicao, { tipo: 'semana', baseDate: hoje });
   const custosFinanceiro = window.calcCustosFinanceiro(DB.financeiro, { tipo: 'semana', baseDate: hoje });
 
+  // Busca TODOS os registros de presença do dia, independente de ter valor diária configurado
+  const allPresencaHoje = (DB.presenca || []).filter(p => p.data === hoje);
   const presencaHoje = custosDiariasHoje.porObra ? Object.values(custosDiariasHoje.porObra).flat() : [];
   const obras = DB.obras || [];
   
-  const presentes = presencaHoje.filter(p => p.presenca === 'Presente').length;
-  const faltas = presencaHoje.filter(p => p.presenca === 'Falta').length;
+  // Conta presentes e faltas de TODOS os registros (incluindo sem valor diária)
+  const presentes = allPresencaHoje.filter(p => p.presenca === 'Presente').length;
+  const faltas = allPresencaHoje.filter(p => p.presenca === 'Falta').length;
 
   const kpiGrid = document.getElementById('kpi-grid');
   if (kpiGrid) {
@@ -195,9 +198,11 @@ function renderHoje(targetDate) {
   const obrasTbody = document.getElementById('hoje-obras-tbody');
   if (obrasTbody) {
     obrasTbody.innerHTML = obras.map(o => {
-      const pObra = presencaHoje.filter(p => p.obra === o.cod);
+      // Usa allPresencaHoje para garantir que TODOS os presentes apareçam (mesmo sem valor diária)
+      const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
       const pres = pObra.filter(p => p.presenca === 'Presente').length;
       const fal = pObra.filter(p => p.presenca === 'Falta').length;
+      // Soma apenas valores definidos (ignora undefined/null)
       const val = pObra.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
       return `<tr>
         <td data-label="Obra"><b>${o.nome}</b></td>
@@ -241,7 +246,6 @@ function renderHoje(targetDate) {
       </tr>`).join('')
       : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum pagamento pendente</td></tr>';
   }
-  }
 }
 
 // ==================== HOJE DATE HELPERS ====================
@@ -253,7 +257,7 @@ function changeHojeDate(offset) {
   const y = current.getFullYear();
   const m = String(current.getMonth() + 1).padStart(2, '0');
   const d = String(current.getDate()).padStart(2, '0');
-  const newDate = `${y}-${m}-${d}`;
+  const newDate = y + '-' + m + '-' + d;
   picker.value = newDate;
   renderHoje(newDate);
 }
@@ -267,42 +271,67 @@ function setHojeToday() {
 }
 
 window.exportHoje = function exportHoje() {
-  // Create a copy of the page content for export
-  const originalContent = document.body.innerHTML;
+  // Create a print-friendly version with ONLY data (no selectors/buttons)
+  const hojeData = document.getElementById('hoje-data')?.textContent || '';
+  const kpiGrid = document.getElementById('kpi-grid')?.innerHTML || '';
+  const alertsGrid = document.getElementById('alerts-grid')?.innerHTML || '';
+  const obrasTbody = document.getElementById('hoje-obras-tbody')?.innerHTML || '';
+  const pendentesTbody = document.getElementById('hoje-pendentes-tbody')?.innerHTML || '';
   
-  // Create a print-friendly version
   const printContent = '<html>' +
     '<head>' +
       '<title>Relatório do Dia - Obra Real</title>' +
       '<meta charset="utf-8">' +
       '<style>' +
-        'body { font-family: Arial, sans-serif; margin: 20px; }' +
-        '.page-header { margin-bottom: 20px; }' +
-        '.page-title { font-size: 24px; font-weight: bold; }' +
-        '.btn-group { display: none; } /* Hide buttons in print */' +
-        '.section-title { margin-top: 15px; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }' +
-        '.table-wrap { overflow-x: auto; margin-bottom: 20px; }' +
+        'body { font-family: Arial, sans-serif; margin: 20px; color: #333; }' +
+        '.page-header { margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }' +
+        '.page-title { font-size: 24px; font-weight: bold; margin: 0; }' +
+        '.page-header div:last-child { font-size: 14px; color: #666; margin-top: 5px; }' +
+        '.kpi-grid { display: flex; gap: 15px; margin: 20px 0; flex-wrap: wrap; }' +
+        '.kpi-card { border: 1px solid #ddd; padding: 15px; min-width: 150px; flex: 1; }' +
+        '.kpi-label { font-size: 12px; color: #666; text-transform: uppercase; }' +
+        '.kpi-val { font-size: 24px; font-weight: bold; margin-top: 5px; }' +
+        '.kpi-val.green { color: #22c55e; }' +
+        '.kpi-val.red { color: #ef4444; }' +
+        '.kpi-val.yellow { color: #eab308; }' +
+        '.kpi-val.blue { color: #3b82f6; }' +
+        '.section-title { margin-top: 25px; font-size: 18px; font-weight: bold; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 8px; }' +
+        '.alerts-grid { margin: 15px 0; }' +
+        '.alert-card { border: 1px solid #ddd; padding: 12px; margin-bottom: 10px; border-left: 4px solid #f59e0b; }' +
+        '.alert-card.alto { border-left-color: #ef4444; }' +
+        '.alert-card.medio { border-left-color: #f59e0b; }' +
+        '.alert-body h4 { margin: 0 0 5px 0; font-size: 14px; }' +
+        '.alert-body p { margin: 0; font-size: 13px; color: #666; }' +
+        '.table-wrap { overflow-x: auto; margin: 15px 0; }' +
         'table { width: 100%; border-collapse: collapse; }' +
-        'th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }' +
-        'th { background-color: #f2f2f2; }' +
-        '.kpi-grid, .alerts-grid { margin-bottom: 20px; }' +
+        'th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }' +
+        'th { background-color: #f5f5f5; font-weight: bold; font-size: 13px; }' +
+        'td { font-size: 13px; }' +
         '@media print {' +
-          '.no-print { display: none; }' +
+          'body { margin: 15px; }' +
+          '.kpi-grid { page-break-inside: avoid; }' +
+          'table { page-break-inside: avoid; }' +
         '}' +
       '</style>' +
     '</head>' +
     '<body>' +
       '<div class="page-header">' +
         '<div class="page-title">Relatório do Dia - Obra Real</div>' +
-        '<div style="font-weight: normal; margin-top: 5px;">' + (document.getElementById('hoje-data')?.textContent || '') + '</div>' +
+        '<div>' + hojeData + '</div>' +
       '</div>' +
-      (document.querySelector('.btn-group') ? document.querySelector('.btn-group').outerHTML : '') +
-      (document.getElementById('kpi-grid') ? document.getElementById('kpi-grid').outerHTML : '') +
-      (document.getElementById('alerts-grid') ? document.getElementById('alerts-grid').outerHTML : '') +
-      (document.querySelector('.section-title:nth-of-type(1)') ? document.querySelector('.section-title:nth-of-type(1)').outerHTML : '') +
-      (document.querySelector('.table-wrap:nth-of-type(1)') ? document.querySelector('.table-wrap:nth-of-type(1)').outerHTML : '') +
-      (document.querySelector('.section-title:nth-of-type(2)') ? document.querySelector('.section-title:nth-of-type(2)').outerHTML : '') +
-      (document.querySelector('.table-wrap:nth-of-type(2)') ? document.querySelector('.table-wrap:nth-of-type(2)').outerHTML : '') +
+      '<div class="kpi-grid">' + kpiGrid + '</div>' +
+      '<div class="section-title">⚠️ Pendências do Dia</div>' +
+      '<div class="alerts-grid">' + alertsGrid + '</div>' +
+      '<div class="section-title" style="margin-top:20px">👷 Presença por Obra</div>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Obra</th><th>Present</th><th>Faltas</th><th>Total</th><th>Valor Diárias</th></tr></thead>' +
+        '<tbody>' + obrasTbody + '</tbody>' +
+      '</table></div>' +
+      '<div class="section-title" style="margin-top:20px">💰 Pagamentos Pendentes</div>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor</th><th>Status</th></tr></thead>' +
+        '<tbody>' + pendentesTbody + '</tbody>' +
+      '</table></div>' +
     '</body>' +
   '</html>';
   
@@ -319,12 +348,11 @@ window.exportHoje = function exportHoje() {
     // Also offer to save as PDF
     setTimeout(() => {
       if (confirm('Deseja salvar como PDF para enviar pelo WhatsApp?')) {
-        // Trigger print dialog again with PDF option
         printWindow.print();
       }
     }, 1000);
   };
-};
+}
 
 // ==================== DASHBOARD ====================
 function renderDashboard() {
