@@ -275,7 +275,25 @@ window.exportHoje = function exportHoje() {
   const hojeData = document.getElementById('hoje-data')?.textContent || '';
   const kpiGrid = document.getElementById('kpi-grid')?.innerHTML || '';
   const alertsGrid = document.getElementById('alerts-grid')?.innerHTML || '';
-  const obrasTbody = document.getElementById('hoje-obras-tbody')?.innerHTML || '';
+  
+  // Build "Presença por Obra" table with ALL present workers (even without daily rate)
+  const allPresencaHoje = (DB.presenca || []).filter(p => p.data === getTodayBR());
+  const obras = DB.obras || [];
+  let obrasTbody = '';
+  obras.forEach(o => {
+    const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
+    const pres = pObra.filter(p => p.presenca === 'Presente').length;
+    const fal = pObra.filter(p => p.presenca === 'Falta').length;
+    const val = pObra.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
+    obrasTbody += `<tr>
+      <td><b>${o.nome}</b></td>
+      <td style="color:#22c55e">${pres}</td>
+      <td style="color:${fal > 0 ? '#ef4444' : '#666'}">${fal}</td>
+      <td>${pres + fal}</td>
+      <td>${val > 0 ? 'R$ ' + val.toFixed(2).replace('.', ',') : 'R$ 0,00'}</td>
+    </tr>`;
+  });
+  
   const pendentesTbody = document.getElementById('hoje-pendentes-tbody')?.innerHTML || '';
   
   const printContent = '<html>' +
