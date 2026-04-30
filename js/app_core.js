@@ -198,14 +198,27 @@ function renderHoje(targetDate) {
   const obrasTbody = document.getElementById('hoje-obras-tbody');
   if (obrasTbody) {
     // Mostra TODOS os trabalhadores presentes no dia, independente de ter pagamento pendente
+    // Usa o valor diária ATUAL do trabalhador (DB.trabalhadores), não o valor armazendo no registro
     let rows = '';
     obras.forEach(o => {
       // Busca TODOS os registros de presença do dia para esta obra
       const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
       const pres = pObra.filter(p => p.presenca === 'Presente').length;
       const fal = pObra.filter(p => p.presenca === 'Falta').length;
-      // Soma valores (para quem tem valor diária configurada)
-      const val = pObra.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
+      
+      // Recalcula usando o valor diária ATUAL do trabalhador (reflete alterações globais)
+      let val = 0;
+      pObra.forEach(p => {
+        if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
+          const worker = (DB.trabalhadores || []).find(t => t.cod === p.trab);
+          const diariaAtual = worker ? (parseFloat(worker.diaria) || 0) : 0;
+          const hnorm = parseFloat(p.hnorm) || 0;
+          const hextra = parseFloat(p.hextra) || 0;
+          const valorHora = hnorm > 0 ? diariaAtual / hnorm : 0;
+          const totalRecalc = hnorm > 0 ? diariaAtual + (hextra * valorHora * 1.5) : (p.presenca === 'Meio período' ? diariaAtual / 2 : 0);
+          val += totalRecalc;
+        }
+      });
       
       rows += `<tr>
         <td data-label="Obra"><b>${o.nome}</b></td>
