@@ -237,6 +237,7 @@ function renderHoje(targetDate) {
   const funcionariosTbody = document.getElementById('hoje-funcionarios-tbody');
   if (funcionariosTbody) {
     // Mostra TODOS os trabalhadores com registro de presença hoje
+    // Usa o valor diária ATUAL do trabalhador (DB.trabalhadores), não o valor armazenado no registro
     let rows = '';
     allPresencaHoje.forEach(p => {
       const worker = (DB.trabalhadores || []).find(t => t.cod === p.trab);
@@ -244,16 +245,27 @@ function renderHoje(targetDate) {
       const obra = (DB.obras || []).find(o => o.cod === p.obra);
       const obraNome = obra ? obra.nome : (p.obra || '-');
       const statusClass = p.presenca === 'Presente' ? 'var(--green)' : 
-                         p.presenca === 'Falta' ? 'var(--red)' : 'var(--text3)';
+                        p.presenca === 'Falta' ? 'var(--red)' : 'var(--text3)';
       const horas = (parseFloat(p.hnorm) || 0) + (parseFloat(p.hextra) || 0);
-      const valor = parseFloat(p.total) || 0;
+      
+      // Recalcula usando o valor diária ATUAL do trabalhador (reflete alterações globais)
+      let valorRecalc = 0;
+      if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
+        const diariaAtual = worker ? (parseFloat(worker.diaria) || 0) : 0;
+        const hnorm = parseFloat(p.hnorm) || 0;
+        const hextra = parseFloat(p.hextra) || 0;
+        const valorHora = hnorm > 0 ? diariaAtual / hnorm : 0;
+        valorRecalc = hnorm > 0 ? diariaAtual + (hextra * valorHora * 1.5) : 
+                       (p.presenca === 'Meio período' ? diariaAtual / 2 : 0);
+      }
+      
       rows += `<tr>
         <td data-label="Funcionário"><b>${p.nome}</b></td>
         <td data-label="Função">${funcao}</td>
         <td data-label="Obra">${obraNome}</td>
         <td data-label="Status" style="color:${statusClass}">${p.presenca}</td>
         <td data-label="Horas">${horas.toFixed(1)}h</td>
-        <td data-label="Valor">${valor > 0 ? fmt(valor) : 'R$ 0,00'}</td>
+        <td data-label="Valor">${valorRecalc > 0 ? fmt(valorRecalc) : 'R$ 0,00'}</td>
       </tr>`;
     });
     funcionariosTbody.innerHTML = rows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">Nenhum registro de presença hoje.</td></tr>';
