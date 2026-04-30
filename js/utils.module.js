@@ -234,7 +234,7 @@ const calcCustosDiarias = (presenca, options = {}) => {
   
   const seen = new Set();
   const diarias = (presenca || []).filter(p => {
-    if (!p || !p.data || p.data < dataInicio || p.data > dataFim || !(parseFloat(p.total) || 0) > 0) return false;
+    if (!p || !p.data || p.data < dataInicio || p.data > dataFim) return false;
     const trabKey = p.trab || p.nome;
     const uniqueKey = `${p.data}_${trabKey}`;
     if (seen.has(uniqueKey)) return false;
@@ -242,8 +242,27 @@ const calcCustosDiarias = (presenca, options = {}) => {
     return true;
   });
   
-  const custoTotal = diarias.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
-  const pendente = diarias.filter(p => p.pgtoStatus !== 'Pago');
+  // Recalcula usando o valor diária ATUAL do trabalhador (DB.trabalhadores)
+  const diariasComValor = diarias.map(p => {
+    const worker = (DB.trabalhadores || []).find(t => t.cod === p.trab);
+    const diariaAtual = worker ? (parseFloat(worker.diaria) || 0) : 0;
+    const hnorm = parseFloat(p.hnorm) || 0;
+    const hextra = parseFloat(p.hextra) || 0;
+    let totalRecalc = 0;
+    
+    if (p.presenca === 'Presente') {
+      const valorHora = hnorm > 0 ? diariaAtual / hnorm : 0;
+      totalRecalc = hnorm > 0 ? diariaAtual + (hextra * valorHora * 1.5) : diariaAtual;
+    } else if (p.presenca === 'Meio período') {
+      totalRecalc = diariaAtual / 2;
+    }
+    
+    // Atualiza o total para refletir o valor ATUAL
+    return { ...p, total: totalRecalc };
+  });
+  
+  const custoTotal = diariasComValor.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
+  const pendente = diariasComValor.filter(p => p.pgtoStatus !== 'Pago');
   const pendenteTotal = pendente.reduce((a, p) => {
     const total = parseFloat(p.total) || 0;
     const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
@@ -251,13 +270,13 @@ const calcCustosDiarias = (presenca, options = {}) => {
   }, 0);
   
   return {
-    registros: diarias.length,
+    registros: diariasComValor.length,
     custoTotal,
     pendente,
     pendenteTotal,
-    porObra: groupedByObra(diarias)
+    porObra: groupedByObra(diariasComValor)
   };
-};
+}
 
 /**
  * Calcula custos de medições (empreitas) por período
