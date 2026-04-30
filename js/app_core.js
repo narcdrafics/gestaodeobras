@@ -353,34 +353,35 @@ window.exportHoje = function exportHoje() {
       '<title>Relatório do Dia - Obra Real</title>' +
       '<meta charset="utf-8">' +
       '<style>' +
-        'body { font-family: Arial, sans-serif; margin: 20px; color: #333; }' +
-        '.page-header { margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }' +
-        '.page-title { font-size: 24px; font-weight: bold; margin: 0; }' +
-        '.page-header div:last-child { font-size: 14px; color: #666; margin-top: 5px; }' +
-        '.kpi-grid { display: flex; gap: 15px; margin: 20px 0; flex-wrap: wrap; }' +
-        '.kpi-card { border: 1px solid #ddd; padding: 15px; min-width: 150px; flex: 1; }' +
-        '.kpi-label { font-size: 12px; color: #666; text-transform: uppercase; }' +
-        '.kpi-val { font-size: 24px; font-weight: bold; margin-top: 5px; }' +
+        'body { font-family: Arial, sans-serif; margin: 10px; color: #333; font-size: 13px; }' +
+        '.page-header { margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 8px; }' +
+        '.page-title { font-size: 20px; font-weight: bold; margin: 0; }' +
+        '.page-header div:last-child { font-size: 12px; color: #666; margin-top: 3px; }' +
+        '.kpi-grid { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }' +
+        '.kpi-card { border: 1px solid #ddd; padding: 10px; min-width: 120px; flex: 1; }' +
+        '.kpi-label { font-size: 11px; color: #666; text-transform: uppercase; }' +
+        '.kpi-val { font-size: 20px; font-weight: bold; margin-top: 3px; }' +
         '.kpi-val.green { color: #22c55e; }' +
         '.kpi-val.red { color: #ef4444; }' +
         '.kpi-val.yellow { color: #eab308; }' +
         '.kpi-val.blue { color: #3b82f6; }' +
-        '.section-title { margin-top: 25px; font-size: 18px; font-weight: bold; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 8px; }' +
-        '.alerts-grid { margin: 15px 0; }' +
-        '.alert-card { border: 1px solid #ddd; padding: 12px; margin-bottom: 10px; border-left: 4px solid #f59e0b; }' +
+        '.section-title { margin-top: 10px; font-size: 16px; font-weight: bold; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }' +
+        '.alerts-grid { margin: 10px 0; }' +
+        '.alert-card { border: 1px solid #ddd; padding: 8px; margin-bottom: 5px; border-left: 3px solid #f59e0b; }' +
         '.alert-card.alto { border-left-color: #ef4444; }' +
         '.alert-card.medio { border-left-color: #f59e0b; }' +
-        '.alert-body h4 { margin: 0 0 5px 0; font-size: 14px; }' +
-        '.alert-body p { margin: 0; font-size: 13px; color: #666; }' +
-        '.table-wrap { overflow-x: auto; margin: 15px 0; }' +
+        '.alert-body h4 { margin: 0 0 3px 0; font-size: 13px; }' +
+        '.alert-body p { margin: 0; font-size: 12px; color: #666; }' +
+        '.table-wrap { margin: 10px 0; }' +
         'table { width: 100%; border-collapse: collapse; }' +
-        'th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }' +
-        'th { background-color: #f5f5f5; font-weight: bold; font-size: 13px; }' +
-        'td { font-size: 13px; }' +
+        'th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }' +
+        'th { background-color: #f5f5f5; font-weight: bold; font-size: 12px; }' +
+        'td { font-size: 12px; }' +
         '@media print {' +
-          'body { margin: 15px; }' +
+          'body { margin: 10px; }' +
           '.kpi-grid { page-break-inside: avoid; }' +
           'table { page-break-inside: avoid; }' +
+          '* { margin: 0; padding: 0; }' +
         '}' +
       '</style>' +
     '</head>' +
