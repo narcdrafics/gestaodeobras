@@ -392,17 +392,17 @@ window.exportHoje = function exportHoje() {
       '<div class="kpi-grid">' + kpiGrid + '</div>' +
       '<div class="section-title">⚠️ Pendências do Dia</div>' +
       '<div class="alerts-grid">' + alertsGrid + '</div>' +
-      '<div class="section-title" style="margin-top:20px">👷 Presença por Obra</div>' +
-      '<div class="table-wrap"><table>' +
-        '<thead><tr><th>Obra</th><th>Present</th><th>Faltas</th><th>Total</th><th>Valor Diárias</th></tr></thead>' +
+      '<div class="section-title" style="margin-top:10px">👷 Presença por Obra</div>' +
+      '<div class="table-wrap" style="margin-top:5px"><table>' +
+        '<thead><tr><th>Obra</th><th>Presentes</th><th>Faltas</th><th>Total</th><th>Valor Diárias</th></tr></thead>' +
         '<tbody>' + obrasTbody + '</tbody>' +
       '</table></div>' +
-      '<div class="section-title" style="margin-top:20px">👷 Presença por Funcionário</div>' +
-      '<div class="table-wrap"><table>' +
+      '<div class="section-title" style="margin-top:10px">👷 Presença por Funcionário</div>' +
+      '<div class="table-wrap" style="margin-top:5px"><table>' +
         '<thead><tr><th>Funcionário</th><th>Função</th><th>Obra</th><th>Status</th><th>Horas</th><th>Valor</th></tr></thead>' +
         '<tbody>' + funcionariosTbody + '</tbody>' +
       '</table></div>' +
-      '<div class="section-title" style="margin-top:20px">💰 Pagamentos Pendentes</div>' +
+      '<div class="section-title" style="margin-top:10px">💰 Pagamentos Pendentes</div>' +
       '<div class="table-wrap"><table>' +
         '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor</th><th>Status</th></tr></thead>' +
         '<tbody>' + pendentesTbody + '</tbody>' +
