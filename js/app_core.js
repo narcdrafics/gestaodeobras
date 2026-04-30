@@ -197,24 +197,55 @@ function renderHoje(targetDate) {
 
   const obrasTbody = document.getElementById('hoje-obras-tbody');
   if (obrasTbody) {
-    obrasTbody.innerHTML = obras.map(o => {
-      // Usa allPresencaHoje para garantir que TODOS os presentes apareçam (mesmo sem valor diária)
+    // Mostra TODOS os trabalhadores presentes no dia, independente de ter pagamento pendente
+    let rows = '';
+    obras.forEach(o => {
+      // Busca TODOS os registros de presença do dia para esta obra
       const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
       const pres = pObra.filter(p => p.presenca === 'Presente').length;
       const fal = pObra.filter(p => p.presenca === 'Falta').length;
-      // Soma apenas valores definidos (ignora undefined/null)
+      // Soma valores (para quem tem valor diária configurada)
       const val = pObra.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
-      return `<tr>
+      
+      rows += `<tr>
         <td data-label="Obra"><b>${o.nome}</b></td>
         <td data-label="Presentes" style="color:var(--green)">${pres}</td>
         <td data-label="Faltas" style="color:${fal > 0 ? 'var(--red)' : 'var(--text3)'}">${fal}</td>
         <td data-label="Total">${pres + fal}</td>
-        <td data-label="Valor">${fmt(val)}</td>
+        <td data-label="Valor">${val > 0 ? fmt(val) : 'R$ 0,00'}</td>
       </tr>`;
-    }).join('');
+    });
+    obrasTbody.innerHTML = rows;
   }
 
   const pendentesTbody = document.getElementById('hoje-pendentes-tbody');
+  
+  // Nova tabela: Presença por Funcionário (TODOS os registros do dia)
+  const funcionariosTbody = document.getElementById('hoje-funcionarios-tbody');
+  if (funcionariosTbody) {
+    // Mostra TODOS os trabalhadores com registro de presença hoje
+    let rows = '';
+    allPresencaHoje.forEach(p => {
+      const worker = (DB.trabalhadores || []).find(t => t.cod === p.trab);
+      const funcao = worker ? (worker.funcao || '-') : (p.funcao || '-');
+      const obra = (DB.obras || []).find(o => o.cod === p.obra);
+      const obraNome = obra ? obra.nome : (p.obra || '-');
+      const statusClass = p.presenca === 'Presente' ? 'var(--green)' : 
+                         p.presenca === 'Falta' ? 'var(--red)' : 'var(--text3)';
+      const horas = (parseFloat(p.hnorm) || 0) + (parseFloat(p.hextra) || 0);
+      const valor = parseFloat(p.total) || 0;
+      rows += `<tr>
+        <td data-label="Funcionário"><b>${p.nome}</b></td>
+        <td data-label="Função">${funcao}</td>
+        <td data-label="Obra">${obraNome}</td>
+        <td data-label="Status" style="color:${statusClass}">${p.presenca}</td>
+        <td data-label="Horas">${horas.toFixed(1)}h</td>
+        <td data-label="Valor">${valor > 0 ? fmt(valor) : 'R$ 0,00'}</td>
+      </tr>`;
+    });
+    funcionariosTbody.innerHTML = rows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">Nenhum registro de presença hoje.</td></tr>';
+  }
+  
   if (pendentesTbody) {
     const pendentes = [];
     
@@ -294,6 +325,27 @@ window.exportHoje = function exportHoje() {
     </tr>`;
   });
   
+  // Build "Presença por Funcionário" table
+  let funcionariosTbody = '';
+  allPresencaHoje.forEach(p => {
+    const worker = (DB.trabalhadores || []).find(t => t.cod === p.trab);
+    const funcao = worker ? (worker.funcao || '-') : (p.funcao || '-');
+    const obra = (DB.obras || []).find(o => o.cod === p.obra);
+    const obraNome = obra ? obra.nome : (p.obra || '-');
+    const statusClass = p.presenca === 'Presente' ? '#22c55e' : 
+                       p.presenca === 'Falta' ? '#ef4444' : '#666';
+    const horas = (parseFloat(p.hnorm) || 0) + (parseFloat(p.hextra) || 0);
+    const valor = parseFloat(p.total) || 0;
+    funcionariosTbody += `<tr>
+      <td><b>${p.nome}</b></td>
+      <td>${funcao}</td>
+      <td>${obraNome}</td>
+      <td style="color:${statusClass}">${p.presenca}</td>
+      <td>${horas.toFixed(1)}h</td>
+      <td>${valor > 0 ? 'R$ ' + valor.toFixed(2).replace('.', ',') : 'R$ 0,00'}</td>
+    </tr>`;
+  });
+  
   const pendentesTbody = document.getElementById('hoje-pendentes-tbody')?.innerHTML || '';
   
   const printContent = '<html>' +
@@ -344,6 +396,11 @@ window.exportHoje = function exportHoje() {
       '<div class="table-wrap"><table>' +
         '<thead><tr><th>Obra</th><th>Present</th><th>Faltas</th><th>Total</th><th>Valor Diárias</th></tr></thead>' +
         '<tbody>' + obrasTbody + '</tbody>' +
+      '</table></div>' +
+      '<div class="section-title" style="margin-top:20px">👷 Presença por Funcionário</div>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Funcionário</th><th>Função</th><th>Obra</th><th>Status</th><th>Horas</th><th>Valor</th></tr></thead>' +
+        '<tbody>' + funcionariosTbody + '</tbody>' +
       '</table></div>' +
       '<div class="section-title" style="margin-top:20px">💰 Pagamentos Pendentes</div>' +
       '<div class="table-wrap"><table>' +
