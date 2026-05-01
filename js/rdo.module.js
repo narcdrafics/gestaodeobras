@@ -269,13 +269,16 @@
     }
 
     const tenantId = _tenantId();
+    const obraKey = _obraId || 'sem_obra';
+    const dataKey = dados.data; // YYYY-MM-DD
+
     if (!tenantId) {
-      if (typeof toast === 'function') toast('Erro: Tenant não identificado.', 'error');
+      console.error('[RDO] Erro: Tenant não identificado. sessionStorage:', sessionStorage.getItem('gestaoUser'));
+      if (typeof toast === 'function') toast('Erro: Empresa não identificada. Faça login novamente.', 'error');
       return;
     }
 
-    const obraKey = _obraId || 'sem_obra';
-    const dataKey = dados.data; // YYYY-MM-DD
+    console.log(`[RDO] Tentando salvar em: rdos/${tenantId}/${obraKey}/${dataKey}`);
 
     try {
       await firebase.database()
@@ -285,7 +288,11 @@
       if (typeof toast === 'function') toast('✅ RDO salvo com sucesso!');
     } catch (err) {
       console.error('[RDO] Erro ao salvar:', err);
-      if (typeof toast === 'function') toast('Erro ao salvar RDO. Verifique conexão.', 'error');
+      if (err.code === 'PERMISSION_DENIED') {
+        if (typeof toast === 'function') toast('Erro de permissão: Verifique se você está logado na empresa correta.', 'error');
+      } else {
+        if (typeof toast === 'function') toast('Erro ao salvar RDO. Verifique conexão.', 'error');
+      }
     }
   };
 
@@ -469,8 +476,12 @@
   function _tenantId() {
     try {
       const user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
-      return user.tenantId || null;
-    } catch { return null; }
+      // Tenta pegar do usuário logado, depois do contexto global do app (SaaS)
+      const tid = user.tenantId || window.CURRENT_TENANT_ID || null;
+      return (tid && tid !== 'undefined') ? tid : null;
+    } catch { 
+      return window.CURRENT_TENANT_ID || null; 
+    }
   }
 
   function _userProfile() {
