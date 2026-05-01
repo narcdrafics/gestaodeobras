@@ -69,6 +69,7 @@
   </div>
   <div class="nav-item grp-prod" style="display:none" onclick="showPage('presenca')"><span class="ico">✅</span> <span>Presença (Ponto)</span></div>
   <div class="nav-item grp-prod" style="display:none" onclick="showPage('medicao')"><span class="ico">📐</span> <span>Medições</span></div>
+  <div class="nav-item grp-prod" style="display:none" onclick="showPage('rdo')"><span class="ico">📋</span> <span>RDO</span></div>
   <div class="nav-item grp-prod" style="display:none" onclick="showPage('fotos')"><span class="ico">📸</span> <span>Galeria de Fotos</span></div>
 
   <div class="nav-section" onclick="toggleGroup('grp-sup', 'ic-sup')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
@@ -180,6 +181,8 @@ window.shareScreen = async function() {
 <script defer src="js/data_core.js?v=20260428001"></script>
 <script defer src="js/auth_core.js?v=20260428001"></script>
 <script defer src="js/app_core.js?v=20260429011"></script>
+<!-- MODULO RDO -->
+<script defer src="js/rdo.module.js?v=1"></script>
 
 <script>
 if (typeof showPage !== 'function') window.showPage = function() { console.log('Carregando...'); };
