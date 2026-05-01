@@ -213,6 +213,14 @@
   /* Garantir que valores de input apareçam */
   input, select, textarea { border: none !important; background: transparent !important; padding: 0 !important; color: #000 !important; font-weight: bold !important; -webkit-appearance: none; -moz-appearance: none; appearance: none; }
   .rdo-counter-item { border: 1px solid #eee !important; }
+
+  /* Corrigir visibilidade de elementos específicos no RDO */
+  .rdo-modal { display: block !important; visibility: visible !important; }
+  .rdo-body { display: block !important; visibility: visible !important; }
+  #rdo-aba-editor { display: block !important; visibility: visible !important; }
+  
+  /* Esconder botões de ação e abas */
+  .rdo-actions, .rdo-tabs, .rdo-tab, .rdo-btn-close, .rdo-hist-btn { display: none !important; }
 }
 </style>
 

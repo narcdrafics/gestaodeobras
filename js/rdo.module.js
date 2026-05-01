@@ -325,7 +325,13 @@ window.rdoExportarDia = async function (dataKey) {
 };
 
 window.rdoGerarPDF = function () {
-  window.print();
+  // Garante que estamos na aba do editor para a impressão (onde os dados estão)
+  window.rdoAba('editor', document.querySelectorAll('.rdo-tab')[0]);
+  
+  // Pequeno delay para garantir que o DOM atualizou a visibilidade das abas
+  setTimeout(() => {
+    window.print();
+  }, 100);
 };
 
 // Registrar pagina no sistema
