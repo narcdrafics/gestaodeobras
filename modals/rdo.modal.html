@@ -199,12 +199,20 @@
 
 /* Print styles */
 @media print {
-  .rdo-modal-overlay { position: static; background: none; padding: 0; }
-  .rdo-modal { max-height: none; box-shadow: none; border: none; }
-  .rdo-modal-header { position: static; }
-  .rdo-actions, .rdo-tabs, .rdo-tab { display: none !important; }
-  .rdo-section { break-inside: avoid; }
+  @page { margin: 1cm; size: auto; }
+  body { background: #fff !important; color: #000 !important; }
+  .rdo-modal-overlay { position: static !important; display: block !important; background: none !important; padding: 0 !important; }
+  .rdo-modal { max-height: none !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; overflow: visible !important; }
+  .rdo-modal-header { position: static !important; border-bottom: 2px solid #000 !important; padding: 0 0 10px 0 !important; }
+  .rdo-modal-header h2 { font-size: 20px !important; color: #000 !important; }
+  .rdo-actions, .rdo-tabs, .rdo-tab, .rdo-btn-close { display: none !important; }
+  .rdo-section { break-inside: avoid; border: 1px solid #ddd !important; background: #fff !important; margin-bottom: 20px !important; }
+  .rdo-section-title { color: #000 !important; border-bottom: 1px solid #eee !important; padding-bottom: 5px !important; }
   body > *:not(.rdo-modal-overlay) { display: none !important; }
+  
+  /* Garantir que valores de input apareçam */
+  input, select, textarea { border: none !important; background: transparent !important; padding: 0 !important; color: #000 !important; font-weight: bold !important; -webkit-appearance: none; -moz-appearance: none; appearance: none; }
+  .rdo-counter-item { border: 1px solid #eee !important; }
 }
 </style>
 

@@ -330,8 +330,11 @@
   // ── Carregar RDO de um dia específico no editor ───────────────────────────
 
   window.rdoCarregarDia = function (dataKey) {
+    const tenantId = _tenantId();
     const obraKey = _obraId || 'sem_obra';
-    firebase.database().ref(`rdos/${obraKey}/${dataKey}`).once('value', snap => {
+    if (!tenantId) return;
+
+    firebase.database().ref(`rdos/${tenantId}/${obraKey}/${dataKey}`).once('value', snap => {
       const d = snap.val();
       if (!d) { if (typeof toast === 'function') toast('RDO não encontrado.', 'error'); return; }
 
