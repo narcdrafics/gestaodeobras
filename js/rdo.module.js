@@ -327,53 +327,61 @@
     });
   }
 
-  // ── Carregar RDO de um dia específico no editor ───────────────────────────
-
+  // ── Carregar RDO de um dia específico no editor (Retorna Promise) ──────────
   window.rdoCarregarDia = function (dataKey) {
-    const tenantId = _tenantId();
-    const obraKey = _obraId || 'sem_obra';
-    if (!tenantId) return;
+    return new Promise((resolve) => {
+      const tenantId = _tenantId();
+      const obraKey = _obraId || 'sem_obra';
+      if (!tenantId) return resolve(false);
 
-    firebase.database().ref(`rdos/${tenantId}/${obraKey}/${dataKey}`).once('value', snap => {
-      const d = snap.val();
-      if (!d) { if (typeof toast === 'function') toast('RDO não encontrado.', 'error'); return; }
+      firebase.database().ref(`rdos/${tenantId}/${obraKey}/${dataKey}`).once('value', snap => {
+        const d = snap.val();
+        if (!d) {
+          if (typeof toast === 'function') toast('RDO não encontrado.', 'error');
+          return resolve(false);
+        }
 
-      _set('rdo-empresa',     d.empresa     || '');
-      _set('rdo-obra',        d.obra        || '');
-      _set('rdo-data',        d.data        || dataKey);
-      _set('rdo-responsavel', d.responsavel || '');
-      _set('rdo-clima',       d.clima       || 'nublado');
+        _set('rdo-empresa',     d.empresa     || '');
+        _set('rdo-obra',        d.obra        || '');
+        _set('rdo-data',        d.data        || dataKey);
+        _set('rdo-responsavel', d.responsavel || '');
+        _set('rdo-clima',       d.clima       || 'nublado');
 
-      // Efetivo
-      CARGOS.forEach(c => _set('rdo-cargo-' + c.id, (d.efetivo && d.efetivo[c.id]) || 0));
-      MAQUINAS.forEach(m => _set('rdo-maq-'   + m.id, (d.maquinas && d.maquinas[m.id]) || 0));
-      window.rdoCalcTotal();
+        // Efetivo
+        CARGOS.forEach(c => _set('rdo-cargo-' + c.id, (d.efetivo && d.efetivo[c.id]) || 0));
+        MAQUINAS.forEach(m => _set('rdo-maq-'   + m.id, (d.maquinas && d.maquinas[m.id]) || 0));
+        window.rdoCalcTotal();
 
-      // Chuva
-      _chuvaOn = d.chuva?.houve !== false;
-      _setChuvaUI(_chuvaOn);
-      _set('rdo-chuva-inicio',  d.chuva?.inicio  || '');
-      _set('rdo-chuva-fim',     d.chuva?.fim     || '');
-      _set('rdo-chuva-impacto', d.chuva?.impacto || 'parcial');
+        // Chuva
+        _chuvaOn = d.chuva?.houve !== false;
+        _setChuvaUI(_chuvaOn);
+        _set('rdo-chuva-inicio',  d.chuva?.inicio  || '');
+        _set('rdo-chuva-fim',     d.chuva?.fim     || '');
+        _set('rdo-chuva-impacto', d.chuva?.impacto || 'parcial');
 
-      // Textos
-      _set('rdo-atividades',  d.atividades  || '');
-      _set('rdo-ocorrencias', d.ocorrencias || '');
-      _set('rdo-ass-apontador',   d.assinaturas?.apontador   || '');
-      _set('rdo-ass-encarregado', d.assinaturas?.encarregado || '');
-      _set('rdo-ass-engenheiro',  d.assinaturas?.engenheiro  || '');
+        // Textos
+        _set('rdo-atividades',  d.atividades  || '');
+        _set('rdo-ocorrencias', d.ocorrencias || '');
+        _set('rdo-ass-apontador',   d.assinaturas?.apontador   || '');
+        _set('rdo-ass-encarregado', d.assinaturas?.encarregado || '');
+        _set('rdo-ass-engenheiro',  d.assinaturas?.engenheiro  || '');
 
-      // Voltar à aba editor
-      window.rdoAba('editor', document.querySelectorAll('.rdo-tab')[0]);
-      if (typeof toast === 'function') toast(`RDO de ${_formatarData(dataKey)} carregado.`);
+        // Voltar à aba editor
+        window.rdoAba('editor', document.querySelectorAll('.rdo-tab')[0]);
+        resolve(true);
+      });
     });
-  };
+
+
+
 
   // ── Exportar PDF de um dia do histórico ──────────────────────────────────
 
-  window.rdoExportarDia = function (dataKey) {
-    window.rdoCarregarDia(dataKey);
-    setTimeout(() => window.rdoGerarPDF(), 600);
+  window.rdoExportarDia = async function (dataKey) {
+    const ok = await window.rdoCarregarDia(dataKey);
+    if (ok) {
+      setTimeout(() => window.rdoGerarPDF(), 300);
+    }
   };
 
   // ── Gerar PDF via window.print() ─────────────────────────────────────────
