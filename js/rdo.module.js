@@ -341,6 +341,7 @@
       const obraKey = _obraId || 'sem_obra';
       if (!tenantId) return resolve(false);
 
+      console.log(`[RDO] Lendo de: rdos/${tenantId}/${obraKey}/${dataKey}`);
       firebase.database().ref(`rdos/${tenantId}/${obraKey}/${dataKey}`).once('value', snap => {
         const d = snap.val();
         if (!d) {
