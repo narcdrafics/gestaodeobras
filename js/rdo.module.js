@@ -1,54 +1,12 @@
 /**
- * ╔══════════════════════════════════════════════════════╗
- * ║  ObraReal — Módulo RDO (Relatório Diário de Obra)    ║
- * ║  Arquivo: js/rdo.module.js                           ║
- * ║  Firebase SDK: 8.x (compat)                          ║
- * ║  Dependência: modals/rdo.modal.html incluído no body ║
- * ╚══════════════════════════════════════════════════════╝
- *
- * ESTRUTURA FIREBASE REALTIME DATABASE:
- *
- * rdos/
- *   {obraId}/
- *     {YYYY-MM-DD}/
- *       empresa:     string
- *       obra:        string
- *       data:        string  (YYYY-MM-DD)
- *       responsavel: string
- *       clima:       string
- *       chuva: {
- *         houve:   boolean
- *         inicio:  string  (HH:mm)
- *         fim:     string  (HH:mm)
- *         impacto: string
- *       }
- *       efetivo: {
- *         encarregado: number,
- *         apontador:   number,
- *         pedreiro:    number,
- *         servente:    number,
- *         ...
- *       }
- *       maquinas: {
- *         bobcat:    number,
- *         retro:     number,
- *         ...
- *       }
- *       atividades:  string
- *       ocorrencias: string
- *       assinaturas: {
- *         apontador:   string,
- *         encarregado: string,
- *         engenheiro:  string
- *       }
- *       criadoEm:    number  (timestamp)
- *       criadoPor:   string  (uid)
+ * ObraReal - Modulo RDO (Relatorio Diario de Obra)
+ * Arquivo: js/rdo.module.js
  */
 
 (function () {
   'use strict';
 
-  // ── Configuração de cargos e máquinas ──────────────────────────────────────
+  // -- Configuracao de cargos e maquinas --
 
   const CARGOS = [
     { id: 'encarregado',  label: 'Encarregado'      },
@@ -76,14 +34,14 @@
     { id: 'betoneira',     label: 'Betoneira'           },
   ];
 
-  // ── Estado interno ─────────────────────────────────────────────────────────
+  // -- Estado interno --
 
   let _obraId    = null;   // ID da obra corrente (vem do contexto do app)
   let _obraAtual = null;   // dados da obra (nome, empresa)
   let _chuvaOn   = true;
   let _rdoRef    = null;   // referência Firebase ativa do histórico
 
-  // ── Injetar o HTML do modal no body ───────────────────────────────────────
+  // -- Injetar o HTML do modal no body --
 
   function _injetarModal() {
     if (document.getElementById('rdo-overlay')) return; // já injetado
