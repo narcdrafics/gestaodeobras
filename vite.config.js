@@ -6,11 +6,13 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     rollupOptions: {
-      input: {
-        main: 'index.html',
-        console: 'console.html'
+      output: {
+        manualChunks: undefined
       }
     }
+  },
+  optimizeDeps: {
+    exclude: ['firebase']
   },
   server: {
     port: 5173,

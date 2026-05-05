@@ -13,17 +13,61 @@ const staticDB = {
     limiteTrabalhadores: 9999,
   },
   usuarios: [],
-  obras: [],
-  trabalhadores: [],
-  presenca: [],
-  tarefas: [],
-  estoque: [],
+  obras: [
+    { id: "OB001", nome: "Edifício Bela Vista", status: "em_andamento", responsavel: "Carlos Melo", inicio: "2026-01-10", previsao: "2026-09-30", orcamento: 1850000, gasto: 742000 },
+    { id: "OB002", nome: "Residencial Ipê", status: "em_andamento", responsavel: "Ana Lima", inicio: "2025-11-01", previsao: "2026-06-15", orcamento: 980000, gasto: 650000 },
+    { id: "OB003", nome: "Galpão Industrial Norte", status: "pausada", responsavel: "João Santos", inicio: "2026-02-20", previsao: "2026-12-01", orcamento: 3200000, gasto: 120000 },
+    { id: "OB004", nome: "Reforma Sede ADM", status: "concluida", responsavel: "Maria Souza", inicio: "2025-08-01", previsao: "2026-01-31", orcamento: 450000, gasto: 431000 },
+    { id: "OB005", nome: "Condomínio Serra Verde", status: "em_andamento", responsavel: "Pedro Alves", inicio: "2026-03-01", previsao: "2027-06-30", orcamento: 7400000, gasto: 310000 },
+  ],
+  trabalhadores: [
+    { id: "TR001", nome: "Raimundo Costa", funcao: "Pedreiro", obra: "OB001", diaria: 180, ativo: true },
+    { id: "TR002", nome: "Silvio Nascimento", funcao: "Carpinteiro", obra: "OB001", diaria: 200, ativo: true },
+    { id: "TR003", nome: "Francisca Barros", funcao: "Servente", obra: "OB002", diaria: 140, ativo: true },
+    { id: "TR004", nome: "Antônio Ferreira", funcao: "Eletricista", obra: "OB002", diaria: 220, ativo: true },
+    { id: "TR005", nome: "Luiz Oliveira", funcao: "Encanador", obra: "OB005", diaria: 210, ativo: false },
+    { id: "TR006", nome: "Benedita Moura", funcao: "Pintor", obra: "OB001", diaria: 160, ativo: true },
+  ],
+  presenca: [
+    { id: "PR001", trabalhador: "Raimundo Costa", obra: "OB001", data: "2026-05-04", entrada: "07:02", saida: "17:15", horas: 10.2, status: "presente" },
+    { id: "PR002", trabalhador: "Silvio Nascimento", obra: "OB001", data: "2026-05-04", entrada: "07:10", saida: "17:00", horas: 9.8, status: "presente" },
+    { id: "PR003", trabalhador: "Francisca Barros", obra: "OB002", data: "2026-05-04", entrada: "--", saida: "--", horas: 0, status: "falta" },
+    { id: "PR004", trabalhador: "Antônio Ferreira", obra: "OB002", data: "2026-05-04", entrada: "08:00", saida: "17:00", horas: 9.0, status: "presente" },
+    { id: "PR005", trabalhador: "Benedita Moura", obra: "OB001", data: "2026-05-04", entrada: "07:30", saida: "12:00", horas: 4.5, status: "meio_dia" },
+  ],
+  tarefas: [
+    { id: "TK001", titulo: "Concretagem laje 3º andar", obra: "OB001", prioridade: "alta", status: "em_andamento", prazo: "2026-05-10", responsavel: "Carlos Melo" },
+    { id: "TK002", titulo: "Instalação elétrica bloco B", obra: "OB002", prioridade: "media", status: "pendente", prazo: "2026-05-20", responsavel: "Antônio Ferreira" },
+    { id: "TK003", titulo: "Pintura fachada Norte", obra: "OB001", prioridade: "baixa", status: "pendente", prazo: "2026-06-01", responsavel: "Benedita Moura" },
+    { id: "TK004", titulo: "Vistoria fundação bloco C", obra: "OB005", prioridade: "critica", status: "bloqueada", prazo: "2026-05-06", responsavel: "Pedro Alves" },
+    { id: "TK005", titulo: "Entrega chaves sala ADM", obra: "OB004", prioridade: "alta", status: "concluida", prazo: "2026-01-31", responsavel: "Maria Souza" },
+  ],
+  estoque: [
+    { id: "ES001", item: "Cimento CP-II (sc 50kg)", unidade: "sc", quantidade: 320, minimo: 100, custo: 38.5, obra: "OB001" },
+    { id: "ES002", item: "Vergalhão CA-50 10mm", unidade: "barra", quantidade: 48, minimo: 50, custo: 32.0, obra: "OB001" },
+    { id: "ES003", item: "Areia média (m³)", unidade: "m³", quantidade: 12, minimo: 5, custo: 120.0, obra: "OB002" },
+    { id: "ES004", item: "Tijolo 8 furos", unidade: "milheiro", quantidade: 3.2, minimo: 2, custo: 680.0, obra: "OB005" },
+    { id: "ES005", item: "Tinta acrílica (18L)", unidade: "lata", quantidade: 2, minimo: 5, custo: 190.0, obra: "OB001" },
+  ],
   movEstoque: [],
   compras: [],
-  financeiro: [],
+  financeiro: [
+    { id: "FN001", descricao: "Fornecedor Cimento Norte", tipo: "saida", categoria: "material", valor: 12320, data: "2026-05-02", obra: "OB001", status: "pago" },
+    { id: "FN002", descricao: "Folha de pagamento – semana 17", tipo: "saida", categoria: "mao_obra", valor: 8640, data: "2026-05-03", obra: "OB001", status: "pago" },
+    { id: "FN003", descricao: "Medição parcial cliente", tipo: "entrada", categoria: "receita", valor: 95000, data: "2026-05-01", obra: "OB002", status: "recebido" },
+    { id: "FN004", descricao: "Aluguel andaime", tipo: "saida", categoria: "equipamento", valor: 3200, data: "2026-05-04", obra: "OB005", status: "pendente" },
+    { id: "FN005", descricao: "Adiantamento mão de obra", tipo: "saida", categoria: "mao_obra", valor: 4300, data: "2026-05-04", obra: "OB001", status: "pendente" },
+  ],
   orcamento: [],
-  medicao: [],
-  almocos: [],
+  medicao: [
+    { id: "MD001", obra: "OB002", descricao: "Fundação – Fase 1", valor: 95000, data: "2026-05-01", status: "aprovada" },
+    { id: "MD002", obra: "OB001", descricao: "Estrutura – Bloco A", valor: 142000, data: "2026-04-15", status: "pendente" },
+  ],
+  almocos: [
+    { data: "2026-05-04", obra: "OB001", qtd: 14, valor_unit: 18.5, total: 259, fornecedor: "Marmita Boa" },
+    { data: "2026-05-04", obra: "OB002", qtd: 8, valor_unit: 18.5, total: 148, fornecedor: "Marmita Boa" },
+    { data: "2026-05-03", obra: "OB001", qtd: 13, valor_unit: 18.5, total: 240.5, fornecedor: "Marmita Boa" },
+  ],
 };
 
 const firebaseConfig = {
@@ -43,6 +87,7 @@ if (!firebase.apps.length) {
 
 let dbRef = null;
 let DB = JSON.parse(JSON.stringify(staticDB));
+window.DB = DB;
 let isFirstLoad = true;
 let CURRENT_TENANT_ID = null; // SaaS: Armazena o ID do tenant detectado por subdomínio
 
@@ -231,6 +276,7 @@ function _onFirebaseValue(snapshot) {
 }
 
 function processCloudUpdate() {
+  window.DB = DB;
   loadTheme();
   window.dispatchEvent(new CustomEvent('firebaseSync', { detail: DB }));
 
