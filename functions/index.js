@@ -8,9 +8,9 @@ const path = require('path');
 const os = require('os');
 
 const OPENAI_KEY = defineSecret('OPENAI_KEY');
-const TWILIO_SID = defineSecret('TWILIO_SID');
-const TWILIO_TOKEN = defineSecret('TWILIO_TOKEN');
-const TWILIO_WHATSAPP_FROM = defineSecret('TWILIO_WHATSAPP_FROM');
+const META_ACCESS_TOKEN = defineSecret('META_ACCESS_TOKEN');
+const META_PHONE_NUMBER_ID = defineSecret('META_PHONE_NUMBER_ID');
+const META_VERIFY_TOKEN = defineSecret('META_VERIFY_TOKEN');
 
 admin.initializeApp();
 
@@ -67,38 +67,66 @@ function melhorMatch(termo, lista, getFn, threshold = 0.6) {
 }
 
 exports.whatsappWebhook = onRequest({
-  secrets: [OPENAI_KEY, TWILIO_SID, TWILIO_TOKEN, TWILIO_WHATSAPP_FROM],
+  secrets: [OPENAI_KEY, META_ACCESS_TOKEN, META_PHONE_NUMBER_ID, META_VERIFY_TOKEN],
   cors: true,
   memory: '512MiB',
   timeoutSeconds: 300
 }, async (req, res) => {
-  res.status(200).type('text/xml').send('<Response></Response>');
+  if (req.method === 'GET') {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
 
-  const data = req.body || {};
-  const From = data.From || req.query.From;
-  const Body = data.Body || req.query.Body;
-  const MediaUrl0 = data.MediaUrl0 || req.query.MediaUrl0;
-  const MediaContentType0 = data.MediaContentType0 || req.query.MediaContentType0;
-  
-  let textoTarefa = Body;
-  console.log(`📡 Mensagem: ${From}`);
-  
+    if (mode === 'subscribe' && token === META_VERIFY_TOKEN.value()) {
+      console.log('✅ Webhook verificado com sucesso!');
+      return res.status(200).send(challenge);
+    } else {
+      return res.status(403).send('Token inválido');
+    }
+  }
+
+  const body = req.body || {};
+
+  if (body.object === 'whatsapp_business_account' || body.object === 'page') {
+    res.status(200).send('OK');
+    
+    if (body.entry?.[0]?.changes?.[0]?.value?.messages) {
+      const msg = body.entry[0].changes[0].value.messages[0];
+      const From = msg.from;
+      const texto = msg.text?.body || '';
+      await processarMensagem(From, texto, null);
+    } else {
+      const entry = body.entry?.[0];
+      const msg = entry?.messaging?.[0];
+      if (msg) {
+        const From = msg.sender?.id;
+        const audioUrl = msg.message?.attachments?.find(a => a.type === 'audio')?.payload?.url;
+        const texto = msg.message?.text;
+        await processarMensagem(From, texto || '', audioUrl);
+      }
+    }
+  } else {
+    res.status(404).send('Not Found');
+  }
+});
+
+async function processarMensagem(From, textoTarefa, audioUrl) {
+  console.log(`📡 Mensagem de ${From}: ${textoTarefa}`);
   if (!From) return;
 
   try {
     const openai = new OpenAI({ apiKey: OPENAI_KEY.value() });
     const db = admin.database();
     
-    const telefone = From.replace('whatsapp:', '').replace('+', '');
+    const phoneId = From;
     const usersSnap = await db.ref('users').once('value');
     const usersData = usersSnap.val();
     
     let user = null;
     let tenantId = null;
-
     for (const key in usersData) {
       const u = usersData[key];
-      if (u.telefone && String(u.telefone).replace(/\D/g, '').includes(telefone)) {
+      if (u.whatsappId && u.whatsappId === phoneId) {
         user = u;
         tenantId = u.tenantId;
         break;
@@ -106,20 +134,14 @@ exports.whatsappWebhook = onRequest({
     }
 
     if (!user || !tenantId) {
-      console.log(`⚠️ Telefone ${telefone} não autorizado.`);
-      await responderWhatsApp(From, "Número não autorizado.");
+      console.log(`⚠️ WhatsApp ID ${phoneId} não autorizado.`);
+      await responderWhatsApp(phoneId, "Número não autorizado. Fale com o administrator.");
       return;
     }
 
-    if (MediaUrl0 && (MediaContentType0.includes('audio') || MediaContentType0.includes('ogg'))) {
-      console.log('🎙️ Baixando áudio com autenticação...');
-      const response = await axios.get(MediaUrl0, { 
-        responseType: 'arraybuffer',
-        auth: {
-          username: TWILIO_SID.value(),
-          password: TWILIO_TOKEN.value()
-        }
-      });
+    if (audioUrl) {
+      console.log('🎙️ Baixando áudio...');
+      const response = await axios.get(audioUrl, { responseType: 'arraybuffer' });
       const tempFilePath = path.join(os.tmpdir(), `audio-${Date.now()}.ogg`);
       fs.writeFileSync(tempFilePath, Buffer.from(response.data));
       const transcription = await openai.audio.transcriptions.create({ file: fs.createReadStream(tempFilePath), model: "whisper-1", language: "pt" });
@@ -131,8 +153,7 @@ exports.whatsappWebhook = onRequest({
     if (!textoTarefa) return;
 
     const dataHojeBR = getHojeBR();
-
-    const prompt = `Extraia JSON: { "intencao": "lancar_ponto"|"criar_tarefa", "ponto": { "trabalhadores": [], "presenca": "Presente"|"Falta"|"Meio período", "obra_nome": "", "data": "${dataHojeBR}" }, "tarefa": { "titulo": "", "obra_nome": "" } }. Mensagem: "${textoTarefa}"`;
+    const prompt = `Extraia JSON: { "intencao": "lancar_ponto"|"criar_tarefa"|"consultar", "ponto": { "trabalhadores": [], "presenca": "Presente"|"Falta"|"Meio período", "obra_nome": "", "data": "${dataHojeBR}" }, "tarefa": { "titulo": "", "obra_nome": "" } }. Mensagem: "${textoTarefa}"`;
 
     const gptRes = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -152,24 +173,23 @@ exports.whatsappWebhook = onRequest({
       const listaAtivas = listaObras.filter(o => o && (norm(o.status) === 'ativa' || norm(o.status) === 'em andamento' || norm(o.status) === 'planejada'));
       const exata = listaAtivas.find(o => norm(o.nome) === norm(nomeOuId) || o.cod === nomeOuId || o._id === nomeOuId);
       if (exata) return exata;
-      const fuzzy = melhorMatch(nomeOuId, listaAtivas, o => o.nome, 0.4);
-      return fuzzy;
+      return melhorMatch(nomeOuId, listaAtivas, o => o.nome, 0.4);
     };
 
     if (dados.intencao === 'criar_tarefa') {
       const obraMatch = await buscarObra();
-      if (!obraMatch) { await responderWhatsApp(From, `Obra "${dados.tarefa?.obra_nome}" não encontrada.`); return; }
+      if (!obraMatch) { await responderWhatsApp(phoneId, `Obra "${dados.tarefa?.obra_nome}" não encontrada.`); return; }
       const tarefasRef = db.ref(`tenants/${tenantId}/tarefas`);
       const snapshot = await tarefasRef.once('value');
       let lista = Array.isArray(snapshot.val()) ? snapshot.val() : Object.values(snapshot.val() || {});
       const novoCod = `TF${String(lista.length + 1).padStart(3, '0')}`;
       lista.push({ cod: novoCod, obra: obraMatch.cod || obraMatch._id, desc: dados.tarefa.titulo, resp: 'Equipe', status: 'Pendente', criadoPor: user.nome, criadoEm: admin.database.ServerValue.TIMESTAMP, origem: 'WhatsApp' });
       await tarefasRef.set(lista);
-      await responderWhatsApp(From, `✅ Tarefa criada: ${dados.tarefa.titulo} na obra ${obraMatch.nome}`);
+      await responderWhatsApp(phoneId, `✅ Tarefa criada: ${dados.tarefa.titulo} na obra ${obraMatch.nome}`);
 
     } else if (dados.intencao === 'lancar_ponto') {
       const obraMatch = await buscarObra();
-      if (!obraMatch) { await responderWhatsApp(From, `Obra "${dados.ponto?.obra_nome}" não identificada.`); return; }
+      if (!obraMatch) { await responderWhatsApp(phoneId, `Obra "${dados.ponto?.obra_nome}" não identificada.`); return; }
 
       const trabSnap = await db.ref(`tenants/${tenantId}/trabalhadores`).once('value');
       const trabalhadores = trabSnap.val() || [];
@@ -199,7 +219,7 @@ exports.whatsappWebhook = onRequest({
           hnorm, hextra: 0, presenca: statusP, diaria: parseFloat(trab.diaria) || 0, total: parseFloat(total),
           pgtoStatus: 'Pendente', valpago: 0, lancador: user.nome || 'WhatsApp Bot', 
           hrLanc: new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date()), 
-          origem: 'WhatsApp', telefoneAutor: telefone, _s: statusP
+          origem: 'WhatsApp', telefoneAutor: phoneId, _s: statusP
         });
       }
 
@@ -207,14 +227,12 @@ exports.whatsappWebhook = onRequest({
         await presencaRef.transaction((current) => {
           let lista = Array.isArray(current) ? current : Object.values(current || {});
           for (const n of novos) {
-            // Busca o registro do trabalhador no dia, independente da obra para permitir ALTERAR a obra ou o status.
             const idx = lista.findIndex(p => p && p.data === n.data && p.trab === n.trab);
             const { _s, ...final } = n;
             if (idx === -1) {
               lista.push(final);
               resultados.push(`✅ ${n.nome} — ${_s}`);
             } else {
-              // Se já existe, subscreve para permitir alteração (ex: de Presente para Falta, ou troca de Obra)
               lista[idx] = { ...lista[idx], ...final };
               resultados.push(`🔄 ${n.nome} alterado para ${_s} em ${obraMatch.nome}`);
             }
@@ -223,19 +241,27 @@ exports.whatsappWebhook = onRequest({
         });
       }
       const dataFmt = formatarDataBR(dataLanc);
-      await responderWhatsApp(From, `📋 Presença — ${dataFmt}:\n${resultados.join('\n')}`);
+      await responderWhatsApp(phoneId, `📋 Presença — ${dataFmt}:\n${resultados.join('\n')}`);
     }
   } catch (err) {
     console.error('Erro:', err);
     await responderWhatsApp(From, 'Erro no servidor.');
   }
-});
+}
 
 async function responderWhatsApp(para, msg) {
-  const sid = TWILIO_SID.value();
-  const token = TWILIO_TOKEN.value();
-  let from = TWILIO_WHATSAPP_FROM.value();
-  if (from && !from.startsWith('whatsapp:')) from = `whatsapp:${from}`;
-  if (!sid || !token || !from) return;
-  try { await axios.post(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, new URLSearchParams({ To: para, From: from, Body: msg }), { auth: { username: sid, password: token } }); } catch (e) { console.error('Erro Twilio:', e.message); }
+  const accessToken = META_ACCESS_TOKEN.value();
+  const phoneNumberId = META_PHONE_NUMBER_ID.value();
+  if (!accessToken || !phoneNumberId) return;
+  try {
+    await axios.post(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+      messaging_type: "RESPONSE",
+      recipient: { id: para },
+      message: { text: msg }
+    }, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+  } catch (e) {
+    console.error('Erro Meta:', e.message);
+  }
 }
