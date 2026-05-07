@@ -1,3 +1,4 @@
+// v2.1 - Percepção inteligente de nomes e respostas formatadas
 const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require('firebase-functions/params');
@@ -148,12 +149,24 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
     }
 
     if (!user || !tenantId) {
-      // Bypass temporário para seus números de teste
-      const isTony = From.includes('92151908') || From.includes('85262006');
-      if (isTony) {
-        tenantId = 'default';
-        console.log(`✅ Bypass de autorização para o desenvolvedor: ${From}`);
-      } else {
+      const tenantsSnap = await db.ref('tenants').once('value');
+      const tenants = tenantsSnap.val() || {};
+      const phoneLimpo = phoneId.replace(/\D/g, '');
+      let encontrado = false;
+      
+      for (const [tid, tenantData] of Object.entries(tenants)) {
+        const telefonesData = tenantData?.config?.telefonesPermitidos;
+        const telefonesPermitidos = telefonesData ? [telefonesData].flat() : [];
+        const permitido = telefonesPermitidos.length > 0 && telefonesPermitidos.some(t => String(t || '').replace(/\D/g, '').includes(phoneLimpo));
+        if (permitido) {
+          tenantId = tid;
+          encontrado = true;
+          console.log(`✅ Telefone permitido: ${From} | tenantId: ${tenantId}`);
+          break;
+        }
+      }
+      
+      if (!encontrado) {
         console.log(`⚠️ WhatsApp ID ${phoneId} não autorizado.`);
         await responderWhatsApp(phoneId, "Número não autorizado. Fale com o administrator.");
         return;
@@ -212,6 +225,7 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
       if (!nomeOuId || nomeOuId === 'nao_informada') return null;
       
       const obrasSnap = await db.ref(`tenants/${tenantId}/obras`).once('value');
+      console.log(`🔍 DB path: tenants/${tenantId}/obras`);
       const obras = obrasSnap.val() || [];
       const listaObras = Array.isArray(obras) ? obras : Object.values(obras);
       
@@ -220,16 +234,22 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
         ['ativa', 'em andamento', 'planejada', 'execucao'].includes(norm(o.status))
       ));
 
+      console.log(`🔍 Debug busca obra: "${nomeOuId}" | Total: ${listaObras.length} | Ativas: ${listaAtivas.length}`);
+      console.log(`🔍 Obras ativas:`, listaAtivas.map(o => ({ nome: o.nome, cod: o.cod, status: o.status })));
+
       // 1. Busca exata (Nome, Código ou ID)
+      const buscaNorm = norm(nomeOuId);
       const exata = listaAtivas.find(o => 
-        norm(o.nome) === norm(nomeOuId) || 
-        norm(o.cod) === norm(nomeOuId) || 
+        norm(o.nome) === buscaNorm || 
+        norm(o.cod) === buscaNorm || 
         o._id === nomeOuId
       );
+      console.log(`🔍 Busca exata: "${buscaNorm}" | Encontrada:`, exata ? exata.nome : 'null');
       if (exata) return exata;
 
       // 2. Busca por contém (ex: usuário disse "Timbumba" e a obra chama "Residencial Timbumba")
-      const contem = listaAtivas.find(o => norm(o.nome).includes(norm(nomeOuId)));
+      const contem = listaAtivas.find(o => norm(o.nome).includes(buscaNorm));
+      console.log(`🔍 Busca contém: "${buscaNorm}" | Encontrada:`, contem ? contem.nome : 'null');
       if (contem) return contem;
 
       // 3. Busca por similaridade (Fuzzy) - Threshold baixo para captar erros de digitação
@@ -243,9 +263,9 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
       const snapshot = await tarefasRef.once('value');
       let lista = Array.isArray(snapshot.val()) ? snapshot.val() : Object.values(snapshot.val() || {});
       const novoCod = `TF${String(lista.length + 1).padStart(3, '0')}`;
-      lista.push({ cod: novoCod, obra: obraMatch.cod || obraMatch._id, desc: dados.tarefa.titulo, resp: 'Equipe', status: 'Pendente', criadoPor: user.nome, criadoEm: admin.database.ServerValue.TIMESTAMP, origem: 'WhatsApp' });
+      lista.push({ cod: novoCod, obra: obraMatch.cod || obraMatch._id, desc: dados.tarefa.titulo, resp: 'Equipe', status: 'Pendente', criadoPor: user?.nome || 'Desenvolvedor', criadoEm: admin.database.ServerValue.TIMESTAMP, origem: 'WhatsApp' });
       await tarefasRef.set(lista);
-      const msgSucesso = `🎯 *Tarefa Registrada!* \n\n📋 *O que:* ${dados.tarefa.titulo}\n🏗️ *Obra:* ${obraMatch.nome.trim()}\n👤 *Por:* ${user.nome}\n\nJá está no painel do sistema! ✅`;
+      const msgSucesso = `🎯 *Tarefa Registrada!* \n\n📋 *O que:* ${dados.tarefa.titulo}\n🏗️ *Obra:* ${obraMatch.nome.trim()}\n👤 *Por:* ${user?.nome || 'Desenvolvedor'}\n\nJá está no painel do sistema! ✅`;
       await responderWhatsApp(phoneId, msgSucesso);
 
     } else if (dados.intencao === 'lancar_ponto') {
@@ -343,7 +363,7 @@ async function responderWhatsApp(para, msg) {
         'Content-Type': 'application/json'
       }
     });
-    console.log(`✅ Resposta enviada com sucesso para ${para}`);
+    console.log(`✅ Resposta enviada para ${para}:`, msg.substring(0, 200));
   } catch (error) {
     console.error('❌ Erro Meta API:', error.response?.data || error.message);
     if (error.response?.data && payload) {
