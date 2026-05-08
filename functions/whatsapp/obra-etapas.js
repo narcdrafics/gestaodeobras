@@ -2,6 +2,8 @@ const ETAPAS = [
   {
     etapa: 'Terraplanagem e Fundação',
     codigo: 'FUND',
+    frente: 'Fundação',
+    prioridade: 'Alta',
     palavras: [
       'terraplana', 'terraplanagem', 'nivelar terreno', 'nivelar o terreno',
       'fundação', 'fundações', 'sapata', 'sapatas', 'blocos de fundação',
@@ -15,6 +17,8 @@ const ETAPAS = [
   {
     etapa: 'Estrutura',
     codigo: 'ESTR',
+    frente: 'Estrutura',
+    prioridade: 'Alta',
     palavras: [
       'estrutura', 'estrutural', 'concreto armado', 'concretar',
       'laje', 'lajes', 'laje maciça', 'laje nervurada', 'laje steel deck',
@@ -29,6 +33,8 @@ const ETAPAS = [
   {
     etapa: 'Alvenaria',
     codigo: 'ALVE',
+    frente: 'Alvenaria',
+    prioridade: 'Média',
     palavras: [
       'alvenaria', 'parede', 'paredes', 'muro', 'muros',
       'tijolo', 'tijolos', 'bloco', 'blocos', 'bloco cerâmico',
@@ -48,6 +54,8 @@ const ETAPAS = [
   {
     etapa: 'Cobertura',
     codigo: 'COBE',
+    frente: 'Cobertura',
+    prioridade: 'Média',
     palavras: [
       'cobertura', 'telhado', 'telha', 'telhas',
       'madeiramento', 'caibro', 'ripa', 'terça', 'cumeeira',
@@ -64,6 +72,8 @@ const ETAPAS = [
   {
     etapa: 'Hidrossanitário',
     codigo: 'HIDR',
+    frente: 'Hidrossanitário',
+    prioridade: 'Média',
     palavras: [
       'hidráulica', 'hidrossanitário', 'encanamento', 'encanar',
       'tubo', 'tubos', 'tubulação', 'cano', 'canos',
@@ -84,6 +94,8 @@ const ETAPAS = [
   {
     etapa: 'Elétrica',
     codigo: 'ELET',
+    frente: 'Elétrica',
+    prioridade: 'Média',
     palavras: [
       'elétrica', 'elétrico', 'eletricidade', 'instalação elétrica',
       'fiação', 'fio', 'fios', 'cabo', 'cabos', 'cabeamento',
@@ -102,6 +114,8 @@ const ETAPAS = [
   {
     etapa: 'Esquadrias',
     codigo: 'ESQU',
+    frente: 'Esquadrias',
+    prioridade: 'Baixa',
     palavras: [
       'esquadria', 'esquadrias', 'porta', 'portas', 'janela', 'janelas',
       'porta de madeira', 'porta de ferro', 'porta de alumínio',
@@ -117,6 +131,8 @@ const ETAPAS = [
   {
     etapa: 'Revestimento e Acabamento',
     codigo: 'ACAB',
+    frente: 'Acabamento',
+    prioridade: 'Baixa',
     palavras: [
       'acabamento', 'acabamentos', 'revestimento', 'revestimentos',
       'pintura', 'pintar', 'tinta', 'massa corrida', 'selador',
@@ -134,6 +150,8 @@ const ETAPAS = [
   {
     etapa: 'Instalações Especiais',
     codigo: 'ESPE',
+    frente: 'Instalações Especiais',
+    prioridade: 'Média',
     palavras: [
       'gás', 'instalação de gás', 'rede de gás', 'tubulação de gás',
       'aquecedor', 'aquecimento', 'boiler', 'aquecedor solar',
@@ -149,6 +167,8 @@ const ETAPAS = [
   {
     etapa: 'Urbanização e Paisagismo',
     codigo: 'URBA',
+    frente: 'Urbanização',
+    prioridade: 'Baixa',
     palavras: [
       'paisagismo', 'jardim', 'jardinagem', 'grama', 'gramado',
       'planta', 'plantas', 'árvore', 'árvores',
@@ -164,6 +184,8 @@ const ETAPAS = [
   }
 ];
 
+const PALAVRAS_URGENCIA = ['urgente', 'urgencia', 'immediately', 'agora', 'hoje', 'pra ja', 'pra ja', 'de urgncia', 'asap', 'emergencia'];
+
 function normalizar(texto) {
   return texto
     .toLowerCase()
@@ -172,6 +194,16 @@ function normalizar(texto) {
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function detectarPrioridade(texto) {
+  const textoNorm = normalizar(texto);
+  for (const palavra of PALAVRAS_URGENCIA) {
+    if (textoNorm.includes(palavra)) {
+      return 'Alta';
+    }
+  }
+  return null;
 }
 
 function detectarEtapas(texto) {
@@ -194,6 +226,8 @@ function detectarEtapas(texto) {
       resultados.push({
         etapa: etapa.etapa,
         codigo: etapa.codigo,
+        frente: etapa.frente,
+        prioridade: etapa.prioridade,
         score,
         termos: termosBatidos
       });
@@ -213,26 +247,32 @@ function extrairTarefas(texto) {
 
   for (const sentenca of sentencas) {
     const etapasDetectadas = detectarEtapas(sentenca);
+    const prioridadeUrgencia = detectarPrioridade(sentenca);
 
     if (etapasDetectadas.length > 0) {
       const melhorEtapa = etapasDetectadas[0];
+      const prioridadeFinal = prioridadeUrgencia || melhorEtapa.prioridade;
 
       tarefas.push({
         titulo: capitalize(sentenca),
         etapa: melhorEtapa.etapa,
         etapaCodigo: melhorEtapa.codigo,
-        status: 'aberta',
+        frente: melhorEtapa.frente,
+        prioridade: prioridadeFinal,
+        status: 'Pendente',
         confianca: melhorEtapa.score >= 3 ? 'alta' : 'media',
-        termosDetectados: melhorEtapa.termos,
         createdVia: 'whatsapp'
       });
     } else {
       if (sentenca.split(' ').length >= 2) {
+        const prioridadeFinal = prioridadeUrgencia || 'Média';
         tarefas.push({
           titulo: capitalize(sentenca),
           etapa: null,
           etapaCodigo: null,
-          status: 'aberta',
+          frente: null,
+          prioridade: prioridadeFinal,
+          status: 'Pendente',
           confianca: 'baixa',
           createdVia: 'whatsapp'
         });
@@ -247,4 +287,4 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
-module.exports = { detectarEtapas, extrairTarefas, ETAPAS, normalizar };
+module.exports = { detectarEtapas, extrairTarefas, ETAPAS, normalizar, detectarPrioridade };
