@@ -10,6 +10,8 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 
+const { detectarEtapas } = require('./whatsapp/obra-etapas');
+
 const OPENAI_KEY = defineSecret('OPENAI_KEY');
 const META_ACCESS_TOKEN = defineSecret('META_ACCESS_TOKEN');
 const META_PHONE_NUMBER_ID = defineSecret('META_PHONE_NUMBER_ID');
@@ -184,41 +186,84 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
       fs.unlinkSync(tempFilePath);
     }
 
-    if (!textoTarefa) return;
+if (!textoTarefa) return;
+
+    const txt = textoTarefa.trim();
+    const txtUpper = txt.toUpperCase();
+    const isTextoCurto = !audioUrl && txt.length < 200;
+    let dados = null;
+    let usarGPT = true;
+
+    if (isTextoCurto) {
+      const matchTarefa = txt.replace(/^(TAREFA| TAREFAS?)\s*-?\s*/i, '').trim();
+      const matchPonto = txt.replace(/^(PONTO|PRESENÇA|ENTRADA|SAÍDA|FALTA)\s*/i, '').trim();
+      
+      if (txt.match(/^TAREFA\b/i) && !txtUpper.includes('LISTA')) {
+        const isObra = matchTarefa.includes(' - ') ? matchTarefa.split(' - ')[0].trim() : null;
+        const titulo = isObra ? matchTarefa.split(' - ').slice(1).join(' - ').trim() : matchTarefa;
+        const etapas = detectarEtapas(titulo);
+        dados = { intencao: 'criar_tarefa', tarefa: { titulo, obra_nome: isObra }, _etapas: etapas };
+        usarGPT = false;
+      } else if (txtUpper.match(/^PONTO\s/i) || txtUpper.match(/^PRESEN/i)) {
+        const presenca = txtUpper.includes('SAÍTA') || txtUpper.includes('SAÍDA') ? 'Saída' : txtUpper.includes('FALTA') ? 'Falta' : 'Presente';
+        dados = { intencao: 'lancar_ponto', ponto: { trabalhadores: [matchPonto || 'Equipe'], presenca, obra_nome: null } };
+        usarGPT = false;
+      } else if (txtUpper === 'OI' || txtUpper === 'OLA' || txtUpper.match(/^BOM DIA/i)) {
+        dados = { intencao: 'consultar' };
+        usarGPT = false;
+      } else if (txtUpper === 'PONTO' || txtUpper === 'PRESENÇA') {
+        dados = { intencao: 'consultar_ponto' };
+        usarGPT = false;
+      } else if (txtUpper.includes('TAREFA') || txtUpper === 'LISTA' || txtUpper === 'MENU') {
+        dados = { intencao: 'consultar' };
+        usarGPT = false;
+      } else {
+        const etapas = detectarEtapas(txt);
+        if (etapas.length > 0) {
+          dados = { intencao: 'criar_tarefa', tarefa: { titulo: txt, obra_nome: null }, _etapas: etapas };
+          usarGPT = false;
+        }
+      }
+    }
 
     const dataHojeBR = getHojeBR();
-    const prompt = `Você é um assistente de gestão de obras. Extraia as informações da mensagem para o seguinte formato JSON:
-    { 
-      "intencao": "lancar_ponto" | "criar_tarefa" | "consultar", 
-      "ponto": { 
-        "trabalhadores": ["Nomes mencionados"], 
-        "presenca": "Presente" | "Falta" | "Meio período", 
-        "obra_nome": "Nome da obra mencionado (ex: Timbumba, Fachada, etc)", 
-        "data": "${dataHojeBR}" 
-      }, 
-      "tarefa": { 
-        "titulo": "Descrição clara da tarefa", 
-        "obra_nome": "Nome da obra mencionado" 
-      } 
+
+    if (!dados) {
+      const prompt = `Você é um assistente de gestão de obras. Extraia as informações da mensagem para o seguinte formato JSON:
+      { 
+        "intencao": "lancar_ponto" | "criar_tarefa" | "consultar", 
+        "ponto": { 
+          "trabalhadores": ["Nomes mencionados"], 
+          "presenca": "Presente" | "Falta" | "Meio período", 
+          "obra_nome": "Nome da obra mencionado (ex: Timbumba, Fachada, etc)", 
+          "data": "${dataHojeBR}" 
+        }, 
+        "tarefa": { 
+          "titulo": "Descrição clara da tarefa", 
+          "obra_nome": "Nome da obra mencionado" 
+        } 
+      }
+      Instruções:
+      - Se a mensagem for "Oi", "Bom dia", etc, intencao = "consultar" e retorne campos vazios.
+      - No campo "trabalhadores", se disser "toda a equipe", tente identificar se há nomes específicos ou use a frase.
+      - Seja inteligente ao extrair o nome da obra, ignore preposições como "na", "da", "em".
+      
+      Mensagem do usuário: "${textoTarefa}"`;
+
+      const gptRes = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "Você é um especialista em extração de dados JSON para construção civil. Retorne apenas o objeto JSON, sem explicações." }, 
+          { role: "user", content: prompt }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      dados = JSON.parse(gptRes.choices[0].message.content);
+      console.log(`🤖 GPT JSON:`, JSON.stringify(dados));
+    } else {
+      console.log(`🔍 Detecção local:`, JSON.stringify(dados));
     }
-    Instruções:
-    - Se a mensagem for "Oi", "Bom dia", etc, intencao = "consultar" e retorne campos vazios.
-    - No campo "trabalhadores", se disser "toda a equipe", tente identificar se há nomes específicos ou use a frase.
-    - Seja inteligente ao extrair o nome da obra, ignore preposições como "na", "da", "em".
-    
-    Mensagem do usuário: "${textoTarefa}"`;
-
-    const gptRes = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "Você é um especialista em extração de dados JSON para construção civil. Retorne apenas o objeto JSON, sem explicações." }, 
-        { role: "user", content: prompt }
-      ],
-      response_format: { type: "json_object" }
-    });
-
-    const dados = JSON.parse(gptRes.choices[0].message.content);
-    console.log(`🤖 GPT JSON:`, JSON.stringify(dados));
 
     const buscarObra = async () => {
       const nomeOuId = dados.tarefa?.obra_nome || dados.ponto?.obra_nome;
@@ -263,9 +308,27 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
       const snapshot = await tarefasRef.once('value');
       let lista = Array.isArray(snapshot.val()) ? snapshot.val() : Object.values(snapshot.val() || {});
       const novoCod = `TF${String(lista.length + 1).padStart(3, '0')}`;
-      lista.push({ cod: novoCod, obra: obraMatch.cod || obraMatch._id, desc: dados.tarefa.titulo, resp: 'Equipe', status: 'Pendente', criadoPor: user?.nome || 'Desenvolvedor', criadoEm: admin.database.ServerValue.TIMESTAMP, origem: 'WhatsApp' });
+      
+      const melhorEtapa = dados._etapas?.[0];
+      const tarefaData = { 
+        cod: novoCod, 
+        obra: obraMatch.cod || obraMatch._id, 
+        desc: dados.tarefa.titulo, 
+        etapa: melhorEtapa?.etapa || null,
+        etapaCodigo: melhorEtapa?.codigo || null,
+        frente: melhorEtapa?.frente || null,
+        prioridade: melhorEtapa?.prioridade || 'Média',
+        resp: 'Equipe', 
+        status: 'Pendente', 
+        criadoPor: user?.nome || 'WhatsApp', 
+        criadoEm: admin.database.ServerValue.TIMESTAMP, 
+        origem: 'WhatsApp' 
+      };
+      lista.push(tarefaData);
       await tarefasRef.set(lista);
-      const msgSucesso = `🎯 *Tarefa Registrada!* \n\n📋 *O que:* ${dados.tarefa.titulo}\n🏗️ *Obra:* ${obraMatch.nome.trim()}\n👤 *Por:* ${user?.nome || 'Desenvolvedor'}\n\nJá está no painel do sistema! ✅`;
+      
+      const etapaInfo = melhorEtapa ? `\n📂 ${melhorEtapa.etapa} | 🔨 ${melhorEtapa.frente} | ${melhorEtapa.prioridade}` : '';
+      const msgSucesso = `🎯 *Tarefa Registrada!* \n\n📋 *O que:* ${dados.tarefa.titulo}\n🏗️ *Obra:* ${obraMatch.nome.trim()}${etapaInfo}\n\nJá está no painel! ✅`;
       await responderWhatsApp(phoneId, msgSucesso);
 
     } else if (dados.intencao === 'lancar_ponto') {
