@@ -37,6 +37,12 @@
         ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || !newData.exists())"
       }
     },
+    "tarefas_pendentes": {
+      "$tenantId": {
+        ".read": "auth != null && root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId",
+        ".write": "auth != null && root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId"
+      }
+    },
     "rdos": {
       "$tenantId": {
         ".read": "auth != null && (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
