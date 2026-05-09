@@ -384,6 +384,9 @@ window.exportHoje = function exportHoje() {
         '.page-header div:last-child { font-size: 12px; color: #666; margin-top: 3px; }' +
         '.kpi-grid { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }' +
         '.kpi-card { border: 1px solid #ddd; padding: 10px; min-width: 120px; flex: 1; }' +
+        '.kpi-card:hover { background: var(--bg3) !important; }' +
+        '.kpi-card-ativa { border: 2px solid var(--accent) !important; background: var(--accent) !important; color: #fff; }' +
+        '.kpi-card-ativa .kpi-label, .kpi-card-ativa .kpi-val { color: #fff !important; }' +
         '.kpi-label { font-size: 11px; color: #666; text-transform: uppercase; }' +
         '.kpi-val { font-size: 20px; font-weight: bold; margin-top: 3px; }' +
         '.kpi-val.green { color: #22c55e; }' +
@@ -1379,6 +1382,8 @@ function renderCompras() {
 
 
 // ==================== FINANCEIRO ====================
+let window_finSemanaSelecionada = null;
+
 function renderFinanceiro() {
   const selMonth = document.getElementById('fin-month');
   const selYear = document.getElementById('fin-year');
@@ -1410,6 +1415,16 @@ function renderFinanceiro() {
   let allFin = summary.all || [];
   const perTotals = summary.totalsByPeriod || {};
 
+  // Aplicar filtro de semana se selecionada
+  if (window_finSemanaSelecionada && allFin.length > 0) {
+    allFin = allFin.filter(f => {
+      if (!f.data && !f.semana) return false;
+      const dt = f.semana || f.data;
+      const p = window.getSemanaPeriodo(dt, yy, mm, view);
+      return p === window_finSemanaSelecionada;
+    });
+  }
+
   // Renderização de Cards de Fluxo de Caixa (Semanal/Quinzenal)
   let sumHtml = '';
   const periods = view === 'quinzenal' ? ['1ª Quinzena', '2ª Quinzena'] : ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5'];
@@ -1418,12 +1433,21 @@ function renderFinanceiro() {
     const data = perTotals[p] || { real: 0, items: 0 };
     if (data.items === 0 && p === 'Semana 5') return; // Oculta 5ª semana se vazia
 
-    sumHtml += `<div class="kpi-card" style="border-left:4px solid var(--accent); background: var(--bg2);">
-      <div class="kpi-label" style="opacity:0.8">${p}</div>
+    const isAtiva = window_finSemanaSelecionada === p;
+    sumHtml += `<div class="kpi-card ${isAtiva ? 'kpi-card-ativa' : ''}" style="border-left:4px solid var(--accent); background: var(--bg2); cursor:pointer;" onclick="filtrarSemanaFinanceiro('${p}')">
+      <div class="kpi-label" style="opacity:0.8">${p}${isAtiva ? ' ✓' : ''}</div>
       <div class="kpi-val" style="font-size:20px; font-weight:800; margin: 4px 0;">${fmt(data.real)}</div>
       <div style="font-size:11px; color:var(--text3)">${data.items} registros</div>
     </div>`;
   });
+
+  // Adicionar botão para limpar filtro se semana estiver selecionada
+  if (window_finSemanaSelecionada) {
+    sumHtml += `<div class="kpi-card" style="border-left:4px solid var(--red); background: var(--bg2); cursor:pointer;" onclick="filtrarSemanaFinanceiro(null)">
+      <div class="kpi-label" style="opacity:0.8">🧹 Limpar Filtro</div>
+      <div class="kpi-val" style="font-size:14px;">Mostrar tudo</div>
+    </div>`;
+  }
 
   safeSetInner('fin-summary', sumHtml);
 
@@ -1539,6 +1563,31 @@ function filterFinanceiro() {
   });
 }
 window.filterFinanceiro = filterFinanceiro;
+
+// Helper para determinar semana/período de uma data
+window.getSemanaPeriodo = function(dataStr, year, month, viewType) {
+  if (!dataStr) return null;
+  
+  const [y, m, d] = dataStr.split('-').map(Number);
+  if (viewType === 'quinzenal') {
+    return d <= 15 ? '1ª Quinzena' : '2ª Quinzena';
+  }
+  
+  // Determina semana do mês (1-5)
+  const semana = Math.ceil(d / 7);
+  return `Semana ${semana}`;
+};
+
+// Função para filtrar por semana ao clicar no kpi-card
+window.filtrarSemanaFinanceiro = function(semana) {
+  if (semana === window_finSemanaSelecionada || !semana) {
+    window_finSemanaSelecionada = null;
+  } else {
+    window_finSemanaSelecionada = semana;
+  }
+  renderFinanceiro();
+  toast(window_finSemanaSelecionada ? `Filtrando: ${semana}` : 'Filtro limpo', 'info');
+};
 
 
 // ==================== EXPORT FUNCTIONS ====================
