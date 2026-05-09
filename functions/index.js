@@ -386,6 +386,8 @@ if (!textoTarefa) return;
       }
       const dataFmt = formatarDataBR(dataLanc);
       await responderWhatsApp(phoneId, `📋 Presença — ${dataFmt}:\n${resultados.join('\n')}`);
+    } else if (dados.intencao === 'consultar') {
+      await processarConsultaGeral(phoneId, tenantId, user);
     }
   } catch (err) {
     console.error('Erro:', err);
@@ -509,3 +511,28 @@ exports.dailyReport = onSchedule({
     console.error('❌ Erro ao processar relatórios diários:', error);
   }
 });
+
+async function processarConsultaGeral(para, tenantId, user) {
+  const db = admin.database();
+  const hoje = getHojeBR();
+  
+  const [obrasSnap, tarefasSnap, pontoSnap] = await Promise.all([
+    db.ref(`tenants/${tenantId}/obras`).once('value'),
+    db.ref(`tenants/${tenantId}/tarefas`).once('value'),
+    db.ref(`tenants/${tenantId}/presenca`).once('value')
+  ]);
+  
+  const obras = Object.values(obrasSnap.val() || {}).filter(o => o && ['ativa', 'em andamento', 'planejada', 'execucao'].includes(norm(o.status)));
+  const hojePonto = Object.values(pontoSnap.val() || {}).filter(p => p && p.data === hoje);
+  const tarefasAbertas = Object.values(tarefasSnap.val() || {}).filter(t => t && t.status !== 'Concluída');
+  
+  const nomeEmpresa = 'Empresa';
+  const nomeObra = obras[0]?.nome || 'Sem obra';
+  const presentes = hojePonto.filter(p => p.presenca === 'Presente').length;
+  const faltantes = hojePonto.filter(p => p.presenca === 'Falta').length;
+  const tarefasPendentes = tarefasAbertas.length;
+  
+  const msg = `👋 *Olá!* ${user?.nome || ''}\n\n📅 *${hoje}*\n\n🏗️ *${nomeObra}*\n\n👷 *Presentes:* ${presentes}\n❌ *Faltas:* ${faltantes}\n📋 *Tarefas abertas:* ${tarefasPendentes}\n\nUse:\n• *TAREFA* - listar tarefas\n• *PONTO* - lancar ponto\n• *MENU* - ver opcoes`;
+  
+  await responderWhatsApp(para, msg);
+}
