@@ -112,7 +112,7 @@ window.calcWeeklyPendingPayments = calcWeeklyPendingPayments;
 const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
   let all = [];
   const filterDate = (d) => {
-    if (!year || !month) return true;
+    if (!year || !month) return true; // Sem filtro se null
     if (!d) return false;
     const parts = d.split('-');
     return parseInt(parts[0]) === parseInt(year) && parseInt(parts[1]) === parseInt(month);

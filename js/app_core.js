@@ -919,6 +919,24 @@ async function editAlmoco(idx) {
 // ==================== PRESENÇA ====================
 let currentWeekOffset = 0;
 
+function getCurrentWeekDates() {
+  const todayObj = new Date();
+  todayObj.setHours(0, 0, 0, 0);
+  const startOfWeek = new Date(todayObj);
+  const dayOfWeek = todayObj.getDay();
+  const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  startOfWeek.setDate(todayObj.getDate() - diff + (currentWeekOffset * 7));
+  
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + i);
+    days.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'));
+  }
+  return days;
+}
+window.getCurrentWeekDates = getCurrentWeekDates;
+
 function changeWeek(offset) {
   currentWeekOffset += offset;
   renderQuadroSemanal();
@@ -1382,6 +1400,43 @@ function renderCompras() {
 
 
 // ==================== FINANCEIRO ====================
+window.toggleFinCustomDates = function() {
+  const sel = document.getElementById('fin-view-type');
+  const customDiv = document.getElementById('fin-custom-dates');
+  const standardDivs = document.querySelectorAll('.fin-standard-dates');
+  if (!sel || !customDiv) return;
+  
+  if (sel.value === 'custom') {
+    customDiv.style.display = 'flex';
+    standardDivs.forEach(d => d.style.display = 'none');
+    // Popula datas padrão se vazias
+    const iniEl = document.getElementById('fin-data-ini');
+    const fimEl = document.getElementById('fin-data-fim');
+    if (iniEl && !iniEl.value) {
+      const hoje = new Date();
+      const ini = new Date(hoje); ini.setDate(hoje.getDate() - 30);
+      iniEl.value = ini.toISOString().split('T')[0];
+    }
+    if (fimEl && !fimEl.value) {
+      fimEl.value = new Date().toISOString().split('T')[0];
+    }
+  } else {
+    customDiv.style.display = 'none';
+    standardDivs.forEach(d => d.style.display = '');
+  }
+};
+
+window.applyFinCustomPeriod = function() {
+  // Sincroniza as datas do header com os inputs de filtro da tabela
+  const iniEl = document.getElementById('fin-data-ini');
+  const fimEl = document.getElementById('fin-data-fim');
+  const tableFrom = document.getElementById('fin-table-date-from');
+  const tableTo = document.getElementById('fin-table-date-to');
+  if (iniEl && tableFrom) tableFrom.value = iniEl.value;
+  if (fimEl && tableTo) tableTo.value = fimEl.value;
+  renderFinanceiro();
+};
+
 let window_finSemanaSelecionada = null;
 
 function renderFinanceiro() {
@@ -1408,62 +1463,115 @@ function renderFinanceiro() {
   const view = selView.value;
   window.finViewType = view; // Para uso no helper do modulo
 
-  const getNome = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
-  
-  // Consolidação Filtrada por Período
-  const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, yy, mm, view) || {};
-  let allFin = summary.all || [];
-  const perTotals = summary.totalsByPeriod || {};
+  // Atualizar subtitle
+  const subtitles = { mes: 'Fluxo Mensal', custom: 'Período Personalizado' };
+  const subtitle = document.getElementById('fin-period-subtitle');
+  if (subtitle) subtitle.textContent = subtitles[view] || 'Fluxo de Caixa';
 
-  // Aplicar filtro de semana se selecionada
-  if (window_finSemanaSelecionada && allFin.length > 0) {
-    allFin = allFin.filter(f => {
-      if (!f.data && !f.semana) return false;
-      const dt = f.semana || f.data;
-      const p = window.getSemanaPeriodo(dt, yy, mm, view);
-      return p === window_finSemanaSelecionada;
+  // Filtrar por datas customizadas
+  const iniEl = document.getElementById('fin-data-ini');
+  const fimEl = document.getElementById('fin-data-fim');
+  const customIni = iniEl?.value;
+  const fimCustom = fimEl?.value;
+
+const getNome = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
+   
+  // Filtrar por datas customizadas - modo simple direto
+  let allFin = [];
+  
+  const useCustom = view === 'custom';
+  if (useCustom && customIni && fimCustom) {
+    // Modo custom: pega TODOS os lançamentos e filtra por data
+    const todos = [];
+    
+    // Manuais
+    DB.financeiro?.forEach((f, i) => {
+      if (f.data && f.data >= customIni && f.data <= fimCustom) {
+        todos.push({ source: 'fin', idx: i, ...f, real: parseFloat(f.real)||0, prev: parseFloat(f.prev)||0 });
+      }
     });
+    
+    // Presença
+    DB.presenca?.forEach((p, i) => {
+      if (p.data && p.data >= customIni && p.data <= fimCustom && (p.total||0) > 0) {
+        todos.push({ 
+          source: 'pre', idx: i, data: p.data, obra: p.obra, tipo: 'Mão de obra',
+          desc: '[Diária] ' + p.nome, forn: p.nome, real: parseFloat(p.total)||0, prev: 0,
+          status: p.pgtoStatus || 'Pendente'
+        });
+      }
+    });
+    
+    // Medições
+    DB.medicao?.forEach((m, i) => {
+      if ((m.data || m.semana) && (m.vtotal||0) > 0) {
+        const d = m.semana || m.data;
+        if (d >= customIni && d <= fimCustom) {
+          todos.push({ 
+            source: 'med', idx: i, data: d, obra: m.obra, tipo: 'Empreiteiro',
+            desc: '[Medição] ' + (m.servico||''), forn: m.equipe||'', real: parseFloat(m.vtotal)||0, prev: 0,
+            status: m.pgtoStatus || 'Pendente'
+          });
+        }
+      }
+    });
+    
+    // Almoços
+    DB.almocos?.forEach((a, i) => {
+      if (a.data && a.data >= customIni && a.data <= fimCustom && (a.vtotal||0) > 0) {
+        todos.push({ 
+          source: 'alm', idx: i, data: a.data, obra: a.obra, tipo: 'Almoço',
+          desc: '[Almoço] ' + a.empreiteiro, forn: a.empreiteiro, real: parseFloat(a.vtotal)||0, prev: 0,
+          status: 'Pendente'
+        });
+      }
+    });
+    
+    allFin = todos;
+  } else {
+    // Modo normal: usa summarizeFinance
+    const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, yy, mm, 'mes') || {};
+    allFin = summary.all || [];
   }
 
-  // Renderização de Cards de Fluxo de Caixa (Semanal/Quinzenal)
+  // Renderização simples: apenas um card com total do período
   let sumHtml = '';
-  const periods = view === 'quinzenal' ? ['1ª Quinzena', '2ª Quinzena'] : ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5'];
+  const totalPeriodo = allFin.reduce((sum, f) => sum + (f.real || 0), 0);
   
-  periods.forEach(p => {
-    const data = perTotals[p] || { real: 0, items: 0 };
-    if (data.items === 0 && p === 'Semana 5') return; // Oculta 5ª semana se vazia
-
-    const isAtiva = window_finSemanaSelecionada === p;
-    sumHtml += `<div class="kpi-card ${isAtiva ? 'kpi-card-ativa' : ''}" style="border-left:4px solid var(--accent); background: var(--bg2); cursor:pointer;" onclick="filtrarSemanaFinanceiro('${p}')">
-      <div class="kpi-label" style="opacity:0.8">${p}${isAtiva ? ' ✓' : ''}</div>
-      <div class="kpi-val" style="font-size:20px; font-weight:800; margin: 4px 0;">${fmt(data.real)}</div>
-      <div style="font-size:11px; color:var(--text3)">${data.items} registros</div>
-    </div>`;
-  });
-
-  // Adicionar botão para limpar filtro se semana estiver selecionada
-  if (window_finSemanaSelecionada) {
-    sumHtml += `<div class="kpi-card" style="border-left:4px solid var(--red); background: var(--bg2); cursor:pointer;" onclick="filtrarSemanaFinanceiro(null)">
-      <div class="kpi-label" style="opacity:0.8">🧹 Limpar Filtro</div>
-      <div class="kpi-val" style="font-size:14px;">Mostrar tudo</div>
-    </div>`;
-  }
+  const periodoLabel = view === 'custom' && customIni && fimCustom 
+    ? `${customIni} a ${fimCustom}` 
+    : `${['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][mm-1]}/${yy}`;
+  
+  sumHtml = `<div class="kpi-card" style="border-left:4px solid var(--accent); background: var(--bg2);">
+    <div class="kpi-label" style="opacity:0.8">${periodoLabel}</div>
+    <div class="kpi-val" style="font-size:24px; font-weight:800; margin: 4px 0;">${fmt(totalPeriodo)}</div>
+    <div style="font-size:11px; color:var(--text3)">${allFin.length} registros</div>
+  </div>`;
 
   safeSetInner('fin-summary', sumHtml);
 
 // Separar tabelas por tipo: custos diários, empreiteiros, almoços
-  const diarios = allFin.filter(f => f.source === 'pre');
-  const empreiteiros = allFin.filter(f => f.source === 'med');
-  const almocos = allFin.filter(f => f.source === 'alm');
+  // Lançamentos manuais (source=fin) são distribuídos pela tabela correta baseado no tipo
+  const isEmpreiteiro = (t) => ['empreiteiro', 'medição', 'medicao'].includes((t||'').toLowerCase());
+  const isAlmoco = (t) => (t||'').toLowerCase().includes('almoço') || (t||'').toLowerCase().includes('almoco');
+  const isMaterial = (t) => ['material', 'insumos', 'equipamento'].includes((t||'').toLowerCase());
+  
+  const diarios = allFin.filter(f => f.source === 'pre' || (f.source === 'fin' && !isEmpreiteiro(f.tipo) && !isAlmoco(f.tipo)));
+  const empreiteiros = allFin.filter(f => f.source === 'med' || (f.source === 'fin' && isEmpreiteiro(f.tipo)));
+  const almocos = allFin.filter(f => f.source === 'alm' || (f.source === 'fin' && isAlmoco(f.tipo)));
 
   // Tabela 1: Custos Diários (Mão de obra própria)
   let tbodyDiarios = '';
   diarios.forEach(f => {
     const diff = f.real - f.prev;
-    let editBtn = `<button class="btn btn-secondary btn-sm" onclick="editPresenca(${f.idx})" style="margin-right:8px"></button>`;
-    let delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${f.idx})">Excluir</button>`;
-    let payBtn = f.status !== 'Pago' ? `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('pre', ${f.idx})" style="margin-right:8px;background:var(--green);border-color:var(--green);" title="Pagar via PIX">💸</button>` : '';
-    tbodyDiarios += `<tr class="fin-row" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}">
+    let editBtn = f.source === 'fin' 
+      ? `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px"></button>`
+      : `<button class="btn btn-secondary btn-sm" onclick="editPresenca(${f.idx})" style="margin-right:8px"></button>`;
+    let delBtn = f.source === 'fin'
+      ? `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">Excluir</button>`
+      : `<button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${f.idx})">Excluir</button>`;
+    let payBtn = f.status !== 'Pago' ? `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('${f.source === 'fin' ? 'fin' : 'pre'}', ${f.idx})" style="margin-right:8px;background:var(--green);border-color:var(--green);" title="Pagar via PIX">💸</button>` : '';
+    tbodyDiarios += `<tr class="fin-row" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}" data-date="${f.data||''}">
       <td data-label="Data">${fmtDate(f.data)}</td>
       <td data-label="Obra">${getNome(f.obra)}</td>
       <td data-label="Etapa"><small>${f.etapa}</small></td>
@@ -1485,10 +1593,14 @@ function renderFinanceiro() {
   let tbodyEmpreiteiros = '';
   empreiteiros.forEach(f => {
     const diff = f.real - f.prev;
-    let editBtn = `<button class="btn btn-secondary btn-sm" onclick="editMedicao(${f.idx})" style="margin-right:8px"> Med.</button>`;
-    let delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${f.idx})">Excluir</button>`;
-    let payBtn = f.status !== 'Pago' ? `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('med', ${f.idx})" style="margin-right:8px;background:var(--green);border-color:var(--green);" title="Pagar via PIX">💸</button>` : '';
-    tbodyEmpreiteiros += `<tr class="fin-row" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}">
+    let editBtn = f.source === 'fin'
+      ? `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px"></button>`
+      : `<button class="btn btn-secondary btn-sm" onclick="editMedicao(${f.idx})" style="margin-right:8px"> Med.</button>`;
+    let delBtn = f.source === 'fin'
+      ? `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">Excluir</button>`
+      : `<button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${f.idx})">Excluir</button>`;
+    let payBtn = f.status !== 'Pago' ? `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('${f.source === 'fin' ? 'fin' : 'med'}', ${f.idx})" style="margin-right:8px;background:var(--green);border-color:var(--green);" title="Pagar via PIX">💸</button>` : '';
+    tbodyEmpreiteiros += `<tr class="fin-row" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}" data-date="${f.data||''}">
       <td data-label="Data">${fmtDate(f.data)}</td>
       <td data-label="Obra">${getNome(f.obra)}</td>
       <td data-label="Etapa"><small>${f.etapa}</small></td>
@@ -1510,9 +1622,13 @@ function renderFinanceiro() {
   let tbodyAlmocos = '';
   almocos.forEach(f => {
     const diff = f.real - f.prev;
-    let editBtn = `<button class="btn btn-secondary btn-sm" onclick="editAlmoco(${f.idx})" style="margin-right:8px"></button>`;
-    let delBtn = `<button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${f.idx})">Excluir</button>`;
-    tbodyAlmocos += `<tr class="fin-row" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}">
+    let editBtn = f.source === 'fin'
+      ? `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px"></button>`
+      : `<button class="btn btn-secondary btn-sm" onclick="editAlmoco(${f.idx})" style="margin-right:8px"></button>`;
+    let delBtn = f.source === 'fin'
+      ? `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">Excluir</button>`
+      : `<button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${f.idx})">Excluir</button>`;
+    tbodyAlmocos += `<tr class="fin-row" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}" data-date="${f.data||''}">
       <td data-label="Data">${fmtDate(f.data)}</td>
       <td data-label="Obra">${getNome(f.obra)}</td>
       <td data-label="Etapa"><small>${f.etapa}</small></td>
@@ -1537,12 +1653,14 @@ function renderFinanceiro() {
 }
 window.renderFinanceiro = renderFinanceiro;
 
-// Filtro combinado (tipo + status + busca) do financeiro — usa data-attributes
+// Filtro combinado (tipo + status + busca + datas) do financeiro — usa data-attributes
 function filterFinanceiro() {
   console.log('🎬 Executando filtro financeiro...');
-  const tipo   = (document.getElementById('fin-tipo-filter')?.value   || '').toLowerCase().trim();
-  const status = (document.getElementById('fin-status-filter')?.value || '').toLowerCase().trim();
-  const busca  = (document.getElementById('fin-busca')?.value         || '').toLowerCase().trim();
+  const tipo     = (document.getElementById('fin-tipo-filter')?.value   || '').toLowerCase().trim();
+  const status   = (document.getElementById('fin-status-filter')?.value || '').toLowerCase().trim();
+  const busca    = (document.getElementById('fin-busca')?.value         || '').toLowerCase().trim();
+  const dateFrom = (document.getElementById('fin-table-date-from')?.value || '').trim();
+  const dateTo   = (document.getElementById('fin-table-date-to')?.value   || '').trim();
   
   // Seleciona todas as linhas das três tabelas
   const rows = [
@@ -1551,18 +1669,37 @@ function filterFinanceiro() {
     ...document.querySelectorAll('#fin-almocos-tbody .fin-row')
   ];
 
+  let visibleCount = 0;
   rows.forEach(row => {
     const rt = (row.dataset.tipo   || '');
     const rs = (row.dataset.status || '');
-    const rb = (row.dataset.busca  || '') + ' ' + (row.innerText || '').toLowerCase();
-    const ok = (!tipo   || rt.includes(tipo))
-            && (!status || rs.includes(status))
-            && (!busca  || rb.includes(busca));
+    const rd = (row.dataset.date   || '');
+    const rb = (row.innerText || '').toLowerCase();
     
+    const matchTipo   = !tipo   || rt.includes(tipo);
+    const matchStatus = !status || rs.includes(status);
+    const matchBusca  = !busca  || rb.includes(busca);
+    const matchDateFrom = !dateFrom || rd >= dateFrom;
+    const matchDateTo   = !dateTo   || rd <= dateTo;
+    
+    const ok = matchTipo && matchStatus && matchBusca && matchDateFrom && matchDateTo;
     row.style.display = ok ? '' : 'none';
+    if (ok) visibleCount++;
   });
+  
+  console.log(`📊 Filtro: ${visibleCount}/${rows.length} linhas visíveis | tipo=${tipo||'*'} status=${status||'*'} de=${dateFrom||'*'} até=${dateTo||'*'} busca=${busca||'*'}`);
 }
 window.filterFinanceiro = filterFinanceiro;
+
+// Limpar filtro de datas da tabela
+function clearFinDateFilter() {
+  const from = document.getElementById('fin-table-date-from');
+  const to = document.getElementById('fin-table-date-to');
+  if (from) from.value = '';
+  if (to) to.value = '';
+  filterFinanceiro();
+}
+window.clearFinDateFilter = clearFinDateFilter;
 
 // Helper para determinar semana/período de uma data
 window.getSemanaPeriodo = function(dataStr, year, month, viewType) {
@@ -3168,50 +3305,142 @@ window.toggleDestinoMov = function () {
 // ==================== LOTE DE PAGAMENTO (FOLHA) ====================
 window.lotePendentes = [];
 
-window.prepareLotePgto = async function () {
-  await openModal('modal-lote');
-  const saldos = {};
-  DB.presenca.filter(p => p.pgtoStatus !== 'Pago').forEach(p => {
-    // Identificador único (idealmente código do trab, senão foca no nome base)
-    const key = p.trab || (p.nome + '-' + p.funcao);
+window.getSemanaRange = function() {
+  const days = getCurrentWeekDates();
+  return { ini: days[0], fim: days[6] };
+};
 
+window.getQuinzenaRange = function() {
+  const hoje = new Date();
+  const dia = hoje.getDate();
+  const ini = new Date(hoje);
+  const fim = new Date(hoje);
+  if (dia <= 15) {
+    ini.setDate(1);
+    fim.setDate(15);
+  } else {
+    ini.setDate(16);
+    fim.setDate(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate());
+  }
+  return { ini: ini.toISOString().split('T')[0], fim: fim.toISOString().split('T')[0] };
+};
+
+window.getMesRange = function() {
+  const hoje = new Date();
+  const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0];
+  const fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().split('T')[0];
+  return { ini, fim };
+};
+
+window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) {
+  await openModal('modal-lote');
+  
+  // Se veio de onchange do select, pegue o valor
+  const sel = document.getElementById('lote-periodo');
+  const periodoSel = periodo || (sel ? sel.value : 'semana');
+  
+  // Toggle campos de data customizada
+  const customDiv = document.getElementById('lote-custom-dates');
+  if (customDiv) {
+    customDiv.style.display = periodoSel === 'custom' ? 'flex' : 'none';
+  }
+  
+  // Determinar range de datas
+  let dataIni, dataFim;
+  if (periodoSel === 'custom') {
+    dataIni = dataIniCustom || document.getElementById('lote-data-ini')?.value;
+    dataFim = dataFimCustom || document.getElementById('lote-data-fim')?.value;
+    if (!dataIni || !dataFim) {
+      toast('Selecione as datas inicial e final.', 'error');
+      return;
+    }
+  } else {
+    const ranges = {
+      'semana': window.getSemanaRange(),
+      'quinzenal': window.getQuinzenaRange(),
+      'mes': window.getMesRange()
+    };
+    const range = ranges[periodoSel] || ranges.semana;
+    dataIni = range.ini;
+    dataFim = range.fim;
+  }
+  
+console.log('[Lote] Filtrando período:', periodoSel, dataIni, 'a', dataFim);
+  
+  // Filtrar presenças pelo período - a tabela de presença é quem manda
+  let pendentesRaw = DB.presenca.filter(p => {
+    if (p.pgtoStatus === 'Pago') return false;
+    if (!p.data) return false;
+    if (periodoSel === 'todas') return true;
+    return p.data >= dataIni && p.data <= dataFim;
+  });
+
+  const saldos = {};
+  pendentesRaw.forEach(p => {
+    const key = p.trab || (p.nome + '-' + p.funcao);
+    
     let devido = (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0);
     if (devido > 0) {
       if (!saldos[key]) {
-        saldos[key] = {
-          chave: key, nome: p.nome, funcao: p.funcao,
-          diarias: 0, valor: 0, indices: []
-        };
+        saldos[key] = { chave: key, nome: p.nome, funcao: p.funcao, diarias: 0, valor: 0, indices: [], datas: [], descontados: [] };
       }
       saldos[key].diarias += 1;
       saldos[key].valor += devido;
       saldos[key].indices.push(p);
+      saldos[key].datas.push(p.data);
+    } else {
+      // Register as descontado
+      if (!saldos[key]) {
+        saldos[key] = { chave: key, nome: p.nome, funcao: p.funcao, diarias: 0, valor: 0, indices: [], datas: [], descontados: [] };
+      }
+      saldos[key].descontados.push(p.data);
+    }
+  });
+
+  // Log dos dias descontados
+  Object.values(saldos).forEach(s => {
+    if (s.descontados?.length) {
+      console.log(`[Lote] ${s.nome}: descontado(s):`, s.descontados.join(', '));
     }
   });
 
   window.lotePendentes = Object.values(saldos).sort((a, b) => b.valor - a.valor);
+  
+  // Atualiza título do modal com período
+  const titulo = document.querySelector('#modal-lote .modal-title');
+  if (titulo) {
+    const labels = { semana: 'Esta Semana', quinzenal: 'Esta Quinzena', mes: 'Este Mês', custom: 'Período Customizado', todas: 'Todas as Pendências' };
+    titulo.textContent = `💸 Fechamento de Folha - ${labels[periodoSel] || periodoSel}`;
+  }
+  
   renderLoteTbody();
 };
 
 window.renderLoteTbody = function () {
   const tbody = document.getElementById('lote-tbody');
   if (!tbody) return;
+  
   if (lotePendentes.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;">🎉 Nenhuma diária pendente! Toda a folha já está quitada.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;">🎉 Nenhuma diária pendente! Toda a folha já está quitada.</td></tr>';
     document.getElementById('lote-total-sel').textContent = 'R$ 0,00';
     return;
   }
 
-  tbody.innerHTML = lotePendentes.map((item, i) => `<tr>
-    <td style="text-align:center"><input type="checkbox" class="ck-lote-item" value="${i}" onchange="updateLoteTotal()" style="transform:scale(1.2)"></td>
-    <td><b>${item.nome}</b> <small style="color:var(--text3)">(${item.funcao})</small></td>
-    <td style="text-align:center"><span class="badge badge-gray">${item.diarias}</span></td>
-    <td style="text-align:right">Dinheiro/Pix</td>
-    <td style="text-align:right; font-weight:bold; color:var(--red)">${fmt(item.valor)}</td>
-    <td style="text-align:center">
-      <button class="btn btn-success btn-sm" onclick="initiatePixPayment('lote', ${i})" title="Pagar via PIX" style="background:var(--green); border-color:var(--green);">💸</button>
-    </td>
-  </tr>`).join('');
+  tbody.innerHTML = lotePendentes.map((item, i) => {
+    const datasUnicas = [...new Set(item.datas)].slice(0, 3).join(', ');
+    const maisDias = item.datas.length > 3 ? ` +${item.datas.length - 3}` : '';
+    const descontados = item.descontados?.length ? `<br><small style="color:var(--orange)">⏸️ Folgas/feriados: ${item.descontados.join(', ')}</small>` : '';
+    return `<tr>
+      <td style="text-align:center"><input type="checkbox" class="ck-lote-item" value="${i}" onchange="updateLoteTotal()" style="transform:scale(1.2)"></td>
+      <td><b>${item.nome}</b> <small style="color:var(--text3)">(${item.funcao})</small><br><small style="color:var(--text2)">${datasUnicas}${maisDias}${descontados}</small></td>
+      <td style="text-align:center"><span class="badge badge-gray">${item.diarias}</span><br><small style="color:var(--text3)">dias</small></td>
+      <td style="text-align:right">Dinheiro/Pix</td>
+      <td style="text-align:right; font-weight:bold; color:var(--red)">${fmt(item.valor)}</td>
+      <td style="text-align:center">
+        <button class="btn btn-success btn-sm" onclick="initiatePixPayment('lote', ${i})" title="Pagar via PIX" style="background:var(--green); border-color:var(--green);">💸</button>
+      </td>
+    </tr>`;
+  }).join('');
 
   updateLoteTotal();
 };
@@ -3226,11 +3455,39 @@ window.updateLoteTotal = function () {
   const cks = document.querySelectorAll('.ck-lote-item:checked');
   let total = 0;
   cks.forEach(ck => {
-    const item = lotePendentes[parseInt(ck.value)];
+    const idx = parseInt(ck.value);
+    const item = lotePendentes[idx];
     if (item) total += item.valor;
   });
-  const el = document.getElementById('lote-total-sel');
-  if (el) el.textContent = fmt(total);
+  document.getElementById('lote-total-sel').textContent = fmt(total);
+};
+
+window.toggleLoteAll = function (el) {
+  const cks = document.querySelectorAll('.ck-lote-item');
+  cks.forEach(ck => ck.checked = el.checked);
+  updateLoteTotal();
+};
+
+window.changeLotePeriodoCustom = function(el) {
+  if (el.value === 'custom') {
+    document.getElementById('lote-custom-dates').style.display = 'flex';
+    const hoje = new Date();
+    const ini = new Date(hoje);
+    ini.setDate(hoje.getDate() - 7);
+    document.getElementById('lote-data-ini').value = ini.toISOString().split('T')[0];
+    document.getElementById('lote-data-fim').value = hoje.toISOString().split('T')[0];
+  } else {
+    document.getElementById('lote-custom-dates').style.display = 'none';
+    prepareLotePgto(el.value);
+  }
+};
+
+window.applyCustomLotePeriod = function() {
+  const iniEl = document.getElementById('lote-data-ini');
+  const fimEl = document.getElementById('lote-data-fim');
+  if (iniEl?.value && fimEl?.value) {
+    prepareLotePgto('custom', iniEl.value, fimEl.value);
+  }
 };
 
 window.processLotePgto = async function () {

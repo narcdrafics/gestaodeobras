@@ -5,6 +5,29 @@
 <div style="padding:15px; background:var(--bg2); border-bottom:1px solid var(--border); font-size:13px; color:var(--text2)">
    Selecione os trabalhadores que você está pagando agora. O sistema dará baixa automática e recalculará os painéis de Custo do Dashboard Baseado nas presenças da semana.
 </div>
+<div style="padding:12px; background:var(--bg3); border-bottom:1px solid var(--border); display:flex; gap:15px; align-items:center; flex-wrap:wrap;">
+  <div>
+    <label style="font-size:12px; color:var(--text3); display:block; margin-bottom:4px;">Período</label>
+    <select id="lote-periodo" onchange="changeLotePeriodoCustom(this)" style="padding:6px 10px; border-radius:4px; border:1px solid var(--border); background:var(--bg); color:var(--text);">
+      <option value="semana">Esta Semana</option>
+      <option value="quinzenal">Esta Quinzena</option>
+      <option value="mes">Este Mês</option>
+      <option value="todas">Todas as Pendências</option>
+      <option value="custom">Personalizado...</option>
+    </select>
+  </div>
+  <div id="lote-custom-dates" style="display:none;">
+    <div>
+      <label style="font-size:12px; color:var(--text3); display:block; margin-bottom:4px;">De</label>
+      <input type="date" id="lote-data-ini" style="padding:6px 10px; border-radius:4px; border:1px solid var(--border); background:var(--bg); color:var(--text);">
+    </div>
+    <div>
+      <label style="font-size:12px; color:var(--text3); display:block; margin-bottom:4px;">Até</label>
+      <input type="date" id="lote-data-fim" style="padding:6px 10px; border-radius:4px; border:1px solid var(--border); background:var(--bg); color:var(--text);">
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="applyCustomLotePeriod()" style="margin-top:18px;">Aplicar</button>
+  </div>
+</div>
 <div class="table-wrap" style="max-height: 400px; overflow-y: auto;">
   <table style="margin:0;">
     <thead>
@@ -12,7 +35,7 @@
         <th style="width:40px;text-align:center"><input type="checkbox" id="ck-lote-all" onchange="toggleLoteAll(this)" style="transform:scale(1.2)"></th>
         <th>Trabalhador</th>
         <th>Qtd. Diárias</th>
-        <th style="text-align:right">Forma Recomendada</th>
+        <th style="text-align:right">Forma</th>
         <th style="text-align:right">Valor Devido</th>
         <th style="width:60px;text-align:center">Ações</th>
       </tr>
