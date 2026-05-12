@@ -362,6 +362,26 @@ function renderHoje(targetDate) {
     obrasTbody.innerHTML = rows;
   }
 
+  // Medições Pendentes
+  const medicoesTbody = document.getElementById('hoje-medicoes-tbody');
+  if (medicoesTbody) {
+    const medicoes = [];
+    custosMedicoes.pendente.forEach(m => {
+      const total = parseFloat(m.vtotal) || 0;
+      const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
+      medicoes.push({ tipo: 'Medição', desc: m.servico, obra: m.obra, valor: Math.max(0, total - pago), status: m.pgtoStatus });
+    });
+    medicoesTbody.innerHTML = medicoes.length
+      ? medicoes.map(m => `<tr>
+          <td data-label="Tipo">${m.tipo}</td>
+          <td data-label="Descrição">${m.desc}</td>
+          <td data-label="Obra">${window.obName(m.obra)}</td>
+          <td data-label="Valor"><b>${fmt(m.valor)}</b></td>
+          <td data-label="Status">${m.status}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma medição pendente</td></tr>';
+  }
+
   const pendentesTbody = document.getElementById('hoje-pendentes-tbody');
   
   // Nova tabela: Presença por Funcionário (TODOS os registros do dia)
