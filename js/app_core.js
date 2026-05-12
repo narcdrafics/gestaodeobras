@@ -3788,11 +3788,20 @@ async function editCompra(idx) {
 }
 
 async function saveFinanceiro() {
-
-  const prev = parseFloat(document.getElementById('fn-prev').value) || 0;
-  const real = parseFloat(document.getElementById('fn-real').value) || 0;
-  const status = document.getElementById('fn-status').value;
-  let valpago = parseFloat(document.getElementById('fn-valpago').value) || 0;
+  const prevEl = document.getElementById('fn-prev');
+  const realEl = document.getElementById('fn-real');
+  const statusEl = document.getElementById('fn-status');
+  const valpagoEl = document.getElementById('fn-valpago');
+  
+  if (!prevEl || !realEl || !statusEl || !valpagoEl) {
+    toast('Erro: Elementos do formulário não encontrados!', 'error');
+    return;
+  }
+  
+  const prev = parseFloat(prevEl.value) || 0;
+  const real = parseFloat(realEl.value) || 0;
+  const status = statusEl.value;
+  let valpago = parseFloat(valpagoEl.value) || 0;
 
   // Regras de integridade para valpago:
   // - Status "Pago": valpago deve ser o valor total (real > 0 ? real : prev)
