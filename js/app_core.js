@@ -4,7 +4,130 @@ let currentEditIdx = -1; // Global variable to identify if we are creating new (
 
 // ==================== SYSTEM GLOBALS (ANTI-REFERENCE ERROR) ====================
 // Cria 'stubs' para evitar que saves de uma página "crachem" tentando dar reload em UI de outra página
-window.renderDashboard = window.renderDashboard || function () { };
+window.renderDashboard = window.renderDashboard || function () {
+  const hoje = new Date().toISOString().split('T')[0];
+  const obras = DB.obras || [];
+  const trabalhadores = DB.trabalhadores || [];
+  
+  // Presença hoje
+  const allPresencaHoje = (DB.presenca || []).filter(p => p.data === hoje);
+  const presentes = allPresencaHoje.filter(p => p.presenca === 'Presente').length;
+  const faltas = allPresencaHoje.filter(p => p.presenca === 'Falta').length;
+  
+  // Custo diárias hoje
+  let custoTotal = 0;
+  allPresencaHoje.forEach(p => {
+    if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
+      const worker = trabalhadores.find(t => t.cod === p.trab);
+      const diaria = worker ? (parseFloat(worker.diaria) || 0) : 0;
+      const hnorm = parseFloat(p.hnorm) || 0;
+      const hextra = parseFloat(p.hextra) || 0;
+      const valorHora = hnorm > 0 ? diaria / hnorm : 0;
+      const total = hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : (p.presenca === 'Meio período' ? diaria / 2 : 0);
+      custoTotal += total;
+    }
+  });
+  
+  // KPIs
+  const kpiGrid = document.getElementById('kpi-grid');
+  if (kpiGrid) {
+    kpiGrid.innerHTML = `
+      <div class="kpi-card"><div class="kpi-label">Presentes</div><div class="kpi-val green">${presentes}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Faltas</div><div class="kpi-val ${faltas > 0 ? 'red' : 'green'}">${faltas}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obras.filter(o => o.status === 'Em andamento').length}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Diárias Hoje</div><div class="kpi-val blue">${fmt(custoTotal)}</div></div>
+    `;
+  }
+  
+  // Alertas
+  const alerts = [];
+  (DB.tarefas || []).filter(t => t.prazo === hoje && t.status !== 'Concluída').forEach(t => {
+    alerts.push({ tipo: 'TAREFA HOJE', obra: window.obName(t.obra), desc: t.desc, prior: 'alto' });
+  });
+  (DB.compras || []).filter(c => c.status === 'Aguardando').forEach(c => {
+    alerts.push({ tipo: 'COMPRA PENDENTE', obra: window.obName(c.obra), desc: c.mat, prior: 'medio' });
+  });
+  
+  const alertsGrid = document.getElementById('alerts-grid');
+  if (alertsGrid) {
+    alertsGrid.innerHTML = alerts.length
+      ? alerts.map(a => `<div class="alert-card ${a.prior}"><div class="alert-body"><h4>${a.tipo}</h4><p><b>${a.obra}</b> — ${a.desc}</p></div></div>`).join('')
+      : '<div style="color:var(--text3);font-size:13px;padding:8px">Nenhuma pendência hoje.</div>';
+  }
+  
+  // Resumo por Obra
+  const dashObrasTbody = document.getElementById('dash-obras-tbody');
+  if (dashObrasTbody) {
+    let rows = '';
+    obras.forEach(o => {
+      const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
+      const pres = pObra.filter(p => p.presenca === 'Presente').length;
+      const fal = pObra.filter(p => p.presenca === 'Falta').length;
+      
+      // Custo semanal (últimos 7 dias)
+      const semanaAgo = new Date();
+      semanaAgo.setDate(semanaAgo.getDate() - 7);
+      const semData = semanaAgo.toISOString().split('T')[0];
+      const presSemana = (DB.presenca || []).filter(p => p.obra === o.cod && p.data >= semData && p.data <= hoje);
+      let custoSem = 0;
+      presSemana.forEach(p => {
+        if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
+          const worker = trabalhadores.find(t => t.cod === p.trab);
+          const diaria = worker ? (parseFloat(worker.diaria) || 0) : 0;
+          const hnorm = parseFloat(p.hnorm) || 0;
+          const hextra = parseFloat(p.hextra) || 0;
+          const valorHora = hnorm > 0 ? diaria / hnorm : 0;
+          custoSem += hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
+        }
+      });
+      
+      // Custo mensal
+      const mesAgo = new Date();
+      mesAgo.setDate(mesAgo.getDate() - 30);
+      const mesData = mesAgo.toISOString().split('T')[0];
+      const presMes = (DB.presenca || []).filter(p => p.obra === o.cod && p.data >= mesData && p.data <= hoje);
+      let custoMes = 0;
+      presMes.forEach(p => {
+        if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
+          const worker = trabalhadores.find(t => t.cod === p.trab);
+          const diaria = worker ? (parseFloat(worker.diaria) || 0) : 0;
+          const hnorm = parseFloat(p.hnorm) || 0;
+          const hextra = parseFloat(p.hextra) || 0;
+          const valorHora = hnorm > 0 ? diaria / hnorm : 0;
+          custoMes += hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
+        }
+      });
+      
+      // Total real (orçamento)
+      const fReal = (DB.financeiro || []).filter(f => f.obra === o.cod).reduce((a, f) => a + (Number(f.real) || 0), 0);
+      const pctCusto = o.orc > 0 ? (fReal / o.orc * 100).toFixed(1) : 0;
+      
+      // Tarefas
+      const tarefasObra = (DB.tarefas || []).filter(t => t.obra === o.cod);
+      const tarefasConcluidas = tarefasObra.filter(t => t.status === 'Concluída').length;
+      
+      rows += `<tr>
+        <td data-label="Obra"><b>${o.nome}</b></td>
+        <td data-label="Status">${statusBadge(o.status)}</td>
+        <td data-label="Mestre">${o.mestre || '-'}</td>
+        <td data-label="Orç. Prev.">${fmt(o.orc)}</td>
+        <td data-label="Diárias (Sem.)" style="color:var(--blue)">${pres}</td>
+        <td data-label="Custo Sem.">${fmt(custoSem)}</td>
+        <td data-label="Custo Mês">${fmt(custoMes)}</td>
+        <td data-label="Total Real."><b>${fmt(fReal)}</b></td>
+        <td data-label="% Custo" style="color:${pctCusto > 100 ? 'var(--red)' : pctCusto > 80 ? 'var(--orange)' : 'var(--green)'}">${pctCusto}%</td>
+        <td data-label="Tarefas">${tarefasConcluidas}/${tarefasObra.length}</td>
+      </tr>`;
+    });
+    dashObrasTbody.innerHTML = rows || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma obra encontrada</td></tr>';
+  }
+  
+  // Update timestamp
+  const dashUpdated = document.getElementById('dash-updated');
+  if (dashUpdated) {
+    dashUpdated.textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+  }
+};
 window.renderObras = window.renderObras || function () { };
 window.renderTrabalhadores = window.renderTrabalhadores || function () { };
 
@@ -73,6 +196,14 @@ async function carregarHTML(caminho) {
     console.error('Falha ao buscar:', caminho, err);
     return `<div style="padding: 20px; color: var(--red)">Erro ao carregar o componente: ${caminho}</div>`;
   }
+}
+
+function toggleGroup(cls, icn) {
+  const items = document.querySelectorAll('.' + cls);
+  const isOpen = items[0]?.style.display !== 'none';
+  items.forEach(item => item.style.display = isOpen ? 'none' : 'block');
+  const icon = document.getElementById(icn);
+  if (icon) icon.textContent = isOpen ? '▶' : '▼';
 }
 
 async function showPage(id) {
@@ -410,130 +541,98 @@ window.exportHoje = function exportHoje() {
      });
    }
    
-   medicoesPendentesTbody = medicoesPendentes.length
-     ? medicoesPendentes.map(m => `<tr>
-         <td data-label="Tipo">${m.tipo}</td>
-         <td data-label="Descrição">${m.desc}</td>
-         <td data-label="Obra">${window.obName(m.obra)}</td>
-         <td data-label="Valor"><b>${fmt(m.valor)}</b></td>
-         <td data-label="Status">${m.status}</td>
-       </tr>`).join('')
-     : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma medição pendente</td></tr>';
-   
-   // Build pendentes table for print (financeiro + diarias)
-   let pendentesPrintTbody = '';
-   const pendentesPrint = [];
-   
-   // Add diarias pendentes
-   if (custosDiariasHoje && custosDiariasHoje.pendente) {
-     custosDiariasHoje.pendente.forEach(p => {
-       const total = parseFloat(p.total) || 0;
-       const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
-       pendentesPrint.push({ 
-         tipo: 'Diária', 
-         desc: p.nome, 
-         obra: p.obra, 
-         valor: Math.max(0, total - pago), 
-         status: p.pgtoStatus 
-       });
-     });
-   }
-   
-   // Add financeiro pendentes
-   if (custosFinanceiro && custosFinanceiro.pendente) {
-     custosFinanceiro.pendente.forEach(f => {
-       const total = Number(f.real) || Number(f.prev) || 0;
-       const pago = f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0;
-       pendentesPrint.push({ 
-         tipo: 'Financeiro', 
-         desc: f.desc, 
-         obra: f.obra, 
-         valor: Math.max(0, total - pago), 
-         status: f.status 
-       });
-     });
-   }
-   
-   pendentesPrintTbody = pendentesPrint.length
-     ? pendentesPrint.map(p => `<tr>
-         <td data-label="Tipo">${p.tipo}</td>
-         <td data-label="Descrição">${p.desc}</td>
-         <td data-label="Obra">${window.obName(p.obra)}</td>
-         <td data-label="Valor"><b>${fmt(p.valor)}</b></td>
-         <td data-label="Status">${p.status}</td>
-       </tr>`).join('')
-     : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum pagamento pendente</td></tr>';
-   
-   const printContent = '<html>' +
-     '<head>' +
-       '<title>Relatório do Dia - Obra Real</title>' +
-       '<meta charset="utf-8">' +
-       '<style>' +
-         'body { font-family: Arial, sans-serif; margin: 10px; color: #333; font-size: 13px; }' +
-         '.page-header { margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 8px; }' +
-         '.page-title { font-size: 20px; font-weight: bold; margin: 0; }' +
-         '.page-header div:last-child { font-size: 12px; color: #666; margin-top: 3px; }' +
-         '.kpi-grid { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }' +
-         '.kpi-card { border: 1px solid #ddd; padding: 10px; min-width: 120px; flex: 1; }' +
-         '.kpi-card:hover { background: var(--bg3) !important; }' +
-         '.kpi-card-ativa { border: 2px solid var(--accent) !important; background: var(--accent) !important; color: #fff; }' +
-         '.kpi-card-ativa .kpi-label, .kpi-card-ativa .kpi-val { color: #fff !important; }' +
-         '.kpi-label { font-size: 11px; color: #666; text-transform: uppercase; }' +
-         '.kpi-val { font-size: 20px; font-weight: bold; margin-top: 3px; }' +
-         '.kpi-val.green { color: #22c55e; }' +
-         '.kpi-val.red { color: #ef4444; }' +
-         '.kpi-val.yellow { color: #eab308; }' +
-         '.kpi-val.blue { color: #3b82f6; }' +
-         '.section-title { margin-top: 10px; font-size: 16px; font-weight: bold; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }' +
-         '.alerts-grid { margin: 10px 0; }' +
-         '.alert-card { border: 1px solid #ddd; padding: 8px; margin-bottom: 5px; border-left: 3px solid #f59e0b; }' +
-         '.alert-card.alto { border-left-color: #ef4444; }' +
-         '.alert-card.medio { border-left-color: #f59e0b; }' +
-         '.alert-body h4 { margin: 0 0 3px 0; font-size: 13px; }' +
-         '.alert-body p { margin: 0; font-size: 12px; color: #666; }' +
-         '.table-wrap { margin: 10px 0; }' +
-         'table { width: 100%; border-collapse: collapse; }' +
-         'th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }' +
-         'th { background-color: #f5f5f5; font-weight: bold; font-size: 12px; }' +
-         'td { font-size: 12px; }' +
-         '@media print {' +
-           'body { margin: 10px; }' +
-           '.kpi-grid { page-break-inside: avoid; }' +
-           'table { page-break-inside: avoid; }' +
-           '* { margin: 0; padding: 0; }' +
-         '}' +
-       '</style>' +
-     '</head>' +
-     '<body>' +
-       '<div class="page-header">' +
-         '<div class="page-title">Relatório do Dia - Obra Real</div>' +
-         '<div>' + hojeData + '</div>' +
-       '</div>' +
-       '<div class="kpi-grid">' + kpiGrid + '</div>' +
-       '<div class="section-title">⚠️ Pendências do Dia</div>' +
-       '<div class="alerts-grid">' + alertsGrid + '</div>' +
-       '<div class="section-title" style="margin-top:10px">👷 Presença por Obra</div>' +
-       '<div class="table-wrap" style="margin-top:5px"><table>' +
-         '<thead><tr><th>Obra</th><th>Presentes</th><th>Faltas</th><th>Total</th><th>Valor Diárias</th></tr></thead>' +
-         '<tbody>' + obrasTbody + '</tbody>' +
-       '</table></div>' +
-       '<div class="section-title" style="margin-top:10px">👷 Presença por Funcionário</div>' +
-       '<div class="table-wrap" style="margin-top:5px"><table>' +
-         '<thead><tr><th>Funcionário</th><th>Função</th><th>Obra</th><th>Status</th><th>Horas</th><th>Valor</th></tr></thead>' +
-         '<tbody>' + funcionariosTbody + '</tbody>' +
-       '</table></div>' +
-       '<div class="section-title" style="margin-top:10px">📋 Mediçōes Pendentes</div>' +
-       '<div class="table-wrap"><table>' +
-         '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor Pendente</th><th>Status</th></tr></thead>' +
-         '<tbody>' + medicoesPendentesTbody + '</tbody>' +
-       '</table></div>' +
-       '<div class="section-title" style="margin-top:10px">💰 Pagamentos Pendentes</div>' +
-       '<div class="table-wrap"><table>' +
-         '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor</th><th>Status</th></tr></thead>' +
-         '<tbody>' + pendentesPrintTbody + '</tbody>' +
-       '</table></div>' +
-     '</body>' +
-   '</html>';
+    medicoesPendentesTbody = medicoesPendentes.length
+      ? medicoesPendentes.map(m => `<tr>
+          <td data-label="Tipo">${m.tipo}</td>
+          <td data-label="Descrição">${m.desc}</td>
+          <td data-label="Obra">${window.obName(m.obra)}</td>
+          <td data-label="Valor"><b>${fmt(m.valor)}</b></td>
+          <td data-label="Status">${m.status}</td>
+        </tr>`).join('')
+: '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma medição pendente</td></tr>';
+    
+    // Build pending payments table for print
+    const financeiroPendentes = (DB.financeiro || []).filter(f => f.status !== 'Pago' && f.status !== 'Quitado');
+    let pendentesPrintTbody = financeiroPendentes.length
+      ? financeiroPendentes.map(f => `<tr>
+          <td data-label="Tipo">${f.tipo || '-'}</td>
+          <td data-label="Descrição">${f.desc || '-'}</td>
+          <td data-label="Obra">${window.obName(f.obra)}</td>
+          <td data-label="Valor"><b>${fmt(f.real)}</b></td>
+          <td data-label="Status">${f.status}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum pagamento pendente</td></tr>';
+     
+     const printContent = '<html>' +
+      '<head>' +
+        '<title>Relatório do Dia - Obra Real</title>' +
+        '<meta charset="utf-8">' +
+        '<style>' +
+          'body { font-family: Arial, sans-serif; margin: 10px; color: #333; font-size: 13px; }' +
+          '.page-header { margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 8px; }' +
+          '.page-title { font-size: 20px; font-weight: bold; margin: 0; }' +
+          '.page-header div:last-child { font-size: 12px; color: #666; margin-top: 3px; }' +
+          '.kpi-grid { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }' +
+          '.kpi-card { border: 1px solid #ddd; padding: 10px; min-width: 120px; flex: 1; }' +
+          '.kpi-card:hover { background: var(--bg3) !important; }' +
+          '.kpi-card-ativa { border: 2px solid var(--accent) !important; background: var(--accent) !important; color: #fff; }' +
+          '.kpi-card-ativa .kpi-label, .kpi-card-ativa .kpi-val { color: #fff !important; }' +
+          '.kpi-label { font-size: 11px; color: #666; text-transform: uppercase; }' +
+          '.kpi-val { font-size: 20px; font-weight: bold; margin-top: 3px; }' +
+          '.kpi-val.green { color: #22c55e; }' +
+          '.kpi-val.red { color: #ef4444; }' +
+          '.kpi-val.yellow { color: #eab308; }' +
+          '.kpi-val.blue { color: #3b82f6; }' +
+          '.section-title { margin-top: 10px; font-size: 16px; font-weight: bold; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }' +
+          '.alerts-grid { margin: 10px 0; }' +
+          '.alert-card { border: 1px solid #ddd; padding: 8px; margin-bottom: 5px; border-left: 3px solid #f59e0b; }' +
+          '.alert-card.alto { border-left-color: #ef4444; }' +
+          '.alert-card.medio { border-left-color: #f59e0b; }' +
+          '.alert-body h4 { margin: 0 0 3px 0; font-size: 13px; }' +
+          '.alert-body p { margin: 0; font-size: 12px; color: #666; }' +
+          '.table-wrap { margin: 10px 0; }' +
+          'table { width: 100%; border-collapse: collapse; }' +
+          'th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }' +
+          'th { background-color: #f5f5f5; font-weight: bold; font-size: 12px; }' +
+          'td { font-size: 12px; }' +
+          '@media print {' +
+            'body { margin: 10px; }' +
+            '.kpi-grid { page-break-inside: avoid; }' +
+            'table { page-break-inside: avoid; }' +
+            '* { margin: 0; padding: 0; }' +
+          '}' +
+        '</style>' +
+      '</head>' +
+      '<body>' +
+        '<div class="page-header">' +
+          '<div class="page-title">Relatório do Dia - Obra Real</div>' +
+          '<div>' + hojeData + '</div>' +
+        '</div>' +
+        '<div class="kpi-grid">' + kpiGrid + '</div>' +
+        '<div class="section-title">⚠️ Pendências do Dia</div>' +
+        '<div class="alerts-grid">' + alertsGrid + '</div>' +
+        '<div class="section-title" style="margin-top:10px">👷 Presença por Obra</div>' +
+        '<div class="table-wrap" style="margin-top:5px"><table>' +
+          '<thead><tr><th>Obra</th><th>Presentes</th><th>Faltas</th><th>Total</th><th>Valor Diárias</th></tr></thead>' +
+          '<tbody>' + obrasTbody + '</tbody>' +
+        '</table></div>' +
+        '<div class="section-title" style="margin-top:10px">👷 Presença por Funcionário</div>' +
+        '<div class="table-wrap" style="margin-top:5px"><table>' +
+          '<thead><tr><th>Funcionário</th><th>Função</th><th>Obra</th><th>Status</th><th>Horas</th><th>Valor</th></tr></thead>' +
+          '<tbody>' + funcionariosTbody + '</tbody>' +
+        '</table></div>' +
+        '<div class="section-title" style="margin-top:10px">📋 Mediçōes Pendentes</div>' +
+        '<div class="table-wrap"><table>' +
+          '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor Pendente</th><th>Status</th></tr></thead>' +
+          '<tbody>' + medicoesPendentesTbody + '</tbody>' +
+        '</table></div>' +
+        '<div class="section-title" style="margin-top:10px">💰 Pagamentos Pendentes</div>' +
+        '<div class="table-wrap"><table>' +
+          '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor</th><th>Status</th></tr></thead>' +
+          '<tbody>' + pendentesPrintTbody + '</tbody>' +
+        '</table></div>' +
+      '</body>' +
+    '</html>';
    
    // Open print window
    const printWindow = window.open('', '_blank');
@@ -551,290 +650,7 @@ window.exportHoje = function exportHoje() {
          printWindow.print();
        }
      }, 1000);
-   };
- }
-   
-   medicoesPendentesTbody = medicoesPendentes.length
-     ? medicoesPendentes.map(m => `<tr>
-         <td data-label="Tipo">${m.tipo}</td>
-         <td data-label="Descrição">${m.desc}</td>
-         <td data-label="Obra">${window.obName(m.obra)}</td>
-         <td data-label="Valor"><b>${fmt(m.valor)}</b></td>
-         <td data-label="Status">${m.status}</td>
-       </tr>`).join('')
-     : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma medição pendente</td></tr>';
-   
-   const printContent = '<html>' +
-     '<head>' +
-       '<title>Relatório do Dia - Obra Real</title>' +
-       '<meta charset="utf-8">' +
-       '<style>' +
-         'body { font-family: Arial, sans-serif; margin: 10px; color: #333; font-size: 13px; }' +
-         '.page-header { margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 8px; }' +
-         '.page-title { font-size: 20px; font-weight: bold; margin: 0; }' +
-         '.page-header div:last-child { font-size: 12px; color: #666; margin-top: 3px; }' +
-         '.kpi-grid { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }' +
-         '.kpi-card { border: 1px solid #ddd; padding: 10px; min-width: 120px; flex: 1; }' +
-         '.kpi-card:hover { background: var(--bg3) !important; }' +
-         '.kpi-card-ativa { border: 2px solid var(--accent) !important; background: var(--accent) !important; color: #fff; }' +
-         '.kpi-card-ativa .kpi-label, .kpi-card-ativa .kpi-val { color: #fff !important; }' +
-         '.kpi-label { font-size: 11px; color: #666; text-transform: uppercase; }' +
-         '.kpi-val { font-size: 20px; font-weight: bold; margin-top: 3px; }' +
-         '.kpi-val.green { color: #22c55e; }' +
-         '.kpi-val.red { color: #ef4444; }' +
-         '.kpi-val.yellow { color: #eab308; }' +
-         '.kpi-val.blue { color: #3b82f6; }' +
-         '.section-title { margin-top: 10px; font-size: 16px; font-weight: bold; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }' +
-         '.alerts-grid { margin: 10px 0; }' +
-         '.alert-card { border: 1px solid #ddd; padding: 8px; margin-bottom: 5px; border-left: 3px solid #f59e0b; }' +
-         '.alert-card.alto { border-left-color: #ef4444; }' +
-         '.alert-card.medio { border-left-color: #f59e0b; }' +
-         '.alert-body h4 { margin: 0 0 3px 0; font-size: 13px; }' +
-         '.alert-body p { margin: 0; font-size: 12px; color: #666; }' +
-         '.table-wrap { margin: 10px 0; }' +
-         'table { width: 100%; border-collapse: collapse; }' +
-         'th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }' +
-         'th { background-color: #f5f5f5; font-weight: bold; font-size: 12px; }' +
-         'td { font-size: 12px; }' +
-         '@media print {' +
-           'body { margin: 10px; }' +
-           '.kpi-grid { page-break-inside: avoid; }' +
-           'table { page-break-inside: avoid; }' +
-           '* { margin: 0; padding: 0; }' +
-         '}' +
-       '</style>' +
-     '</head>' +
-     '<body>' +
-       '<div class="page-header">' +
-         '<div class="page-title">Relatório do Dia - Obra Real</div>' +
-         '<div>' + hojeData + '</div>' +
-       '</div>' +
-       '<div class="kpi-grid">' + kpiGrid + '</div>' +
-       '<div class="section-title">⚠️ Pendências do Dia</div>' +
-       '<div class="alerts-grid">' + alertsGrid + '</div>' +
-       '<div class="section-title" style="margin-top:10px">👷 Presença por Obra</div>' +
-       '<div class="table-wrap" style="margin-top:5px"><table>' +
-         '<thead><tr><th>Obra</th><th>Presentes</th><th>Faltas</th><th>Total</th><th>Valor Diárias</th></tr></thead>' +
-         '<tbody>' + obrasTbody + '</tbody>' +
-       '</table></div>' +
-       '<div class="section-title" style="margin-top:10px">👷 Presença por Funcionário</div>' +
-       '<div class="table-wrap" style="margin-top:5px"><table>' +
-         '<thead><tr><th>Funcionário</th><th>Função</th><th>Obra</th><th>Status</th><th>Horas</th><th>Valor</th></tr></thead>' +
-         '<tbody>' + funcionariosTbody + '</tbody>' +
-       '</table></div>' +
-       '<div class="section-title" style="margin-top:10px">📋 Mediçōes Pendentes</div>' +
-       '<div class="table-wrap"><table>' +
-         '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor Pendente</th><th>Status</th></tr></thead>' +
-         '<tbody>' + medicoesPendentesTbody + '</tbody>' +
-       '</table></div>' +
-       '<div class="section-title" style="margin-top:10px">💰 Pagamentos Pendentes</div>' +
-       '<div class="table-wrap"><table>' +
-         '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor</th><th>Status</th></tr></thead>' +
-         '<tbody>' + pendentesTbody + '</tbody>' +
-       '</table></div>' +
-     '</body>' +
-   '</html>';
-  
-  // Open print window
-  const printWindow = window.open('', '_blank');
-  printWindow.document.write(printContent);
-  printWindow.document.close();
-  printWindow.focus();
-  
-  // Wait for content to load then print
-  printWindow.onload = function() {
-    printWindow.print();
-    
-    // Also offer to save as PDF
-    setTimeout(() => {
-      if (confirm('Deseja salvar como PDF para enviar pelo WhatsApp?')) {
-        printWindow.print();
-      }
-    }, 1000);
-  };
-}
-
-// ==================== DASHBOARD ====================
-function renderDashboard() {
-  try {
-    const kpiGrid = document.getElementById('kpi-grid');
-    
-    // Calculate date ranges for weekly/monthly filtering
-    const todayDate = new Date();
-    const fSemana = new Date(todayDate);
-    const dayOfWeek = todayDate.getDay();
-    const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo vira 6, segunda vira 0, etc.
-    fSemana.setDate(todayDate.getDate() - diff);
-    const strSemana = fSemana.toISOString().split('T')[0];
-    
-    const fMes = new Date(todayDate);
-    fMes.setDate(1); // First day of current month
-    const strMes = fMes.toISOString().split('T')[0];
-
-    const obrasAtivas = (DB.obras || []).filter(o => o && ['Em andamento', 'Planejada'].includes(o.status)).length;
-    const tarefasAtrasadas = (DB.tarefas || []).filter(t => t && t.status === 'Atrasada').length;
-    const estoquesBaixos = (DB.estoque || []).filter(e => e && ['BAIXO', 'CRÍTICO'].includes(window.estoqueStatus(e))).length;
-    const comprasAguardando = (DB.compras || []).filter(c => c && c.status === 'Aguardando').length;
-    const totalPrev = (DB.financeiro || []).reduce((a, f) => a + (f?.prev || 0), 0);
-
-// Unificação Rápida Financeira Global do Dashboard (Apenas Pendentes subtraindo Parcial)
-    const globalFinance = [];
-    (DB.financeiro || []).forEach(f => { if (f && f.status !== 'Pago') globalFinance.push({ obra: f.obra, data: f.data, v: Math.max(0, (parseFloat(f.real) || parseFloat(f.prev) || 0) - (f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0)) }) });
-    (DB.presenca || []).forEach(p => { if (p && p.pgtoStatus !== 'Pago') globalFinance.push({ obra: p.obra, data: p.data, v: Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)) }) });
-    (DB.medicao || []).forEach(m => { if (m && m.pgtoStatus !== 'Pago') globalFinance.push({ obra: m.obra, data: m.semana, v: Math.max(0, (parseFloat(m.vtotal) || 0) - (m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0)) }) });
-
-    const totalRealGlobal = globalFinance.reduce((a, f) => a + (f?.v || 0), 0);
-    const pctCusto = totalPrev > 0 ? ((totalRealGlobal / totalPrev) * 100).toFixed(1) : 0;
-
-  const custosDiarias = window.calcCustosDiarias(DB.presenca, { tipo: 'semana' });
-  const custosMedicoes = window.calcCustosMedicoes(DB.medicao, { tipo: 'semana' });
-
-  if (kpiGrid) {
-    kpiGrid.innerHTML = `
-        <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obrasAtivas}</div><div class="kpi-sub">de ${(DB.obras || []).length} cadastradas</div></div>
-        <div class="kpi-card"><div class="kpi-label">Diárias (Semana)</div><div class="kpi-val blue">${fmt(custosDiarias.pendenteTotal)}</div><div class="kpi-sub">Custo de Folha na contabilidade</div></div>
-        <div class="kpi-card"><div class="kpi-label">Empreitas (Semana)</div><div class="kpi-val blue" style="font-size:20px">${fmt(custosMedicoes.pendenteTotal)}</div><div class="kpi-sub">Custo de Medições na contabilidade</div></div>
-        <div class="kpi-card"><div class="kpi-label">Custo Real / Prev.</div><div class="kpi-val ${pctCusto > 100 ? 'red' : 'green'}">${pctCusto}%</div><div class="kpi-sub">${fmt(totalRealGlobal)} de ${fmt(totalPrev)}</div></div>
-        <div class="kpi-card"><div class="kpi-label">Tarefas Atrasadas</div><div class="kpi-val ${tarefasAtrasadas > 0 ? 'red' : 'green'}">${tarefasAtrasadas}</div><div class="kpi-sub">requer atenção imediata</div></div>
-        <div class="kpi-card"><div class="kpi-label">Estoque Baixo/Crítico</div><div class="kpi-val ${estoquesBaixos > 0 ? 'orange' : 'green'}">${estoquesBaixos}</div><div class="kpi-sub">itens abaixo do mínimo</div></div>
-      `;
-      console.log('[Dash] KPIs renderizados, innerHTML length:', kpiGrid.innerHTML.length);
-    } else {
-      console.log('[Dash] kpiGrid NÃO encontrado!');
-    }
-
-  const alerts = [];
-  const uObra = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
-
-  DB.estoque.forEach(e => {
-    const s = window.estoqueStatus(e);
-    if (s === 'CRÍTICO') alerts.push({ tipo: 'ESTOQUE CRÍTICO', obra: uObra(e.obra), desc: `${e.mat} — saldo ${window.calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp: 'Almoxarife', prior: 'alto' });
-    else if (s === 'BAIXO') alerts.push({ tipo: 'ESTOQUE BAIXO', obra: uObra(e.obra), desc: `${e.mat} — saldo ${window.calcSaldo(e)} ${e.unid} (mín. ${e.min})`, resp: 'Almoxarife', prior: 'medio' });
-  });
-  DB.tarefas.filter(t => t.status === 'Atrasada').forEach(t => alerts.push({ tipo: 'TAREFA ATRASADA', obra: uObra(t.obra), desc: `${t.desc} — prazo: ${fmtDate(t.prazo)}`, resp: t.resp, prior: 'alto' }));
-  DB.compras.filter(c => c.status === 'Aguardando').forEach(c => alerts.push({ tipo: 'COMPRA PENDENTE', obra: uObra(c.obra), desc: `${c.mat} — ${fmt(c.vtotal)}`, resp: 'Gestor', prior: 'medio' }));
-
-  if (custosDiarias.pendente.length > 0) {
-    const temAtrasadoD = custosDiarias.pendente.some(p => p.pgtoStatus === 'Atrasado');
-    alerts.push({
-      tipo: 'DIÁRIAS PENDENTES',
-      obra: `${custosDiarias.pendente.length} diária(s) em aberto`,
-      desc: `Falta pagar: ${fmt(custosDiarias.pendenteTotal)} — Clique para abrir o caixa`,
-      resp: 'Financeiro',
-      prior: temAtrasadoD ? 'alto' : 'medio',
-      action: "showPage('financeiro')"
-    });
-  }
-
-  if (custosMedicoes.pendente.length > 0) {
-    const medPorEquipe = {};
-    custosMedicoes.pendente.forEach(m => {
-      const eq = m.equipe || 'Equipe Terceira';
-      if (!medPorEquipe[eq]) medPorEquipe[eq] = { count: 0, total: 0, atrasado: false };
-      medPorEquipe[eq].count++;
-      const total = parseFloat(m.vtotal) || 0;
-      const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
-      medPorEquipe[eq].total += Math.max(0, total - pago);
-      if (m.pgtoStatus === 'Atrasado') medPorEquipe[eq].atrasado = true;
-    });
-
-    Object.keys(medPorEquipe).forEach(eq => {
-      alerts.push({
-        tipo: 'EMPREITAS PENDENTES',
-        obra: `${eq} — ${medPorEquipe[eq].count} registro(s)`,
-        desc: `Falta pagar: ${fmt(medPorEquipe[eq].total)} — Clique para abrir o caixa`,
-        resp: 'Financeiro',
-        prior: medPorEquipe[eq].atrasado ? 'alto' : 'medio',
-        action: "showPage('financeiro')"
-      });
-    });
-  }
-
-  const custosFinanceiro = window.calcCustosFinanceiro(DB.financeiro, { tipo: 'semana' });
-  if (custosFinanceiro.pendente.length > 0) {
-    const temAtrasadoF = custosFinanceiro.pendente.some(f => f.status === 'Atrasado');
-    alerts.push({
-      tipo: 'PAGAMENTOS FINANCEIRO',
-      obra: `${custosFinanceiro.pendente.length} lançamento(s) pendente(s)`,
-      desc: `Falta pagar: ${fmt(custosFinanceiro.pendenteTotal)} — Clique para gerir`,
-      resp: 'Financeiro',
-      prior: temAtrasadoF ? 'alto' : 'medio',
-      action: "showPage('financeiro')"
-    });
-  }
-
-  const currentUserStr = sessionStorage.getItem('gestaoUser');
-  if (currentUserStr) {
-    const currentUser = JSON.parse(currentUserStr);
-    if (currentUser.role === 'admin' && DB.usuarios) {
-      const contasPendentes = DB.usuarios.filter(u => u.role === 'pendente');
-      contasPendentes.forEach(pUser => {
-        alerts.push({ tipo: 'NOVO USUÁRIO', obra: 'SISTEMA', desc: `${pUser.name} (${pUser.email}) solicitou acesso.`, resp: 'Admin', prior: 'alto' });
-      });
-    }
-  }
-
-  const alertIcons = {};
-  const alertsGrid = document.getElementById('alerts-grid');
-  if (alertsGrid) {
-    alertsGrid.innerHTML = alerts.length
-      ? alerts.map(a => `<div class="alert-card ${a.prior}" ${a.action ? `onclick="${a.action}" style="cursor:pointer"` : ''}>
-          <div class="alert-body">
-            <h4>${a.tipo}</h4>
-            <p><b>${a.obra}</b> — ${a.desc}</p>
-            <p style="margin-top:4px">Resp: ${a.resp}${a.action ? ' &nbsp;<span style="color:var(--accent);font-weight:600">→ Abrir e pagar</span>' : ''}</p>
-          </div>
-        </div>`).join('')
-      : '<div style="color:var(--text3);font-size:13px;padding:8px">Nenhum alerta no momento.</div>';
-  }
-
-  safeSetInner('dash-obras-tbody', DB.obras.map(o => {
-    const tarefas = DB.tarefas.filter(t => t.obra === o.cod);
-
-    // Filtro Financeiro por Obra
-    const tabObj = globalFinance.filter(f => f.obra === o.cod);
-    const realizado = tabObj.reduce((a, f) => a + f.v, 0);
-    const cSemanal = tabObj.filter(f => f.data >= strSemana && f.data <= today).reduce((a, f) => a + f.v, 0);
-    const cMensal = tabObj.filter(f => f.data >= strMes && f.data <= today).reduce((a, f) => a + f.v, 0);
-
-    // Diárias por Obra (específico, não pagos)
-    const dSemanal = DB.presenca
-      .filter(p => p.obra === o.cod && p.data >= strSemana && p.data <= today && p.pgtoStatus !== 'Pago')
-      .reduce((a, p) => a + Math.max(0, (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0)), 0);
-
-    const pct = o.orc > 0 ? (realizado / o.orc * 100).toFixed(1) : 0;
-
-    return `<tr>
-      <td><span class="cod">${o.cod}</span> ${o.nome}</td>
-      <td>${statusBadge(o.status)}</td>
-      <td>${o.mestre}</td>
-      <td>${fmt(o.orc)}</td>
-      <td><b style="color:var(--blue)">${fmt(dSemanal)}</b></td>
-      <td><b style="color:var(--accent)">${fmt(cSemanal)}</b></td>
-      <td><b style="color:var(--orange)">${fmt(cMensal)}</b></td>
-      <td>${fmt(realizado)}</td>
-      <td>${pct}%</td>
-      <td>${tarefas.filter(t => t.status === 'Concluída').length}/${tarefas.length} concluídas</td>
-    </tr>`;
-  }).join(''));
-
-  const updEl = document.getElementById('dash-updated');
-  if (updEl) updEl.textContent = 'Atualizado: ' + new Date().toLocaleString('pt-BR');
-
-  } catch (error) {
-    console.error('[Dashboard Error]:', error);
-    const kpiGrid = document.getElementById('kpi-grid');
-    if (kpiGrid) kpiGrid.innerHTML = `<div style="grid-column: 1/-1; padding: 20px; color: var(--red); background: rgba(239, 68, 68, 0.1); border-radius: 8px;">Erro ao processar dados do Dashboard. Por favor, recarregue a página (F5).</div>`;
-  }
-}
-
-window.toggleGroup = function (cls, iconId) {
-  const isHidden = document.querySelector('.' + cls)?.style.display === 'none';
-  document.querySelectorAll('.' + cls).forEach(el => {
-    el.style.display = isHidden ? '' : 'none';
-  });
-  const icon = document.getElementById(iconId);
-  if (icon) icon.textContent = isHidden ? '▼' : '▶';
+};
 };
 
 // ==================== OBRAS ====================
