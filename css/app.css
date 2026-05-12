@@ -1,56 +1,73 @@
 
 :root {
-  /* Dark Mode Default (SaaS Premium Spec - Zinc Palette) */
-  --bg: #09090b;
-  --bg2: #18181b;
-  --bg3: #27272a;
-  --border: #3f3f46;
-  --accent: #10b981; /* Default to Schema 3 (Emerald) */
+  /* Landing Page Theme - Dark Premium */
+  --bg: #0D0D0D;
+  --bg2: #111111;
+  --bg3: #161616;
+  --card: #141414;
+  --card2: #1A1A1A;
+  --border: #222222;
+  --border2: #2A2A2A;
+  --text: #FFFFFF;
+  --text2: #E5E5E5;
+  --muted: #6B6B6B;
+  --muted2: #444444;
+  --accent: #FF6B35;
+  --accent2: #E55A25;
   --accent-text: #ffffff;
-  --accent-hover: #4f46e5;
-  --accent2: #8b5cf6;
+  --accent-hover: #E55A25;
+  --gold: #F5A623;
+  --blue: #4A9EFF;
   --green: #10b981;
-  --red: #ef4444;
-  --orange: #f59e0b;
-  --orange: #f59e0b;
-  --text: #f4f4f5;
-  --text2: #a1a1aa;
-  --text3: #71717a;
+  --red: #FF4D4D;
+  --orange: #FFB347;
   
-  --sb-bg: #09090b;
-  --sb-text: #a1a1aa;
-  --sb-active-bg: rgba(16, 185, 129, 0.1); /* Emerald is default */
+  --sb-bg: #0D0D0D;
+  --sb-text: #6B6B6B;
+  --sb-active-bg: rgba(255, 107, 53, 0.1);
 }
 
 :root[data-theme="indigo"] {
-  --accent: #6366f1;
-  --accent-hover: #4f46e5;
-  --sb-active-bg: rgba(99, 102, 241, 0.1);
+  --accent: #4A9EFF;
+  --accent-hover: #3B82F6;
+  --sb-active-bg: rgba(74, 158, 255, 0.1);
 }
 
 :root[data-theme="amber"] {
-  --accent: #f59e0b;
-  --accent-hover: #b45309;
-  --sb-active-bg: rgba(245, 158, 11, 0.1);
+  --accent: #FFB347;
+  --accent-hover: #F59E0B;
+  --sb-active-bg: rgba(255, 179, 71, 0.1);
 }
 
 :root[data-theme="emerald"] {
   --accent: #10b981;
-  --accent-hover: #047857;
+  --accent-hover: #059669;
   --sb-active-bg: rgba(16, 185, 129, 0.1);
 }
 
+/* Override to use landing page orange as default */
+:root[data-schema="1"] {
+  --accent: #FF6B35;
+  --accent-hover: #E55A25;
+  --sb-active-bg: rgba(255, 107, 53, 0.1);
+}
+
 body.light-mode {
-  --bg: #f8fafc;
-  --bg2: #ffffff;
-  --bg3: #f1f5f9;
-  --border: #e2e8f0;
-  --text: #0f172a;
-  --text2: #475569;
-  --text3: #64748b;
-  --sb-bg: #f8fafc;
-  --sb-text: #475569;
-  --sb-active-bg: #e2e8f0;
+  --bg: #F5F5F5;
+  --bg2: #FFFFFF;
+  --bg3: #EBEBEB;
+  --card: #FFFFFF;
+  --card2: #F0F0F0;
+  --border: #DDDDDD;
+  --border2: #CCCCCC;
+  --text: #1A1A1A;
+  --text2: #444444;
+  --text3: #777777;
+  --sb-bg: #F5F5F5;
+  --sb-text: #444444;
+  --sb-active-bg: rgba(255, 107, 53, 0.1);
+  --muted: #888888;
+  --muted2: #AAAAAA;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -58,10 +75,15 @@ body.light-mode {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, sans-serif;
+  font-family: 'DM Sans', system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6, .page-title {
+  font-family: 'DM Serif Display', serif;
+  font-weight: 400;
 }
 
 p { line-height: 1.6; margin-bottom: 0.75rem; }
