@@ -524,7 +524,7 @@ function importarBackup(event) {
   event.target.value = '';
 }
 
-function toggleMenu() {
+window.toggleMenu = function() {
   const sidebar = document.querySelector('.sidebar');
   if (!sidebar) return;
   

@@ -198,7 +198,7 @@ async function carregarHTML(caminho) {
   }
 }
 
-function toggleGroup(cls, icn) {
+window.toggleGroup = function(cls, icn) {
   const items = document.querySelectorAll('.' + cls);
   const isOpen = items[0]?.style.display !== 'none';
   items.forEach(item => item.style.display = isOpen ? 'none' : 'block');
@@ -206,7 +206,7 @@ function toggleGroup(cls, icn) {
   if (icon) icon.textContent = isOpen ? '▶' : '▼';
 }
 
-async function showPage(id) {
+window.showPage = async function(id) {
   // Atualiza o menu lateral (Estilos)
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => { if (n.getAttribute('onclick')?.includes(id)) n.classList.add('active'); });
@@ -214,6 +214,7 @@ async function showPage(id) {
 
   // Adiciona um loading simples enquanto busca
   const mainEl = document.getElementById("conteudo-principal");
+  if (!mainEl) return;
   mainEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3)">Carregando tela...</div>';
 
   // Busca e injeta o HTML da pasta pages/
@@ -362,14 +363,15 @@ function renderHoje(targetDate) {
     obrasTbody.innerHTML = rows;
   }
 
-  // Medições Pendentes
+  // Medições Pendentes - busca TODAS as medições pendentes (sem filtro de data)
   const medicoesTbody = document.getElementById('hoje-medicoes-tbody');
   if (medicoesTbody) {
+    const todasMedicoes = (DB.medicao || []).filter(m => m.pgtoStatus !== 'Pago' && m.pgtoStatus !== 'Quitado');
     const medicoes = [];
-    custosMedicoes.pendente.forEach(m => {
+    todasMedicoes.forEach(m => {
       const total = parseFloat(m.vtotal) || 0;
       const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
-      medicoes.push({ tipo: 'Medição', desc: m.servico, obra: m.obra, valor: Math.max(0, total - pago), status: m.pgtoStatus });
+      medicoes.push({ tipo: 'Medição', desc: m.servico, obra: m.obra, valor: Math.max(0, total - pago), status: m.pgtoStatus || 'Pendente' });
     });
     medicoesTbody.innerHTML = medicoes.length
       ? medicoes.map(m => `<tr>
@@ -452,6 +454,29 @@ function renderHoje(targetDate) {
         <td data-label="Status">${p.status}</td>
       </tr>`).join('')
       : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum pagamento pendente</td></tr>';
+  }
+
+  // Nova tabela: Aditivos e Descontos
+  const aditivosTbody = document.getElementById('hoje-aditivos-tbody');
+  if (aditivosTbody) {
+    const items = (DB.financeiro || []).filter(f => 
+      ['Aditivo', 'Desconto', 'Adiantamento', 'Ajuste'].includes(f.tipo) && 
+      f.status !== 'Pago' && f.status !== 'Quitado'
+    );
+    
+    aditivosTbody.innerHTML = items.length
+      ? items.map(f => {
+          const isDesconto = (f.tipo || '').toLowerCase().includes('desconto');
+          const valor = parseFloat(isDesconto ? -Math.abs(f.real || f.prev) : (f.real || f.prev)) || 0;
+          return `<tr>
+            <td data-label="Tipo">${f.tipo}</td>
+            <td data-label="Descrição">${f.desc}</td>
+            <td data-label="Beneficiário">${f.forn || '-'}</td>
+            <td data-label="Valor" style="color:${valor < 0 ? 'var(--red)' : 'var(--green)'}"><b>${fmt(valor)}</b></td>
+            <td data-label="Status">${statusBadge(f.status)}</td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum aditivo ou desconto pendente</td></tr>';
   }
 }
 
@@ -542,46 +567,65 @@ window.exportHoje = function exportHoje() {
      </tr>`;
    });
    
-   // Build pending measurements table for print
+   // Build pending measurements table for print - ALL PENDING, not just the week
    let medicoesPendentesTbody = '';
-   const medicoesPendentes = [];
+   const allMedicoesPendentes = (DB.medicao || []).filter(m => m.pgtoStatus !== 'Pago' && (parseFloat(m.vtotal) || 0) > 0);
    
-   // Extract only measurement pending items from the calculated custosMedicoes
-   if (custosMedicoes && custosMedicoes.pendente) {
-     custosMedicoes.pendente.forEach(m => {
-       const total = parseFloat(m.vtotal) || 0;
-       const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
-       medicoesPendentes.push({ 
-         tipo: 'Medição', 
-         desc: m.servico, 
-         obra: m.obra, 
-         valor: Math.max(0, total - pago), 
-         status: m.pgtoStatus 
-       });
-     });
-   }
+   const medicoesPendentesList = allMedicoesPendentes.map(m => {
+     const total = parseFloat(m.vtotal) || 0;
+     const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
+     return { 
+       tipo: 'Medição', 
+       desc: m.servico, 
+       obra: m.obra, 
+       valor: Math.max(0, total - pago), 
+       status: m.pgtoStatus 
+     };
+   });
    
-    medicoesPendentesTbody = medicoesPendentes.length
-      ? medicoesPendentes.map(m => `<tr>
+    medicoesPendentesTbody = medicoesPendentesList.length
+      ? medicoesPendentesList.map(m => `<tr>
           <td data-label="Tipo">${m.tipo}</td>
           <td data-label="Descrição">${m.desc}</td>
           <td data-label="Obra">${window.obName(m.obra)}</td>
           <td data-label="Valor"><b>${fmt(m.valor)}</b></td>
           <td data-label="Status">${m.status}</td>
         </tr>`).join('')
-: '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma medição pendente</td></tr>';
+      : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma medição pendente</td></tr>';
     
-    // Build pending payments table for print
-    const financeiroPendentes = (DB.financeiro || []).filter(f => f.status !== 'Pago' && f.status !== 'Quitado');
+    // Build pending payments table for print - ALL PENDING
+    const financeiroPendentes = (DB.financeiro || []).filter(f => 
+      !['Aditivo', 'Desconto', 'Adiantamento', 'Ajuste'].includes(f.tipo) && 
+      f.status !== 'Pago' && f.status !== 'Quitado'
+    );
     let pendentesPrintTbody = financeiroPendentes.length
       ? financeiroPendentes.map(f => `<tr>
           <td data-label="Tipo">${f.tipo || '-'}</td>
           <td data-label="Descrição">${f.desc || '-'}</td>
           <td data-label="Obra">${window.obName(f.obra)}</td>
-          <td data-label="Valor"><b>${fmt(f.real)}</b></td>
+          <td data-label="Valor"><b>${fmt(f.real || f.prev)}</b></td>
           <td data-label="Status">${f.status}</td>
         </tr>`).join('')
       : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum pagamento pendente</td></tr>';
+
+    // Nova seção no relatório: Aditivos, Descontos e Adiantamentos
+    const aditivosPendentes = (DB.financeiro || []).filter(f => 
+      ['Aditivo', 'Desconto', 'Adiantamento', 'Ajuste'].includes(f.tipo) && 
+      f.status !== 'Pago' && f.status !== 'Quitado'
+    );
+    let aditivosPrintTbody = aditivosPendentes.length
+      ? aditivosPendentes.map(f => {
+          const isDesconto = (f.tipo || '').toLowerCase().includes('desconto');
+          const valor = parseFloat(isDesconto ? -Math.abs(f.real || f.prev) : (f.real || f.prev)) || 0;
+          return `<tr>
+            <td data-label="Tipo">${f.tipo}</td>
+            <td data-label="Descrição">${f.desc}</td>
+            <td data-label="Beneficiário">${f.forn || '-'}</td>
+            <td data-label="Valor"><b>${fmt(valor)}</b></td>
+            <td data-label="Status">${f.status}</td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum aditivo ou desconto pendente</td></tr>';
      
      const printContent = '<html>' +
       '<head>' +
@@ -641,10 +685,15 @@ window.exportHoje = function exportHoje() {
           '<thead><tr><th>Funcionário</th><th>Função</th><th>Obra</th><th>Status</th><th>Horas</th><th>Valor</th></tr></thead>' +
           '<tbody>' + funcionariosTbody + '</tbody>' +
         '</table></div>' +
-        '<div class="section-title" style="margin-top:10px">📋 Mediçōes Pendentes</div>' +
+        '<div class="section-title" style="margin-top:10px">📋 Medições Pendentes</div>' +
         '<div class="table-wrap"><table>' +
           '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor Pendente</th><th>Status</th></tr></thead>' +
           '<tbody>' + medicoesPendentesTbody + '</tbody>' +
+        '</table></div>' +
+        '<div class="section-title" style="margin-top:10px">⚖️ Aditivos, Descontos e Adiantamentos</div>' +
+        '<div class="table-wrap"><table>' +
+          '<thead><tr><th>Tipo</th><th>Descrição</th><th>Beneficiário</th><th>Valor</th><th>Status</th></tr></thead>' +
+          '<tbody>' + aditivosPrintTbody + '</tbody>' +
         '</table></div>' +
         '<div class="section-title" style="margin-top:10px">💰 Pagamentos Pendentes</div>' +
         '<div class="table-wrap"><table>' +
@@ -1287,7 +1336,15 @@ function renderTarefas() {
   const busca = (document.getElementById('tar-busca')?.value || '').toLowerCase();
   
   const tasks = DB.tarefas.map((t, i) => ({ ...t, _idx: i }))
-    .filter(t => (!obraFilter || t.obra === obraFilter) && (!busca || (t.desc||'').toLowerCase().includes(busca) || (t.resp||'').toLowerCase().includes(busca)));
+    .filter(t => (!obraFilter || t.obra === obraFilter) && (!busca || (t.desc||'').toLowerCase().includes(busca) || (t.resp||'').toLowerCase().includes(busca)))
+    .sort((a, b) => {
+      // Ordenação decrescente por prazo (vencendo antes no topo)
+      // Mas se um não tem prazo, manda pro final
+      if (!a.prazo && !b.prazo) return 0;
+      if (!a.prazo) return 1;
+      if (!b.prazo) return -1;
+      return a.prazo.localeCompare(b.prazo);
+    });
 
   // KPIs dinâmicos filtrados
   const total = tasks.length;
@@ -1561,10 +1618,17 @@ const getNome = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o
     
     allFin = todos;
   } else {
-    // Modo normal: usa summarizeFinance
-    const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, yy, mm, 'mes') || {};
+    // Modo mensal/padrao
+    const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, { tipo: 'mes', mes: mm, ano: yy, viewType: view });
     allFin = summary.all || [];
   }
+
+  // ORDENAÇÃO DECRESCENTE POR DATA
+  allFin.sort((a, b) => {
+    const da = a.data || '';
+    const db = b.data || '';
+    return db.localeCompare(da);
+  });
 
   // Renderização simples: apenas um card com total do período
   let sumHtml = '';
@@ -1959,8 +2023,11 @@ function generateAuditReport() {
 
 // ==================== MEDIÇÃO ====================
 function renderMedicao() {
-  safeSetInner('med-tbody', DB.medicao.length
-    ? DB.medicao.map((m, i) => {
+  const list = DB.medicao.map((m, i) => ({ ...m, _idx: i }))
+    .sort((a, b) => (b.semana || '').localeCompare(a.semana || ''));
+
+  safeSetInner('med-tbody', list.length
+    ? list.map(m => {
       const av = m.qprev > 0 ? (m.qreal / m.qprev) : 0;
       return `<tr>
           <td>${fmtDate(m.semana)}</td><td>${obName(m.obra)}</td><td>${m.etapa}</td>
@@ -1976,8 +2043,8 @@ function renderMedicao() {
           <td>
              <div style="display:flex; gap:8px; align-items:center">
                ${m.photoUrl ? `<span style="cursor:pointer; font-size:18px" title="Ver Evidência" onclick="openLightbox('${m.photoUrl}')">📷</span>` : ''}
-               <button class="btn btn-secondary btn-sm" onclick="editMedicao(${i})"></button>
-               <button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${i})">Excluir</button>
+               <button class="btn btn-secondary btn-sm" onclick="editMedicao(${m._idx})"></button>
+               <button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${m._idx})">Excluir</button>
              </div>
           </td>
         </tr>`;

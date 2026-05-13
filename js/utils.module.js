@@ -121,10 +121,14 @@ const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
   // Lançamentos manuais
   fin.forEach((f, i) => {
     if (filterDate(f.data)) {
+      const real = parseFloat(f.real) || 0;
+      const prev = parseFloat(f.prev) || 0;
+      const isDesconto = (f.tipo || '').toLowerCase().includes('desconto');
+      
       all.push({
         source: 'fin', idx: i, ...f,
-        real: parseFloat(f.real) || 0,
-        prev: parseFloat(f.prev) || 0
+        real: isDesconto ? -Math.abs(real) : real,
+        prev: isDesconto ? -Math.abs(prev) : prev
       });
     }
   });
