@@ -186,6 +186,7 @@ function _onFirebaseValue(snapshot) {
 
     // SaaS: Trava de Inadimplência e Bloqueios
     if (data.status === 'bloqueado_pagamento') {
+      console.warn('[SaaS] Bloqueio por falta de pagamento detectado.');
       alert('⚠️ Sua assinatura SaaS está suspensa por falta de pagamento. O sistema foi bloqueado para proteção dos dados.\n\nPor favor, entre em contato com o Suporte (WhatsApp).');
       if (typeof doLogout === 'function') doLogout();
       return;
@@ -200,6 +201,7 @@ function _onFirebaseValue(snapshot) {
       DB.daysLeftTrial = daysLeft;
 
       if (msLeft <= 0) {
+        console.warn('[SaaS] Trial expirado.');
         alert('⏰ O seu período de Teste Grátis de 30 dias chegou ao fim!\n\nEsperamos que tenha gostado do sistema. Para continuar usando o Gestão de Obras, assine um de nossos planos.');
         if (typeof doLogout === 'function') doLogout();
         return;

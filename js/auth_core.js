@@ -249,6 +249,7 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
 }
 
 function doLogout() {
+  console.log('[Auth] doLogout disparado. Verificando estado da sessão...');
   const userStr = sessionStorage.getItem('gestaoUser');
   let redirectUrl = 'login.html';
 
@@ -283,7 +284,7 @@ function checkAuth() {
         let sessionUser = JSON.parse(userStr);
 
         if (CURRENT_TENANT_ID && sessionUser.tenantId !== CURRENT_TENANT_ID && sessionUser.role !== 'super_admin') {
-          console.warn('Sessão inválida para este subdomínio. Deslogando...');
+          console.warn(`[Auth] Sessão inválida para este subdomínio. Tenant Sessão: ${sessionUser.tenantId}, Tenant Detectado: ${CURRENT_TENANT_ID}. Deslogando...`);
           doLogout();
           return;
         }
@@ -306,6 +307,7 @@ function checkAuth() {
         const userProfile = profileSnap.val();
         if (userProfile) {
           if (CURRENT_TENANT_ID && userProfile.tenantId !== CURRENT_TENANT_ID && userProfile.role !== 'super_admin') {
+            console.warn(`[Auth] Reidratação falhou: Tenant incompatível. Perfil: ${userProfile.tenantId}, Detectado: ${CURRENT_TENANT_ID}`);
             await firebase.auth().signOut();
             doLogout();
             return;
@@ -325,6 +327,7 @@ function checkAuth() {
 
       // Se falhar tudo:
       if (!isLoginPage && !isAdminLoginPage) {
+        console.warn('[Auth] Falha crítica na reidratação da sessão. Redirecionando para login.');
         window.location.href = 'login.html';
       }
       return;
@@ -486,6 +489,7 @@ window.addEventListener('firebaseSync', (e) => {
   }
 
   if ((stillExists.role || 'admin') !== (activeUser.role || 'admin')) {
+    console.warn(`[Sentinel] Alteração de cargo detectada (Local: ${activeUser.role} -> DB: ${stillExists.role}). Deslogando...`);
     doLogout();
     return;
   }
