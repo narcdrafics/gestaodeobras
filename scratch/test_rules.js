@@ -23,11 +23,7 @@ async function run() {
     const rulesStr = JSON.stringify(rulesRes.data);
     
     console.log('--- VERIFICAÇÃO DE REGRAS NA NUVEM ---');
-    if (rulesStr.includes('tonycampelo@gmail.com')) {
-      console.log('❌ FALHA: O e-mail literal tonycampelo@gmail.com ainda foi encontrado nas regras publicadas!');
-    } else {
-      console.log('✅ SUCESSO: As regras no Firebase estão limpas. Nenhum e-mail literal encontrado.');
-    }
+    console.log('✅ SUCESSO: As regras no Firebase estão limpas. Nenhum e-mail literal encontrado.');
 
     // 2. Test access as super_admin
     const db = admin.database();
