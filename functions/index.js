@@ -1,6 +1,7 @@
 // v2.1 - Percepção inteligente de nomes e respostas formatadas
 const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onValueWritten } = require("firebase-functions/v2/database");
 const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const axios = require('axios');
@@ -536,3 +537,37 @@ async function processarConsultaGeral(para, tenantId, user) {
   
   await responderWhatsApp(para, msg);
 }
+
+exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
+  const uid = event.params.uid;
+  const after = event.data.after.val();
+
+  if (!after) {
+    // Perfil deletado
+    return null;
+  }
+
+  const role = after.role || 'admin';
+  const tenantId = after.tenantId || null;
+
+  try {
+    const currentClaims = (await admin.auth().getUser(uid)).customClaims || {};
+    
+    // Evitar updates desnecessários (otimização de cota e performance)
+    if (currentClaims.role === role && currentClaims.tenantId === tenantId) {
+      console.log(`[syncCustomClaims] Claims inalteradas para uid: ${uid}`);
+      return null;
+    }
+
+    await admin.auth().setCustomUserClaims(uid, {
+      role: role,
+      tenantId: tenantId
+    });
+    
+    console.log(`[syncCustomClaims] Atualizado uid: ${uid} -> role: ${role}, tenant: ${tenantId}`);
+    return { success: true };
+  } catch (err) {
+    console.error(`[syncCustomClaims] Erro ao atualizar claims para uid: ${uid}`, err);
+    return null;
+  }
+});

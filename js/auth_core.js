@@ -195,6 +195,13 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
           return;
       }
     }
+    
+    // Força uma atualização no perfil para disparar a Cloud Function 'syncCustomClaims'
+    // Isso garante que usuários antigos recebam suas Custom Claims corretamente
+    if (userProfile && uid) {
+      userProfile.lastLogin = Date.now();
+      await profileRef.update({ lastLogin: userProfile.lastLogin, role: userProfile.role, tenantId: userProfile.tenantId }).catch(e => console.warn('Falha no touch do perfil:', e));
+    }
 
     // 3. Validação Cross-Tenant (Segurança SaaS)
     if (CURRENT_TENANT_ID && userProfile.tenantId !== CURRENT_TENANT_ID && userProfile.role !== 'super_admin') {

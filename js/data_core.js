@@ -236,13 +236,6 @@ function processCloudUpdate() {
 
   if (isFirstLoad) {
     isFirstLoad = false;
-    if (typeof checkAuth === 'function') {
-      checkAuth();
-    } else {
-      window.addEventListener('load', () => {
-        if (typeof checkAuth === 'function') checkAuth();
-      }, { once: true });
-    }
   }
 
   const activePage = document.querySelector('.page.active');
