@@ -468,8 +468,8 @@ window.addEventListener('firebaseSync', (e) => {
 
   const activeUser = JSON.parse(userStr);
   
-  // SUPER ADMIN EXCEPTION: O administrador mestre não precisa estar na lista de usuários de cada tenant
-  if (activeUser.role === 'super_admin') return;
+  // EXCEÇÃO: Super Admins e Admins do Tenant podem não estar na lista local (ex: adicionados via painel master)
+  if (activeUser.role === 'super_admin' || activeUser.role === 'admin') return;
 
   const stillExists = db.usuarios.find(u => (u.email || '').trim().toLowerCase() === (activeUser.email || '').trim().toLowerCase());
 
@@ -478,8 +478,8 @@ window.addEventListener('firebaseSync', (e) => {
     if (!dbHasGoogleUsers) {
       db.usuarios = [activeUser];
       if (typeof DB !== 'undefined') DB.usuarios = db.usuarios;
-      // persistDB() removido: evita que o sistema re-escreva o banco ao detectar exclusões
     } else {
+      console.warn('[Sentinel] Usuário não encontrado na lista permitida do tenant. Efetuando logout preventivo.');
       doLogout();
     }
     return;
