@@ -215,6 +215,9 @@ if (!textoTarefa) return;
       } else if (txtUpper === 'PONTO' || txtUpper === 'PRESENÇA') {
         dados = { intencao: 'consultar_ponto' };
         usarGPT = false;
+      } else if (txtUpper.includes('RDO')) {
+        dados = { intencao: 'consultar_rdo' };
+        usarGPT = false;
       } else if (txtUpper.includes('TAREFA') || txtUpper === 'LISTA' || txtUpper === 'MENU') {
         dados = { intencao: 'consultar' };
         usarGPT = false;
@@ -232,7 +235,7 @@ if (!textoTarefa) return;
     if (!dados) {
       const prompt = `Você é um assistente de gestão de obras. Extraia as informações da mensagem para o seguinte formato JSON:
       { 
-        "intencao": "lancar_ponto" | "criar_tarefa" | "consultar", 
+        "intencao": "lancar_ponto" | "criar_tarefa" | "consultar" | "consultar_rdo", 
         "ponto": { 
           "trabalhadores": ["Nomes mencionados"], 
           "presenca": "Presente" | "Falta" | "Meio período", 
@@ -245,7 +248,8 @@ if (!textoTarefa) return;
         } 
       }
       Instruções:
-      - Se a mensagem for "Oi", "Bom dia", etc, intencao = "consultar" e retorne campos vazios.
+      - Se a mensagem for "Oi", "Bom dia", etc, intencao = "consultar".
+      - Se o usuário pedir o "RDO", "Relatório de hoje" ou "o que foi feito hoje", intencao = "consultar_rdo".
       - No campo "trabalhadores", se disser "toda a equipe", tente identificar se há nomes específicos ou use a frase.
       - Seja inteligente ao extrair o nome da obra, ignore preposições como "na", "da", "em".
       
@@ -389,6 +393,8 @@ if (!textoTarefa) return;
       await responderWhatsApp(phoneId, `📋 Presença — ${dataFmt}:\n${resultados.join('\n')}`);
     } else if (dados.intencao === 'consultar') {
       await processarConsultaGeral(phoneId, tenantId, user);
+    } else if (dados.intencao === 'consultar_rdo') {
+      await processarConsultaRDO(phoneId, tenantId, user);
     }
   } catch (err) {
     console.error('Erro:', err);
@@ -534,6 +540,58 @@ async function processarConsultaGeral(para, tenantId, user) {
   const tarefasPendentes = tarefasAbertas.length;
   
   const msg = `👋 *Olá!* ${user?.nome || ''}\n\n📅 *${hoje}*\n\n🏗️ *${nomeObra}*\n\n👷 *Presentes:* ${presentes}\n❌ *Faltas:* ${faltantes}\n📋 *Tarefas abertas:* ${tarefasPendentes}\n\nUse:\n• *TAREFA* - listar tarefas\n• *PONTO* - lancar ponto\n• *MENU* - ver opcoes`;
+  
+  await responderWhatsApp(para, msg);
+}
+
+async function processarConsultaRDO(para, tenantId, user) {
+  const db = admin.database();
+  const hoje = getHojeBR();
+  
+  const [obrasSnap, tarefasSnap, pontoSnap, movSnap] = await Promise.all([
+    db.ref(`tenants/${tenantId}/obras`).once('value'),
+    db.ref(`tenants/${tenantId}/tarefas`).once('value'),
+db.ref(`tenants/${tenantId}/presenca`).once('value'),
+    db.ref(`tenants/${tenantId}/movEstoque`).once('value'),
+  ]);
+  
+  const obras = Object.values(obrasSnap.val() || {}).filter(o => o && ['ativa', 'em andamento', 'execucao'].includes(norm(o.status)));
+  const hojePonto = Object.values(pontoSnap.val() || {}).filter(p => p && p.data === hoje && (p.presenca === 'Presente' || p.presenca === 'Meio período'));
+  const hojeMov = Object.values(movSnap.val() || {}).filter(m => m && m.data === hoje && m.tipo === 'Saída');
+  const tarefasH = Object.values(tarefasSnap.val() || {}).filter(t => t && t.status !== 'Concluída');
+  
+  const dataFmt = formatarDataBR(hoje);
+  let msg = `📊 *RDO de Hoje* — ${dataFmt}\n\n`;
+
+  // 1. Presentes
+  msg += `👷 *Equipe Presente:*`;
+  if (hojePonto.length > 0) {
+    const nomes = hojePonto.map(p => `• ${p.nome}`).join('\n');
+    msg += `\n${nomes}`;
+  } else {
+    msg += `\n_Nenhum registro de presença até agora._`;
+  }
+
+  // 2. Ferramentas / Movimentação
+  msg += `\n\n🔧 *Ferramentas / Saídas:*`;
+  if (hojeMov.length > 0) {
+    const itens = hojeMov.map(m => `• ${m.mat} (${m.qtd}${m.unid || ''})`).join('\n');
+    msg += `\n${itens}`;
+  } else {
+    msg += `\n_Nenhuma movimentação de material registrada._`;
+  }
+
+  // 3. Tarefas
+  msg += `\n\n📋 *Tarefas:*`;
+  const tarefasHoje = tarefasH.filter(t => t.prazo === hoje);
+  if (tarefasHoje.length > 0) {
+    const listT = tarefasHoje.map(t => `• [${t.status}] ${t.desc}`).join('\n');
+    msg += `\n${listT}`;
+  } else {
+    msg += `\n_Nenhuma tarefa específica para hoje._`;
+  }
+
+  msg += `\n\n✅ *RDO Finalizado*`;
   
   await responderWhatsApp(para, msg);
 }

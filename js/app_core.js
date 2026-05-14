@@ -357,7 +357,6 @@ function renderHoje(targetDate) {
         <td data-label="Presentes" style="color:var(--green)">${pres}</td>
         <td data-label="Faltas" style="color:${fal > 0 ? 'var(--red)' : 'var(--text3)'}">${fal}</td>
         <td data-label="Total">${pres + fal}</td>
-        <td data-label="Valor">${val > 0 ? fmt(val) : 'R$ 0,00'}</td>
       </tr>`;
     });
     obrasTbody.innerHTML = rows;
@@ -418,7 +417,6 @@ function renderHoje(targetDate) {
         <td data-label="Obra">${obraNome}</td>
         <td data-label="Status" style="color:${statusClass}">${p.presenca}</td>
         <td data-label="Horas">${horas.toFixed(1)}h</td>
-        <td data-label="Valor">${valorRecalc > 0 ? fmt(valorRecalc) : 'R$ 0,00'}</td>
       </tr>`;
     });
     funcionariosTbody.innerHTML = rows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">Nenhum registro de presença hoje.</td></tr>';
@@ -542,7 +540,6 @@ window.exportHoje = function exportHoje() {
        <td style="color:#22c55e">${pres}</td>
        <td style="color:${fal > 0 ? '#ef4444' : '#666'}">${fal}</td>
        <td>${pres + fal}</td>
-       <td>${val > 0 ? 'R$ ' + val.toFixed(2).replace('.', ',') : 'R$ 0,00'}</td>
      </tr>`;
    });
    
@@ -563,7 +560,6 @@ window.exportHoje = function exportHoje() {
        <td>${obraNome}</td>
        <td style="color:${statusClass}">${p.presenca}</td>
        <td>${horas.toFixed(1)}h</td>
-       <td>${valor > 0 ? 'R$ ' + valor.toFixed(2).replace('.', ',') : 'R$ 0,00'}</td>
      </tr>`;
    });
    
@@ -677,12 +673,12 @@ window.exportHoje = function exportHoje() {
         '<div class="alerts-grid">' + alertsGrid + '</div>' +
         '<div class="section-title" style="margin-top:10px">👷 Presença por Obra</div>' +
         '<div class="table-wrap" style="margin-top:5px"><table>' +
-          '<thead><tr><th>Obra</th><th>Presentes</th><th>Faltas</th><th>Total</th><th>Valor Diárias</th></tr></thead>' +
+          '<thead><tr><th>Obra</th><th>Presentes</th><th>Faltas</th><th>Total</th></tr></thead>' +
           '<tbody>' + obrasTbody + '</tbody>' +
         '</table></div>' +
         '<div class="section-title" style="margin-top:10px">👷 Presença por Funcionário</div>' +
         '<div class="table-wrap" style="margin-top:5px"><table>' +
-          '<thead><tr><th>Funcionário</th><th>Função</th><th>Obra</th><th>Status</th><th>Horas</th><th>Valor</th></tr></thead>' +
+          '<thead><tr><th>Funcionário</th><th>Função</th><th>Obra</th><th>Status</th><th>Horas</th></tr></thead>' +
           '<tbody>' + funcionariosTbody + '</tbody>' +
         '</table></div>' +
         '<div class="section-title" style="margin-top:10px">📋 Medições Pendentes</div>' +

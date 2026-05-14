@@ -284,7 +284,8 @@ function checkAuth() {
         let sessionUser = JSON.parse(userStr);
 
         if (CURRENT_TENANT_ID && sessionUser.tenantId !== CURRENT_TENANT_ID && sessionUser.role !== 'super_admin') {
-          console.warn(`[Auth] Sessão inválida para este subdomínio. Tenant Sessão: ${sessionUser.tenantId}, Tenant Detectado: ${CURRENT_TENANT_ID}. Deslogando...`);
+          const msg = `[Auth] Sessão inválida. Empresa da Sessão (${sessionUser.tenantId}) diferente da Empresa da URL (${CURRENT_TENANT_ID}).`;
+          alert(msg);
           doLogout();
           return;
         }
@@ -307,7 +308,7 @@ function checkAuth() {
         const userProfile = profileSnap.val();
         if (userProfile) {
           if (CURRENT_TENANT_ID && userProfile.tenantId !== CURRENT_TENANT_ID && userProfile.role !== 'super_admin') {
-            console.warn(`[Auth] Reidratação falhou: Tenant incompatível. Perfil: ${userProfile.tenantId}, Detectado: ${CURRENT_TENANT_ID}`);
+            alert(`[Auth] Reidratação falhou: Empresa incompatível.\nPerfil: ${userProfile.tenantId}\nDetectado URL: ${CURRENT_TENANT_ID}`);
             await firebase.auth().signOut();
             doLogout();
             return;
@@ -327,7 +328,7 @@ function checkAuth() {
 
       // Se falhar tudo:
       if (!isLoginPage && !isAdminLoginPage) {
-        console.warn('[Auth] Falha crítica na reidratação da sessão. Redirecionando para login.');
+        alert('[Auth] Falha crítica na reidratação da sessão. O sistema não encontrou seu perfil ou tenant vinculado.');
         window.location.href = 'login.html';
       }
       return;
@@ -482,14 +483,25 @@ window.addEventListener('firebaseSync', (e) => {
       db.usuarios = [activeUser];
       if (typeof DB !== 'undefined') DB.usuarios = db.usuarios;
     } else {
-      console.warn('[Sentinel] Usuário não encontrado na lista permitida do tenant. Efetuando logout preventivo.');
-      doLogout();
+      // Período de carência: espera 3 segundos para garantir que o checkAuth terminou de atualizar o cargo
+      setTimeout(() => {
+        const freshUserStr = sessionStorage.getItem('gestaoUser');
+        if (freshUserStr) {
+          const freshUser = JSON.parse(freshUserStr);
+          if (freshUser.role === 'admin' || freshUser.role === 'super_admin') {
+            console.log('[Sentinel] Acesso mantido via cargo Administrativo detectado após carência.');
+            return;
+          }
+        }
+        alert(`[Sentinel] O usuário ${activeUser.email} (Cargo: ${activeUser.role}) não foi encontrado na lista de usuários autorizados desta empresa. Se você é o dono da conta, adicione este e-mail na aba Administração.`);
+        doLogout();
+      }, 3000);
     }
     return;
   }
 
   if ((stillExists.role || 'admin') !== (activeUser.role || 'admin')) {
-    console.warn(`[Sentinel] Alteração de cargo detectada (Local: ${activeUser.role} -> DB: ${stillExists.role}). Deslogando...`);
+    alert(`[Sentinel] Alteração de cargo detectada no banco de dados.\nLocal: ${activeUser.role} -> DB: ${stillExists.role}.\nEfetuando logout para atualizar permissões.`);
     doLogout();
     return;
   }
