@@ -38,6 +38,29 @@ function formatarDataBR(isoStr) {
   return `${partes[2]}/${partes[1]}/${partes[0]}`;
 }
 
+function parseDataFromText(texto) {
+  if (/ontem/i.test(texto)) {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(d).split('/').reverse().join('-');
+  }
+  const match = texto.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?/);
+  if (match) {
+    let [, dia, mes, ano] = match;
+    dia = dia.padStart(2, '0');
+    mes = mes.padStart(2, '0');
+    if (!ano) {
+      const hoje = new Date();
+      ano = hoje.getFullYear();
+    }
+    return `${ano}-${mes}-${dia}`;
+  }
+  return null;
+}
+
 function norm(str) {
   if (!str) return '';
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -77,8 +100,9 @@ function melhorMatch(termo, lista, getFn, threshold = 0.4) {
 exports.whatsappWebhook = onRequest({
   secrets: [OPENAI_KEY, META_ACCESS_TOKEN, META_PHONE_NUMBER_ID, META_VERIFY_TOKEN, META_APP_SECRET, META_WABA_ID],
   cors: true,
-  memory: '512MiB',
-  timeoutSeconds: 300
+  memory: '1GiB',
+  timeoutSeconds: 300,
+  minInstances: 1
 }, async (req, res) => {
   if (req.method === 'GET') {
     const mode = req.query['hub.mode'];
@@ -131,45 +155,49 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
   if (!From) return;
 
   try {
-    const openai = new OpenAI({ apiKey: OPENAI_KEY.value() });
     const db = admin.database();
     const phoneId = From.replace(/\D/g, '');
-    
-    const usersSnap = await db.ref('users').once('value');
+
+    // Busca users e tenants em paralelo
+    const [usersSnap, tenantsSnap] = await Promise.all([
+      db.ref('users').once('value'),
+      db.ref('tenants').once('value')
+    ]);
     const usersData = usersSnap.val();
+    const tenants = tenantsSnap.val() || {};
     
     let user = null;
     let tenantId = null;
-    for (const key in usersData) {
-      const u = usersData[key];
-      const uTelefone = u.telefone ? String(u.telefone).replace(/\D/g, '') : '';
-      if ((u.whatsappId && u.whatsappId === From) || 
-          (uTelefone && uTelefone.includes(phoneId))) {
-        user = u;
-        tenantId = u.tenantId;
-        break;
+    const phoneLimpo = phoneId.replace(/\D/g, '');
+
+    // Busca em users primeiro
+    if (usersData) {
+      for (const key in usersData) {
+        const u = usersData[key];
+        const uTelefone = u.telefone ? String(u.telefone).replace(/\D/g, '') : '';
+        if ((u.whatsappId && u.whatsappId === From) || 
+            (uTelefone && uTelefone.includes(phoneLimpo))) {
+          user = u;
+          tenantId = u.tenantId;
+          break;
+        }
       }
     }
 
+    // Fallback: busca em tenants por telefonesPermitidos
     if (!user || !tenantId) {
-      const tenantsSnap = await db.ref('tenants').once('value');
-      const tenants = tenantsSnap.val() || {};
-      const phoneLimpo = phoneId.replace(/\D/g, '');
-      let encontrado = false;
-      
       for (const [tid, tenantData] of Object.entries(tenants)) {
         const telefonesData = tenantData?.config?.telefonesPermitidos;
         const telefonesPermitidos = telefonesData ? [telefonesData].flat() : [];
         const permitido = telefonesPermitidos.length > 0 && telefonesPermitidos.some(t => String(t || '').replace(/\D/g, '').includes(phoneLimpo));
         if (permitido) {
           tenantId = tid;
-          encontrado = true;
           console.log(`✅ Telefone permitido: ${From} | tenantId: ${tenantId}`);
           break;
         }
       }
       
-      if (!encontrado) {
+      if (!tenantId) {
         console.log(`⚠️ WhatsApp ID ${phoneId} não autorizado.`);
         await responderWhatsApp(phoneId, "Número não autorizado. Fale com o administrator.");
         return;
@@ -178,6 +206,7 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
 
     if (audioUrl) {
       console.log('🎙️ Baixando áudio...');
+      const openai = new OpenAI({ apiKey: OPENAI_KEY.value() });
       const response = await axios.get(audioUrl, { responseType: 'arraybuffer' });
       const tempFilePath = path.join(os.tmpdir(), `audio-${Date.now()}.ogg`);
       fs.writeFileSync(tempFilePath, Buffer.from(response.data));
@@ -216,7 +245,8 @@ if (!textoTarefa) return;
         dados = { intencao: 'consultar_ponto' };
         usarGPT = false;
       } else if (txtUpper.includes('RDO')) {
-        dados = { intencao: 'consultar_rdo' };
+        const dataRDO = parseDataFromText(txt);
+        dados = { intencao: 'consultar_rdo', data: dataRDO || null, _label: dataRDO ? formatarDataBR(dataRDO) : 'Hoje' };
         usarGPT = false;
       } else if (txtUpper.includes('TAREFA') || txtUpper === 'LISTA' || txtUpper === 'MENU') {
         dados = { intencao: 'consultar' };
@@ -236,6 +266,7 @@ if (!textoTarefa) return;
       const prompt = `Você é um assistente de gestão de obras. Extraia as informações da mensagem para o seguinte formato JSON:
       { 
         "intencao": "lancar_ponto" | "criar_tarefa" | "consultar" | "consultar_rdo", 
+        "data": "YYYY-MM-DD (opcional, apenas para RDO de data específica)",
         "ponto": { 
           "trabalhadores": ["Nomes mencionados"], 
           "presenca": "Presente" | "Falta" | "Meio período", 
@@ -249,12 +280,13 @@ if (!textoTarefa) return;
       }
       Instruções:
       - Se a mensagem for "Oi", "Bom dia", etc, intencao = "consultar".
-      - Se o usuário pedir o "RDO", "Relatório de hoje" ou "o que foi feito hoje", intencao = "consultar_rdo".
+      - Se o usuário pedir o "RDO" (com ou sem data, ex: "RDO ontem", "RDO 10/03", "RDO 10/03/2026"), intencao = "consultar_rdo". Se houver data, inclua no campo "data" no formato YYYY-MM-DD. Se não houver data, não inclua "data".
       - No campo "trabalhadores", se disser "toda a equipe", tente identificar se há nomes específicos ou use a frase.
       - Seja inteligente ao extrair o nome da obra, ignore preposições como "na", "da", "em".
       
       Mensagem do usuário: "${textoTarefa}"`;
 
+      const openai = new OpenAI({ apiKey: OPENAI_KEY.value() });
       const gptRes = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -380,10 +412,10 @@ if (!textoTarefa) return;
             const { _s, ...final } = n;
             if (idx === -1) {
               lista.push(final);
-              resultados.push(`✅ ${n.nome} — ${_s}`);
+              resultados.push(`✅ ${n.nome} (${n.funcao || '—'}) — ${_s}`);
             } else {
               lista[idx] = { ...lista[idx], ...final };
-              resultados.push(`🔄 ${n.nome} alterado para ${_s} em ${obraMatch.nome}`);
+              resultados.push(`🔄 ${n.nome} (${n.funcao || '—'}) alterado para ${_s} em ${obraMatch.nome}`);
             }
           }
           return lista;
@@ -394,7 +426,7 @@ if (!textoTarefa) return;
     } else if (dados.intencao === 'consultar') {
       await processarConsultaGeral(phoneId, tenantId, user);
     } else if (dados.intencao === 'consultar_rdo') {
-      await processarConsultaRDO(phoneId, tenantId, user);
+      await processarConsultaRDO(phoneId, tenantId, user, dados.data || null);
     }
   } catch (err) {
     console.error('Erro:', err);
@@ -519,6 +551,35 @@ exports.dailyReport = onSchedule({
   }
 });
 
+exports.rdoReport = onSchedule({
+  schedule: '0 15,20 * * *', // 12h e 17h Brasília (UTC-3)
+  timeZone: 'America/Sao_Paulo',
+  secrets: [META_ACCESS_TOKEN, META_PHONE_NUMBER_ID]
+}, async (event) => {
+  const db = admin.database();
+  const hoje = getHojeBR();
+  const hora = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date());
+
+  console.log(`🕒 Iniciando RDO agendado ${hora} para ${hoje}`);
+
+  try {
+    const tenantsSnap = await db.ref('tenants').once('value');
+    const tenants = tenantsSnap.val();
+    if (!tenants) return;
+
+    for (const tenantId in tenants) {
+      const tenant = tenants[tenantId];
+      if (!tenant.adminPhone || tenant.status === 'inativo') continue;
+
+      console.log(`📊 Enviando RDO para tenant: ${tenantId} (${tenant.nome || 'Sem nome'})`);
+      await processarConsultaRDO(tenant.adminPhone, tenantId, null);
+    }
+    console.log('✅ RDO agendado enviado com sucesso.');
+  } catch (error) {
+    console.error('❌ Erro ao processar RDO agendado:', error);
+  }
+});
+
 async function processarConsultaGeral(para, tenantId, user) {
   const db = admin.database();
   const hoje = getHojeBR();
@@ -544,55 +605,84 @@ async function processarConsultaGeral(para, tenantId, user) {
   await responderWhatsApp(para, msg);
 }
 
-async function processarConsultaRDO(para, tenantId, user) {
+async function processarConsultaRDO(para, tenantId, user, dataParam) {
   const db = admin.database();
-  const hoje = getHojeBR();
+  const hoje = dataParam || getHojeBR();
+  const rotulo = dataParam ? formatarDataBR(dataParam) : 'Hoje';
   
-  const [obrasSnap, tarefasSnap, pontoSnap, movSnap] = await Promise.all([
-    db.ref(`tenants/${tenantId}/obras`).once('value'),
+  const [pontoSnap, tarefasSnap, movSnap] = await Promise.all([
+    db.ref(`tenants/${tenantId}/presenca`).once('value'),
     db.ref(`tenants/${tenantId}/tarefas`).once('value'),
-db.ref(`tenants/${tenantId}/presenca`).once('value'),
     db.ref(`tenants/${tenantId}/movEstoque`).once('value'),
   ]);
   
-  const obras = Object.values(obrasSnap.val() || {}).filter(o => o && ['ativa', 'em andamento', 'execucao'].includes(norm(o.status)));
-  const hojePonto = Object.values(pontoSnap.val() || {}).filter(p => p && p.data === hoje && (p.presenca === 'Presente' || p.presenca === 'Meio período'));
-  const hojeMov = Object.values(movSnap.val() || {}).filter(m => m && m.data === hoje && m.tipo === 'Saída');
-  const tarefasH = Object.values(tarefasSnap.val() || {}).filter(t => t && t.status !== 'Concluída');
+  const todosPresenca = Object.values(pontoSnap.val() || {}).filter(p => p && p.data === hoje);
+  const presentes = todosPresenca.filter(p => p.presenca === 'Presente' || p.presenca === 'Meio período');
+  const ausentes = todosPresenca.filter(p => p.presenca === 'Falta');
+  
+  const tarefasConcluidas = Object.values(tarefasSnap.val() || {}).filter(t => t && t.conclusao === hoje && t.status === 'Concluída');
+  const tarefasPendentes = Object.values(tarefasSnap.val() || {}).filter(t => t && t.prazo === hoje && t.status !== 'Concluída');
+  const tarefasNovas = Object.values(tarefasSnap.val() || {}).filter(t => {
+    if (!t || t.status !== 'Pendente') return false;
+    if (t.criacao === hoje) return true;
+    if (t.criadoEm) {
+      const d = new Date(t.criadoEm);
+      const ts = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d).split('/').reverse().join('-');
+      return ts === hoje;
+    }
+    return false;
+  });
+  const movTodos = Object.values(movSnap.val() || {});
+  console.log(`📦 movEstoque encontrados: ${movTodos.length}`);
+  const itemsVistos = new Set();
+  const maquinasCanteiro = [];
+  movTodos.forEach(m => {
+    if (!m || (!m.mat && !m.codMat)) return;
+    const chave = m.codMat || m.mat;
+    if (itemsVistos.has(chave)) return;
+    itemsVistos.add(chave);
+    const qtd = parseFloat(m.qtd) || 0;
+    maquinasCanteiro.push({ nome: m.mat || chave, qtd, unid: m.unid || '' });
+  });
+  console.log(`🔧 Máquinas no canteiro: ${maquinasCanteiro.length}`, maquinasCanteiro.map(i => i.nome));
   
   const dataFmt = formatarDataBR(hoje);
-  let msg = `📊 *RDO de Hoje* — ${dataFmt}\n\n`;
+  let msg = `📊 *RDO — ${rotulo}* — ${dataFmt}\n`;
 
-  // 1. Presentes
-  msg += `👷 *Equipe Presente:*`;
-  if (hojePonto.length > 0) {
-    const nomes = hojePonto.map(p => `• ${p.nome}`).join('\n');
-    msg += `\n${nomes}`;
-  } else {
-    msg += `\n_Nenhum registro de presença até agora._`;
+  if (presentes.length > 0) {
+    msg += `\n👷 *Presentes:*\n`;
+    msg += presentes.map(p => `• ${p.nome} (${p.funcao || '—'})${p.presenca === 'Meio período' ? ' — meio período' : ''}`).join('\n');
   }
 
-  // 2. Ferramentas / Movimentação
-  msg += `\n\n🔧 *Ferramentas / Saídas:*`;
-  if (hojeMov.length > 0) {
-    const itens = hojeMov.map(m => `• ${m.mat} (${m.qtd}${m.unid || ''})`).join('\n');
-    msg += `\n${itens}`;
-  } else {
-    msg += `\n_Nenhuma movimentação de material registrada._`;
+  if (ausentes.length > 0) {
+    msg += `\n\n❌ *Ausentes:*\n`;
+    msg += ausentes.map(p => `• ${p.nome} (${p.funcao || '—'})`).join('\n');
   }
 
-  // 3. Tarefas
-  msg += `\n\n📋 *Tarefas:*`;
-  const tarefasHoje = tarefasH.filter(t => t.prazo === hoje);
-  if (tarefasHoje.length > 0) {
-    const listT = tarefasHoje.map(t => `• [${t.status}] ${t.desc}`).join('\n');
-    msg += `\n${listT}`;
-  } else {
-    msg += `\n_Nenhuma tarefa específica para hoje._`;
+  if (tarefasNovas.length > 0) {
+    msg += `\n\n🆕 *Novas tarefas:*\n`;
+    msg += tarefasNovas.map(t => `• ${t.desc}`).join('\n');
   }
 
-  msg += `\n\n✅ *RDO Finalizado*`;
-  
+  if (tarefasPendentes.length > 0) {
+    msg += `\n\n📋 *Tarefas do dia:*\n`;
+    msg += tarefasPendentes.map(t => `• ${t.desc}`).join('\n');
+  }
+
+  if (tarefasConcluidas.length > 0) {
+    msg += `\n\n✅ *Concluídas:*\n`;
+    msg += tarefasConcluidas.map(t => `• ${t.desc}`).join('\n');
+  }
+
+  if (maquinasCanteiro.length > 0) {
+    msg += `\n\n🔧 *Máquinas/material no canteiro:*\n`;
+    msg += maquinasCanteiro.map(i => `• ${i.nome}${i.qtd ? ` — ${i.qtd}${i.unid ? ' ' + i.unid : ''}` : ''}`).join('\n');
+  }
+
+  if (todosPresenca.length === 0 && tarefasNovas.length === 0 && tarefasPendentes.length === 0 && tarefasConcluidas.length === 0 && maquinasCanteiro.length === 0) {
+    msg += `\n_Nenhum registro para ${rotulo.toLowerCase()}._`;
+  }
+
   await responderWhatsApp(para, msg);
 }
 

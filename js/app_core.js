@@ -1679,7 +1679,27 @@ const getNome = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o
       <td>${payBtn}${editBtn}${delBtn}</td>
     </tr>`;
   });
-  safeSetInner('fin-diarios-tbody', tbodyDiarios || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem diárias pendentes</td></tr>');
+  // Totais Diários
+  const sumDiariosPrev = diarios.reduce((s, f) => s + (f.prev || 0), 0);
+  const sumDiariosReal = diarios.reduce((s, f) => s + (f.real || 0), 0);
+  const sumDiariosDiff = sumDiariosReal - sumDiariosPrev;
+  const diaristas = diarios.filter(f => f.source === 'pre');
+  const aditivos = diarios.filter(f => (f.tipo||'').toLowerCase() === 'adiantamento');
+  const ajustes = diarios.filter(f => ['ajuste', 'desconto'].includes((f.tipo||'').toLowerCase()));
+  const outros = diarios.filter(f => f.source !== 'pre' && !['adiantamento', 'ajuste', 'desconto'].includes((f.tipo||'').toLowerCase()));
+  const sumSub = (arr, k) => arr.reduce((s, f) => s + (f[k] || 0), 0);
+  const subRows = [
+    { label: '👷 Diaristas', prev: sumSub(diaristas, 'prev'), real: sumSub(diaristas, 'real') },
+    { label: '📌 Aditivos', prev: sumSub(aditivos, 'prev'), real: sumSub(aditivos, 'real') },
+    { label: '🔧 Ajustes', prev: sumSub(ajustes, 'prev'), real: sumSub(ajustes, 'real') },
+    { label: '📦 Outros', prev: sumSub(outros, 'prev'), real: sumSub(outros, 'real') },
+  ];
+  let tfootDiarios = `<tr style="font-weight:700;background:var(--bg1);border-top:2px solid var(--accent)"><td colspan="6" style="text-align:right;padding:6px 8px">Totais Diários</td><td>${fmt(sumDiariosPrev)}</td><td>${fmt(sumDiariosReal)}</td><td style="color:${sumDiariosDiff > 0 ? 'var(--red)' : sumDiariosDiff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(sumDiariosDiff)}</td><td colspan="4"></td></tr>`;
+  subRows.forEach(r => {
+    const d = r.real - r.prev;
+    tfootDiarios += `<tr style="font-size:12px;color:var(--text3);background:var(--bg1)"><td colspan="6" style="text-align:right;padding:2px 8px">${r.label}</td><td>${fmt(r.prev)}</td><td>${fmt(r.real)}</td><td style="color:${d > 0 ? 'var(--red)' : d < 0 ? 'var(--green)' : 'var(--text3)'}">${fmt(d)}</td><td colspan="4"></td></tr>`;
+  });
+  safeSetInner('fin-diarios-tbody', (tbodyDiarios || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem diárias pendentes</td></tr>') + tfootDiarios);
 
   // Tabela 2: Empreiteiros (Medições)
   let tbodyEmpreiteiros = '';
@@ -1710,6 +1730,13 @@ const getNome = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o
   });
   safeSetInner('fin-empreiteiros-tbody', tbodyEmpreiteiros || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem medições pendentes</td></tr>');
 
+  // Totais Empreiteiros
+  const sumEmprPrev = empreiteiros.reduce((s, f) => s + (f.prev || 0), 0);
+  const sumEmprReal = empreiteiros.reduce((s, f) => s + (f.real || 0), 0);
+  const sumEmprDiff = sumEmprReal - sumEmprPrev;
+  const tfootEmpreiteiros = `<tr style="font-weight:700;background:var(--bg1);border-top:2px solid var(--accent)"><td colspan="6" style="text-align:right;padding:6px 8px">Total Empreiteiros</td><td>${fmt(sumEmprPrev)}</td><td>${fmt(sumEmprReal)}</td><td style="color:${sumEmprDiff > 0 ? 'var(--red)' : sumEmprDiff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(sumEmprDiff)}</td><td colspan="4"></td></tr>`;
+  safeSetInner('fin-empreiteiros-tbody', (tbodyEmpreiteiros || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem medições pendentes</td></tr>') + tfootEmpreiteiros);
+
   // Tabela 3: Almoços
   let tbodyAlmocos = '';
   almocos.forEach(f => {
@@ -1737,6 +1764,13 @@ const getNome = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o
     </tr>`;
   });
   safeSetInner('fin-almocos-tbody', tbodyAlmocos || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem almoços pendentes</td></tr>');
+
+  // Totais Almoços
+  const sumAlmocoPrev = almocos.reduce((s, f) => s + (f.prev || 0), 0);
+  const sumAlmocoReal = almocos.reduce((s, f) => s + (f.real || 0), 0);
+  const sumAlmocoDiff = sumAlmocoReal - sumAlmocoPrev;
+  const tfootAlmocos = `<tr style="font-weight:700;background:var(--bg1);border-top:2px solid var(--accent)"><td colspan="6" style="text-align:right;padding:6px 8px">Total Almoços</td><td>${fmt(sumAlmocoPrev)}</td><td>${fmt(sumAlmocoReal)}</td><td style="color:${sumAlmocoDiff > 0 ? 'var(--red)' : sumAlmocoDiff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(sumAlmocoDiff)}</td><td colspan="4"></td></tr>`;
+  safeSetInner('fin-almocos-tbody', (tbodyAlmocos || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem almoços pendentes</td></tr>') + tfootAlmocos);
 
   window._allFinRows = allFin;
   
