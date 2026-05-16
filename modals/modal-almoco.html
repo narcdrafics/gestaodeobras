@@ -3,6 +3,14 @@
   <span class="modal-title">🍱 Lançar Almoço</span>
   <button class="modal-close" onclick="closeModal('modal-almoco')">×</button>
 </div>
+<div style="display:flex;gap:16px;padding:8px 16px 0;border-bottom:1px solid var(--border);margin-bottom:12px">
+  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600">
+    <input type="radio" name="al-modo" value="individual" checked onchange="toggleAlmocoModo()"> Individual
+  </label>
+  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600">
+    <input type="radio" name="al-modo" value="massa" onchange="toggleAlmocoModo()"> Em Lote 🚀
+  </label>
+</div>
 <div class="form-grid">
   <div class="form-group">
     <label class="form-label">Data *</label>
@@ -10,16 +18,22 @@
   </div>
   <div class="form-group">
     <label class="form-label">Obra *</label>
-    <select class="form-control" id="al-obra">
-      <!-- Populado via JS -->
+    <select class="form-control" id="al-obra" onchange="toggleAlmocoModo()">
     </select>
   </div>
-  <div class="form-group">
+  <div class="form-group" id="al-indiv-grp">
     <label class="form-label">Empreiteiro / Trabalhador *</label>
     <input class="form-control" id="al-empreiteiro" list="list-equipes" placeholder="Digite ou selecione...">
     <datalist id="list-equipes">
-      <!-- Populado via JS -->
     </datalist>
+  </div>
+  <div id="al-massa-grp" class="form-full" style="display:none;margin-bottom:8px">
+    <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Selecione os Funcionários/Equipes:</span>
+      <button class="btn btn-sm" onclick="selectAllAlmoco(true)" style="font-size:11px">Marcar Todos</button>
+    </label>
+    <div id="al-lista-massa" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto">
+    </div>
   </div>
   <div class="form-group">
     <label class="form-label">Quantidade de Almoços *</label>
@@ -38,7 +52,9 @@
     <textarea class="form-control" id="al-obs" rows="2"></textarea>
   </div>
 </div>
-<div class="modal-footer">
+<div class="modal-footer" style="flex-wrap:wrap">
   <button class="btn btn-secondary" onclick="closeModal('modal-almoco')">Cancelar</button>
-  <button class="btn btn-primary" onclick="saveAlmoco()">Salvar Lançamento</button>
+  <div style="flex-grow:1"></div>
+  <button class="btn btn-secondary" style="border:1px solid var(--primary);color:var(--primary);background:transparent" onclick="saveAlmoco(true)">Salvar e Próximo</button>
+  <button class="btn btn-primary" onclick="saveAlmoco()">Salvar Fechando</button>
 </div>

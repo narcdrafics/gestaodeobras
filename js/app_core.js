@@ -958,26 +958,94 @@ function calcAlmocoTotal() {
   if (target) target.value = (q * u).toFixed(2);
 }
 
-async function saveAlmoco() {
-  const data = {
-    data: document.getElementById('al-data').value,
-    obra: document.getElementById('al-obra').value,
-    empreiteiro: document.getElementById('al-empreiteiro').value,
-    qtd: parseFloat(document.getElementById('al-qtd').value) || 0,
-    vunit: parseFloat(document.getElementById('al-vunit').value) || 0,
-    vtotal: parseFloat(document.getElementById('al-vtotal').value) || 0,
-    obs: document.getElementById('al-obs').value
-  };
-  const editIdx = parseInt(document.getElementById('al-edit-idx').value) || -1;
-  if (editIdx >= 0) {
-    DB.almocos[editIdx] = data;
-    toast('Lançamento de almoço atualizado!');
+function toggleAlmocoModo() {
+  const modo = document.querySelector('input[name="al-modo"]:checked')?.value;
+  const indiv = document.getElementById('al-indiv-grp');
+  const massa = document.getElementById('al-massa-grp');
+  const lista = document.getElementById('al-lista-massa');
+  if (!indiv || !massa) return;
+  if (modo === 'massa') {
+    indiv.style.display = 'none';
+    massa.style.display = '';
+    const obra = document.getElementById('al-obra')?.value;
+    const trabList = DB.trabalhadores.filter(t => {
+      if (t.status !== 'Ativo') return false;
+      if (!t.obras || t.obras.trim() === '') return true;
+      return t.obras.includes(obra);
+    });
+    if (lista) {
+      lista.innerHTML = trabList.length > 0
+        ? trabList.map(t => `
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;background:rgba(var(--accent-rgb),0.03);padding:4px 8px;border-radius:4px;border:1px solid rgba(255,255,255,0.05)">
+              <input type="checkbox" class="al-massa-check" value="${t.nome}" data-cod="${t.cod}">
+              <span style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.nome}${t.equipe ? ' (' + t.equipe + ')' : ''}</span>
+            </label>
+          `).join('')
+        : '<p style="font-size:12px;color:var(--text3);padding:5px">Nenhum funcionário ativo na obra.</p>';
+    }
   } else {
-    DB.almocos.push(data);
-    toast('Almoço registrado!');
+    indiv.style.display = '';
+    massa.style.display = 'none';
   }
-  closeModal('modal-almoco'); await persistDB(); 
+}
+
+function selectAllAlmoco(check) {
+  document.querySelectorAll('.al-massa-check').forEach(c => c.checked = check);
+}
+
+async function saveAlmoco(keepOpen = false) {
+  const modoMassa = document.querySelector('input[name="al-modo"]:checked')?.value === 'massa';
+  const dataVal = document.getElementById('al-data').value;
+  const obraVal = document.getElementById('al-obra').value;
+  const editIdx = parseInt(document.getElementById('al-edit-idx').value) || -1;
+  const qtd = parseFloat(document.getElementById('al-qtd').value) || 0;
+  const vunit = parseFloat(document.getElementById('al-vunit').value) || 0;
+  const vtotal = qtd * vunit;
+  const obs = document.getElementById('al-obs').value;
+
+  if (!dataVal || !obraVal) { toast('Preencha data e obra!', 'error'); return; }
+
+  let empreiteiros = [];
+  if (modoMassa) {
+    const checks = document.querySelectorAll('.al-massa-check:checked');
+    if (checks.length === 0) { toast('Selecione ao menos um funcionário!', 'error'); return; }
+    empreiteiros = [...checks].map(c => c.value);
+  } else {
+    const emp = document.getElementById('al-empreiteiro').value.trim();
+    if (!emp) { toast('Informe o empreiteiro/trabalhador!', 'error'); return; }
+    empreiteiros = [emp];
+  }
+
+  let salvos = 0;
+  for (const emp of empreiteiros) {
+    if (editIdx < 0 || !modoMassa) {
+      const jaExiste = DB.almocos.some((a, i) => editIdx >= 0 && i === editIdx ? false : a.data === dataVal && a.empreiteiro === emp && a.obra === obraVal);
+      if (jaExiste) {
+        toast(`⚠️ ${emp} já tem almoço lançado nesta data!`, 'error');
+        if (!modoMassa) return;
+        continue;
+      }
+    }
+    const data = { data: dataVal, obra: obraVal, empreiteiro: emp, qtd, vunit, vtotal, obs };
+    if (editIdx >= 0 && !modoMassa) {
+      DB.almocos[editIdx] = data;
+    } else {
+      DB.almocos.push(data);
+    }
+    salvos++;
+  }
+
+  closeModal('modal-almoco');
+  await persistDB();
   if (typeof renderAlmocos === 'function') renderAlmocos();
+  if (keepOpen) {
+    const lastMode = modoMassa ? 'massa' : 'individual';
+    setTimeout(() => {
+      openModal('modal-almoco');
+      const radio = document.querySelector(`input[name="al-modo"][value="${lastMode}"]`);
+      if (radio) { radio.checked = true; toggleAlmocoModo(); }
+    }, 100);
+  }
 }
 
 async function editAlmoco(idx) {
@@ -2770,6 +2838,12 @@ async function openModal(id) {
     }
     m.querySelector('#al-data').value = today;
     calcAlmocoTotal();
+    const radioIndiv = m.querySelector('input[name="al-modo"][value="individual"]');
+    if (radioIndiv) { radioIndiv.checked = true; }
+    const indivGrp = document.getElementById('al-indiv-grp');
+    const massaGrp = document.getElementById('al-massa-grp');
+    if (indivGrp) indivGrp.style.display = '';
+    if (massaGrp) massaGrp.style.display = 'none';
   }
   if (id === 'modal-usuario') {
     if (document.getElementById('usr-edit-idx') && document.getElementById('usr-edit-idx').value === '-1') {
@@ -2786,7 +2860,15 @@ function closeModal(id) {
   const editIdx = document.getElementById('usr-edit-idx');
   if (id === 'modal-usuario' && editIdx) editIdx.value = '-1';
   const alEditIdx = document.getElementById('al-edit-idx');
-  if (id === 'modal-almoco' && alEditIdx) alEditIdx.value = '-1';
+  if (id === 'modal-almoco' && alEditIdx) {
+    alEditIdx.value = '-1';
+    const radioIndiv = document.querySelector('input[name="al-modo"][value="individual"]');
+    if (radioIndiv) radioIndiv.checked = true;
+    const indivGrp = document.getElementById('al-indiv-grp');
+    const massaGrp = document.getElementById('al-massa-grp');
+    if (indivGrp) indivGrp.style.display = '';
+    if (massaGrp) massaGrp.style.display = 'none';
+  }
   const tfEditIdx = document.getElementById('tf-edit-idx');
   if (id === 'modal-tarefa' && tfEditIdx) tfEditIdx.value = '-1';
   const obEditIdx = document.getElementById('ob-edit-idx');
