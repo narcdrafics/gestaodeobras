@@ -1247,7 +1247,9 @@ function renderPresenca() {
   if (listForTable.length === 0) {
     safeSetInner('pres-tbody', uiEmptyState('Folha em Branco', 'Ninguém bateu ponto hoje. Inicie o lançamento diário da obra.', '✅', 'Lançar Presença', 'openModal(\'modal-presenca\')'));
   } else if (!groupMode) {
-    safeSetInner('pres-tbody', listForTable.map(p => `<tr>
+    safeSetInner('pres-tbody', listForTable.map(p => {
+      const saldo = (Number(p.total) || 0) - (Number(p.valpago) || 0);
+      return `<tr>
         <td data-label="Data / Local"><b>${fmtDate(p.data)}</b><br><small style="color:var(--text3)">${obName(p.obra)}${p.frente ? ' · ' + p.frente : ''}</small></td>
         <td data-label="Profissional"><b>${p.nome}</b><br><small style="color:var(--text3)">${p.funcao}</small></td>
         <td data-label="Horários">${p.entrada || '—'} - ${p.saida || '—'}</td>
@@ -1255,11 +1257,13 @@ function renderPresenca() {
         <td data-label="Status">${statusBadge(p.presenca)}</td>
         <td data-label="Valor Total"><b>${fmt(p.total)}</b></td>
         <td data-label="Pgto">${p.pgtoStatus || '—'}</td>
+        <td data-label="Saldo" style="color:${saldo > 0 ? 'var(--red)' : 'var(--text3)'};font-weight:${saldo > 0 ? 'bold' : 'normal'}">${saldo > 0 ? fmt(saldo) : '—'}</td>
         <td>
           <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">Excluir</button>
         </td>
-      </tr>`).join(''));
+      </tr>`;
+    }).join(''));
   } else {
     let grouped = {};
     listForTable.forEach(p => {
@@ -1278,7 +1282,7 @@ function renderPresenca() {
       const icn = `ico-pres-${idx}`;
 
       tbodyHtml += `<tr class="group-header" onclick="toggleGroup('${cls}', '${icn}')" style="cursor:pointer; background:var(--bg3); font-weight:600;">
-            <td colspan="7"><span id="${icn}" style="display:inline-block; width:20px; font-size:12px; color:var(--accent);">▶</span> 
+            <td colspan="8"><span id="${icn}" style="display:inline-block; width:20px; font-size:12px; color:var(--accent);">▶</span> 
               <span style="font-size:14px; text-transform:uppercase">${k}</span> 
               <span class="badge badge-blue" style="margin-left:12px">${rows.length} registros</span>
             </td>
@@ -1286,6 +1290,7 @@ function renderPresenca() {
           </tr>`;
 
       rows.forEach(p => {
+        const saldo = (Number(p.total) || 0) - (Number(p.valpago) || 0);
         tbodyHtml += `<tr class="${cls}" style="display:none; transition: all 0.3s">
                 <td data-label="Data / Local" style="padding-left:16px"><span style="color:var(--text3); font-size:10px; margin-right:4px">└</span> <b>${fmtDate(p.data)}</b><br><small style="color:var(--text3)">${obName(p.obra)}${p.frente ? ' · ' + p.frente : ''}</small></td>
                 <td data-label="Profissional"><b>${p.nome}</b><br><small style="color:var(--text3)">${p.funcao}</small></td>
@@ -1294,6 +1299,7 @@ function renderPresenca() {
                 <td data-label="Status">${statusBadge(p.presenca)}</td>
                 <td data-label="Valor Total"><b>${fmt(p.total)}</b></td>
                 <td data-label="Pgto">${p.pgtoStatus || '—'}</td>
+                <td data-label="Saldo" style="color:${saldo > 0 ? 'var(--red)' : 'var(--text3)'};font-weight:${saldo > 0 ? 'bold' : 'normal'}">${saldo > 0 ? fmt(saldo) : '—'}</td>
                 <td>
                   <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
                   <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">Excluir</button>
