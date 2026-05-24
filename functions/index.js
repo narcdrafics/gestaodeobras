@@ -244,10 +244,6 @@ if (!textoTarefa) return;
       } else if (txtUpper === 'PONTO' || txtUpper === 'PRESENÇA') {
         dados = { intencao: 'consultar_ponto' };
         usarGPT = false;
-      } else if (txtUpper.includes('RDO')) {
-        const dataRDO = parseDataFromText(txt);
-        dados = { intencao: 'consultar_rdo', data: dataRDO || null, _label: dataRDO ? formatarDataBR(dataRDO) : 'Hoje' };
-        usarGPT = false;
       } else if (txtUpper.includes('TAREFA') || txtUpper === 'LISTA' || txtUpper === 'MENU') {
         dados = { intencao: 'consultar' };
         usarGPT = false;
@@ -265,8 +261,7 @@ if (!textoTarefa) return;
     if (!dados) {
       const prompt = `Você é um assistente de gestão de obras. Extraia as informações da mensagem para o seguinte formato JSON:
       { 
-        "intencao": "lancar_ponto" | "criar_tarefa" | "consultar" | "consultar_rdo", 
-        "data": "YYYY-MM-DD (opcional, apenas para RDO de data específica)",
+        "intencao": "lancar_ponto" | "criar_tarefa" | "consultar", 
         "ponto": { 
           "trabalhadores": ["Nomes mencionados"], 
           "presenca": "Presente" | "Falta" | "Meio período", 
@@ -280,7 +275,6 @@ if (!textoTarefa) return;
       }
       Instruções:
       - Se a mensagem for "Oi", "Bom dia", etc, intencao = "consultar".
-      - Se o usuário pedir o "RDO" (com ou sem data, ex: "RDO ontem", "RDO 10/03", "RDO 10/03/2026"), intencao = "consultar_rdo". Se houver data, inclua no campo "data" no formato YYYY-MM-DD. Se não houver data, não inclua "data".
       - No campo "trabalhadores", se disser "toda a equipe", tente identificar se há nomes específicos ou use a frase.
       - Seja inteligente ao extrair o nome da obra, ignore preposições como "na", "da", "em".
       
@@ -425,8 +419,6 @@ if (!textoTarefa) return;
       await responderWhatsApp(phoneId, `📋 Presença — ${dataFmt}:\n${resultados.join('\n')}`);
     } else if (dados.intencao === 'consultar') {
       await processarConsultaGeral(phoneId, tenantId, user);
-    } else if (dados.intencao === 'consultar_rdo') {
-      await processarConsultaRDO(phoneId, tenantId, user, dados.data || null);
     }
   } catch (err) {
     console.error('Erro:', err);
@@ -551,34 +543,6 @@ exports.dailyReport = onSchedule({
   }
 });
 
-exports.rdoReport = onSchedule({
-  schedule: '0 15,20 * * *', // 12h e 17h Brasília (UTC-3)
-  timeZone: 'America/Sao_Paulo',
-  secrets: [META_ACCESS_TOKEN, META_PHONE_NUMBER_ID]
-}, async (event) => {
-  const db = admin.database();
-  const hoje = getHojeBR();
-  const hora = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date());
-
-  console.log(`🕒 Iniciando RDO agendado ${hora} para ${hoje}`);
-
-  try {
-    const tenantsSnap = await db.ref('tenants').once('value');
-    const tenants = tenantsSnap.val();
-    if (!tenants) return;
-
-    for (const tenantId in tenants) {
-      const tenant = tenants[tenantId];
-      if (!tenant.adminPhone || tenant.status === 'inativo') continue;
-
-      console.log(`📊 Enviando RDO para tenant: ${tenantId} (${tenant.nome || 'Sem nome'})`);
-      await processarConsultaRDO(tenant.adminPhone, tenantId, null);
-    }
-    console.log('✅ RDO agendado enviado com sucesso.');
-  } catch (error) {
-    console.error('❌ Erro ao processar RDO agendado:', error);
-  }
-});
 
 async function processarConsultaGeral(para, tenantId, user) {
   const db = admin.database();
@@ -605,98 +569,6 @@ async function processarConsultaGeral(para, tenantId, user) {
   await responderWhatsApp(para, msg);
 }
 
-async function processarConsultaRDO(para, tenantId, user, dataParam) {
-  const db = admin.database();
-  const hoje = dataParam || getHojeBR();
-  const rotulo = dataParam ? formatarDataBR(dataParam) : 'Hoje';
-  
-  const [pontoSnap, tarefasSnap, movSnap] = await Promise.all([
-    db.ref(`tenants/${tenantId}/presenca`).once('value'),
-    db.ref(`tenants/${tenantId}/tarefas`).once('value'),
-    db.ref(`tenants/${tenantId}/movEstoque`).once('value'),
-  ]);
-  
-  const todosPresenca = Object.values(pontoSnap.val() || {}).filter(p => p && p.data === hoje);
-  const presentes = todosPresenca.filter(p => p.presenca === 'Presente' || p.presenca === 'Meio período');
-  const ausentes = todosPresenca.filter(p => p.presenca === 'Falta');
-  
-  const tarefasConcluidas = Object.values(tarefasSnap.val() || {}).filter(t => t && t.conclusao === hoje && t.status === 'Concluída');
-  const tarefasPendentes = Object.values(tarefasSnap.val() || {}).filter(t => t && t.prazo === hoje && t.status !== 'Concluída');
-  const tarefasNovas = Object.values(tarefasSnap.val() || {}).filter(t => {
-    if (!t || t.status !== 'Pendente') return false;
-    if (t.criacao === hoje) return true;
-    if (t.criadoEm) {
-      const d = new Date(t.criadoEm);
-      const ts = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d).split('/').reverse().join('-');
-      return ts === hoje;
-    }
-    return false;
-  });
-  const movTodos = Object.values(movSnap.val() || {});
-  console.log(`📦 movEstoque encontrados: ${movTodos.length}`);
-  const itemsVistos = new Set();
-  const maquinasCanteiro = [];
-  movTodos.forEach(m => {
-    if (!m || (!m.mat && !m.codMat)) return;
-    const chave = m.codMat || m.mat;
-    if (itemsVistos.has(chave)) return;
-    itemsVistos.add(chave);
-    const qtd = parseFloat(m.qtd) || 0;
-    maquinasCanteiro.push({ nome: m.mat || chave, qtd, unid: m.unid || '' });
-  });
-  console.log(`🔧 Máquinas no canteiro: ${maquinasCanteiro.length}`, maquinasCanteiro.map(i => i.nome));
-  
-  const dataFmt = formatarDataBR(hoje);
-  let msg = `📊 *RDO — ${rotulo}* — ${dataFmt}\n`;
-
-  const agrupar = (arr) => {
-    const map = {};
-    arr.forEach(p => {
-      const f = (p.funcao || '—').trim() || '—';
-      if (!map[f]) map[f] = 0;
-      map[f]++;
-    });
-    return map;
-  };
-
-  if (presentes.length > 0) {
-    const grupos = agrupar(presentes);
-    msg += `\n👷 *Presentes:*\n`;
-    msg += Object.entries(grupos).sort().map(([f, q]) => `• ${f} — ${String(q).padStart(2, '0')}`).join('\n');
-  }
-
-  if (ausentes.length > 0) {
-    const grupos = agrupar(ausentes);
-    msg += `\n\n❌ *Ausentes:*\n`;
-    msg += Object.entries(grupos).sort().map(([f, q]) => `• ${f} — ${String(q).padStart(2, '0')}`).join('\n');
-  }
-
-  if (tarefasNovas.length > 0) {
-    msg += `\n\n🆕 *Novas tarefas:*\n`;
-    msg += tarefasNovas.map(t => `• ${t.desc}`).join('\n');
-  }
-
-  if (tarefasPendentes.length > 0) {
-    msg += `\n\n📋 *Tarefas do dia:*\n`;
-    msg += tarefasPendentes.map(t => `• ${t.desc}`).join('\n');
-  }
-
-  if (tarefasConcluidas.length > 0) {
-    msg += `\n\n✅ *Concluídas:*\n`;
-    msg += tarefasConcluidas.map(t => `• ${t.desc}`).join('\n');
-  }
-
-  if (maquinasCanteiro.length > 0) {
-    msg += `\n\n🔧 *Máquinas/material no canteiro:*\n`;
-    msg += maquinasCanteiro.map(i => `• ${i.nome}${i.qtd ? ` — ${i.qtd}${i.unid ? ' ' + i.unid : ''}` : ''}`).join('\n');
-  }
-
-  if (todosPresenca.length === 0 && tarefasNovas.length === 0 && tarefasPendentes.length === 0 && tarefasConcluidas.length === 0 && maquinasCanteiro.length === 0) {
-    msg += `\n_Nenhum registro para ${rotulo.toLowerCase()}._`;
-  }
-
-  await responderWhatsApp(para, msg);
-}
 
 exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
   const uid = event.params.uid;

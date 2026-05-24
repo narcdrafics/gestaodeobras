@@ -762,7 +762,6 @@ function renderObras() {
         
         <div style="display:flex;gap:4px;margin-top:auto;flex-wrap:wrap">
           <button class="btn btn-secondary btn-sm" style="flex:1;min-width:110px" onclick="shareObraWhatsApp('${o.cod}')">📱 WhatsApp</button>
-          <button class="btn btn-primary btn-sm" style="flex:1;min-width:70px" onclick="rdoAbrirDaObra({id:'${o.cod}', nome:'${o.nome}', empresa:'${o.empresa||''}'})">📋 RDO</button>
           <button class="btn btn-primary btn-sm" style="flex:1;min-width:80px" onclick="showPage('tarefas')">📋 Tarefas</button>
         </div>
       </div>`;
