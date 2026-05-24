@@ -1193,6 +1193,27 @@ function openPresenceModal(workerCod, date, existingIdx = -1) {
 function renderPresenca() {
   console.log('Iniciando renderPresenca...');
   const allPres = DB.presenca || [];
+
+  // Normaliza total para registros com diária setada mas total ausente/zero
+  allPres.forEach(p => {
+    if (!p || !p.data) return;
+    const diaria = Number(p.diaria) || 0;
+    const total = Number(p.total) || 0;
+    if (diaria > 0 && total <= 0 && p.presenca && p.presenca !== 'Falta') {
+      if (p.presenca === 'Meio período') {
+        p.total = diaria / 2;
+      } else if (p.vinculo === 'Informal') {
+        p.total = diaria;
+      } else {
+        const hnorm = Number(p.hnorm) || 0;
+        if (hnorm > 0) {
+          const hextra = Number(p.hextra) || 0;
+          p.total = diaria + (hextra * (diaria / 8) * 1.5);
+        }
+      }
+    }
+  });
+
   const validPres = allPres.filter(p => p && p.data);
 
   // KPIs de Hoje
@@ -3393,7 +3414,10 @@ async function savePresenca(keepOpen = false) {
           return diariaBase / 2;
         }
         if (isInformal) return t ? t.diaria : 0;
-        return parseFloat(document.getElementById('pr-total').value) || 0;
+        const totalForm = parseFloat(document.getElementById('pr-total').value);
+        if (totalForm > 0) return totalForm;
+        const diariaBase = t ? t.diaria : (parseFloat(document.getElementById('pr-diaria').value) || 0);
+        return diariaBase > 0 ? diariaBase : 0;
       })(),
 
       pgtoStatus: document.getElementById('pr-pgto-status').value || 'Pendente',
