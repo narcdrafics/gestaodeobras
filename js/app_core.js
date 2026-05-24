@@ -3227,6 +3227,35 @@ async function saveTrabalhador() {
         });
       }
     }
+
+    // Retroactive: se a diária mudou, recalcula presenças não pagas
+    const oldDiaria = oldWorker.diaria || 0;
+    const newDiaria = data.diaria || 0;
+    if (newDiaria !== oldDiaria && DB.presenca) {
+      DB.presenca.forEach(p => {
+        if (p.trab !== oldCod && p.nome !== oldName) return;
+        if (p.pgtoStatus === 'Pago') return;
+        p.diaria = newDiaria;
+        if (p.presenca === 'Falta') {
+          p.total = 0;
+        } else if (p.presenca === 'Meio período') {
+          p.total = newDiaria / 2;
+        } else if (p.vinculo === 'Informal') {
+          p.total = newDiaria;
+        } else {
+          const hnorm = p.hnorm || 0;
+          if (hnorm > 0) {
+            const hextra = p.hextra || 0;
+            const valorHora = newDiaria / 8;
+            p.total = newDiaria + (hextra * valorHora * 1.5);
+          } else {
+            p.total = 0;
+          }
+        }
+      });
+      console.log(`[Retroactive] Presenças não pagas de "${oldName}" recalculadas com diária R$ ${newDiaria}`);
+    }
+
     toast('Cadastro e históricos atualizados!');
   } else {
     DB.trabalhadores.push(data);
@@ -3237,6 +3266,7 @@ async function saveTrabalhador() {
 
   // Atualizações Globais na UI (antes do sync para UX mais rápida)
   if (typeof renderTrabalhadores === 'function') renderTrabalhadores();
+  if (typeof renderPresenca === 'function') renderPresenca();
   if (typeof renderDashboard === 'function') renderDashboard();
   if (typeof renderFinanceiro === 'function') renderFinanceiro();
 
