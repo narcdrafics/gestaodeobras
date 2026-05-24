@@ -53,11 +53,5 @@
         ".write": "auth != null && root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId"
       }
     },
-    "rdos": {
-      "$tenantId": {
-        ".read": "auth != null && (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
-        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
-      }
-    }
   }
 }
