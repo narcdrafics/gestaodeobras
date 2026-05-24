@@ -649,14 +649,26 @@ async function processarConsultaRDO(para, tenantId, user, dataParam) {
   const dataFmt = formatarDataBR(hoje);
   let msg = `📊 *RDO — ${rotulo}* — ${dataFmt}\n`;
 
+  const agrupar = (arr) => {
+    const map = {};
+    arr.forEach(p => {
+      const f = (p.funcao || '—').trim() || '—';
+      if (!map[f]) map[f] = 0;
+      map[f]++;
+    });
+    return map;
+  };
+
   if (presentes.length > 0) {
+    const grupos = agrupar(presentes);
     msg += `\n👷 *Presentes:*\n`;
-    msg += presentes.map(p => `• ${p.nome} (${p.funcao || '—'})${p.presenca === 'Meio período' ? ' — meio período' : ''}`).join('\n');
+    msg += Object.entries(grupos).sort().map(([f, q]) => `• ${f} — ${String(q).padStart(2, '0')}`).join('\n');
   }
 
   if (ausentes.length > 0) {
+    const grupos = agrupar(ausentes);
     msg += `\n\n❌ *Ausentes:*\n`;
-    msg += ausentes.map(p => `• ${p.nome} (${p.funcao || '—'})`).join('\n');
+    msg += Object.entries(grupos).sort().map(([f, q]) => `• ${f} — ${String(q).padStart(2, '0')}`).join('\n');
   }
 
   if (tarefasNovas.length > 0) {

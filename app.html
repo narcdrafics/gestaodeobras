@@ -108,7 +108,6 @@
 <!-- MODAL CONTAINER -->
 <div class="modal-overlay" id="modal-container">
   <div class="modal" id="modal-content">
-    <!-- O HTML dos modais virá para cá via JS -->
   </div>
 </div>
 
@@ -176,14 +175,28 @@ window.shareScreen = async function() {
 
 <!-- MODULOS DE LOGICA — carregado primeiro (blocking) para popular window.* antes dos defer -->
 <script src="js/utils.module.js?v=20260428001"></script>
+<script src="js/estoque.module.js?v=20260515002"></script>
 
 <script defer src="js/pix_logic.js?v=20260428001"></script>
 <script defer src="js/pix_ui.js?v=20260428001"></script>
 <script defer src="js/data_core.js?v=20260428001"></script>
 <script defer src="js/auth_core.js?v=20260428001"></script>
-<script defer src="js/app_core.js?v=20260512006"></script>
+<script defer src="js/app_core.js?v=20260524002"></script>
 <!-- MODULO RDO -->
 <script defer src="js/rdo.module.js?v=20260501001"></script>
+
+<!-- CARREGAR MODAIS ESTOQUE -->
+<script defer>
+document.addEventListener('DOMContentLoaded', () => {
+  Promise.all([
+    carregarHTML('modals/modal-movimentacao-estoque.html'),
+    carregarHTML('modals/modal-entrada-estoque.html')
+  ]).then(([mov, ent]) => {
+    document.body.insertAdjacentHTML('beforeend', mov);
+    document.body.insertAdjacentHTML('beforeend', ent);
+  });
+});
+</script>
 
 <script>
 if (typeof showPage !== 'function') window.showPage = function() { console.log('Carregando...'); };

@@ -173,7 +173,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '202603260845';
+const HTML_CACHE_VERSION = '20260515001';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -184,13 +184,14 @@ function clearPageCache() {
 
 async function carregarHTML(caminho) {
   clearPageCache();
-  if (cachePaginas[caminho]) return cachePaginas[caminho];
+  const cacheKey = `${caminho}?v=${HTML_CACHE_VERSION}`;
+  if (cachePaginas[cacheKey]) return cachePaginas[cacheKey];
   try {
     const urlComVersionamento = `${caminho}?v=${HTML_CACHE_VERSION}`;
     const res = await fetch(urlComVersionamento);
     if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
     const html = await res.text();
-    cachePaginas[caminho] = html;
+    cachePaginas[cacheKey] = html;
     return html;
   } catch (err) {
     console.error('Falha ao buscar:', caminho, err);
@@ -1495,6 +1496,48 @@ function renderKanban(tasks) {
   safeSetInner('tar-board', html);
 }
 
+// ==================== MODAL ENTRADA ====================
+function abrirModalEntrada() {
+  const sel = document.getElementById('ent-item');
+  if (sel) {
+    sel.innerHTML = '<option value="">Selecione o item...</option>';
+    (DB.estoque || []).forEach(e => {
+      const saldo = (parseFloat(e.entrada)||0) - (parseFloat(e.saida)||0);
+      sel.innerHTML += `<option value="${e.cod}">${e.mat} (${e.unid}) — saldo: ${saldo}</option>`;
+    });
+  }
+  ['ent-quantidade','ent-vunit'].forEach(id => { const el = document.getElementById(id); if (el) el.value = id === 'ent-quantidade' ? '1' : '0'; });
+  const motivo = document.getElementById('ent-motivo'); if (motivo) motivo.value = '';
+  const obs = document.getElementById('ent-obs'); if (obs) obs.value = '';
+  const el = document.getElementById('modal-entrada-estoque');
+  if (el) el.style.display = 'flex';
+}
+
+function closeModalEntrada() {
+  const el = document.getElementById('modal-entrada-estoque');
+  if (el) el.style.display = 'none';
+}
+
+async function confirmarEntrada() {
+  const codMat = document.getElementById('ent-item').value;
+  const qtd = parseFloat(document.getElementById('ent-quantidade').value);
+  const motivo = document.getElementById('ent-motivo').value.trim();
+  if (!codMat) { toast('Selecione um item.', 'error'); return; }
+  if (!qtd || qtd <= 0) { toast('Quantidade inválida.', 'error'); return; }
+  if (!motivo) { toast('Informe o motivo/NF.', 'error'); return; }
+  const e = DB.estoque.find(x => x.cod === codMat);
+  if (e) e.entrada = (parseFloat(e.entrada)||0) + qtd;
+  DB.movEstoque.push({
+    data: today, codMat, mat: e?.mat || codMat, obra: e?.obra || '',
+    tipo: 'Entrada', qtd, motivo, obs: document.getElementById('ent-obs')?.value || ''
+  });
+  closeModalEntrada();
+  await persistDB();
+  toast('✅ Entrada registrada!');
+  renderEstoque();
+  renderMovEstoque();
+}
+
 // ==================== ESTOQUE ====================
 function renderEstoque() {
   safeSetInner('est-tbody', DB.estoque.length
@@ -1522,7 +1565,7 @@ function renderMovEstoque() {
     ? DB.movEstoque.map((m, i) => `<tr>
         <td>${fmtDate(m.data)}</td><td><span class="cod">${m.codMat}</span></td><td>${m.mat}</td>
         <td>${obName(m.obra)}</td>
-        <td><span class="badge ${m.tipo === 'Entrada' ? 'badge-green' : m.tipo === 'Saída' ? 'badge-orange' : m.tipo.includes('Entrada') ? 'badge-blue' : 'badge-purple'}">${m.tipo}</span></td>
+        <td><span class="badge ${m.tipo === 'Entrada' ? 'badge-green' : m.tipo === 'Saída' ? 'badge-orange' : m.tipo === 'Retorno' ? 'badge-blue' : m.tipo.includes('Entrada') ? 'badge-blue' : 'badge-purple'}">${m.tipo}</span></td>
         <td>${m.qtd}</td><td>${m.frente || '—'}</td><td>${m.retirado || '—'}</td>
         <td>${m.autor || '—'}</td><td>${m.nf || '—'}</td>
         <td>${fmt(m.vunit)}</td><td>${fmt(m.vtotal)}</td><td>${m.obs || '—'}</td>
@@ -3544,11 +3587,22 @@ window.getMesRange = function() {
 };
 
 window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) {
-  await openModal('modal-lote');
+  // Evita reabrir e recriar o modal se ele já estiver aberto na tela
+  const modalContainer = document.getElementById('modal-container');
+  const isAlreadyOpen = modalContainer && modalContainer.classList.contains('open') && document.getElementById('lote-periodo') !== null;
+  
+  if (!isAlreadyOpen) {
+    await openModal('modal-lote');
+  }
   
   // Se veio de onchange do select, pegue o valor
   const sel = document.getElementById('lote-periodo');
   const periodoSel = periodo || (sel ? sel.value : 'semana');
+  
+  // Sincroniza o select visual com o período atual selecionado
+  if (sel) {
+    sel.value = periodoSel;
+  }
   
   // Toggle campos de data customizada
   const customDiv = document.getElementById('lote-custom-dates');
@@ -3565,6 +3619,12 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
       toast('Selecione as datas inicial e final.', 'error');
       return;
     }
+    
+    // Atualiza os inputs de data para manter os valores selecionados visíveis
+    const iniEl = document.getElementById('lote-data-ini');
+    const fimEl = document.getElementById('lote-data-fim');
+    if (iniEl) iniEl.value = dataIni;
+    if (fimEl) fimEl.value = dataFim;
   } else {
     const ranges = {
       'semana': window.getSemanaRange(),
@@ -3575,8 +3635,6 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
     dataIni = range.ini;
     dataFim = range.fim;
   }
-  
-console.log('[Lote] Filtrando período:', periodoSel, dataIni, 'a', dataFim);
   
   // Filtrar presenças pelo período - a tabela de presença é quem manda
   let pendentesRaw = DB.presenca.filter(p => {
@@ -3608,14 +3666,10 @@ console.log('[Lote] Filtrando período:', periodoSel, dataIni, 'a', dataFim);
     }
   });
 
-  // Log dos dias descontados
-  Object.values(saldos).forEach(s => {
-    if (s.descontados?.length) {
-      console.log(`[Lote] ${s.nome}: descontado(s):`, s.descontados.join(', '));
-    }
-  });
 
-  window.lotePendentes = Object.values(saldos).sort((a, b) => b.valor - a.valor);
+  window.lotePendentes = Object.values(saldos)
+    .filter(s => s.valor > 0)
+    .sort((a, b) => b.valor - a.valor);
   
   // Atualiza título do modal com período
   const titulo = document.querySelector('#modal-lote .modal-title');
@@ -3783,22 +3837,39 @@ async function editTarefa(idx) {
 }
 
 async function saveEstoque() {
+  const mat = document.getElementById('es-mat').value.trim();
+  const obra = document.getElementById('es-obra').value;
+  const editIdx = parseInt(document.getElementById('es-edit-idx').value) || -1;
+
+  if (!mat) { toast('Informe o nome do material!', 'error'); return; }
+
+  function normEstoqueNome(n) {
+    return n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  if (editIdx < 0) {
+    const matNorm = normEstoqueNome(mat);
+    const dup = DB.estoque.find(e => e.obra === obra && normEstoqueNome(e.mat) === matNorm);
+    if (dup) {
+      toast(`⚠️ "${mat}" já existe em "${obra}". Edite o item existente ou use movimentação para ajustar quantidade.`, 'error');
+      return;
+    }
+  }
 
   const data = {
     cod: document.getElementById('es-cod').value,
-    mat: document.getElementById('es-mat').value,
+    mat,
     unid: document.getElementById('es-unid').value,
-    obra: document.getElementById('es-obra').value,
+    obra,
     min: parseFloat(document.getElementById('es-min').value) || 0,
     entrada: parseFloat(document.getElementById('es-entrada').value) || 0,
     saida: 0,
     custo: parseFloat(document.getElementById('es-custo').value) || 0,
     obs: document.getElementById('es-obs').value
   };
-  const editIdx = parseInt(document.getElementById('es-edit-idx').value) || -1;
   if (editIdx >= 0) {
     if (DB.estoque[editIdx].saida !== undefined) {
-      data.saida = DB.estoque[editIdx].saida; // preserve existing usage counter
+      data.saida = DB.estoque[editIdx].saida;
     }
     DB.estoque[editIdx] = data;
     toast('Item de estoque atualizado!');
@@ -3885,9 +3956,9 @@ async function saveMovEstoque() {
 
     toast('Transferência Dupla registrada!');
   } else {
-    // Normal Entrada/Saida Logic
+    // Normal Entrada/Saida/Retorno Logic
     if (e) {
-      if (tipo === 'Entrada') e.entrada += qtd;
+      if (tipo === 'Entrada' || tipo === 'Retorno') e.entrada += qtd;
       else { if (qtd > window.calcSaldo(e)) { toast('Qtd. maior que saldo!', 'error'); return; } e.saida += qtd; }
     }
     const data = {
@@ -4258,11 +4329,63 @@ async function saveUsuario() {
 
 // ==================== DELETE ====================
 function deleteItem(table, idx) {
-  if (!confirm('Remover este registro?')) return;
   if (idx < 0 || idx >= DB[table].length) {
     toast('Erro: Índice inválido. Recarregue a página.', 'error');
     return;
   }
+
+  // Proteção para estoque: não excluir se tem saldo ou está no canteiro
+  if (table === 'estoque') {
+    const item = DB.estoque[idx];
+    const saldo = (parseFloat(item.entrada)||0) - (parseFloat(item.saida)||0);
+    if (saldo > 0) {
+      toast(`⚠️ "${item.mat}" tem saldo de ${saldo} ${item.unid||'un'}. Zere o estoque antes de excluir.`, 'error');
+      return;
+    }
+    const noCanteiro = DB.movEstoque.some(m =>
+      m.codMat === item.cod &&
+      ((m.tipo||'').toLowerCase().includes('saída') || (m.tipo||'').toLowerCase().includes('saida'))
+      && !DB.movEstoque.some(r =>
+        r !== m && r.codMat === item.cod && r.obra === m.obra &&
+        ((r.tipo||'').toLowerCase() === 'retorno')
+      )
+    );
+    if (noCanteiro) {
+      if (!confirm(`⚠️ "${item.mat}" ainda pode estar no canteiro sem retorno registrado. Excluir mesmo assim?`)) return;
+    }
+  }
+
+  // Proteção para movEstoque
+  if (table === 'movEstoque') {
+    const mov = DB.movEstoque[idx];
+    const tipo = (mov.tipo || '').toLowerCase();
+
+    const isSaida = tipo.includes('saída') || tipo.includes('saida');
+    const isEntrada = tipo.includes('entrada');
+
+    if (isSaida && !isEntrada) {
+      const temRetorno = DB.movEstoque.some(m =>
+        m !== mov &&
+        ((m.tipo || '').toLowerCase() === 'retorno') &&
+        m.codMat === mov.codMat &&
+        m.obra === mov.obra
+      );
+      if (!temRetorno) {
+        if (!confirm(`⚠️ "${mov.mat}" (${mov.tipo}) ainda não tem Retorno registrado. Deletar mesmo assim?`)) return;
+      } else {
+        if (!confirm(`Remover "${mov.tipo}" de "${mov.mat}"? O saldo no estoque não será ajustado.`)) return;
+      }
+    } else if (tipo === 'entrada' || tipo === 'retorno') {
+      if (!confirm(`Remover "${mov.tipo}" de "${mov.mat}"? O estoque perderá esta quantidade.`)) return;
+    } else if (tipo.includes('transferência') || tipo.includes('transferencia')) {
+      if (!confirm(`Remover "${mov.tipo}" de "${mov.mat}"? Os saldos não serão ajustados.`)) return;
+    } else {
+      if (!confirm('Remover este registro?')) return;
+    }
+  } else {
+    if (!confirm('Remover este registro?')) return;
+  }
+
   DB[table].splice(idx, 1);
   persistDB();
   const activePageEl = document.querySelector('.page.active');
@@ -4270,7 +4393,6 @@ function deleteItem(table, idx) {
     const pageId = activePageEl.id.replace('page-', '');
     renderPage(pageId);
   } else {
-    // Fallback refresh for critical tabs
     if (table === 'orcamento') renderOrcamento();
     if (table === 'financeiro') renderFinanceiro();
   }

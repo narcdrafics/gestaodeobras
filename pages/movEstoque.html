@@ -1,6 +1,9 @@
 <div class="page-header">
   <div class="page-title">Mov. Estoque <small>Registros de movimentação</small></div>
-  <button class="btn btn-primary" onclick="openModal('modal-movest')">+ Nova Movimentação</button>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-secondary" style="border-color:var(--accent);color:var(--accent);font-weight:600" onclick="abrirModalMovimentacao()">🔄 Nova Mov. (Canteiro)</button>
+    <button class="btn btn-primary" onclick="openModal('modal-movest')">+ Nova Mov. (Clássico)</button>
+  </div>
 </div>
 <div class="table-wrap">
   <div class="table-toolbar">

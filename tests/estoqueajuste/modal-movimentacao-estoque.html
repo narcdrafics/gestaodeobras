@@ -1,0 +1,557 @@
+<!-- modals/modal-movimentacao-estoque.html -->
+<!-- 
+  Modal unificado de movimentação de estoque.
+  Inclui: Saída para Canteiro, Retorno, Transferência, Ajuste.
+  BLOQUEADO: Entrada (fluxo separado — modal-entrada-estoque.html)
+-->
+
+<div id="modal-movimentacao-estoque" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="mov-modal-titulo">
+
+  <div class="modal-box" style="max-width:520px">
+
+    <!-- Header -->
+    <div class="modal-header">
+      <h2 id="mov-modal-titulo">Movimentação de Estoque</h2>
+      <button class="modal-close-btn" onclick="fecharModalMovimentacao()" aria-label="Fechar">✕</button>
+    </div>
+
+    <!-- Aviso importante -->
+    <div class="mov-aviso-entrada" style="
+      background: rgba(255,77,77,0.08);
+      border: 1px solid rgba(255,77,77,0.25);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #FF6B6B;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    ">
+      <span style="flex-shrink:0;margin-top:1px">⚠️</span>
+      <span>Este modal é apenas para <strong>movimentações entre estoque e canteiro</strong>. Para adicionar novos itens ou repor estoque, use <strong>"Nova Entrada"</strong>.</span>
+    </div>
+
+    <!-- Tipo de movimentação -->
+    <div class="form-group">
+      <label class="form-label" for="mov-tipo">Tipo de Movimentação <span class="required">*</span></label>
+      <div class="mov-tipo-grid">
+        <button type="button" class="mov-tipo-btn" data-tipo="saida_canteiro" onclick="selecionarTipoMov('saida_canteiro')">
+          <span class="mov-tipo-icon">📤</span>
+          <span class="mov-tipo-label">Saída para Canteiro</span>
+          <span class="mov-tipo-desc">Estoque → Obra</span>
+        </button>
+        <button type="button" class="mov-tipo-btn" data-tipo="retorno" onclick="selecionarTipoMov('retorno')">
+          <span class="mov-tipo-icon">📥</span>
+          <span class="mov-tipo-label">Retorno</span>
+          <span class="mov-tipo-desc">Obra → Estoque</span>
+        </button>
+        <button type="button" class="mov-tipo-btn" data-tipo="transferencia" onclick="selecionarTipoMov('transferencia')">
+          <span class="mov-tipo-icon">🔄</span>
+          <span class="mov-tipo-label">Transferência</span>
+          <span class="mov-tipo-desc">Obra → Obra</span>
+        </button>
+        <button type="button" class="mov-tipo-btn" data-tipo="ajuste" onclick="selecionarTipoMov('ajuste')">
+          <span class="mov-tipo-icon">✏️</span>
+          <span class="mov-tipo-label">Ajuste</span>
+          <span class="mov-tipo-desc">Correção de saldo</span>
+        </button>
+      </div>
+      <!-- Botão ENTRADA bloqueado visivelmente -->
+      <div class="mov-entrada-bloqueada" onclick="alertarEntradaBloqueada()" title="Use o botão Nova Entrada no cadastro de estoque">
+        <span>🔒 Entrada de itens — use o botão <strong>Nova Entrada</strong> no estoque</span>
+      </div>
+    </div>
+
+    <!-- Item -->
+    <div class="form-group">
+      <label class="form-label" for="mov-item">Item <span class="required">*</span></label>
+      <select id="mov-item" class="form-control" onchange="onItemChange()">
+        <option value="">Selecione um item...</option>
+      </select>
+      <!-- Info do item selecionado -->
+      <div id="mov-item-info" class="mov-item-info" style="display:none">
+        <div class="mov-item-info-row">
+          <span>Disponível no estoque:</span>
+          <strong id="mov-item-qtd-estoque">—</strong>
+        </div>
+        <div class="mov-item-info-row" id="mov-item-canteiro-row" style="display:none">
+          <span>No canteiro (selecionado):</span>
+          <strong id="mov-item-qtd-canteiro">—</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Campos condicionais por tipo -->
+
+    <!-- Obra destino (saida_canteiro) -->
+    <div class="form-group" id="campo-obra-destino" style="display:none">
+      <label class="form-label" for="mov-obra-destino">Obra de Destino <span class="required">*</span></label>
+      <select id="mov-obra-destino" class="form-control">
+        <option value="">Selecione a obra...</option>
+      </select>
+    </div>
+
+    <!-- Obra origem (retorno) -->
+    <div class="form-group" id="campo-obra-origem-retorno" style="display:none">
+      <label class="form-label" for="mov-obra-origem-ret">Obra de Origem (onde está o item) <span class="required">*</span></label>
+      <select id="mov-obra-origem-ret" class="form-control" onchange="onObraOrigemRetornoChange()">
+        <option value="">Selecione a obra...</option>
+      </select>
+      <div id="mov-qtd-canteiro-info" class="mov-info-badge" style="display:none"></div>
+    </div>
+
+    <!-- Transferência: origem + destino -->
+    <div class="form-group" id="campo-transferencia" style="display:none">
+      <label class="form-label" for="mov-transf-origem">Obra de Origem <span class="required">*</span></label>
+      <select id="mov-transf-origem" class="form-control" onchange="onTransfOrigemChange()">
+        <option value="">Selecione a obra de origem...</option>
+      </select>
+      <div id="mov-transf-canteiro-info" class="mov-info-badge" style="display:none"></div>
+
+      <label class="form-label" for="mov-transf-destino" style="margin-top:14px">Obra de Destino <span class="required">*</span></label>
+      <select id="mov-transf-destino" class="form-control">
+        <option value="">Selecione a obra de destino...</option>
+      </select>
+    </div>
+
+    <!-- Quantidade -->
+    <div class="form-group">
+      <label class="form-label" for="mov-quantidade">Quantidade <span class="required">*</span></label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="mov-quantidade" class="form-control" min="0.01" step="0.01"
+               placeholder="0" style="flex:1" oninput="validarQuantidadeInput()">
+        <span id="mov-unidade-label" class="mov-unidade-badge">—</span>
+      </div>
+      <div id="mov-quantidade-erro" class="form-error" style="display:none"></div>
+    </div>
+
+    <!-- Motivo (obrigatório para ajuste, opcional para outros) -->
+    <div class="form-group" id="campo-motivo">
+      <label class="form-label" for="mov-motivo">
+        Motivo <span id="motivo-required-label" class="required" style="display:none">*</span>
+        <span id="motivo-opcional-label" style="font-weight:400;color:#6b7280;font-size:12px">(opcional)</span>
+      </label>
+      <textarea id="mov-motivo" class="form-control" rows="2"
+                placeholder="Ex: Material retornou após fim da fase de alvenaria..."></textarea>
+      <div id="mov-motivo-counter" class="form-hint" style="display:none">Mínimo 10 caracteres</div>
+    </div>
+
+    <!-- Erros do formulário -->
+    <div id="mov-erros-lista" class="mov-erros-container" style="display:none"></div>
+
+    <!-- Footer -->
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" onclick="fecharModalMovimentacao()">Cancelar</button>
+      <button type="button" id="mov-btn-confirmar" class="btn btn-primary" onclick="confirmarMovimentacao()" disabled>
+        <span id="mov-btn-texto">Selecione um tipo</span>
+        <span id="mov-btn-spinner" class="spinner" style="display:none"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+.mov-tipo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.mov-tipo-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: 1.5px solid var(--border, #2a2a2a);
+  border-radius: 8px;
+  background: var(--card, #141414);
+  color: var(--text, #e5e5e5);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.mov-tipo-btn:hover {
+  border-color: var(--accent, #FF6B35);
+  background: rgba(255,107,53,0.06);
+}
+.mov-tipo-btn.ativo {
+  border-color: var(--accent, #FF6B35);
+  background: rgba(255,107,53,0.1);
+  color: var(--accent, #FF6B35);
+}
+.mov-tipo-icon { font-size: 22px; }
+.mov-tipo-label { font-size: 13px; font-weight: 600; }
+.mov-tipo-desc { font-size: 11px; color: #6b7280; }
+.mov-tipo-btn.ativo .mov-tipo-desc { color: var(--accent, #FF6B35); opacity: 0.7; }
+
+.mov-entrada-bloqueada {
+  margin-top: 4px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px dashed #333;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #555;
+  cursor: not-allowed;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+.mov-entrada-bloqueada:hover {
+  border-color: #FF6B35;
+  color: #FF6B35;
+}
+
+.mov-item-info {
+  margin-top: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid #222;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+.mov-item-info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+}
+.mov-item-info-row strong { color: #FF6B35; }
+
+.mov-info-badge {
+  margin-top: 6px;
+  padding: 6px 12px;
+  background: rgba(74,158,255,0.08);
+  border: 1px solid rgba(74,158,255,0.2);
+  border-radius: 6px;
+  font-size: 12px;
+  color: #4A9EFF;
+}
+
+.mov-unidade-badge {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #9ca3af;
+  white-space: nowrap;
+  min-width: 48px;
+  text-align: center;
+}
+
+.mov-erros-container {
+  background: rgba(255,77,77,0.06);
+  border: 1px solid rgba(255,77,77,0.2);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+.mov-erros-container ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mov-erros-container li {
+  font-size: 13px;
+  color: #FF6B6B;
+  display: flex;
+  gap: 8px;
+}
+.mov-erros-container li::before { content: '✕'; flex-shrink: 0; }
+
+.form-error { font-size: 12px; color: #FF6B6B; margin-top: 4px; }
+.form-hint  { font-size: 12px; color: #6b7280; margin-top: 4px; }
+.required   { color: #FF6B35; }
+
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<script>
+// ─── Estado do modal ──────────────────────────────────────────
+let _movTipoAtual    = null;
+let _movItemAtual    = null;
+let _movCanteiroData = {}; // { obraId: qtdNoCanteiro } para o item atual
+
+// ─── Abrir modal ─────────────────────────────────────────────
+function abrirModalMovimentacao(itemIdPreSelecionado = null) {
+  resetarModalMovimentacao();
+  popularSelectItens(itemIdPreSelecionado);
+  popularSelectObras();
+  document.getElementById('modal-movimentacao-estoque').style.display = 'flex';
+}
+
+function fecharModalMovimentacao() {
+  document.getElementById('modal-movimentacao-estoque').style.display = 'none';
+  resetarModalMovimentacao();
+}
+
+function resetarModalMovimentacao() {
+  _movTipoAtual    = null;
+  _movItemAtual    = null;
+  _movCanteiroData = {};
+
+  document.querySelectorAll('.mov-tipo-btn').forEach(b => b.classList.remove('ativo'));
+  document.getElementById('mov-item').value        = '';
+  document.getElementById('mov-quantidade').value  = '';
+  document.getElementById('mov-motivo').value      = '';
+  document.getElementById('mov-item-info').style.display    = 'none';
+  document.getElementById('mov-erros-lista').style.display  = 'none';
+  document.getElementById('mov-btn-confirmar').disabled     = true;
+  document.getElementById('mov-btn-texto').textContent      = 'Selecione um tipo';
+  ocultarTodosCamposCondicionais();
+}
+
+// ─── Seleção de tipo ─────────────────────────────────────────
+function selecionarTipoMov(tipo) {
+  _movTipoAtual = tipo;
+
+  // Atualiza visual dos botões
+  document.querySelectorAll('.mov-tipo-btn').forEach(b => {
+    b.classList.toggle('ativo', b.dataset.tipo === tipo);
+  });
+
+  ocultarTodosCamposCondicionais();
+
+  // Mostra campos específicos
+  const mapa = {
+    saida_canteiro: ['campo-obra-destino'],
+    retorno:        ['campo-obra-origem-retorno'],
+    transferencia:  ['campo-transferencia'],
+    ajuste:         [],
+  };
+
+  (mapa[tipo] || []).forEach(id => {
+    document.getElementById(id).style.display = 'block';
+  });
+
+  // Motivo obrigatório só no ajuste
+  const isAjuste = tipo === 'ajuste';
+  document.getElementById('motivo-required-label').style.display  = isAjuste ? 'inline' : 'none';
+  document.getElementById('motivo-opcional-label').style.display  = isAjuste ? 'none' : 'inline';
+  document.getElementById('mov-motivo-counter').style.display     = isAjuste ? 'block' : 'none';
+
+  // Rótulo do botão
+  const rotulos = {
+    saida_canteiro: '📤 Registrar Saída para Canteiro',
+    retorno:        '📥 Registrar Retorno ao Estoque',
+    transferencia:  '🔄 Registrar Transferência',
+    ajuste:         '✏️ Aplicar Ajuste',
+  };
+  document.getElementById('mov-btn-texto').textContent = rotulos[tipo] || 'Confirmar';
+  document.getElementById('mov-btn-confirmar').disabled = false;
+
+  // Atualiza info do canteiro se item já estiver selecionado
+  if (_movItemAtual) onItemChange();
+}
+
+function ocultarTodosCamposCondicionais() {
+  ['campo-obra-destino','campo-obra-origem-retorno','campo-transferencia'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+}
+
+// ─── Alerta de entrada bloqueada ─────────────────────────────
+function alertarEntradaBloqueada() {
+  // Você pode trocar por um toast/snackbar do seu sistema
+  alert('⚠️ Para registrar entrada de itens, use o botão "Nova Entrada" na tela de estoque.\n\nEste modal é exclusivo para movimentações entre estoque e canteiro.');
+}
+
+// ─── Mudança de item ─────────────────────────────────────────
+async function onItemChange() {
+  const itemId = document.getElementById('mov-item').value;
+  if (!itemId) {
+    document.getElementById('mov-item-info').style.display = 'none';
+    return;
+  }
+
+  _movItemAtual = itemId;
+
+  // Busca dados do item (adaptar para seu sistema de cache/firebase)
+  const item = await buscarItemPorId(itemId); // implementar conforme seu firebase.js
+  if (!item) return;
+
+  document.getElementById('mov-unidade-label').textContent = item.unidade || '—';
+  document.getElementById('mov-item-qtd-estoque').textContent =
+    `${item.quantidade || 0} ${item.unidade}`;
+  document.getElementById('mov-item-info').style.display = 'block';
+
+  // Carrega dados do canteiro para este item
+  _movCanteiroData = await buscarItemNoCanteiro(itemId); // { obraId: { obraId, obraNome, quantidade } }
+
+  atualizarInfoCanteiro();
+}
+
+function atualizarInfoCanteiro() {
+  const totalCanteiro = Object.values(_movCanteiroData).reduce((s, v) => s + (v.quantidade || 0), 0);
+  const hasCanteiro   = totalCanteiro > 0;
+
+  document.getElementById('mov-item-canteiro-row').style.display = hasCanteiro ? 'flex' : 'none';
+  document.getElementById('mov-item-qtd-canteiro').textContent   =
+    hasCanteiro ? `${totalCanteiro} (em ${Object.keys(_movCanteiroData).length} obra(s))` : '—';
+}
+
+// ─── Retorno: mostra qtd no canteiro da obra selecionada ────
+async function onObraOrigemRetornoChange() {
+  const obraId  = document.getElementById('mov-obra-origem-ret').value;
+  const infoDiv = document.getElementById('mov-qtd-canteiro-info');
+
+  if (!obraId || !_movCanteiroData[obraId]) {
+    infoDiv.style.display = 'none';
+    return;
+  }
+
+  const dado = _movCanteiroData[obraId];
+  infoDiv.textContent    = `📦 ${dado.quantidade} ${dado.unidade || ''} disponível para retorno desta obra`;
+  infoDiv.style.display  = 'block';
+}
+
+async function onTransfOrigemChange() {
+  const obraId  = document.getElementById('mov-transf-origem').value;
+  const infoDiv = document.getElementById('mov-transf-canteiro-info');
+
+  if (!obraId || !_movCanteiroData[obraId]) {
+    infoDiv.style.display = 'none';
+    return;
+  }
+
+  const dado = _movCanteiroData[obraId];
+  infoDiv.textContent   = `📦 ${dado.quantidade} ${dado.unidade || ''} disponível para transferência`;
+  infoDiv.style.display = 'block';
+}
+
+// ─── Validação de quantidade em tempo real ───────────────────
+function validarQuantidadeInput() {
+  const qty      = parseFloat(document.getElementById('mov-quantidade').value);
+  const erroDiv  = document.getElementById('mov-quantidade-erro');
+  const item     = _movItemAtual ? getItemCache(_movItemAtual) : null;
+
+  if (!qty || qty <= 0) {
+    erroDiv.textContent    = 'Quantidade deve ser maior que zero.';
+    erroDiv.style.display  = 'block';
+    return;
+  }
+
+  // Valida estoque disponível para saída
+  if (_movTipoAtual === 'saida_canteiro' && item) {
+    if (qty > (item.quantidade || 0)) {
+      erroDiv.textContent   = `⚠ Quantidade excede o estoque disponível (${item.quantidade} ${item.unidade}).`;
+      erroDiv.style.display = 'block';
+      return;
+    }
+  }
+
+  erroDiv.style.display = 'none';
+}
+
+// ─── Confirmar movimentação ──────────────────────────────────
+async function confirmarMovimentacao() {
+  ocultarErrosModal();
+
+  const dados = coletarDadosModal();
+  const erros = validarFormMovimentacaoUI(dados); // validação local rápida
+
+  if (erros.length > 0) {
+    exibirErrosModal(erros);
+    return;
+  }
+
+  setBotaoCarregando(true);
+
+  try {
+    // Chama o motor de estoque (importado no topo da página)
+    const resultado = await despacharMovimentacao(tenantId, dados, currentUserUid);
+
+    if (!resultado.ok) {
+      exibirErrosModal(resultado.erros || [resultado.erro]);
+      return;
+    }
+
+    fecharModalMovimentacao();
+    mostrarToast('✅ Movimentação registrada com sucesso!', 'success');
+    recarregarEstoque(); // função da página que atualiza a lista
+
+  } catch (err) {
+    console.error('Erro na movimentação:', err);
+    exibirErrosModal(['Erro inesperado. Tente novamente.']);
+  } finally {
+    setBotaoCarregando(false);
+  }
+}
+
+function coletarDadosModal() {
+  return {
+    tipo:             _movTipoAtual,
+    itemId:           document.getElementById('mov-item').value,
+    quantidade:       parseFloat(document.getElementById('mov-quantidade').value),
+    motivo:           document.getElementById('mov-motivo').value,
+    obraDestinoId:    document.getElementById('mov-obra-destino')?.value      || null,
+    obraDestinoNome:  document.getElementById('mov-obra-destino')?.selectedOptions[0]?.text || null,
+    obraOrigemId:     document.getElementById('mov-obra-origem-ret')?.value   ||
+                      document.getElementById('mov-transf-origem')?.value     || null,
+    obraOrigemNome:   document.getElementById('mov-obra-origem-ret')?.selectedOptions[0]?.text ||
+                      document.getElementById('mov-transf-origem')?.selectedOptions[0]?.text  || null,
+  };
+}
+
+// Validação rápida na UI (espelho de validarFormMovimentacao do módulo)
+function validarFormMovimentacaoUI(dados) {
+  const erros = [];
+  const { tipo, itemId, quantidade, obraOrigemId, obraDestinoId, motivo } = dados;
+
+  if (!tipo)     erros.push('Selecione o tipo de movimentação.');
+  if (!itemId)   erros.push('Selecione um item.');
+  if (!quantidade || quantidade <= 0) erros.push('Informe uma quantidade válida.');
+  if (tipo === 'entrada') erros.push('⛔ Entrada não é permitida neste modal.');
+  if (tipo === 'saida_canteiro' && !obraDestinoId) erros.push('Selecione a obra de destino.');
+  if (tipo === 'retorno'  && !obraOrigemId) erros.push('Selecione a obra de origem.');
+  if (tipo === 'transferencia') {
+    if (!obraOrigemId)  erros.push('Selecione a obra de origem.');
+    if (!obraDestinoId) erros.push('Selecione a obra de destino.');
+    if (obraOrigemId === obraDestinoId) erros.push('Origem e destino não podem ser iguais.');
+  }
+  if (tipo === 'ajuste' && (!motivo || motivo.trim().length < 10)) {
+    erros.push('Descreva o motivo do ajuste (mínimo 10 caracteres).');
+  }
+  return erros;
+}
+
+function exibirErrosModal(erros) {
+  const div = document.getElementById('mov-erros-lista');
+  div.innerHTML = `<ul>${erros.map(e => `<li>${e}</li>`).join('')}</ul>`;
+  div.style.display = 'block';
+  div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function ocultarErrosModal() {
+  const div = document.getElementById('mov-erros-lista');
+  div.style.display = 'none';
+  div.innerHTML = '';
+}
+
+function setBotaoCarregando(loading) {
+  document.getElementById('mov-btn-confirmar').disabled   = loading;
+  document.getElementById('mov-btn-spinner').style.display = loading ? 'inline-block' : 'none';
+  document.getElementById('mov-btn-texto').style.display   = loading ? 'none' : 'inline';
+}
+
+// Stubs — implementar conforme firebase.js do projeto
+async function buscarItemPorId(itemId)       { /* retornar item do cache ou firebase */ }
+async function buscarItemNoCanteiro(itemId)  { /* retornar mapa obraId → { quantidade, obraNome, unidade } */ }
+function getItemCache(itemId)                { /* retornar item do cache local */ }
+function popularSelectItens(preSelected)     { /* popular #mov-item com itens do tenant */ }
+function popularSelectObras()                { /* popular selects de obra */ }
+function mostrarToast(msg, tipo)             { /* seu sistema de toast */ }
+function recarregarEstoque()                 { /* recarrega a lista de estoque na tela */ }
+</script>

@@ -1,6 +1,9 @@
 <div class="page-header">
   <div class="page-title">Estoque <small>Saldo por Obra — Entradas e Saídas</small></div>
-  <button class="btn btn-primary" onclick="openModal('modal-estoque')">+ Novo Item</button>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-secondary" style="border-color:var(--green);color:var(--green);font-weight:600" onclick="abrirModalEntrada()">📦 Nova Entrada</button>
+    <button class="btn btn-primary" onclick="openModal('modal-estoque')">+ Novo Item</button>
+  </div>
 </div>
 <div class="table-wrap">
   <div class="table-toolbar">
