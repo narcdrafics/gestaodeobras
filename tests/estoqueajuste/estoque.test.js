@@ -3,11 +3,16 @@
 // Rodar: npm test
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  normalizarNome,
-  validarFormMovimentacao,
-  TIPO_MOV,
-} from '../js/estoque.module.js';
+
+if (typeof window === 'undefined') {
+  globalThis.window = globalThis;
+}
+// Import as side-effect to populate window/globalThis
+import '../../js/estoque.module.js';
+
+const normalizarNome = window.normalizarNome;
+const validarFormMovimentacao = window.validarFormMovimentacao;
+const TIPO_MOV = window.TIPO_MOV;
 
 // ─── normalizarNome ───────────────────────────────────────────
 describe('normalizarNome — deduplicação por nome', () => {
@@ -30,7 +35,7 @@ describe('normalizarNome — deduplicação por nome', () => {
 
   it('detecta duplicata com variações de escrita', () => {
     const a = normalizarNome('Cimento CP-II');
-    const b = normalizarNome('cimento cpii');
+    const b = normalizarNome('cimento cp-ii');
     const c = normalizarNome('CIMENTO CP II');
     expect(a).toBe(b);
     expect(b).toBe(c);

@@ -9,6 +9,7 @@ async function initiatePixPayment(source, idx) {
     let amount = 0;
     let receiver = '';
     let pixKey = '';
+    let keyType = null;
     let description = '';
 
     if (source === 'pre') {
@@ -18,6 +19,7 @@ async function initiatePixPayment(source, idx) {
         amount = parseFloat(p.total) || 0;
         receiver = t ? t.nome : (p.nome || 'TRABALHADOR');
         pixKey = t ? (t.pixkey || '') : '';
+        keyType = t ? (t.pixtipo || null) : null;
         description = `DIARIA ${p.data} ${p.nome}`;
 
     } else if (source === 'lote') {
@@ -27,6 +29,7 @@ async function initiatePixPayment(source, idx) {
         amount = parseFloat(item.valor) || 0;
         receiver = item.nome || 'TRABALHADOR';
         pixKey = t ? (t.pixkey || '') : '';
+        keyType = t ? (t.pixtipo || null) : null;
         description = `FOLHA ${item.diarias} DIARIAS - ${item.nome}`;
 
     } else if (source === 'med') {
@@ -44,6 +47,11 @@ async function initiatePixPayment(source, idx) {
         amount = (parseFloat(f.real) > 0) ? parseFloat(f.real) : parseFloat(f.prev) || 0;
         receiver = f.forn || 'FORNECEDOR';
         pixKey = f.pixkey || '';
+        const t = f.trab ? DB.trabalhadores.find(x => x.cod === f.trab) : DB.trabalhadores.find(x => x.nome === f.forn);
+        keyType = t ? (t.pixtipo || null) : null;
+        if (!pixKey && t) {
+            pixKey = t.pixkey || '';
+        }
         description = f.desc || 'PAGAMENTO';
     }
 
@@ -58,7 +66,7 @@ async function initiatePixPayment(source, idx) {
         if (!pixKey) return;
     }
 
-    const payload = generatePixPayload(pixKey, amount, receiver, 'SAO PAULO', description);
+    const payload = generatePixPayload(pixKey, amount, receiver, 'SAO PAULO', description, keyType);
     
     if (!payload) {
         toast('Erro ao gerar payload PIX. Verifique a chave.', 'error');

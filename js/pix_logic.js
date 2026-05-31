@@ -3,11 +3,62 @@
  * Gera payloads de PIX Estático (BRCode) para pagamentos rápidos.
  */
 
-window.generatePixPayload = function(key, amount, receiver, city = 'SAO PAULO', description = 'OBRA REAL') {
+window.cleanPixKey = function(key, type = null) {
+    if (!key) return '';
+    let k = key.trim();
+
+    // Se o tipo não for especificado, tenta detectar automaticamente
+    if (!type) {
+        if (k.includes('@')) {
+            type = 'email';
+        } else if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(k) || k.replace(/[^a-fA-F0-9]/g, '').length === 32) {
+            type = 'aleatoria';
+        } else {
+            let digits = k.replace(/\D/g, '');
+            if (digits.length === 11) {
+                if (k.startsWith('+') || k.includes('(') || k.includes(')')) {
+                    type = 'telefone';
+                } else {
+                    type = 'cpf';
+                }
+            } else if (digits.length === 14) {
+                type = 'cnpj';
+            } else if (digits.length === 10 || digits.length === 12 || digits.length === 13) {
+                type = 'telefone';
+            } else {
+                type = 'aleatoria';
+            }
+        }
+    }
+
+    const lowerType = type.toLowerCase();
+    if (lowerType === 'cpf' || lowerType === 'cnpj') {
+        return k.replace(/\D/g, '');
+    } else if (lowerType === 'telefone') {
+        let digits = k.replace(/\D/g, '');
+        if (digits.length === 10 || digits.length === 11) {
+            return '+55' + digits;
+        } else if (digits.length === 12 || digits.length === 13) {
+            if (digits.startsWith('55')) {
+                return '+' + digits;
+            }
+        }
+        return '+' + digits;
+    } else if (lowerType === 'email') {
+        return k.toLowerCase();
+    } else if (lowerType === 'aleatoria' || lowerType === 'aleatória') {
+        return k.replace(/[^\w-]/g, '');
+    }
+
+    return k.replace(/[^\w@.-]/g, '');
+};
+
+window.generatePixPayload = function(key, amount, receiver, city = 'SAO PAULO', description = 'OBRA REAL', keyType = null) {
     if (!key) return null;
     
-    // Limpeza básica da chave se for CPF/CNPJ/Telefone
-    let cleanKey = key.replace(/[^\w@.-]/g, '');
+    // Limpeza inteligente da chave usando o tipo especificado ou auto-detecção
+    let cleanKey = window.cleanPixKey(key, keyType);
+    if (!cleanKey) return null;
     
     // Formatação de valor (precisa de 2 casas decimais com ponto)
     const amountStr = Number(amount).toFixed(2);
