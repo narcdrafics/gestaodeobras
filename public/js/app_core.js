@@ -2534,24 +2534,6 @@ async function deleteMasterUser(email) {
   }
 }
 
-// Assuming renderPage function exists elsewhere and needs this case added
-// This block is inserted as per user instruction, assuming it belongs in a switch statement within renderPage
-/*
-async function renderPage(pageId) {
-  const container = document.getElementById('main-content');
-  switch (pageId) {
-    // ... other cases ...
-    case 'super_admin':
-      const respSuper = await fetch('pages/super_admin.html');
-      container.innerHTML = await respSuper.text();
-      renderSuperAdmin();
-      break;
-    default:
-      console.warn('Página não encontrada:', pageId);
-  }
-}
-*/
-
 function openMasterTenantModal(tid) {
   // Injeta a estrutura limpa no modal principal
   const contentOrig = document.getElementById('modal-master-tenant').innerHTML;

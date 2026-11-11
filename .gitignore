@@ -50,3 +50,17 @@ build/
 .cwp/
 .antigravity/
 .gemini/
+
+# Dados locais / exports (nunca versionar nem publicar)
+/users.json
+/auth_users.json
+/tenant.json
+/entities.json
+serviceAccountKey.json
+**/serviceAccountKey.json
+
+# Backups e temporários
+*.bak
+*.bak2
+*.tmp
+/scratch/

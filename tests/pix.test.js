@@ -6,7 +6,7 @@ if (typeof window === 'undefined') {
 }
 
 // Import pix_logic.js which will populate window.generatePixPayload and window.cleanPixKey
-import '../js/pix_logic.js';
+import '../public/js/pix_logic.js';
 
 describe('Pix Key Cleaning & Format', () => {
   it('should clean and format CPF correctly', () => {

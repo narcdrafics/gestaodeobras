@@ -8,7 +8,7 @@ if (typeof window === 'undefined') {
   globalThis.window = globalThis;
 }
 // Import as side-effect to populate window/globalThis
-import '../../js/estoque.module.js';
+import '../../public/js/estoque.module.js';
 
 const normalizarNome = window.normalizarNome;
 const validarFormMovimentacao = window.validarFormMovimentacao;

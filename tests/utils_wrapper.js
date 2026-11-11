@@ -11,7 +11,7 @@ if (typeof window === 'undefined') {
 }
 
 // Importa o arquivo (que popula window.*)
-import '../js/utils.module.js?v=20260402010';
+import '../public/js/utils.module.js?v=20260402010';
 
 // Debug: log summarizeFinance after import
 if (typeof window !== 'undefined') {
