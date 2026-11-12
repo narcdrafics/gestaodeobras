@@ -77,7 +77,7 @@ async function proxyToFirebase(request, url, firebaseUrl) {
   const firebaseRequest = new Request(targetUrl, {
     method: request.method,
     headers,
-    body: request.body,
+    body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
     redirect: 'manual', // Não seguir redirecionamentos automaticamente
   });
 

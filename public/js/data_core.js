@@ -429,8 +429,9 @@ function persistDB(force = false) {
       _ignoreNextEcho = true;
 
       // Timeout de 20s (mobile pode ser mais lento que desktop)
+      // Usa .update() para não destruir metadados do tenant (plano, trialExpiracao, status, emailAdmin)
       await Promise.race([
-        targetRef.set(dbForCloud),
+        targetRef.update(dbForCloud),
         new Promise((_, rej) => setTimeout(() => rej({ code: 'TIMEOUT', message: 'Conexão lenta ou sem internet.' }), 20000))
       ]);
 

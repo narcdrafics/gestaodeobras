@@ -2717,16 +2717,49 @@ async function editUsuario(idx) {
   document.getElementById('usr-email').disabled = true; // Impede alteração do e-mail de acesso
 }
 
-function deleteUsuario(idx) {
-  if (DB.usuarios[idx].role === 'admin' && DB.usuarios.filter(u => u.role === 'admin').length <= 1) {
+async function deleteUsuario(idx) {
+  const targetUser = DB.usuarios[idx];
+  if (!targetUser) return;
+
+  if (targetUser.role === 'admin' && DB.usuarios.filter(u => u.role === 'admin').length <= 1) {
     toast('Não é possível remover o único administrador restante!', 'error');
     return;
   }
-  if (confirm('Remover usuário? Isso derrubará ele instantaneamente de qualquer tela.')) {
+  if (confirm(`Remover usuário "${targetUser.name || targetUser.email}" desta empresa?`)) {
+    const email = (targetUser.email || targetUser.username || '').trim().toLowerCase();
+    const sanitizedEmail = email.replace(/\./g, ',');
+
+    // 1. Remove convite pendente se houver
+    if (sanitizedEmail) {
+      await firebase.database().ref(`invites/${sanitizedEmail}`).remove().catch(e => console.warn('Aviso ao remover convite:', e));
+    }
+
+    // 2. Desvincula o tenant do perfil caso já possua conta
+    if (targetUser.uid) {
+      await firebase.database().ref(`profiles/${targetUser.uid}`).update({
+        tenantId: null,
+        role: 'desativado'
+      }).catch(e => console.warn('Aviso ao revogar perfil:', e));
+    } else if (email) {
+      try {
+        const pSnap = await firebase.database().ref('profiles').orderByChild('email').equalTo(email).once('value');
+        const profiles = pSnap.val();
+        if (profiles) {
+          const uid = Object.keys(profiles)[0];
+          await firebase.database().ref(`profiles/${uid}`).update({
+            tenantId: null,
+            role: 'desativado'
+          });
+        }
+      } catch (e) {
+        console.warn('Aviso ao revogar perfil por email:', e);
+      }
+    }
+
     DB.usuarios.splice(idx, 1);
-    persistDB();
+    await persistDB();
     renderAdmin();
-    toast('Usuário removido!');
+    toast('Usuário removido da empresa com sucesso!');
   }
 }
 
@@ -2846,22 +2879,14 @@ async function openModal(id) {
     if (trEditIdx === -1) {
       document.getElementById('tr-cod').value = nextCod(DB.trabalhadores, 'TR');
       document.getElementById('tr-admissao').value = today;
+      const fUrl = document.getElementById('tr-foto-url');
+      if (fUrl) fUrl.value = '';
+      const fPreview = document.getElementById('tr-foto-preview');
+      if (fPreview) fPreview.style.display = 'none';
     }
     const fInput = document.getElementById('tr-foto');
-    const fPreview = document.getElementById('tr-foto-preview');
-    if (fInput && fPreview) {
-      fInput.onchange = e => {
-        const file = e.target.files[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = re => {
-            fPreview.style.display = 'block';
-            fPreview.querySelector('img').src = re.target.result;
-            window._currentTrFoto = re.target.result;
-          };
-          reader.readAsDataURL(file);
-        }
-      };
+    if (fInput) {
+      fInput.onchange = () => handleFileUpload(fInput, 'tr-foto-preview', 'tr-foto-url');
     }
   }
   if (id === 'modal-estoque') {
@@ -3172,7 +3197,7 @@ async function saveTrabalhador() {
     admissao: document.getElementById('tr-admissao').value,
     endereco: document.getElementById('tr-endereco').value,
     cidade: document.getElementById('tr-cidade').value,
-    foto: window._currentTrFoto || (editIdx >= 0 ? DB.trabalhadores[editIdx].foto : null)
+    foto: document.getElementById('tr-foto-url')?.value || (editIdx >= 0 ? DB.trabalhadores[editIdx].foto : null)
   };
   if (editIdx >= 0 && DB.trabalhadores[editIdx]) {
     // 1. Captura Segura dos Dados Antigos ANTES de atualizar
@@ -3314,6 +3339,8 @@ async function editTrabalhador(idx) {
   
   // Foto Preview
   const fPreview = document.getElementById('tr-foto-preview');
+  const fUrl = document.getElementById('tr-foto-url');
+  if (fUrl) fUrl.value = t.foto || '';
   if (fPreview && t.foto) {
     fPreview.style.display = 'block';
     fPreview.querySelector('img').src = t.foto;

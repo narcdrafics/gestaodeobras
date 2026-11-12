@@ -158,13 +158,9 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
     const db = admin.database();
     const phoneId = From.replace(/\D/g, '');
 
-    // Busca users e tenants em paralelo
-    const [usersSnap, tenantsSnap] = await Promise.all([
-      db.ref('users').once('value'),
-      db.ref('tenants').once('value')
-    ]);
+    // 1. Busca primeiro em users (muito mais leve, sem baixar todas as tabelas de todos os tenants)
+    const usersSnap = await db.ref('users').once('value');
     const usersData = usersSnap.val();
-    const tenants = tenantsSnap.val() || {};
     
     let user = null;
     let tenantId = null;
@@ -176,7 +172,7 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
         const u = usersData[key];
         const uTelefone = u.telefone ? String(u.telefone).replace(/\D/g, '') : '';
         if ((u.whatsappId && u.whatsappId === From) || 
-            (uTelefone && uTelefone.includes(phoneLimpo))) {
+            (uTelefone && (uTelefone.includes(phoneLimpo) || phoneLimpo.includes(uTelefone)))) {
           user = u;
           tenantId = u.tenantId;
           break;
@@ -184,8 +180,11 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
       }
     }
 
-    // Fallback: busca em tenants por telefonesPermitidos
+    // 2. Fallback sob demanda: busca em tenants apenas se não encontrar em users
     if (!user || !tenantId) {
+      console.log(`[WhatsApp] Telefone ${phoneId} não localizado em users. Buscando em tenants (fallback)...`);
+      const tenantsSnap = await db.ref('tenants').once('value');
+      const tenants = tenantsSnap.val() || {};
       for (const [tid, tenantData] of Object.entries(tenants)) {
         const telefonesData = tenantData?.config?.telefonesPermitidos;
         const telefonesPermitidos = telefonesData ? [telefonesData].flat() : [];
@@ -575,15 +574,32 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
   const after = event.data.after.val();
 
   if (!after) {
-    // Perfil deletado
+    // Perfil deletado: revoga as custom claims do usuário no Auth
+    try {
+      await admin.auth().setCustomUserClaims(uid, null);
+      console.log(`[syncCustomClaims] Claims revogadas para uid deletado: ${uid}`);
+    } catch (e) {
+      console.warn(`[syncCustomClaims] Erro ao revogar claims para uid ${uid}:`, e);
+    }
     return null;
   }
 
-  const role = after.role || 'admin';
+  let role = after.role || 'admin';
   const tenantId = after.tenantId || null;
 
   try {
-    const currentClaims = (await admin.auth().getUser(uid)).customClaims || {};
+    const userRecord = await admin.auth().getUser(uid);
+    const currentClaims = userRecord.customClaims || {};
+
+    // Salvaguarda: super_admin só pode ser concedido se já possuía a claim ou for e-mail mestre autorizado
+    if (role === 'super_admin') {
+      const email = (userRecord.email || '').toLowerCase();
+      const isMasterAuthorized = currentClaims.role === 'super_admin' || email === 'tonycampelo@gmail.com';
+      if (!isMasterAuthorized) {
+        console.warn(`[syncCustomClaims] Tentativa não autorizada de escalação para super_admin: uid=${uid}, email=${email}`);
+        role = 'admin';
+      }
+    }
     
     // Evitar updates desnecessários (otimização de cota e performance)
     if (currentClaims.role === role && currentClaims.tenantId === tenantId) {

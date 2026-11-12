@@ -5,7 +5,7 @@
       ".write": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
-        ".write": "auth != null && (auth.uid === $uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
+        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (auth.uid === $uid && (!newData.child('role').exists() || newData.child('role').val() !== 'super_admin') && (!data.exists() || !newData.child('tenantId').exists() || newData.child('tenantId').val() === data.child('tenantId').val())))"
       }
     },
     "tenants": {
@@ -27,14 +27,18 @@
     },
     "tenants_public": {
       ".read": true,
-      ".indexOn": ["slug"],
+      ".indexOn": [
+        "slug"
+      ],
       "$tenantId": {
         ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId)"
       }
     },
     "users": {
       ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
-      ".indexOn": ["telefone"],
+      ".indexOn": [
+        "telefone"
+      ],
       "$email": {
         ".read": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || data.child('email').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
         ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')"
@@ -52,6 +56,6 @@
         ".read": "auth != null && root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId",
         ".write": "auth != null && root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId"
       }
-    },
+    }
   }
 }
