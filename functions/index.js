@@ -100,9 +100,10 @@ function melhorMatch(termo, lista, getFn, threshold = 0.4) {
 exports.whatsappWebhook = onRequest({
   secrets: [OPENAI_KEY, META_ACCESS_TOKEN, META_PHONE_NUMBER_ID, META_VERIFY_TOKEN, META_APP_SECRET, META_WABA_ID],
   cors: true,
-  memory: '1GiB',
-  timeoutSeconds: 300,
-  minInstances: 1
+  memory: '512MiB',
+  timeoutSeconds: 60,
+  minInstances: 0,
+  maxInstances: 10
 }, async (req, res) => {
   if (req.method === 'GET') {
     const mode = req.query['hub.mode'];
@@ -129,7 +130,7 @@ exports.whatsappWebhook = onRequest({
 
   if (body.object === 'whatsapp_business_account' || body.object === 'page') {
     res.status(200).send('OK');
-    
+
     if (body.entry?.[0]?.changes?.[0]?.value?.messages) {
       const msg = body.entry[0].changes[0].value.messages[0];
       const From = msg.from;
@@ -161,7 +162,7 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
     // 1. Busca primeiro em users (muito mais leve, sem baixar todas as tabelas de todos os tenants)
     const usersSnap = await db.ref('users').once('value');
     const usersData = usersSnap.val();
-    
+
     let user = null;
     let tenantId = null;
     const phoneLimpo = phoneId.replace(/\D/g, '');
@@ -171,8 +172,8 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
       for (const key in usersData) {
         const u = usersData[key];
         const uTelefone = u.telefone ? String(u.telefone).replace(/\D/g, '') : '';
-        if ((u.whatsappId && u.whatsappId === From) || 
-            (uTelefone && (uTelefone.includes(phoneLimpo) || phoneLimpo.includes(uTelefone)))) {
+        if ((u.whatsappId && u.whatsappId === From) ||
+          (uTelefone && (uTelefone.includes(phoneLimpo) || phoneLimpo.includes(uTelefone)))) {
           user = u;
           tenantId = u.tenantId;
           break;
@@ -195,7 +196,7 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
           break;
         }
       }
-      
+
       if (!tenantId) {
         console.log(`⚠️ WhatsApp ID ${phoneId} não autorizado.`);
         await responderWhatsApp(phoneId, "Número não autorizado. Fale com o administrator.");
@@ -215,7 +216,7 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
       fs.unlinkSync(tempFilePath);
     }
 
-if (!textoTarefa) return;
+    if (!textoTarefa) return;
 
     const txt = textoTarefa.trim();
     const txtUpper = txt.toUpperCase();
@@ -226,7 +227,7 @@ if (!textoTarefa) return;
     if (isTextoCurto) {
       const matchTarefa = txt.replace(/^(TAREFA| TAREFAS?)\s*-?\s*/i, '').trim();
       const matchPonto = txt.replace(/^(PONTO|PRESENÇA|ENTRADA|SAÍDA|FALTA)\s*/i, '').trim();
-      
+
       if (txt.match(/^TAREFA\b/i) && !txtUpper.includes('LISTA')) {
         const isObra = matchTarefa.includes(' - ') ? matchTarefa.split(' - ')[0].trim() : null;
         const titulo = isObra ? matchTarefa.split(' - ').slice(1).join(' - ').trim() : matchTarefa;
@@ -283,7 +284,7 @@ if (!textoTarefa) return;
       const gptRes = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: "Você é um especialista em extração de dados JSON para construção civil. Retorne apenas o objeto JSON, sem explicações." }, 
+          { role: "system", content: "Você é um especialista em extração de dados JSON para construção civil. Retorne apenas o objeto JSON, sem explicações." },
           { role: "user", content: prompt }
         ],
         response_format: { type: "json_object" }
@@ -298,12 +299,12 @@ if (!textoTarefa) return;
     const buscarObra = async () => {
       const nomeOuId = dados.tarefa?.obra_nome || dados.ponto?.obra_nome;
       if (!nomeOuId || nomeOuId === 'nao_informada') return null;
-      
+
       const obrasSnap = await db.ref(`tenants/${tenantId}/obras`).once('value');
       console.log(`🔍 DB path: tenants/${tenantId}/obras`);
       const obras = obrasSnap.val() || [];
       const listaObras = Array.isArray(obras) ? obras : Object.values(obras);
-      
+
       // Filtrar obras ativas com mais flexibilidade no status
       const listaAtivas = listaObras.filter(o => o && (
         ['ativa', 'em andamento', 'planejada', 'execucao'].includes(norm(o.status))
@@ -314,9 +315,9 @@ if (!textoTarefa) return;
 
       // 1. Busca exata (Nome, Código ou ID)
       const buscaNorm = norm(nomeOuId);
-      const exata = listaAtivas.find(o => 
-        norm(o.nome) === buscaNorm || 
-        norm(o.cod) === buscaNorm || 
+      const exata = listaAtivas.find(o =>
+        norm(o.nome) === buscaNorm ||
+        norm(o.cod) === buscaNorm ||
         o._id === nomeOuId
       );
       console.log(`🔍 Busca exata: "${buscaNorm}" | Encontrada:`, exata ? exata.nome : 'null');
@@ -338,25 +339,25 @@ if (!textoTarefa) return;
       const snapshot = await tarefasRef.once('value');
       let lista = Array.isArray(snapshot.val()) ? snapshot.val() : Object.values(snapshot.val() || {});
       const novoCod = `TF${String(lista.length + 1).padStart(3, '0')}`;
-      
+
       const melhorEtapa = dados._etapas?.[0];
-      const tarefaData = { 
-        cod: novoCod, 
-        obra: obraMatch.cod || obraMatch._id, 
-        desc: dados.tarefa.titulo, 
+      const tarefaData = {
+        cod: novoCod,
+        obra: obraMatch.cod || obraMatch._id,
+        desc: dados.tarefa.titulo,
         etapa: melhorEtapa?.etapa || null,
         etapaCodigo: melhorEtapa?.codigo || null,
         frente: melhorEtapa?.frente || null,
         prioridade: melhorEtapa?.prioridade || 'Média',
-        resp: 'Equipe', 
-        status: 'Pendente', 
-        criadoPor: user?.nome || 'WhatsApp', 
-        criadoEm: admin.database.ServerValue.TIMESTAMP, 
-        origem: 'WhatsApp' 
+        resp: 'Equipe',
+        status: 'Pendente',
+        criadoPor: user?.nome || 'WhatsApp',
+        criadoEm: admin.database.ServerValue.TIMESTAMP,
+        origem: 'WhatsApp'
       };
       lista.push(tarefaData);
       await tarefasRef.set(lista);
-      
+
       const etapaInfo = melhorEtapa ? `\n📂 ${melhorEtapa.etapa} | 🔨 ${melhorEtapa.frente} | ${melhorEtapa.prioridade}` : '';
       const msgSucesso = `🎯 *Tarefa Registrada!* \n\n📋 *O que:* ${dados.tarefa.titulo}\n🏗️ *Obra:* ${obraMatch.nome.trim()}${etapaInfo}\n\nJá está no painel! ✅`;
       await responderWhatsApp(phoneId, msgSucesso);
@@ -391,8 +392,8 @@ if (!textoTarefa) return;
           funcao: trab.funcao || '', vinculo: trab.vinculo || 'Informal', equipe: trab.equipe || '',
           entrada: statusP === 'Falta' ? '00:00' : '07:00', saida: statusP === 'Meio período' ? '12:00' : (statusP === 'Falta' ? '00:00' : '17:00'),
           hnorm, hextra: 0, presenca: statusP, diaria: parseFloat(trab.diaria) || 0, total: parseFloat(total),
-          pgtoStatus: 'Pendente', valpago: 0, lancador: user.nome || 'WhatsApp Bot', 
-          hrLanc: new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date()), 
+          pgtoStatus: 'Pendente', valpago: 0, lancador: user.nome || 'WhatsApp Bot',
+          hrLanc: new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date()),
           origem: 'WhatsApp', telefoneAutor: phoneId, _s: statusP
         });
       }
@@ -428,12 +429,12 @@ if (!textoTarefa) return;
 async function responderWhatsApp(para, msg) {
   const accessToken = META_ACCESS_TOKEN.value();
   const phoneNumberId = META_PHONE_NUMBER_ID.value();
-  
+
   if (!accessToken || !phoneNumberId) {
     console.error('❌ Falta configuração da Meta (Token ou PhoneID)');
     return;
   }
-  
+
   if (!msg) {
     console.warn('⚠️ Tentativa de enviar mensagem vazia para:', para);
     return;
@@ -449,11 +450,11 @@ async function responderWhatsApp(para, msg) {
       type: "text",
       text: { body: msg }
     };
-    
+
     console.log(`📤 Enviando para ${para} via ${cleanPhoneId}...`);
-    
+
     await axios.post(url, payload, {
-      headers: { 
+      headers: {
         'Authorization': `Bearer ${accessToken.trim()}`,
         'Content-Type': 'application/json'
       }
@@ -487,7 +488,10 @@ function validateSignature(req) {
 exports.dailyReport = onSchedule({
   schedule: '0 21 * * *', // 18h Brasília (UTC-3)
   timeZone: 'America/Sao_Paulo',
-  secrets: [META_ACCESS_TOKEN, META_PHONE_NUMBER_ID]
+  secrets: [META_ACCESS_TOKEN, META_PHONE_NUMBER_ID],
+  memory: '512MiB',
+  timeoutSeconds: 120,
+  maxInstances: 1
 }, async (event) => {
   const db = admin.database();
   const hoje = getHojeBR();
@@ -523,16 +527,16 @@ exports.dailyReport = onSchedule({
       const atrasadas = tarefas.filter(t => t.status === 'Pendente' && t.prazo < hoje).length;
 
       const msg = `📊 *Relatório Diário — ${tenant.nome || 'Obra Real'}*\n` +
-                  `📅 Data: ${formatarDataBR(hoje)}\n\n` +
-                  `👷 *Pessoal*\n` +
-                  `✅ Presentes: ${presentes}\n` +
-                  `❌ Faltas: ${ausentes}\n` +
-                  `👥 Total: ${totalPessoal}\n\n` +
-                  `📋 *Tarefas*\n` +
-                  `✅ Concluídas hoje: ${concluidasHoje}\n` +
-                  `🔵 Em aberto: ${pendentes}\n` +
-                  `🔴 Em atraso: ${atrasadas}\n\n` +
-                  `Para detalhes, responda *MENU*.`;
+        `📅 Data: ${formatarDataBR(hoje)}\n\n` +
+        `👷 *Pessoal*\n` +
+        `✅ Presentes: ${presentes}\n` +
+        `❌ Faltas: ${ausentes}\n` +
+        `👥 Total: ${totalPessoal}\n\n` +
+        `📋 *Tarefas*\n` +
+        `✅ Concluídas hoje: ${concluidasHoje}\n` +
+        `🔵 Em aberto: ${pendentes}\n` +
+        `🔴 Em atraso: ${atrasadas}\n\n` +
+        `Para detalhes, responda *MENU*.`;
 
       await responderWhatsApp(tenant.adminPhone, msg);
     }
@@ -546,25 +550,25 @@ exports.dailyReport = onSchedule({
 async function processarConsultaGeral(para, tenantId, user) {
   const db = admin.database();
   const hoje = getHojeBR();
-  
+
   const [obrasSnap, tarefasSnap, pontoSnap] = await Promise.all([
     db.ref(`tenants/${tenantId}/obras`).once('value'),
     db.ref(`tenants/${tenantId}/tarefas`).once('value'),
     db.ref(`tenants/${tenantId}/presenca`).once('value')
   ]);
-  
+
   const obras = Object.values(obrasSnap.val() || {}).filter(o => o && ['ativa', 'em andamento', 'planejada', 'execucao'].includes(norm(o.status)));
   const hojePonto = Object.values(pontoSnap.val() || {}).filter(p => p && p.data === hoje);
   const tarefasAbertas = Object.values(tarefasSnap.val() || {}).filter(t => t && t.status !== 'Concluída');
-  
+
   const nomeEmpresa = 'Empresa';
   const nomeObra = obras[0]?.nome || 'Sem obra';
   const presentes = hojePonto.filter(p => p.presenca === 'Presente').length;
   const faltantes = hojePonto.filter(p => p.presenca === 'Falta').length;
   const tarefasPendentes = tarefasAbertas.length;
-  
+
   const msg = `👋 *Olá!* ${user?.nome || ''}\n\n📅 *${hoje}*\n\n🏗️ *${nomeObra}*\n\n👷 *Presentes:* ${presentes}\n❌ *Faltas:* ${faltantes}\n📋 *Tarefas abertas:* ${tarefasPendentes}\n\nUse:\n• *TAREFA* - listar tarefas\n• *PONTO* - lancar ponto\n• *MENU* - ver opcoes`;
-  
+
   await responderWhatsApp(para, msg);
 }
 
@@ -600,7 +604,7 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
         role = 'admin';
       }
     }
-    
+
     // Evitar updates desnecessários (otimização de cota e performance)
     if (currentClaims.role === role && currentClaims.tenantId === tenantId) {
       console.log(`[syncCustomClaims] Claims inalteradas para uid: ${uid}`);
@@ -611,7 +615,7 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
       role: role,
       tenantId: tenantId
     });
-    
+
     console.log(`[syncCustomClaims] Atualizado uid: ${uid} -> role: ${role}, tenant: ${tenantId}`);
     return { success: true };
   } catch (err) {

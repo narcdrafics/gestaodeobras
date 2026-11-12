@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Cloud Functions para cobrança e automação de SaaS",
   "engines": {
-    "node": "20"
+    "node": "24"
   },
   "main": "index.js",
   "scripts": {
