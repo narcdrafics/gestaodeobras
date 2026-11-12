@@ -488,6 +488,9 @@ function resetarModalMovimentacao() {
   const info = document.getElementById('mov-item-info'); if (info) info.style.display = 'none';
   const erros = document.getElementById('mov-erros-lista'); if (erros) { erros.style.display = 'none'; erros.innerHTML = ''; }
   const btn = document.getElementById('mov-btn-confirmar'); if (btn) { btn.disabled = true; btn.textContent = 'Selecione um tipo'; }
+  const editIdx = document.getElementById('mov-edit-idx'); if (editIdx) editIdx.value = '-1';
+  const titulo = document.getElementById('mov-modal-titulo'); if (titulo) titulo.textContent = 'Movimentação de Estoque';
+  const aviso = document.querySelector('.mov-aviso-entrada'); if (aviso) aviso.style.display = '';
   ocultarTodosCamposCondicionais();
 }
 
@@ -594,6 +597,30 @@ async function confirmarMovimentacao() {
     if (!item) { exibirErrosModal(['Item não encontrado no estoque.']); setBotaoCarregando(false); return; }
     const saldo = (parseFloat(item.entrada)||0) - (parseFloat(item.saida)||0);
 
+    // Verificar modo edição
+    const editIdxEl = document.getElementById('mov-edit-idx');
+    const editIdx = editIdxEl ? parseInt(editIdxEl.value) : -1;
+
+    if (editIdx >= 0) {
+      // MODO EDIÇÃO: apenas atualiza o registro sem mexer nos saldos
+      const movAntigo = DB.movEstoque[editIdx];
+      DB.movEstoque[editIdx] = {
+        ...movAntigo,
+        data: dataHoje,
+        codMat: itemId,
+        mat: item.mat,
+        qtd: quantidade,
+        obs: motivo || movAntigo.obs || '',
+        obra: obraDestinoId || obraOrigemId || movAntigo.obra || '',
+      };
+      fecharModalMovimentacao();
+      await persistDB();
+      mostrarToast('✅ Movimentação atualizada!', 'success');
+      if (typeof renderMovEstoque === 'function') renderMovEstoque();
+      if (typeof recarregarEstoque === 'function') recarregarEstoque();
+      return;
+    }
+
     if (tipo === 'saida_canteiro') {
       if (quantidade > saldo) { exibirErrosModal([`Estoque insuficiente. Disponível: ${saldo} ${item.unid}.`]); setBotaoCarregando(false); return; }
       item.saida = (parseFloat(item.saida)||0) + quantidade;
@@ -632,6 +659,76 @@ async function confirmarMovimentacao() {
   } finally { setBotaoCarregando(false); }
 }
 window.confirmarMovimentacao = confirmarMovimentacao;
+
+// Abre o novo modal em modo edição, pré-populando os campos com o registro existente
+function editarMovimentacaoNovoModal(idx) {
+  const m = DB.movEstoque[idx];
+  if (!m) return;
+
+  // Mapeia tipo legado → tipo do novo modal
+  const mapaLegadoParaNovo = {
+    'saída': 'saida_canteiro', 'saida': 'saida_canteiro',
+    'retorno': 'retorno',
+    'transferência (saída)': 'transferencia', 'transferencia': 'transferencia',
+    'ajuste': 'ajuste',
+  };
+  const tipoNovo = mapaLegadoParaNovo[(m.tipo || '').toLowerCase()];
+
+  // Inicializa o modal (abre + reseta)
+  abrirModalMovimentacao(m.codMat);
+
+  // Aguarda o próximo tick para garantir que o DOM foi populado
+  setTimeout(() => {
+    // Marca modo edição
+    const editIdxEl = document.getElementById('mov-edit-idx');
+    if (editIdxEl) editIdxEl.value = idx;
+
+    // Atualiza título e oculta aviso (não é nova movimentação)
+    const titulo = document.getElementById('mov-modal-titulo');
+    if (titulo) titulo.textContent = '✏️ Editar Movimentação';
+    const aviso = document.querySelector('.mov-aviso-entrada');
+    if (aviso) aviso.style.display = 'none';
+
+    // Seleciona o tipo correto
+    if (tipoNovo) {
+      selecionarTipoMov(tipoNovo);
+    }
+
+    // Pré-preenche item
+    const selectItem = document.getElementById('mov-item');
+    if (selectItem && m.codMat) {
+      selectItem.value = m.codMat;
+      if (typeof onItemChange === 'function') onItemChange();
+    }
+
+    // Quantidade
+    const qEl = document.getElementById('mov-quantidade');
+    if (qEl) qEl.value = m.qtd;
+
+    // Motivo/obs
+    const motEl = document.getElementById('mov-motivo');
+    if (motEl) motEl.value = m.obs || '';
+
+    // Obra conforme tipo
+    if (tipoNovo === 'saida_canteiro') {
+      const sel = document.getElementById('mov-obra-destino');
+      if (sel) sel.value = m.obra || '';
+    } else if (tipoNovo === 'retorno') {
+      const sel = document.getElementById('mov-obra-origem-ret');
+      if (sel) { sel.value = m.obra || ''; if (typeof onObraOrigemRetornoChange === 'function') onObraOrigemRetornoChange(); }
+    } else if (tipoNovo === 'transferencia') {
+      const selOrig = document.getElementById('mov-transf-origem');
+      if (selOrig) selOrig.value = m.obra || '';
+    }
+
+    // Habilita o botão confirmar
+    const btnC = document.getElementById('mov-btn-confirmar');
+    if (btnC) btnC.disabled = false;
+    const btnTxt = document.getElementById('mov-btn-texto');
+    if (btnTxt) btnTxt.textContent = '💾 Salvar Alterações';
+  }, 50);
+}
+window.editarMovimentacaoNovoModal = editarMovimentacaoNovoModal;
 
 function coletarDadosModal() {
   return {

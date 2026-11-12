@@ -4056,30 +4056,51 @@ async function saveMovEstoque() {
 }
 
 async function editMovEstoque(idx) {
-  await openModal('modal-movest');
-  document.getElementById('mv-edit-idx').value = idx;
   const m = DB.movEstoque[idx];
-  document.getElementById('mv-data').value = m.data;
-  document.getElementById('mv-mat').value = m.codMat;
-  document.getElementById('mv-matname').value = m.mat;
-  document.getElementById('mv-obra').value = m.obra;
+  if (!m) return;
+  const tipoLower = (m.tipo || '').toLowerCase();
 
-  if (m.tipo.includes('Transferência')) {
-    document.getElementById('mv-tipo').value = 'Transferência';
-    window.toggleDestinoMov();
-  } else {
-    document.getElementById('mv-tipo').value = m.tipo;
-    window.toggleDestinoMov();
+  // "Entrada" e "Transferência (Entrada)" continuam no modal legado (não suportado no novo)
+  if (tipoLower === 'entrada' || tipoLower === 'transferência (entrada)' || tipoLower === 'transferencia (entrada)') {
+    await openModal('modal-movest');
+    document.getElementById('mv-edit-idx').value = idx;
+    document.getElementById('mv-data').value = m.data;
+    document.getElementById('mv-mat').value = m.codMat;
+    document.getElementById('mv-matname').value = m.mat;
+    document.getElementById('mv-obra').value = m.obra;
+    if (m.tipo.includes('Transferência')) {
+      document.getElementById('mv-tipo').value = 'Transferência';
+      window.toggleDestinoMov && window.toggleDestinoMov();
+    } else {
+      document.getElementById('mv-tipo').value = m.tipo;
+      window.toggleDestinoMov && window.toggleDestinoMov();
+    }
+    document.getElementById('mv-qtd').value = m.qtd;
+    document.getElementById('mv-frente').value = m.frente || '';
+    document.getElementById('mv-retirado').value = m.retirado || '';
+    document.getElementById('mv-autor').value = m.autor || '';
+    document.getElementById('mv-nf').value = m.nf || '';
+    document.getElementById('mv-vunit').value = m.vunit || '';
+    document.getElementById('mv-vtotal').value = m.vtotal || '';
+    document.getElementById('mv-obs').value = m.obs || '';
+    return;
   }
 
-  document.getElementById('mv-qtd').value = m.qtd;
-  document.getElementById('mv-frente').value = m.frente;
-  document.getElementById('mv-retirado').value = m.retirado;
-  document.getElementById('mv-autor').value = m.autor;
-  document.getElementById('mv-nf').value = m.nf;
-  document.getElementById('mv-vunit').value = m.vunit;
-  document.getElementById('mv-vtotal').value = m.vtotal;
-  document.getElementById('mv-obs').value = m.obs || '';
+  // Todos os demais tipos → novo modal unificado
+  if (typeof window.editarMovimentacaoNovoModal === 'function') {
+    window.editarMovimentacaoNovoModal(idx);
+  } else {
+    // Fallback ao legado se módulo ainda não carregou
+    await openModal('modal-movest');
+    document.getElementById('mv-edit-idx').value = idx;
+    document.getElementById('mv-data').value = m.data;
+    document.getElementById('mv-mat').value = m.codMat;
+    document.getElementById('mv-matname').value = m.mat;
+    document.getElementById('mv-obra').value = m.obra;
+    document.getElementById('mv-tipo').value = m.tipo;
+    document.getElementById('mv-qtd').value = m.qtd;
+    document.getElementById('mv-obs').value = m.obs || '';
+  }
 }
 
 async function saveCompra() {
