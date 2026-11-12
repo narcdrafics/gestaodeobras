@@ -1,6 +1,6 @@
 // js/estoque.module.js
-// Motor de estoque — todas as regras de negócio centralizadas aqui
-// Usa Firebase v8 namespaced API (global firebase.*)
+// Regras de validação e UI do modal de movimentação do estoque.
+// O estado canônico fica em DB.estoque / DB.movEstoque (persistido por persistDB).
 // Carregar via: <script src="js/estoque.module.js" defer></script>
 
 // ─────────────────────────────────────────────────────────────
@@ -30,313 +30,6 @@ function normalizarNome(nome) {
 }
 window.normalizarNome = normalizarNome;
 
-async function buscarItemDuplicado(tenantId, nomeNovo, excluirId = null) {
-  const snap = await firebase.database().ref(`tenants/${tenantId}/estoque/itens`).once('value');
-  if (!snap.exists()) return null;
-  const nomeNorm = normalizarNome(nomeNovo);
-  for (const [id, item] of Object.entries(snap.val())) {
-    if (id === excluirId) continue;
-    if (normalizarNome(item.nome) === nomeNorm) return { id, ...item };
-  }
-  return null;
-}
-window.buscarItemDuplicado = buscarItemDuplicado;
-
-// ─────────────────────────────────────────────────────────────
-// CRIAR ITEM NO ESTOQUE
-// ─────────────────────────────────────────────────────────────
-async function criarItem(tenantId, dados, uid) {
-  const { nome, unidade, quantidadeInicial = 0, estoqueMinimo = 0, categoria = '' } = dados;
-  if (!nome?.trim()) return { ok: false, erro: 'Nome do item é obrigatório.' };
-  if (!unidade?.trim()) return { ok: false, erro: 'Unidade é obrigatória.' };
-  if (quantidadeInicial < 0) return { ok: false, erro: 'Quantidade inicial não pode ser negativa.' };
-
-  const duplicado = await buscarItemDuplicado(tenantId, nome);
-  if (duplicado) {
-    return { ok: false, erro: `Já existe "${duplicado.nome}". Use Entrada para adicionar quantidade.`, duplicado };
-  }
-
-  const itensRef = firebase.database().ref(`tenants/${tenantId}/estoque/itens`).push();
-  const itemId = itensRef.key;
-  const agora = Date.now();
-
-  await itensRef.set({
-    nome: nome.trim(),
-    nomeNorm: normalizarNome(nome),
-    unidade: unidade.trim(),
-    categoria: categoria.trim(),
-    quantidade: Number(quantidadeInicial),
-    estoqueMinimo: Number(estoqueMinimo),
-    qtdNoCanteiro: 0,
-    criadoEm: agora,
-    criadoPor: uid,
-    atualizadoEm: agora,
-  });
-
-  if (quantidadeInicial > 0) {
-    await _registrarMovimentacao(tenantId, {
-      tipo: window.TIPO_MOV.ENTRADA, itemId, itemNome: nome.trim(),
-      unidade: unidade.trim(), quantidade: quantidadeInicial,
-      motivo: 'Cadastro inicial do item', uid,
-    });
-  }
-  return { ok: true, itemId };
-}
-window.criarItem = criarItem;
-
-// ─────────────────────────────────────────────────────────────
-// ENTRADA NO ESTOQUE (reposição / compra)
-// ─────────────────────────────────────────────────────────────
-async function registrarEntrada(tenantId, itemId, quantidade, motivo, uid) {
-  if (!motivo?.trim()) return { ok: false, erro: 'Motivo da entrada é obrigatório.' };
-  if (quantidade <= 0) return { ok: false, erro: 'Quantidade deve ser maior que zero.' };
-
-  const itemRef = firebase.database().ref(`tenants/${tenantId}/estoque/itens/${itemId}`);
-  const snap = await itemRef.once('value');
-  if (!snap.exists()) return { ok: false, erro: 'Item não encontrado.' };
-
-  const item = snap.val();
-  await itemRef.transaction(current => {
-    if (!current) return current;
-    current.quantidade = (current.quantidade || 0) + quantidade;
-    current.atualizadoEm = Date.now();
-    return current;
-  });
-
-  await _registrarMovimentacao(tenantId, {
-    tipo: window.TIPO_MOV.ENTRADA, itemId, itemNome: item.nome,
-    unidade: item.unidade, quantidade, motivo, uid,
-  });
-  return { ok: true };
-}
-window.registrarEntrada = registrarEntrada;
-
-// ─────────────────────────────────────────────────────────────
-// SAÍDA PARA O CANTEIRO
-// ─────────────────────────────────────────────────────────────
-async function registrarSaidaCanteiro(tenantId, itemId, obraId, obraNome, quantidade, uid) {
-  if (quantidade <= 0) return { ok: false, erro: 'Quantidade deve ser maior que zero.' };
-  if (!obraId) return { ok: false, erro: 'Obra de destino é obrigatória.' };
-
-  const itemRef = firebase.database().ref(`tenants/${tenantId}/estoque/itens/${itemId}`);
-  let resultado = { ok: false };
-
-  await itemRef.transaction(current => {
-    if (!current) return;
-    const disponivel = (current.quantidade || 0);
-    if (disponivel < quantidade) {
-      resultado = { ok: false, erro: `Estoque insuficiente. Disponível: ${disponivel} ${current.unidade}. Solicitado: ${quantidade}.` };
-      return;
-    }
-    current.quantidade = disponivel - quantidade;
-    current.qtdNoCanteiro = (current.qtdNoCanteiro || 0) + quantidade;
-    current.atualizadoEm = Date.now();
-    resultado = { ok: true, itemNome: current.nome, unidade: current.unidade };
-    return current;
-  });
-
-  if (!resultado.ok) return resultado;
-
-  const canteiroRef = firebase.database().ref(`tenants/${tenantId}/estoque/canteiro/${obraId}/${itemId}`);
-  await canteiroRef.transaction(current => {
-    if (!current) {
-      return { itemId, itemNome: resultado.itemNome, unidade: resultado.unidade, quantidade, saidaEm: Date.now(), retornos: [] };
-    }
-    current.quantidade = (current.quantidade || 0) + quantidade;
-    return current;
-  });
-
-  await _registrarMovimentacao(tenantId, {
-    tipo: window.TIPO_MOV.SAIDA_CANTEIRO, itemId, itemNome: resultado.itemNome,
-    unidade: resultado.unidade, quantidade, motivo: `Saída para obra: ${obraNome}`,
-    obraDestinoId: obraId, obraDestinoNome: obraNome, uid,
-  });
-  return { ok: true };
-}
-window.registrarSaidaCanteiro = registrarSaidaCanteiro;
-
-// ─────────────────────────────────────────────────────────────
-// RETORNO DO CANTEIRO PARA O ESTOQUE
-// ─────────────────────────────────────────────────────────────
-async function registrarRetorno(tenantId, itemId, obraId, obraNome, quantidade, motivo, uid) {
-  if (quantidade <= 0) return { ok: false, erro: 'Quantidade deve ser maior que zero.' };
-
-  const canteiroRef = firebase.database().ref(`tenants/${tenantId}/estoque/canteiro/${obraId}/${itemId}`);
-  const canteiroSnap = await canteiroRef.once('value');
-  if (!canteiroSnap.exists()) {
-    return { ok: false, erro: 'Este item não consta como saído para esta obra.' };
-  }
-  const canteiro = canteiroSnap.val();
-  const qtdNoCanteiro = canteiro.quantidade || 0;
-
-  if (quantidade > qtdNoCanteiro) {
-    return { ok: false, erro: `Não é possível retornar ${quantidade} ${canteiro.unidade}. No canteiro: ${qtdNoCanteiro}.` };
-  }
-
-  const novaQtd = qtdNoCanteiro - quantidade;
-  if (novaQtd === 0) {
-    await canteiroRef.remove();
-  } else {
-    await canteiroRef.update({ quantidade: novaQtd });
-  }
-
-  const itemRef = firebase.database().ref(`tenants/${tenantId}/estoque/itens/${itemId}`);
-  await itemRef.transaction(current => {
-    if (!current) return current;
-    current.quantidade = (current.quantidade || 0) + quantidade;
-    current.qtdNoCanteiro = Math.max(0, (current.qtdNoCanteiro || 0) - quantidade);
-    current.atualizadoEm = Date.now();
-    return current;
-  });
-
-  await _registrarMovimentacao(tenantId, {
-    tipo: window.TIPO_MOV.RETORNO, itemId, itemNome: canteiro.itemNome,
-    unidade: canteiro.unidade, quantidade, motivo: motivo || `Retorno da obra: ${obraNome}`,
-    obraOrigemId: obraId, obraOrigemNome: obraNome, uid,
-  });
-  return { ok: true };
-}
-window.registrarRetorno = registrarRetorno;
-
-// ─────────────────────────────────────────────────────────────
-// TRANSFERÊNCIA ENTRE OBRAS
-// ─────────────────────────────────────────────────────────────
-async function registrarTransferencia(tenantId, itemId, obraOrigemId, obraOrigemNome, obraDestinoId, obraDestinoNome, quantidade, uid) {
-  if (obraOrigemId === obraDestinoId) return { ok: false, erro: 'Origem e destino não podem ser a mesma obra.' };
-  if (quantidade <= 0) return { ok: false, erro: 'Quantidade deve ser maior que zero.' };
-
-  const canteiroOrigemRef = firebase.database().ref(`tenants/${tenantId}/estoque/canteiro/${obraOrigemId}/${itemId}`);
-  const snap = await canteiroOrigemRef.once('value');
-  if (!snap.exists()) return { ok: false, erro: 'Item não encontrado no canteiro de origem.' };
-
-  const canteiro = snap.val();
-  if (quantidade > canteiro.quantidade) {
-    return { ok: false, erro: `Disponível na origem: ${canteiro.quantidade} ${canteiro.unidade}. Solicitado: ${quantidade}.` };
-  }
-
-  const novaQtd = canteiro.quantidade - quantidade;
-  if (novaQtd === 0) {
-    await canteiroOrigemRef.remove();
-  } else {
-    await canteiroOrigemRef.update({ quantidade: novaQtd });
-  }
-
-  const canteiroDestinoRef = firebase.database().ref(`tenants/${tenantId}/estoque/canteiro/${obraDestinoId}/${itemId}`);
-  await canteiroDestinoRef.transaction(current => {
-    if (!current) return { itemId, itemNome: canteiro.itemNome, unidade: canteiro.unidade, quantidade, saidaEm: Date.now() };
-    current.quantidade = (current.quantidade || 0) + quantidade;
-    return current;
-  });
-
-  await _registrarMovimentacao(tenantId, {
-    tipo: window.TIPO_MOV.TRANSFERENCIA, itemId, itemNome: canteiro.itemNome,
-    unidade: canteiro.unidade, quantidade,
-    motivo: `Transferência de ${obraOrigemNome} → ${obraDestinoNome}`,
-    obraOrigemId, obraOrigemNome, obraDestinoId, obraDestinoNome, uid,
-  });
-  return { ok: true };
-}
-window.registrarTransferencia = registrarTransferencia;
-
-// ─────────────────────────────────────────────────────────────
-// EXCLUSÃO SEGURA
-// ─────────────────────────────────────────────────────────────
-async function excluirItem(tenantId, itemId, uid) {
-  const itemRef = firebase.database().ref(`tenants/${tenantId}/estoque/itens/${itemId}`);
-  const snap = await itemRef.once('value');
-  if (!snap.exists()) return { ok: false, erro: 'Item não encontrado.' };
-
-  const item = snap.val();
-  if ((item.qtdNoCanteiro || 0) > 0) {
-    return { ok: false, erro: `"${item.nome}" ainda tem ${item.qtdNoCanteiro} ${item.unidade} no canteiro. Registre retorno antes.` };
-  }
-  if ((item.quantidade || 0) > 0) {
-    return { ok: false, erro: `"${item.nome}" tem saldo ${item.quantidade} ${item.unidade}. Zere antes de excluir.` };
-  }
-
-  const canteiroSnap = await firebase.database().ref(`tenants/${tenantId}/estoque/canteiro`).once('value');
-  if (canteiroSnap.exists()) {
-    for (const [obraId, itens] of Object.entries(canteiroSnap.val())) {
-      if (itens[itemId]) return { ok: false, erro: `Item ainda no canteiro da obra ${obraId}.` };
-    }
-  }
-
-  await _registrarMovimentacao(tenantId, {
-    tipo: window.TIPO_MOV.EXCLUSAO, itemId, itemNome: item.nome,
-    unidade: item.unidade, quantidade: 0, motivo: 'Item excluído do cadastro', uid,
-  });
-  await itemRef.remove();
-  return { ok: true };
-}
-window.excluirItem = excluirItem;
-
-// ─────────────────────────────────────────────────────────────
-// AJUSTE MANUAL
-// ─────────────────────────────────────────────────────────────
-async function registrarAjuste(tenantId, itemId, novaQuantidade, motivo, uid) {
-  if (!motivo || motivo.trim().length < 10) return { ok: false, erro: 'Motivo mínimo: 10 caracteres.' };
-  if (novaQuantidade < 0) return { ok: false, erro: 'Quantidade não pode ser negativa.' };
-
-  let quantidadeAnterior = 0, itemNome = '', unidade = '';
-  const itemRef = firebase.database().ref(`tenants/${tenantId}/estoque/itens/${itemId}`);
-
-  await itemRef.transaction(current => {
-    if (!current) return current;
-    quantidadeAnterior = current.quantidade || 0;
-    itemNome = current.nome;
-    unidade = current.unidade;
-    current.quantidade = novaQuantidade;
-    current.atualizadoEm = Date.now();
-    return current;
-  });
-
-  const diferenca = novaQuantidade - quantidadeAnterior;
-  await _registrarMovimentacao(tenantId, {
-    tipo: window.TIPO_MOV.AJUSTE, itemId, itemNome, unidade,
-    quantidade: Math.abs(diferenca),
-    motivo: `Ajuste: ${diferenca >= 0 ? '+' : ''}${diferenca} ${unidade}. ${motivo}`, uid,
-  });
-  return { ok: true, diferenca };
-}
-window.registrarAjuste = registrarAjuste;
-
-// ─────────────────────────────────────────────────────────────
-// CONSULTAS
-// ─────────────────────────────────────────────────────────────
-async function listarItensComAlerta(tenantId) {
-  const snap = await firebase.database().ref(`tenants/${tenantId}/estoque/itens`).once('value');
-  if (!snap.exists()) return [];
-  return Object.entries(snap.val()).map(([id, item]) => ({ id, ...item }))
-    .filter(item => (item.quantidade || 0) <= (item.estoqueMinimo || 0))
-    .sort((a, b) => a.nome.localeCompare(b.nome));
-}
-window.listarItensComAlerta = listarItensComAlerta;
-
-async function listarCanteiro(tenantId, obraId) {
-  const snap = await firebase.database().ref(`tenants/${tenantId}/estoque/canteiro/${obraId}`).once('value');
-  if (!snap.exists()) return [];
-  return Object.entries(snap.val()).map(([id, item]) => ({ id, ...item }));
-}
-window.listarCanteiro = listarCanteiro;
-
-async function listarMovimentacoes(tenantId, itemId, limit = 50) {
-  const snap = await firebase.database().ref(`tenants/${tenantId}/estoque/movimentacoes`).once('value');
-  if (!snap.exists()) return [];
-  return Object.entries(snap.val()).map(([id, mov]) => ({ id, ...mov }))
-    .filter(mov => !itemId || mov.itemId === itemId)
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, limit);
-}
-window.listarMovimentacoes = listarMovimentacoes;
-
-// ─────────────────────────────────────────────────────────────
-// INTERNO — registrar movimentação
-// ─────────────────────────────────────────────────────────────
-async function _registrarMovimentacao(tenantId, dados) {
-  const movRef = firebase.database().ref(`tenants/${tenantId}/estoque/movimentacoes`).push();
-  await movRef.set({ ...dados, timestamp: Date.now(), movId: movRef.key });
-}
-
 // ─────────────────────────────────────────────────────────────
 // VALIDAÇÕES DO MODAL
 // ─────────────────────────────────────────────────────────────
@@ -359,29 +52,6 @@ function validarFormMovimentacao(dados) {
 }
 window.validarFormMovimentacao = validarFormMovimentacao;
 
-async function despacharMovimentacao(tenantId, dados, uid) {
-  const erros = validarFormMovimentacao(dados);
-  if (erros.length > 0) return { ok: false, erros };
-
-  const { tipo, itemId, quantidade, obraOrigemId, obraOrigemNome, obraDestinoId, obraDestinoNome, motivo } = dados;
-
-  switch (tipo) {
-    case window.TIPO_MOV.SAIDA_CANTEIRO:
-      return registrarSaidaCanteiro(tenantId, itemId, obraDestinoId, obraDestinoNome, quantidade, uid);
-    case window.TIPO_MOV.RETORNO:
-      return registrarRetorno(tenantId, itemId, obraOrigemId, obraOrigemNome, quantidade, motivo, uid);
-    case window.TIPO_MOV.TRANSFERENCIA:
-      return registrarTransferencia(tenantId, itemId, obraOrigemId, obraOrigemNome, obraDestinoId, obraDestinoNome, quantidade, uid);
-    case window.TIPO_MOV.AJUSTE:
-      return registrarAjuste(tenantId, itemId, quantidade, motivo, uid);
-    case window.TIPO_MOV.ENTRADA:
-      return { ok: false, erro: 'Entrada bloqueada neste fluxo.' };
-    default:
-      return { ok: false, erro: `Tipo desconhecido: ${tipo}` };
-  }
-}
-window.despacharMovimentacao = despacharMovimentacao;
-
 console.log('✅ estoque.module.js carregado');
 
 // ─────────────────────────────────────────────────────────────
@@ -399,21 +69,34 @@ async function buscarItemPorId(itemId) {
 }
 window.buscarItemPorId = buscarItemPorId;
 
-async function buscarItemNoCanteiro(itemId) {
-  const tenantId = (() => { try { return JSON.parse(sessionStorage.getItem('gestaoUser') || '{}').tenantId; } catch { return ''; } })();
-  if (!tenantId) return {};
-  try {
-    const snap = await firebase.database().ref(`tenants/${tenantId}/estoque/canteiro`).once('value');
-    if (!snap.exists()) return {};
-    const result = {};
-    for (const [obraId, itens] of Object.entries(snap.val())) {
-      if (itens[itemId]) {
-        const obra = (DB.obras || []).find(o => o.cod === obraId);
-        result[obraId] = { obraId, obraNome: obra?.nome || obraId, quantidade: itens[itemId].quantidade, unidade: itens[itemId].unidade };
-      }
+function buscarItemNoCanteiro(itemId) {
+  // Deriva o saldo no canteiro do mesmo histórico usado por confirmarMovimentacao(),
+  // mantendo a UI consistente com a validação de retorno.
+  const saldoPorObra = {};
+  (DB.movEstoque || []).forEach(mov => {
+    if (mov.codMat !== itemId || !mov.obra) return;
+    const tipo = (mov.tipo || '').toLowerCase();
+    const qtd = parseFloat(mov.qtd) || 0;
+    if (tipo.includes('saída') || tipo.includes('saida')) {
+      saldoPorObra[mov.obra] = (saldoPorObra[mov.obra] || 0) + qtd;
+    } else if (tipo === 'retorno') {
+      saldoPorObra[mov.obra] = (saldoPorObra[mov.obra] || 0) - qtd;
     }
-    return result;
-  } catch { return {}; }
+  });
+
+  const item = (DB.estoque || []).find(e => e.cod === itemId);
+  const result = {};
+  Object.entries(saldoPorObra).forEach(([obraId, quantidade]) => {
+    if (quantidade <= 0) return;
+    const obra = (DB.obras || []).find(o => o.cod === obraId);
+    result[obraId] = {
+      obraId,
+      obraNome: obra?.nome || obraId,
+      quantidade,
+      unidade: item?.unid,
+    };
+  });
+  return result;
 }
 window.buscarItemNoCanteiro = buscarItemNoCanteiro;
 
