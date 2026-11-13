@@ -1,7 +1,13 @@
 [
   {
-    "origin": ["*"],
-    "method": ["GET", "POST", "PUT", "DELETE", "HEAD"],
+    "origin": [
+      "https://obrareal.com",
+      "https://www.obrareal.com",
+      "https://*.obrareal.com",
+      "https://controle-obras-c889d.web.app",
+      "https://controle-obras-c889d.firebaseapp.com"
+    ],
+    "method": ["GET", "HEAD", "POST"],
     "responseHeader": ["Content-Type", "x-goog-resumable"],
     "maxAgeSeconds": 3600
   }

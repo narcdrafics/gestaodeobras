@@ -169,6 +169,7 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
           await firebase.database().ref(`tenants/${tenantId}`).set(newTenant);
           await firebase.database().ref(`tenants_public/${tenantId}`).set({
               slug: tenantId,
+              tenantId: tenantId,
               nomeEmpresa: newTenant.config.nomeEmpresa,
               esquemaCores: newTenant.config.esquemaCores
           });

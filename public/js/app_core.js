@@ -2579,8 +2579,11 @@ async function saveMasterTenant() {
 
   try {
     if (slugVal !== oldSlug) {
-      const existingSlug = await firebase.database().ref('tenants_public').orderByChild('slug').equalTo(slugVal).once('value');
-      if (existingSlug.exists()) {
+      // Leitura direta por chave (o slug é a chave). Nunca listar o nó pai.
+      const existingSlug = await firebase.database().ref(`tenants_public/${slugVal}`).once('value');
+      const existing = existingSlug.val();
+      const belongsToOther = existing && (existing.tenantId ? existing.tenantId !== tid : existing.slug !== oldSlug);
+      if (belongsToOther) {
         return toast(`O subdomínio "${slugVal}" já está em uso!`, 'error');
       }
     }
@@ -2588,6 +2591,7 @@ async function saveMasterTenant() {
     const updates = {};
     updates[`tenants/${tid}/config/nomeEmpresa`] = nome;
     updates[`tenants/${tid}/config/slug`] = slugVal;
+    updates[`tenants/${tid}/subdominioSlug`] = slugVal;
     updates[`tenants/${tid}/config/limiteObras`] = lobras;
     updates[`tenants/${tid}/config/limiteUsuarios`] = lusr;
     updates[`tenants/${tid}/plano`] = plano;
@@ -2598,8 +2602,31 @@ async function saveMasterTenant() {
       updates[`tenants/${tid}/planoVencimento`] = Date.now() + (31 * 24 * 60 * 60 * 1000);
     }
 
-    updates[`tenants_public/${tid}/nomeEmpresa`] = nome;
-    updates[`tenants_public/${tid}/slug`] = slugVal;
+    // Move o nó público para a chave do novo slug (modelo atual: chave = slug).
+    // Também remove a chave legada (ID do tenant) quando ela difere do slug.
+    const tData = (window.globalTenantsDataCache && window.globalTenantsDataCache[tid]) || {};
+    const tConfig = tData.config || {};
+    const publicRef = firebase.database().ref('tenants_public');
+    let publicData = null;
+    for (const key of [oldSlug, tData.subdominioSlug, tData.slug, tid]) {
+      if (!key) continue;
+      const snap = await publicRef.child(key).once('value');
+      const val = snap.val();
+      if (!val) continue;
+      const belongsToThisTenant = val.tenantId ? val.tenantId === tid : (key === tid && (!val.slug || val.slug === oldSlug));
+      if (!belongsToThisTenant) continue;
+      publicData = publicData || val;
+      if (key !== slugVal) updates[`tenants_public/${key}`] = null;
+    }
+
+    updates[`tenants_public/${slugVal}`] = {
+      ...(publicData || {}),
+      slug: slugVal,
+      tenantId: tid,
+      nomeEmpresa: nome,
+      esquemaCores: (publicData && publicData.esquemaCores) || tConfig.esquemaCores || 'emerald',
+      logoUrl: (publicData && publicData.logoUrl) || tConfig.logoUrl || ''
+    };
 
     if (emailOwner) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -2649,8 +2676,18 @@ async function deleteTenant(tid) {
       updates[`invites/${emailKey}`] = null;
     });
 
-    // Libera o subdomínio/slug público para reutilização
-    updates[`tenants_public/${tid}`] = null;
+    // Libera o subdomínio/slug público para reutilização.
+    // A chave do nó público é o slug, que pode diferir do ID do tenant.
+    const tData = (window.globalTenantsDataCache && window.globalTenantsDataCache[tid]) || {};
+    const publicSlug = tData.subdominioSlug || (tData.config && tData.config.slug) || tData.slug || tid;
+    for (const key of new Set([publicSlug, tid])) {
+      if (!key) continue;
+      const snap = await firebase.database().ref(`tenants_public/${key}`).once('value');
+      const val = snap.val();
+      if (!val) continue;
+      const belongsToThisTenant = val.tenantId ? val.tenantId === tid : (key === tid && (!val.slug || val.slug === publicSlug));
+      if (belongsToThisTenant) updates[`tenants_public/${key}`] = null;
+    }
 
     // 4. Executar Limpeza
     await firebase.database().ref().update(updates);
@@ -4556,8 +4593,8 @@ async function saveNewTenant() {
   if (!emailRegex.test(emailOwner)) return toast('Digite um e-mail válido.', 'error');
 
   try {
-    // Verificar se subdomínio já existe
-    const existingSlug = await firebase.database().ref('tenants_public').orderByChild('slug').equalTo(slugVal).once('value');
+    // Verificar se subdomínio já existe (leitura direta pela chave = slug)
+    const existingSlug = await firebase.database().ref(`tenants_public/${slugVal}`).once('value');
     if (existingSlug.exists()) {
       return toast(`O subdomínio "${slugVal}" já está sendo usado por outra empresa!`, 'error');
     }
@@ -4594,8 +4631,10 @@ async function saveNewTenant() {
     });
 
     // 3. Espelhar slug no nó público (para leitura da logo antes do login)
+    // A chave é o próprio slug; tenantId permite mover o nó em renomeações.
     await firebase.database().ref(`tenants_public/${slugVal}`).set({
       slug: slugVal,
+      tenantId: slugVal,
       nomeEmpresa: nome,
       esquemaCores: 'emerald'
     });

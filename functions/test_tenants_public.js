@@ -1,9 +1,8 @@
+const path = require('path');
 const admin = require('firebase-admin');
 const axios = require('axios');
 
-// Initialize Admin SDK to get custom token capabilities
-const serviceAccountPath = '/Users/tonycampelo/Documents/gestaodeobras/functions/serviceAccountKey.json';
-const serviceAccount = require(serviceAccountPath);
+const serviceAccount = require(path.join(__dirname, 'serviceAccountKey.json'));
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -13,60 +12,81 @@ if (!admin.apps.length) {
 }
 
 const API_KEY = 'AIzaSyD9i1vMwmJwiUfwUKetxrzIO6Bm5K-5oro';
+const DB_URL = 'https://controle-obras-c889d-default-rtdb.firebaseio.com';
+
+function statusOf(error) {
+  return error.response ? error.response.status : error.message;
+}
 
 async function runTests() {
-  console.log('--- INICIANDO TESTES DE ACESSO AO NÓ /tenants_public ---');
+  console.log('--- TESTES DE ACESSO AO NÓ /tenants_public ---');
 
-  // Teste 1: SEM TOKEN
-  console.log('\n[TESTE 1] GET /tenants_public SEM token');
+  // Teste 1: listagem do nó pai SEM token deve ser negada
+  console.log('\n[TESTE 1] GET /tenants_public SEM token (deve ser negado)');
   try {
-    await axios.get('https://controle-obras-c889d-default-rtdb.firebaseio.com/tenants_public.json');
-    console.log('❌ FALHA NO TESTE: A requisição retornou 200 (Sucesso) quando deveria ser 401/403 (Negado).');
+    await axios.get(`${DB_URL}/tenants_public.json`);
+    console.log('❌ FALHA: o nó pai foi listado sem autenticação.');
   } catch (error) {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      console.log(`✅ SUCESSO NO TESTE: Acesso bloqueado corretamente! Status recebido: ${error.response.status}`);
-      console.log(`📄 Resposta: ${JSON.stringify(error.response.data)}`);
+    const status = statusOf(error);
+    if (status === 401 || status === 403) {
+      console.log(`✅ SUCESSO: listagem bloqueada (status ${status}).`);
     } else {
-      console.log(`⚠️ ERRO INESPERADO: Status ${error.response ? error.response.status : error.message}`);
+      console.log(`⚠️ ERRO INESPERADO: status ${status}`);
     }
   }
 
-  // Teste 2: COM TOKEN VÁLIDO
-  console.log('\n[TESTE 2] GET /tenants_public COM token válido');
-  try {
-    // Pegar o primeiro usuário que encontrarmos para gerar um token válido (não precisa ser super_admin)
-    const db = admin.database();
-    const profilesSnap = await db.ref('profiles').limitToFirst(1).once('value');
-    const profiles = profilesSnap.val();
-    
-    if (!profiles) {
-      console.log('⚠️ Nenhum perfil de usuário encontrado para testar o token.');
-      return;
-    }
-    
-    const uid = Object.keys(profiles)[0];
-    console.log(`Gerando token para o UID: ${uid}...`);
-    
-    // Gerar Custom Token e trocar por ID Token via REST
-    const customToken = await admin.auth().createCustomToken(uid);
-    const exchangeUrl = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${API_KEY}`;
-    const exchangeRes = await axios.post(exchangeUrl, {
-      token: customToken,
-      returnSecureToken: true
-    });
-    const idToken = exchangeRes.data.idToken;
+  // Teste 2: listagem do nó pai COM token também deve ser negada
+  console.log('\n[TESTE 2] GET /tenants_public COM token (deve ser negado)');
+  const db = admin.database();
+  const profilesSnap = await db.ref('profiles').limitToFirst(1).once('value');
+  const profiles = profilesSnap.val();
+  if (!profiles) {
+    console.log('⚠️ Nenhum perfil encontrado para gerar token.');
+    return;
+  }
 
-    // Fazer a chamada com o Token
-    const res = await axios.get(`https://controle-obras-c889d-default-rtdb.firebaseio.com/tenants_public.json?auth=${idToken}`);
-    console.log(`✅ SUCESSO NO TESTE: Acesso liberado! Status recebido: ${res.status}`);
-    console.log(`📄 Dados recebidos (chaves): ${Object.keys(res.data || {}).join(', ') || 'Nenhum tenant cadastrado'}`);
-    
+  const uid = Object.keys(profiles)[0];
+  const customToken = await admin.auth().createCustomToken(uid);
+  const exchangeUrl = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${API_KEY}`;
+  const exchangeRes = await axios.post(exchangeUrl, { token: customToken, returnSecureToken: true });
+  const idToken = exchangeRes.data.idToken;
+
+  try {
+    await axios.get(`${DB_URL}/tenants_public.json?auth=${idToken}`);
+    console.log('❌ FALHA: o nó pai foi listado com token.');
   } catch (error) {
-    console.log(`❌ FALHA NO TESTE: Acesso negado mesmo com token. Status: ${error.response ? error.response.status : error.message}`);
-    if (error.response && error.response.data) console.log(error.response.data);
-  } finally {
-    process.exit(0);
+    const status = statusOf(error);
+    if (status === 401 || status === 403) {
+      console.log(`✅ SUCESSO: listagem bloqueada mesmo autenticado (status ${status}).`);
+    } else {
+      console.log(`⚠️ ERRO INESPERADO: status ${status}`);
+    }
+  }
+
+  // Teste 3: leitura direta de um slug SEM token deve funcionar
+  console.log('\n[TESTE 3] GET /tenants_public/{slug} SEM token (deve funcionar)');
+  const tenantsSnap = await db.ref('tenants').limitToFirst(1).once('value');
+  const tenants = tenantsSnap.val();
+  if (!tenants) {
+    console.log('⚠️ Nenhum tenant encontrado.');
+    return;
+  }
+
+  const [tid, tenant] = Object.entries(tenants)[0];
+  const slug = tenant?.config?.slug || tenant?.subdominioSlug || tid;
+
+  try {
+    const res = await axios.get(`${DB_URL}/tenants_public/${encodeURIComponent(slug)}.json`);
+    if (res.data && res.data.slug === slug) {
+      console.log(`✅ SUCESSO: leitura direta do slug "${slug}" liberada.`);
+    } else {
+      console.log('⚠️ Resposta inesperada:', res.data);
+    }
+  } catch (error) {
+    console.log(`❌ FALHA: leitura direta negada (status ${statusOf(error)}).`);
   }
 }
 
-runTests();
+runTests()
+  .catch((error) => console.error('❌ Erro nos testes:', error))
+  .finally(() => process.exit(0));

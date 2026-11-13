@@ -105,20 +105,16 @@ function detectSubdomain() {
 async function loadTenantBySlug(slug) {
   if (!slug) return null;
   try {
-    // Tenta primeiro leitura pública (nó tenants_public)
-    const pubSnap = await firebase.database().ref('tenants_public')
-      .orderByChild('slug')
-      .equalTo(slug)
-      .once('value');
-
-    const pubTenants = pubSnap.val();
-    if (pubTenants) {
-      const tenantId = Object.keys(pubTenants)[0];
-      const pub = pubTenants[tenantId];
-      return { id: tenantId, data: { config: pub } };
+    // Leitura direta por chave: não expõe a listagem de tenants_public.
+    // O slug é a própria chave do nó público.
+    const pubSnap = await firebase.database().ref(`tenants_public/${slug}`).once('value');
+    const pub = pubSnap.val();
+    if (pub) {
+      return { id: pub.tenantId || slug, data: { config: pub } };
     }
 
-    // Fallback: Busca diretamente no nó tenants (apenas se estiver autenticado para evitar Permission Denied)
+    // Fallback: tenant legado cujo ID difere do slug (nó público sob outra chave).
+    // Só é possível para usuário autenticado (regras de tenants).
     if (firebase.auth().currentUser) {
       const snapshot = await firebase.database().ref('tenants')
         .orderByChild('config/slug')
@@ -684,35 +680,50 @@ async function updateSubdomainSlug() {
   }
 
   const tenantId = _currentTenantId;
-  const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
 
   try {
     if (typeof toast === 'function') toast('Verificando disponibilidade...', 'info');
 
-    // 1. Verifica se o slug já está em uso por OUTRO tenant
-    const checkSnap = await firebase.database().ref('tenants_public')
-      .orderByChild('slug')
-      .equalTo(newSlug)
-      .once('value');
-    
+    // Slug atual do tenant (o nó público é chaveado pelo slug)
+    const oldSlug = DB.subdominioSlug || DB.config?.slug || tenantId;
+
+    // 1. Verifica se o slug já está em uso por OUTRO tenant (leitura direta pela chave)
+    const checkSnap = await firebase.database().ref(`tenants_public/${newSlug}`).once('value');
     const existing = checkSnap.val();
-    if (existing) {
-      const otherId = Object.keys(existing)[0];
-      if (otherId !== tenantId) {
-        return alert('Este subdomínio já está em uso por outra empresa. Escolha outro nome.');
-      }
+    const belongsToOther = existing && (existing.tenantId ? existing.tenantId !== tenantId : existing.slug !== oldSlug);
+    if (belongsToOther) {
+      return alert('Este subdomínio já está em uso por outra empresa. Escolha outro nome.');
     }
 
-    // 2. Atualiza o nó principal do tenant
-    await firebase.database().ref(`tenants/${tenantId}/subdominioSlug`).set(newSlug);
+    const updates = {};
+    updates[`tenants/${tenantId}/subdominioSlug`] = newSlug;
+    updates[`tenants/${tenantId}/config/slug`] = newSlug;
 
-    // 3. Atualiza o nó público para o Cloudflare Worker / Auth detectar
-    await firebase.database().ref(`tenants_public/${tenantId}`).update({
+    // Move o nó público para a nova chave (sem listar o nó pai)
+    if (oldSlug && oldSlug !== newSlug) {
+      const oldSnap = await firebase.database().ref(`tenants_public/${oldSlug}`).once('value');
+      const oldVal = oldSnap.val();
+      // Só remove se o nó realmente pertence a este tenant (evita apagar nó de outro)
+      const ownsOld = oldVal && (oldVal.tenantId ? oldVal.tenantId === tenantId : oldSlug === tenantId);
+      if (ownsOld) updates[`tenants_public/${oldSlug}`] = null;
+    }
+
+    // Limpa a chave legada (ID do tenant) quando ela ainda existe sem tenantId
+    if (tenantId && tenantId !== newSlug && tenantId !== oldSlug) {
+      const legacySnap = await firebase.database().ref(`tenants_public/${tenantId}`).once('value');
+      const legacyVal = legacySnap.val();
+      if (legacyVal && !legacyVal.tenantId && legacyVal.slug === oldSlug) updates[`tenants_public/${tenantId}`] = null;
+    }
+
+    updates[`tenants_public/${newSlug}`] = {
       slug: newSlug,
+      tenantId: tenantId,
       nomeEmpresa: DB.config?.nomeEmpresa || 'Obra Real',
       esquemaCores: DB.config?.esquemaCores || 'emerald',
       logoUrl: DB.config?.logoUrl || ''
-    });
+    };
+
+    await firebase.database().ref().update(updates);
 
     if (typeof toast === 'function') toast('Subdomínio atualizado com sucesso!', 'success');
     

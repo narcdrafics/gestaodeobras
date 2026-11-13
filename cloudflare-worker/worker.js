@@ -18,10 +18,47 @@ const RESERVED_SUBDOMAINS = ['www', 'admin', 'api', 'mail', 'ftp'];
 // Domínio principal (sem subdomínio)
 const ROOT_DOMAIN = 'obrareal.com';
 
+// Origens autorizadas a fazer chamadas CORS no app (SaaS multi-tenant).
+// Nunca use "*": qualquer site poderia ler respostas autenticadas.
+const ALLOWED_ORIGINS = [
+  /^https:\/\/([a-z0-9-]+\.)?obrareal\.com$/i,
+  /^https:\/\/controle-obras-c889d\.web\.app$/i,
+  /^https:\/\/controle-obras-c889d\.firebaseapp\.com$/i,
+];
+
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.some((rule) => rule.test(origin));
+}
+
+/**
+ * Aplica headers CORS apenas para origens da allowlist.
+ * Usa `Vary: Origin` para o CDN não reaproveitar a resposta para outra origem.
+ */
+function applyCors(headers, request) {
+  const origin = request.headers.get('Origin');
+  // Vary: Origin nunca deve duplicar (Firebase pode já ter enviado)
+  if (!headers.has('Vary')) headers.set('Vary', 'Origin');
+  if (!isAllowedOrigin(origin)) return headers;
+
+  headers.set('Access-Control-Allow-Origin', origin);
+  headers.set('Access-Control-Allow-Credentials', 'true');
+  headers.set('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
+  headers.set('Access-Control-Allow-Headers', request.headers.get('Access-Control-Request-Headers') || 'Content-Type, Authorization');
+  headers.set('Access-Control-Max-Age', '3600');
+  return headers;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const hostname = url.hostname; // ex: "construtoraabc.obrareal.com"
+
+    // Preflight CORS: responde direto, sem proxy
+    if (request.method === 'OPTIONS') {
+      const headers = applyCors(new Headers(), request);
+      return new Response(null, { status: 204, headers });
+    }
 
     // --- Detecta o slug do subdomínio ---
     const slug = extractSlug(hostname);
@@ -86,8 +123,10 @@ async function proxyToFirebase(request, url, firebaseUrl) {
   // Retorna a resposta do Firebase, mas mantém os headers de cache/CORS
   const responseHeaders = new Headers(response.headers);
 
-  // Garante que o CORS funcione para subdomínios
-  responseHeaders.set('Access-Control-Allow-Origin', '*');
+  // CORS restrito à allowlist (nunca "*")
+  // Remove um eventual ACAO do Firebase para não duplicar o header
+  responseHeaders.delete('Access-Control-Allow-Origin');
+  applyCors(responseHeaders, request);
 
   // Cache: assets estáticos por 1h, HTML sem cache (para atualizar o app)
   if (url.pathname.match(/\.(js|css|png|jpg|svg|ico|woff2?)(\?.*)?$/)) {
