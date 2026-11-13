@@ -67,6 +67,10 @@
         ".validate": "newData.val() == null || (newData.child('slug').val() === $slug && newData.child('tenantId').isString() && newData.child('tenantId').val() !== '')"
       }
     },
+    "webhook_debug": {
+      ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
+      ".write": false
+    },
     "users": {
       ".read": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       ".indexOn": [

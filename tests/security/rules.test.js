@@ -83,6 +83,14 @@ describe('database.rules.json — tenants_public sem enumeração', () => {
   });
 });
 
+describe('database.rules.json — logs de webhook', () => {
+  it('webhook_debug é legível apenas por super_admin e não aceita escrita do cliente', () => {
+    const debug = rules.rules.webhook_debug;
+    expect(debug?.['.read']).toContain("=== 'super_admin'");
+    expect(debug?.['.write']).toBe(false);
+  });
+});
+
 describe('functions/index.js — enforcement de quantidade', () => {
   it('exporta os triggers de obras e usuários', () => {
     expect(functionsSrc).toMatch(/exports\.enforceObrasLimit\s*=\s*onValueWritten\(\s*"tenants\/\{tenantId\}\/obras"/);
