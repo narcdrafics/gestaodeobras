@@ -21,6 +21,7 @@ const META_APP_SECRET = defineSecret('META_APP_SECRET');
 const META_WABA_ID = defineSecret('META_WABA_ID');
 
 admin.initializeApp();
+const db = admin.database();
 
 function getHojeBR() {
   return new Intl.DateTimeFormat('pt-BR', {
@@ -573,6 +574,117 @@ async function processarConsultaGeral(para, tenantId, user) {
 }
 
 
+// ==================== TRAVA DE PLANO (SERVER-SIDE) ====================
+// As Firebase Rules protegem os campos de plano (cliente não consegue aumentá-los),
+// mas o RTDB não expõe numChildren() para validar QUANTIDADE de registros.
+// O enforcement de quantidade é feito aqui, com o Admin SDK (ignora as rules),
+// então funciona também para quem escreve direto pelo SDK/DevTools.
+
+const LIMITE_PLANO_ILIMITADO = 9999;
+const LIMITE_FALLBACK = 1; // plano mais restrito quando o metadado está ausente
+
+function normalizarLimite(valor) {
+  const n = Number(valor);
+  // Number(null) === 0: nunca tratar ausência como 0 (bloquearia tudo) nem como ilimitado.
+  if (!Number.isFinite(n) || n <= 0) return LIMITE_FALLBACK;
+  return Math.floor(n);
+}
+
+function contarFilhos(snap) {
+  const val = snap && typeof snap.val === 'function' ? snap.val() : snap;
+  if (!val || typeof val !== 'object') return 0;
+  return Object.keys(val).length;
+}
+
+async function lerLimiteDoPlano(tenantId, campo) {
+  const snap = await db.ref(`tenants/${tenantId}/config/${campo}`).once('value');
+  return normalizarLimite(snap.val());
+}
+
+// Reverte um crescimento acima do limite do plano. Preserva o estado anterior
+// (não apaga registros legados) — apenas desfaz a escrita que estourou a cota.
+async function reverterCrescimentoAcimaDoLimite(ref, beforeVal, limite) {
+  await ref.transaction((atual) => {
+    const quantidade = contarFilhos(atual);
+    if (quantidade <= limite) return atual; // já voltou ao normal, nada a fazer
+    // Sem estado anterior não há como reverter com segurança: aborta (undefined = não grava).
+    if (contarFilhos(beforeVal) === 0) return undefined;
+    return beforeVal;
+  });
+}
+
+async function enforceGrowthLimit(event, campo, recursivo) {
+  const tenantId = event.params.tenantId;
+  const before = event.data.before.val();
+  const after = event.data.after.val();
+  const quantidadeAntes = contarFilhos(before);
+  const quantidadeDepois = contarFilhos(after);
+
+  if (quantidadeDepois <= quantidadeAntes) return null; // remoção/edição: sempre permitido
+
+  const tenantSnap = await db.ref(`tenants/${tenantId}/config`).once('value');
+  if (!tenantSnap.exists()) return null; // tenant sem metadados: não bloqueia (legado)
+
+  const limite = await lerLimiteDoPlano(tenantId, campo);
+  if (limite >= LIMITE_PLANO_ILIMITADO) return null;
+
+  if (quantidadeDepois > limite) {
+    const descricao = recursivo === 'obras' ? 'obras' : 'usuários';
+    console.warn(`[enforce] tenant=${tenantId} tentou exceder limite de ${descricao} (${quantidadeDepois}/${limite}). Revertendo.`);
+    await reverterCrescimentoAcimaDoLimite(event.data.after.ref, before, limite);
+  }
+  return null;
+}
+
+// Conta perfis ativos (sem status 'pendente') do tenant, excluindo o próprio uid.
+async function contarPerfisAtivos(tenantId, uid) {
+  const snap = await db.ref('profiles').once('value');
+  const perfis = snap.val() || {};
+  return Object.values(perfis).filter((p) => {
+    if (!p || p.tenantId !== tenantId) return false;
+    if (uid && p.uid === uid) return false;
+    return p.status !== 'pendente';
+  }).length;
+}
+
+// Trava de assentos: o dono (admin) conta separado e não é afetado.
+// Se o tenant já estiver cheio, o perfil novo é marcado como `pendente` e não recebe claims.
+async function aplicarLimiteDeAssentos(uid, tenantId, role) {
+  if (!tenantId) return role;
+
+  try {
+    const tenantSnap = await db.ref(`tenants/${tenantId}/config`).once('value');
+    if (!tenantSnap.exists()) return role;
+
+    const limite = await lerLimiteDoPlano(tenantId, 'limiteUsuarios');
+    const ativos = await contarPerfisAtivos(tenantId, uid);
+
+    // limiteUsuarios = máximo de funcionários; o dono conta separado (+1).
+    if (ativos >= limite + 1) {
+      console.warn(`[assentos] tenant=${tenantId} cheio (${ativos}/${limite + 1}). Perfil ${uid} marcado como pendente.`);
+      await db.ref(`profiles/${uid}/status`).set('pendente');
+      // Claims sem role/tenant: o usuário autentica mas não acessa dados do tenant.
+      await admin.auth().setCustomUserClaims(uid, { role: 'pendente', tenantId: null });
+      return 'pendente';
+    }
+
+    return role;
+  } catch (e) {
+    console.error(`[assentos] Erro ao aplicar limite em ${uid}/${tenantId}:`, e);
+    return role;
+  }
+}
+
+// Triggers: aplicam a cota de quantidade mesmo quando a escrita vem do SDK/DevTools
+// (o Admin SDK ignora as rules, então estas funções continuam valendo nesses casos).
+exports.enforceObrasLimit = onValueWritten("tenants/{tenantId}/obras", async (event) => {
+  return enforceGrowthLimit(event, 'limiteObras', 'obras');
+});
+
+exports.enforceUsuariosLimit = onValueWritten("tenants/{tenantId}/usuarios", async (event) => {
+  return enforceGrowthLimit(event, 'limiteUsuarios', 'usuarios');
+});
+
 exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
   const uid = event.params.uid;
   const after = event.data.after.val();
@@ -590,6 +702,22 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
 
   let role = after.role || 'admin';
   const tenantId = after.tenantId || null;
+
+  // Perfil 'pendente' (limite de assentos): nunca recebe claims de acesso.
+  if (after.status === 'pendente') {
+    try {
+      await admin.auth().setCustomUserClaims(uid, { role: 'pendente', tenantId: null });
+    } catch (e) {
+      console.warn(`[syncCustomClaims] Erro ao bloquear claims de ${uid}:`, e);
+    }
+    return null;
+  }
+
+  // Trava de assentos: só vale para perfis novos, para não punir usuários legados.
+  if (!event.data.before.exists()) {
+    role = await aplicarLimiteDeAssentos(uid, tenantId, role);
+    if (role === 'pendente') return null; // claims de bloqueio já aplicadas
+  }
 
   try {
     const userRecord = await admin.auth().getUser(uid);

@@ -64,6 +64,24 @@ function ensureSchema(db) {
   return safe;
 }
 
+// Limites efetivos do plano. Fonte: campo protegido pelas Firebase Rules.
+// O fallback é sempre o plano mais restrito (nunca "ilimitado").
+const PLAN_DEFAULTS = { obras: 1, usuarios: 1, trabalhadores: 9999 };
+
+function getPlanLimits() {
+  const cfg = (DB && DB.config) || {};
+  const numero = (valor, fallback) => {
+    const n = Number(valor);
+    return Number.isFinite(n) && n >= 0 ? n : fallback;
+  };
+  return {
+    obras: numero(cfg.limiteObras, PLAN_DEFAULTS.obras),
+    usuarios: numero(cfg.limiteUsuarios, PLAN_DEFAULTS.usuarios),
+    trabalhadores: numero(cfg.limiteTrabalhadores, PLAN_DEFAULTS.trabalhadores),
+  };
+}
+window.getPlanLimits = getPlanLimits;
+
 // ==================== SUBDOMAIN & SAAS CONTEXT ====================
 function detectSubdomain() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -313,6 +331,32 @@ let _isSaving = false;
 let _saveScheduled = false;
 let _ignoreNextEcho = false; // Previne reprocessar o eco do nosso próprio salvamento
 
+// Metadados de cobrança/plano que o cliente nunca deve reescrever.
+// As Firebase Rules também bloqueiam alterações feitas fora do app (DevTools/SDK).
+const PROTECTED_TENANT_FIELDS = new Set([
+  'plano', 'planoVencimento', 'trialExpiracao', 'status', 'emailAdmin', 'webhookCriacao'
+]);
+const PROTECTED_CONFIG_FIELDS = new Set([
+  'limiteObras', 'limiteUsuarios', 'limiteTrabalhadores'
+]);
+
+function buildCloudUpdate(db) {
+  // Usa caminhos explícitos para não sobrescrever/apagar campos protegidos.
+  const update = {};
+  Object.entries(db).forEach(([key, value]) => {
+    if (PROTECTED_TENANT_FIELDS.has(key)) return;
+    if (key === 'config' && value && typeof value === 'object') {
+      Object.entries(value).forEach(([cfgKey, cfgValue]) => {
+        if (PROTECTED_CONFIG_FIELDS.has(cfgKey)) return;
+        update[`config/${cfgKey}`] = cfgValue;
+      });
+      return;
+    }
+    update[key] = value;
+  });
+  return update;
+}
+
 /**
  * Persiste o banco de dados de forma segura.
  * @param {boolean} force - Se true, ignora o debounce e tenta salvar imediatamente.
@@ -429,9 +473,11 @@ function persistDB(force = false) {
       _ignoreNextEcho = true;
 
       // Timeout de 20s (mobile pode ser mais lento que desktop)
-      // Usa .update() para não destruir metadados do tenant (plano, trialExpiracao, status, emailAdmin)
+      // .update() com caminhos explícitos: não apaga nem reescreve metadados
+      // de plano/limites (que só o super_admin pode alterar).
+      const cloudUpdate = buildCloudUpdate(dbForCloud);
       await Promise.race([
-        targetRef.update(dbForCloud),
+        targetRef.update(cloudUpdate),
         new Promise((_, rej) => setTimeout(() => rej({ code: 'TIMEOUT', message: 'Conexão lenta ou sem internet.' }), 20000))
       ]);
 
@@ -446,6 +492,10 @@ function persistDB(force = false) {
       window.dispatchEvent(new CustomEvent('syncStatus', {
         detail: { status: 'error', code: errCode }
       }));
+
+      if (errCode === 'PERMISSION_DENIED' && typeof toast === 'function') {
+        toast('⛔ Alteração bloqueada pelo servidor: limite do plano ou permissão de segurança.', 'error');
+      }
       if (reject) reject(err);
     } finally {
       _isSaving = false;
@@ -549,8 +599,9 @@ function renderBillingSection() {
   const el = (id) => document.getElementById(id);
 
   const plano       = DB.plano || 'free_trial';
-  const limiteObras = DB.config?.limiteObras ?? 1;
-  const limiteUsers = DB.config?.limiteUsuarios ?? 2;
+  const limites     = getPlanLimits();
+  const limiteObras = limites.obras;
+  const limiteUsers = limites.usuarios;
   const slugSubdom  = DB.subdominioSlug || DB.config?.slug || '';
   const vencimento  = DB.planoVencimento;
 

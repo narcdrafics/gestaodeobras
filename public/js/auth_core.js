@@ -113,7 +113,12 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
         role: globalData.role || userProfile?.role || 'admin',
         tenantId: globalData.tenantId
       };
-      await profileRef.set(userProfile);
+      if (!snapshot.exists()) {
+        await profileRef.set({ ...userProfile, status: 'ativo' });
+      } else {
+        // Update não-destrutivo: não sobrescreve status (ex.: 'pendente' por limite de assentos)
+        await profileRef.update({ name: userProfile.name }).catch(() => {});
+      }
       console.log('[AuthTrace] Perfil restaurado via Master DB. Tenant:', userProfile.tenantId);
       
     } else if (inviteData) {
@@ -125,8 +130,8 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
         role: inviteData.role || userProfile?.role || 'engenheiro',
         tenantId: inviteData.tenantId
       };
-      // Salva o perfil atualizado vinculado ao novo tenantId
-      await profileRef.set(userProfile);
+      // Update não-destrutivo: preserva role/status já gravados (a Cloud Function é a dona da autorização)
+      await profileRef.update(snapshot.exists() ? userProfile : { ...userProfile, status: 'ativo' });
       // Remove convite após uso
       await firebase.database().ref(`invites/${sanitizedEmail}`).remove();
       console.log('[AuthTrace] Perfil processado via Convite. Tenant:', userProfile.tenantId);
@@ -185,7 +190,7 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
               role: 'admin',
               tenantId: tenantId
           };
-          await profileRef.set(userProfile);
+          await profileRef.set({ ...userProfile, status: 'ativo' });
           console.log('[AuthTrace] Bolha Criada. Tenant Free Trial:', tenantId);
       } catch (err) {
           console.error('[AuthTrace] Erro de BD no Auto-Onboarding:', err);
@@ -197,10 +202,21 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
     }
     
     // Força uma atualização no perfil para disparar a Cloud Function 'syncCustomClaims'
-    // Isso garante que usuários antigos recebam suas Custom Claims corretamente
+    // Isso garante que usuários antigos recebam suas Custom Claims corretamente.
+    // Importante: apenas `lastLogin` é escrito. Reescrever role/tenantId aqui desfaria
+    // a trava de assentos aplicada pelo servidor (perfil 'pendente').
     if (userProfile && uid) {
       userProfile.lastLogin = Date.now();
-      await profileRef.update({ lastLogin: userProfile.lastLogin, role: userProfile.role, tenantId: userProfile.tenantId }).catch(e => console.warn('Falha no touch do perfil:', e));
+      await profileRef.update({ lastLogin: userProfile.lastLogin }).catch(e => console.warn('Falha no touch do perfil:', e));
+    }
+
+    // 2.5 Bloqueio de assento: perfil criado além do limite do plano
+    const perfilAtual = (await profileRef.once('value')).val() || {};
+    if (perfilAtual.status === 'pendente') {
+      await firebase.auth().signOut();
+      sessionStorage.removeItem('gestaoUser');
+      showLoginError('Limite de usuários do plano atingido. Peça ao administrador da empresa para liberar uma vaga ou fazer upgrade.');
+      return;
     }
 
     // 3. Validação Cross-Tenant (Segurança SaaS)

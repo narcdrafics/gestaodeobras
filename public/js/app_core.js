@@ -3137,8 +3137,8 @@ async function saveObra() {
     DB.obras[editIdx] = data;
     toast('Obra atualizada!');
   } else {
-    // Validação SaaS: Limite de Obras
-    const limite = DB.config.limiteObras || 2;
+    // Validação SaaS: Limite de Obras (enforcement definitivo nas Firebase Rules)
+    const limite = getPlanLimits().obras;
     if (DB.obras.length >= limite) {
       toast(`Seu plano atingiu o limite de ${limite} obras. Faça upgrade para cadastrar mais!`, 'error');
       return;
@@ -4387,7 +4387,7 @@ async function saveUsuario() {
     toast('Permissões de Usuário atualizadas!');
   } else {
     // New
-    const limiteAcessos = DB.config.limiteUsuarios || 2; // Plano Start e Free é 2
+    const limiteAcessos = getPlanLimits().usuarios; // Plano Free = 1 (apenas o dono)
     if (DB.usuarios && DB.usuarios.length >= limiteAcessos && limiteAcessos < 99) {
       toast(`Seu plano atingiu o limite de ${limiteAcessos} acessos. Faça downgrade ou o Upgrade Ilimitado!`, 'error');
       return;

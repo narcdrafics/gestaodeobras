@@ -5,7 +5,10 @@
       ".write": "auth != null && root.child('profiles/' + auth.uid + '/role').val() === 'super_admin'",
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
-        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (auth.uid === $uid && (!newData.child('role').exists() || newData.child('role').val() !== 'super_admin') && (!data.exists() || !newData.child('tenantId').exists() || newData.child('tenantId').val() === data.child('tenantId').val())))"
+        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (auth.uid === $uid && (!newData.child('role').exists() || newData.child('role').val() !== 'super_admin') && (!data.exists() || !newData.child('tenantId').exists() || newData.child('tenantId').val() === data.child('tenantId').val())))",
+        "status": {
+          ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() ? newData.val() === data.val() : (!newData.exists() || newData.val() === 'ativo')))"
+        }
       }
     },
     "tenants": {
@@ -13,6 +16,38 @@
       "$tenantId": {
         ".read": "auth != null && (data.child('emailAdmin').val() === auth.token.email || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
         ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
+
+        "emailAdmin": {
+          ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() ? newData.val() === data.val() : newData.isString()))"
+        },
+        "plano": {
+          ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() ? newData.val() === data.val() : newData.val() === 'free_trial'))"
+        },
+        "planoVencimento": {
+          ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() && newData.val() === data.val()))"
+        },
+        "trialExpiracao": {
+          ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() ? newData.val() === data.val() : (newData.isNumber() && newData.val() <= now + 2764800000)))"
+        },
+        "status": {
+          ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() ? newData.val() === data.val() : newData.val() === 'ativo'))"
+        },
+        "webhookCriacao": {
+          ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (!data.exists() && newData.isNumber()) || (data.exists() && newData.val() === data.val()))"
+        },
+
+        "config": {
+          "limiteObras": {
+            ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() ? newData.val() === data.val() : (newData.isNumber() && newData.val() === 1)))"
+          },
+          "limiteUsuarios": {
+            ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() ? newData.val() === data.val() : (newData.isNumber() && newData.val() === 1)))"
+          },
+          "limiteTrabalhadores": {
+            ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() ? newData.val() === data.val() : (newData.isNumber() && newData.val() === 9999)))"
+          }
+        },
+
         "estoque": {
           ".read": "auth != null && (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
           ".write": "auth != null && (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
