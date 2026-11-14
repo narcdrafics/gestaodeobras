@@ -5,123 +5,85 @@ let currentEditIdx = -1; // Global variable to identify if we are creating new (
 // ==================== SYSTEM GLOBALS (ANTI-REFERENCE ERROR) ====================
 // Cria 'stubs' para evitar que saves de uma página "crachem" tentando dar reload em UI de outra página
 window.renderDashboard = window.renderDashboard || function () {
-  const hoje = new Date().toISOString().split('T')[0];
-  const obras = DB.obras || [];
-  const trabalhadores = DB.trabalhadores || [];
-  
-  // Presença hoje
-  const allPresencaHoje = (DB.presenca || []).filter(p => p.data === hoje);
-  const presentes = allPresencaHoje.filter(p => p.presenca === 'Presente').length;
-  const faltas = allPresencaHoje.filter(p => p.presenca === 'Falta').length;
-  
-  // Custo diárias hoje
-  let custoTotal = 0;
-  allPresencaHoje.forEach(p => {
-    if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
-      const worker = trabalhadores.find(t => t.cod === p.trab);
-      const diaria = worker ? (parseFloat(worker.diaria) || 0) : 0;
-      const hnorm = parseFloat(p.hnorm) || 0;
-      const hextra = parseFloat(p.hextra) || 0;
-      const valorHora = hnorm > 0 ? diaria / hnorm : 0;
-      const total = hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : (p.presenca === 'Meio período' ? diaria / 2 : 0);
-      custoTotal += total;
-    }
-  });
-  
+  // Os números vêm prontos de calcDashboardResumo (utils.module.js); aqui só desenhamos.
+  let role = 'admin';
+  try { role = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}').role || 'admin'; } catch (e) { }
+
+  const { kpis, linhas, alertas } = window.calcDashboardResumo(DB, null, role);
+  const esc = window.escHtml;
+
+  // Ações rápidas, respeitando o que cada papel acessa (mestre não vê compras; engenheiro não vê presença)
+  const actionsEl = document.getElementById('dash-actions');
+  if (actionsEl) {
+    const acoes = [];
+    if (role !== 'engenheiro') acoes.push(['modal-presenca', '+ Lançar Presença']);
+    acoes.push(['modal-tarefa', '+ Nova Tarefa']);
+    if (role !== 'mestre') acoes.push(['modal-compra', '+ Nova Compra']);
+    actionsEl.innerHTML = acoes
+      .map(([modal, label]) => `<button class="btn btn-primary btn-sm" onclick="openModal('${modal}')">${label}</button>`)
+      .join('');
+  }
+
   // KPIs
   const kpiGrid = document.getElementById('kpi-grid');
   if (kpiGrid) {
     kpiGrid.innerHTML = `
-      <div class="kpi-card"><div class="kpi-label">Presentes</div><div class="kpi-val green">${presentes}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Faltas</div><div class="kpi-val ${faltas > 0 ? 'red' : 'green'}">${faltas}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obras.filter(o => o.status === 'Em andamento').length}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Diárias Hoje</div><div class="kpi-val blue">${fmt(custoTotal)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Presentes</div><div class="kpi-val green">${kpis.presentes}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Faltas</div><div class="kpi-val ${kpis.faltas > 0 ? 'red' : 'green'}">${kpis.faltas}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${kpis.obrasAtivas}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Diárias Hoje</div><div class="kpi-val blue">${fmt(kpis.diariasHoje)}</div></div>
     `;
   }
-  
-  // Alertas
-  const alerts = [];
-  (DB.tarefas || []).filter(t => t.prazo === hoje && t.status !== 'Concluída').forEach(t => {
-    alerts.push({ tipo: 'TAREFA HOJE', obra: window.obName(t.obra), desc: t.desc, prior: 'alto' });
-  });
-  (DB.compras || []).filter(c => c.status === 'Aguardando').forEach(c => {
-    alerts.push({ tipo: 'COMPRA PENDENTE', obra: window.obName(c.obra), desc: c.mat, prior: 'medio' });
-  });
-  
+
+  // Alertas (do mais grave ao menos grave; os demais viram "+ N alertas")
+  const MAX_ALERTAS = 8;
   const alertsGrid = document.getElementById('alerts-grid');
   if (alertsGrid) {
-    alertsGrid.innerHTML = alerts.length
-      ? alerts.map(a => `<div class="alert-card ${a.prior}"><div class="alert-body"><h4>${a.tipo}</h4><p><b>${a.obra}</b> — ${a.desc}</p></div></div>`).join('')
+    alertsGrid.innerHTML = alertas.length
+      ? alertas.slice(0, MAX_ALERTAS).map(a => `<div class="alert-card ${a.prior}"><div class="alert-body"><h4>${a.tipo}</h4><p><b>${esc(a.obra)}</b> — ${esc(a.desc)}</p></div></div>`).join('')
+        + (alertas.length > MAX_ALERTAS ? `<div style="color:var(--text3);font-size:12px;padding:8px">+ ${alertas.length - MAX_ALERTAS} alertas</div>` : '')
       : '<div style="color:var(--text3);font-size:13px;padding:8px">Nenhuma pendência hoje.</div>';
   }
-  
-  // Resumo por Obra
+
+  // Resumo por Obra (concluídas ficam recolhidas, a menos que o usuário peça)
+  const mostrarConcluidas = !!(document.getElementById('dash-show-done') || {}).checked;
+  const concluidas = linhas.filter(l => l.obra.status === 'Concluída').length;
+  const doneCount = document.getElementById('dash-done-count');
+  if (doneCount) doneCount.textContent = concluidas ? `(${concluidas})` : '';
+
   const dashObrasTbody = document.getElementById('dash-obras-tbody');
   if (dashObrasTbody) {
-    let rows = '';
-    obras.forEach(o => {
-      const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
-      const pres = pObra.filter(p => p.presenca === 'Presente').length;
-      const fal = pObra.filter(p => p.presenca === 'Falta').length;
-      
-      // Custo semanal (últimos 7 dias)
-      const semanaAgo = new Date();
-      semanaAgo.setDate(semanaAgo.getDate() - 7);
-      const semData = semanaAgo.toISOString().split('T')[0];
-      const presSemana = (DB.presenca || []).filter(p => p.obra === o.cod && p.data >= semData && p.data <= hoje);
-      let custoSem = 0;
-      presSemana.forEach(p => {
-        if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
-          const worker = trabalhadores.find(t => t.cod === p.trab);
-          const diaria = worker ? (parseFloat(worker.diaria) || 0) : 0;
-          const hnorm = parseFloat(p.hnorm) || 0;
-          const hextra = parseFloat(p.hextra) || 0;
-          const valorHora = hnorm > 0 ? diaria / hnorm : 0;
-          custoSem += hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
-        }
-      });
-      
-      // Custo mensal
-      const mesAgo = new Date();
-      mesAgo.setDate(mesAgo.getDate() - 30);
-      const mesData = mesAgo.toISOString().split('T')[0];
-      const presMes = (DB.presenca || []).filter(p => p.obra === o.cod && p.data >= mesData && p.data <= hoje);
-      let custoMes = 0;
-      presMes.forEach(p => {
-        if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
-          const worker = trabalhadores.find(t => t.cod === p.trab);
-          const diaria = worker ? (parseFloat(worker.diaria) || 0) : 0;
-          const hnorm = parseFloat(p.hnorm) || 0;
-          const hextra = parseFloat(p.hextra) || 0;
-          const valorHora = hnorm > 0 ? diaria / hnorm : 0;
-          custoMes += hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
-        }
-      });
-      
-      // Total real (orçamento)
-      const fReal = (DB.financeiro || []).filter(f => f.obra === o.cod).reduce((a, f) => a + (Number(f.real) || 0), 0);
-      const pctCusto = o.orc > 0 ? (fReal / o.orc * 100).toFixed(1) : 0;
-      
-      // Tarefas
-      const tarefasObra = (DB.tarefas || []).filter(t => t.obra === o.cod);
-      const tarefasConcluidas = tarefasObra.filter(t => t.status === 'Concluída').length;
-      
-      rows += `<tr>
-        <td data-label="Obra"><b>${o.nome}</b></td>
+    const visiveis = linhas.filter(l => mostrarConcluidas || l.obra.status !== 'Concluída');
+    dashObrasTbody.innerHTML = visiveis.map(l => {
+      const o = l.obra;
+      const idx = (DB.obras || []).indexOf(o);
+      const pct = l.pctCusto;
+      const pctCell = pct === null
+        ? '<span style="color:var(--text3)" title="Defina o orçamento da obra para acompanhar este indicador">—</span>'
+        : `<span style="color:${pct > 100 ? 'var(--red)' : pct >= 80 ? 'var(--orange)' : 'var(--green)'}">${pct.toFixed(1)}%</span>`;
+      const mestreCell = o.mestre
+        ? esc(o.mestre)
+        : (role !== 'mestre' && idx >= 0 ? `<button class="btn btn-secondary btn-sm" onclick="editObra(${idx})">Atribuir</button>` : '-');
+      const pctTarefas = l.tarefasTotal ? Math.round((l.tarefasFeitas / l.tarefasTotal) * 100) : 0;
+      const tarefasCell = l.tarefasTotal
+        ? `${l.tarefasFeitas}/${l.tarefasTotal} <div class="progress-bar" style="width:60px;margin-left:6px"><div class="progress-fill" style="width:${pctTarefas}%"></div></div>`
+        : '<span style="color:var(--text3)">—</span>';
+
+      return `<tr>
+        <td data-label="Obra"><b>${esc(o.nome)}</b></td>
         <td data-label="Status">${statusBadge(o.status)}</td>
-        <td data-label="Mestre">${o.mestre || '-'}</td>
-        <td data-label="Orç. Prev.">${fmt(o.orc)}</td>
-        <td data-label="Diárias (Sem.)" style="color:var(--blue)">${pres}</td>
-        <td data-label="Custo Sem.">${fmt(custoSem)}</td>
-        <td data-label="Custo Mês">${fmt(custoMes)}</td>
-        <td data-label="Total Real."><b>${fmt(fReal)}</b></td>
-        <td data-label="% Custo" style="color:${pctCusto > 100 ? 'var(--red)' : pctCusto > 80 ? 'var(--orange)' : 'var(--green)'}">${pctCusto}%</td>
-        <td data-label="Tarefas">${tarefasConcluidas}/${tarefasObra.length}</td>
+        <td data-label="Mestre">${mestreCell}</td>
+        <td data-label="Orç. Prev.">${Number(o.orc) > 0 ? fmt(o.orc) : '<span style="color:var(--text3)" title="Orçamento não definido">—</span>'}</td>
+        <td data-label="Diárias (Sem.)" style="color:var(--blue)">${l.diariasSem}</td>
+        <td data-label="Custo Sem.">${fmt(l.custoSem)}</td>
+        <td data-label="Custo Mês">${fmt(l.custoMes)}</td>
+        <td data-label="Total Real."><b>${fmt(l.totalReal)}</b></td>
+        <td data-label="% Custo">${pctCell}</td>
+        <td data-label="Tarefas">${tarefasCell}</td>
       </tr>`;
-    });
-    dashObrasTbody.innerHTML = rows || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma obra encontrada</td></tr>';
+    }).join('') || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma obra em andamento</td></tr>';
   }
-  
+
   // Update timestamp
   const dashUpdated = document.getElementById('dash-updated');
   if (dashUpdated) {
