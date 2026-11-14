@@ -2485,7 +2485,8 @@ async function renderMasterUsers() {
         </td>
         <td><span class="badge badge-gray">${m.origem || 'N/A'}</span></td>
         <td>
-           <button class="btn btn-danger btn-sm" onclick="deleteMasterUser('${m.email}')">Excluir️</button>
+           <button class="btn btn-secondary btn-sm" onclick="sendMasterPasswordReset('${m.email}')" title="Enviar link de criação/redefinição de senha por e-mail">🔑 Senha</button>
+           <button class="btn btn-danger btn-sm" onclick="deleteMasterUser('${m.email}')" style="margin-left:4px;" title="Remover acesso master">🗑️</button>
         </td>
       </tr>
     `).join('');
@@ -2496,10 +2497,32 @@ async function renderMasterUsers() {
   }
 }
 
+async function sendMasterPasswordReset(email) {
+  if (!email) return;
+  if (!confirm(`Enviar e-mail para criar ou redefinir a senha de ${email}?`)) return;
+
+  try {
+    await firebase.auth().sendPasswordResetEmail(email);
+    toast(`Link para definir/redefinir senha enviado para ${email}!`);
+  } catch (err) {
+    console.error('Erro ao enviar reset:', err);
+    if (err.code === 'auth/user-not-found') {
+      toast(`O e-mail ${email} ainda não tem conta no Firebase Auth. O usuário pode criar a senha pelo "Primeiro Acesso" na tela de login.`, 'warning');
+    } else {
+      toast('Erro ao enviar e-mail de senha: ' + (err.message || err), 'error');
+    }
+  }
+}
+window.sendMasterPasswordReset = sendMasterPasswordReset;
+
 async function addMasterUser() {
   const emailInput = document.getElementById('new-master-email');
+  const passInput = document.getElementById('new-master-pass');
   const email = emailInput?.value.trim().toLowerCase();
+  const pass = passInput?.value.trim();
+
   if (!email) return toast('Informe o e-mail do novo Super Admin.', 'error');
+  if (pass && pass.length < 6) return toast('A senha deve ter pelo menos 6 caracteres.', 'error');
   
   if (!confirm(`Deseja realmente dar acesso TOTAL e GLOBAL para ${email}?`)) return;
 
@@ -2512,6 +2535,30 @@ async function addMasterUser() {
       nome: 'Administrador Mestre',
       origem: 'painel_master'
     });
+
+    // Se informou senha, cria a conta no Firebase Auth com a senha via app secundário isolado
+    if (pass) {
+      try {
+        const secAppName = 'SecAuth_' + Date.now();
+        const secApp = firebase.initializeApp(firebase.app().options, secAppName);
+        await secApp.auth().createUserWithEmailAndPassword(email, pass);
+        await secApp.auth().signOut();
+        await secApp.delete();
+        toast(`Conta criada com sucesso com a senha inicial para ${email}!`);
+      } catch (authErr) {
+        if (authErr.code === 'auth/email-already-in-use') {
+          // Já existe no Auth: envia e-mail para definir a nova senha
+          await firebase.auth().sendPasswordResetEmail(email).catch(() => {});
+          toast(`Conta já existia no Auth. Um link para definir a senha foi enviado para ${email}.`, 'warning');
+        } else {
+          console.warn('Aviso ao criar usuário no Auth:', authErr);
+          toast(`Autorizado! Mas ao criar credencial: ${authErr.message || authErr}`, 'warning');
+        }
+      }
+    } else {
+      // Sem senha digitada: tenta enviar link para o e-mail criar sua senha
+      await firebase.auth().sendPasswordResetEmail(email).catch(() => {});
+    }
 
     // Se o usuário já tiver perfil criado no banco, sincroniza imediatamente
     try {
@@ -2532,6 +2579,7 @@ async function addMasterUser() {
 
     toast(`Sucesso! ${email} agora é Super Admin.`);
     emailInput.value = '';
+    if (passInput) passInput.value = '';
     renderMasterUsers();
   } catch (e) {
     console.error('Erro ao adicionar mestre:', e);

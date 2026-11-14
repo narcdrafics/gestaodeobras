@@ -103,6 +103,44 @@
     .back-to-client:hover {
       color: var(--accent);
     }
+
+    .admin-auth-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+
+    .admin-tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text3);
+      padding: 8px 4px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .admin-tab-btn.active {
+      color: var(--accent);
+      background: rgba(255, 107, 53, 0.1);
+    }
+
+    .success-msg {
+      color: #22c55e;
+      font-size: 13px;
+      background: rgba(34, 197, 94, 0.1);
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      display: none;
+      text-align: center;
+      margin-bottom: 12px;
+    }
   </style>
 </head>
 
@@ -111,12 +149,18 @@
   <div class="login-card">
     <div class="login-brand" style="margin-bottom: 8px;">👑 <span>SaaS Master</span></div>
     <p
-      style="color:var(--accent); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:24px;">
+      style="color:var(--accent); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:16px;">
       Controle Total da Plataforma</p>
-    <p style="color:var(--text2);font-size:14px;margin-bottom:28px;">Acesso Restrito ao Administrador Mestre</p>
+
+    <!-- Abas Entrar / Primeiro Acesso -->
+    <div class="admin-auth-tabs">
+      <button type="button" id="tab-login" class="admin-tab-btn active" onclick="switchAdminTab('login')">Entrar</button>
+      <button type="button" id="tab-signup" class="admin-tab-btn" onclick="switchAdminTab('signup')">Primeiro Acesso</button>
+    </div>
 
     <div class="login-form">
       <div id="login-error" class="error-msg"></div>
+      <div id="login-success" class="success-msg"></div>
 
       <div class="form-group" style="text-align:left;">
         <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block;">E-mail do
@@ -125,7 +169,7 @@
           style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box;">
       </div>
       <div class="form-group" style="text-align:left; position: relative;">
-        <label class="form-label"
+        <label class="form-label" id="label-pass"
           style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block;">Senha</label>
         <input type="password" id="auth-pass" class="form-control" placeholder="••••••••"
           style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box;">
@@ -134,7 +178,18 @@
           onclick="togglePassword()">👁️</span>
       </div>
 
-      <button type="button" id="btn-action" class="btn btn-primary btn-login" onclick="doEmailLogin()"
+      <div class="form-group" id="grp-confirm-pass" style="text-align:left; position: relative; display:none;">
+        <label class="form-label"
+          style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block;">Confirmar Senha</label>
+        <input type="password" id="auth-confirm-pass" class="form-control" placeholder="••••••••"
+          style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box;">
+      </div>
+
+      <div id="forgot-pass-box" style="text-align:right; margin-top:-6px;">
+        <a href="#" onclick="doForgotAdminPass(event)" style="font-size:12px; color:var(--accent); text-decoration:none;">Esqueceu a senha?</a>
+      </div>
+
+      <button type="button" id="btn-action" class="btn btn-primary btn-login" onclick="handleAdminSubmit()"
         style="margin-top:10px;">Entrar no Painel Master</button>
 
       <div
@@ -158,6 +213,132 @@
   <script src="js/data_core.js?v=202603212100"></script>
   <script src="js/auth_core.js?v=202603212100"></script>
   <script>
+    let _adminMode = 'login';
+
+    function switchAdminTab(mode) {
+      _adminMode = mode;
+      hideLoginError();
+      hideLoginSuccess();
+
+      const tabLogin = document.getElementById('tab-login');
+      const tabSignup = document.getElementById('tab-signup');
+      const grpConfirm = document.getElementById('grp-confirm-pass');
+      const forgotBox = document.getElementById('forgot-pass-box');
+      const btnAction = document.getElementById('btn-action');
+      const labelPass = document.getElementById('label-pass');
+
+      if (mode === 'signup') {
+        tabLogin.classList.remove('active');
+        tabSignup.classList.add('active');
+        grpConfirm.style.display = 'block';
+        forgotBox.style.display = 'none';
+        btnAction.textContent = 'Criar Senha e Acessar';
+        labelPass.textContent = 'Nova Senha (mínimo 6 dígitos)';
+      } else {
+        tabLogin.classList.add('active');
+        tabSignup.classList.remove('active');
+        grpConfirm.style.display = 'none';
+        forgotBox.style.display = 'block';
+        btnAction.textContent = 'Entrar no Painel Master';
+        labelPass.textContent = 'Senha';
+      }
+    }
+
+    async function handleAdminSubmit() {
+      hideLoginError();
+      hideLoginSuccess();
+
+      const email = document.getElementById('auth-email').value.trim();
+      const pass = document.getElementById('auth-pass').value;
+
+      if (!email || !pass) {
+        return showLoginError('Preencha E-mail e Senha.');
+      }
+
+      if (_adminMode === 'login') {
+        return doEmailLogin();
+      }
+
+      // Modo Primeiro Acesso / Criar Senha
+      const confirmPass = document.getElementById('auth-confirm-pass').value;
+      if (pass.length < 6) {
+        return showLoginError('A senha deve ter pelo menos 6 caracteres.');
+      }
+      if (pass !== confirmPass) {
+        return showLoginError('As senhas não conferem. Digite a mesma senha nos dois campos.');
+      }
+
+      const btn = document.getElementById('btn-action');
+      btn.disabled = true;
+      btn.textContent = 'Validando autorização...';
+
+      try {
+        const sanitized = email.toLowerCase().replace(/\./g, ',');
+        const snap = await firebase.database().ref(`users/${sanitized}`).once('value');
+        const userData = snap.val();
+
+        if (!userData || userData.role !== 'super_admin') {
+          btn.disabled = false;
+          btn.textContent = 'Criar Senha e Acessar';
+          return showLoginError('Este e-mail não possui autorização de Super Admin. Solicite acesso ao proprietário do sistema.');
+        }
+
+        btn.textContent = 'Criando credencial...';
+        firebase.auth().createUserWithEmailAndPassword(email, pass).then((userCredential) => {
+          handleAuthSuccess(userCredential.user);
+        }).catch(async (err) => {
+          btn.disabled = false;
+          btn.textContent = 'Criar Senha e Acessar';
+          if (err.code === 'auth/email-already-in-use') {
+            await firebase.auth().sendPasswordResetEmail(email).catch(() => {});
+            showLoginSuccess('Sua conta já existe no Firebase! Um link para redefinir sua senha foi enviado para seu e-mail.');
+          } else {
+            showLoginError(err.message || 'Falha ao criar credencial.');
+          }
+        });
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Criar Senha e Acessar';
+        showLoginError('Erro ao consultar autorização: ' + (err.message || err));
+      }
+    }
+
+    async function doForgotAdminPass(e) {
+      if (e) e.preventDefault();
+      hideLoginError();
+      hideLoginSuccess();
+
+      const email = document.getElementById('auth-email').value.trim();
+      if (!email) {
+        return showLoginError('Digite seu e-mail acima para receber o link de redefinição de senha.');
+      }
+
+      try {
+        await firebase.auth().sendPasswordResetEmail(email);
+        showLoginSuccess(`Link para definir nova senha enviado para ${email}! Verifique sua caixa de entrada.`);
+      } catch (err) {
+        console.error(err);
+        if (err.code === 'auth/user-not-found') {
+          showLoginError('E-mail não encontrado no Firebase. Se é seu primeiro acesso, use a aba "Primeiro Acesso" acima.');
+        } else {
+          showLoginError(err.message || 'Erro ao enviar e-mail de redefinição.');
+        }
+      }
+    }
+
+    function showLoginSuccess(msg) {
+      const el = document.getElementById('login-success');
+      if (!el) return;
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function hideLoginSuccess() {
+      const el = document.getElementById('login-success');
+      if (!el) return;
+      el.textContent = '';
+      el.style.display = 'none';
+    }
     function togglePassword() {
       const input = document.getElementById('auth-pass');
       const toggle = document.getElementById('toggle-pass');

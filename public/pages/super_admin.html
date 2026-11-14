@@ -23,18 +23,19 @@
 <div class="table-wrap" style="margin-top: 24px; border:1px solid var(--accent);">
   <div class="table-toolbar">
     <h3>👑 Gestão de Administradores Mestre (Super Admins)</h3>
-    <div class="toolbar-right">
-       <input type="email" id="new-master-email" class="form-control form-control-sm" placeholder="e-mail@novo.com" style="width:200px; display:inline-block; margin-right:8px;">
+    <div class="toolbar-right" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+       <input type="email" id="new-master-email" class="form-control form-control-sm" placeholder="e-mail@novo.com" style="width:180px;">
+       <input type="password" id="new-master-pass" class="form-control form-control-sm" placeholder="Senha inicial (opcional)" style="width:160px;">
        <button class="btn btn-primary btn-sm" onclick="addMasterUser()">+ Autorizar Mestre</button>
     </div>
   </div>
-  <p style="font-size: 11px; color: var(--text3); margin-bottom: 10px;">Estes usuários têm acesso TOTAL a todas as empresas e configurações globais.</p>
+  <p style="font-size: 11px; color: var(--text3); margin-bottom: 10px;">Estes usuários têm acesso TOTAL a todas as empresas e configurações globais. Se a senha for deixada em branco, o mestre poderá criá-la na tela de login pelo <b>Primeiro Acesso</b> ou pelo link de redefinição.</p>
   <table>
     <thead>
       <tr>
         <th>Nome / E-mail</th>
         <th>Origem</th>
-        <th style="width:100px;">Ações</th>
+        <th style="width:160px;">Ações</th>
       </tr>
     </thead>
     <tbody id="master-admins-tbody">
