@@ -2506,6 +2506,7 @@ async function addMasterUser() {
   try {
     const sanitized = email.replace(/\./g, ',');
     await firebase.database().ref(`users/${sanitized}`).update({
+      email: email,
       role: 'super_admin',
       tenantId: 'MASTER_SYSTEM',
       nome: 'Administrador Mestre',

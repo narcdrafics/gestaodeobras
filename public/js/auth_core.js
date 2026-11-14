@@ -93,14 +93,24 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
     
     // BUSCA USUÁRIO GLOBAL MASTER (Compradores provindos do Webhook Onboarding)
     console.log('[AuthTrace] 2. Buscando Master User para:', sanitizedEmail);
-    const globalSnap = await firebase.database().ref(`users/${sanitizedEmail}`).once('value');
-    const globalData = globalSnap.val();
+    let globalData = null;
+    try {
+      const globalSnap = await firebase.database().ref(`users/${sanitizedEmail}`).once('value');
+      globalData = globalSnap.val();
+    } catch (eGlobal) {
+      console.warn('[AuthTrace] Aviso ao buscar nó users (prosseguindo com perfil local):', eGlobal);
+    }
 
     console.log('[AuthTrace] 3. Buscando convite para:', sanitizedEmail);
     // BUSCA CONVITE PENDENTE (SaaS Operários/Engenheiros)
-    const inviteSnap = await firebase.database().ref(`invites/${sanitizedEmail}`).once('value');
-    const inviteData = inviteSnap.val();
-    console.log('[AuthTrace] Convite retornado:', inviteData);
+    let inviteData = null;
+    try {
+      const inviteSnap = await firebase.database().ref(`invites/${sanitizedEmail}`).once('value');
+      inviteData = inviteSnap.val();
+      console.log('[AuthTrace] Convite retornado:', inviteData);
+    } catch (eInvite) {
+      console.warn('[AuthTrace] Aviso ao buscar nó invites:', eInvite);
+    }
 
     const Name = firebaseUser.displayName || fallbackName || 'Sem Nome';
 
