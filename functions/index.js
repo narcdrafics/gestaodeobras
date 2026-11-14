@@ -726,11 +726,34 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
   try {
     const userRecord = await admin.auth().getUser(uid);
     const currentClaims = userRecord.customClaims || {};
+    const email = (userRecord.email || '').toLowerCase();
+    const sanitizedEmail = email.replace(/\./g, ',');
 
-    // Salvaguarda: super_admin só pode ser concedido se já possuía a claim ou for e-mail mestre autorizado
+    // Se o usuário está cadastrado no nó users como super_admin, ele é automaticamente super_admin
+    if (email) {
+      const masterSnap = await admin.database().ref(`users/${sanitizedEmail}`).once('value');
+      const masterData = masterSnap.val();
+      if (masterData && masterData.role === 'super_admin') {
+        role = 'super_admin';
+        // Garante que o profile no RTDB esteja com super_admin e MASTER_SYSTEM
+        if (after.role !== 'super_admin' || after.tenantId !== 'MASTER_SYSTEM' || after.status !== 'ativo') {
+          await admin.database().ref(`profiles/${uid}`).update({
+            role: 'super_admin',
+            tenantId: 'MASTER_SYSTEM',
+            status: 'ativo'
+          });
+        }
+      }
+    }
+
+    // Salvaguarda: super_admin só pode ser concedido se já possuía a claim, se for e-mail mestre autorizado ou se constar no nó users
     if (role === 'super_admin') {
-      const email = (userRecord.email || '').toLowerCase();
-      const isMasterAuthorized = currentClaims.role === 'super_admin' || email === 'tonycampelo@gmail.com';
+      let isMasterAuthorized = currentClaims.role === 'super_admin' || email === 'tonycampelo@gmail.com';
+      if (!isMasterAuthorized && email) {
+        const checkMaster = await admin.database().ref(`users/${sanitizedEmail}/role`).once('value');
+        if (checkMaster.val() === 'super_admin') isMasterAuthorized = true;
+      }
+
       if (!isMasterAuthorized) {
         console.warn(`[syncCustomClaims] Tentativa não autorizada de escalação para super_admin: uid=${uid}, email=${email}`);
         role = 'admin';

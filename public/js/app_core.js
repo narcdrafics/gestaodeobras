@@ -2511,6 +2511,24 @@ async function addMasterUser() {
       nome: 'Administrador Mestre',
       origem: 'painel_master'
     });
+
+    // Se o usuário já tiver perfil criado no banco, sincroniza imediatamente
+    try {
+      const pSnap = await firebase.database().ref('profiles').orderByChild('email').equalTo(email).once('value');
+      const foundProfiles = pSnap.val();
+      if (foundProfiles) {
+        const updates = {};
+        Object.keys(foundProfiles).forEach(uid => {
+          updates[`profiles/${uid}/role`] = 'super_admin';
+          updates[`profiles/${uid}/tenantId`] = 'MASTER_SYSTEM';
+          updates[`profiles/${uid}/status`] = 'ativo';
+        });
+        await firebase.database().ref().update(updates);
+      }
+    } catch (errP) {
+      console.warn('Aviso ao sincronizar perfil do novo mestre:', errP);
+    }
+
     toast(`Sucesso! ${email} agora é Super Admin.`);
     emailInput.value = '';
     renderMasterUsers();

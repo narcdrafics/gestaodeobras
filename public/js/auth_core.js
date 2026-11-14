@@ -106,18 +106,24 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
 
     if (globalData) {
       // PERFIL RESTAURADO: Se o usuário existe no Master DB, garantimos que o perfil exista (Self-Healing)
+      const isSuper = globalData.role === 'super_admin';
       userProfile = {
         uid,
         email,
         name: userProfile?.name || globalData.nome || Name,
-        role: globalData.role || userProfile?.role || 'admin',
-        tenantId: globalData.tenantId
+        role: isSuper ? 'super_admin' : (globalData.role || userProfile?.role || 'admin'),
+        tenantId: isSuper ? 'MASTER_SYSTEM' : (globalData.tenantId || userProfile?.tenantId)
       };
       if (!snapshot.exists()) {
         await profileRef.set({ ...userProfile, status: 'ativo' });
       } else {
-        // Update não-destrutivo: não sobrescreve status (ex.: 'pendente' por limite de assentos)
-        await profileRef.update({ name: userProfile.name }).catch(() => {});
+        const updates = { name: userProfile.name };
+        if (isSuper) {
+          updates.role = 'super_admin';
+          updates.tenantId = 'MASTER_SYSTEM';
+          updates.status = 'ativo';
+        }
+        await profileRef.update(updates).catch((err) => console.warn('Aviso ao atualizar perfil:', err));
       }
       console.log('[AuthTrace] Perfil restaurado via Master DB. Tenant:', userProfile.tenantId);
       
@@ -331,7 +337,7 @@ function checkAuth() {
             return;
           }
           sessionStorage.setItem('gestaoUser', JSON.stringify(userProfile));
-          if (isLoginPage) {
+          if (isLoginPage || isAdminLoginPage) {
             window.location.href = 'app.html';
           } else {
             if (typeof initDB === 'function' && userProfile.tenantId) { initDB(userProfile.tenantId); }
