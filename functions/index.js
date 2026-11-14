@@ -690,12 +690,16 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
   const after = event.data.after.val();
 
   if (!after) {
-    // Perfil deletado: revoga as custom claims do usuário no Auth
+    // Perfil deletado: exclui a conta e credenciais do usuário no Firebase Auth
     try {
-      await admin.auth().setCustomUserClaims(uid, null);
-      console.log(`[syncCustomClaims] Claims revogadas para uid deletado: ${uid}`);
+      await admin.auth().deleteUser(uid);
+      console.log(`[syncCustomClaims] Usuário e credenciais deletados no Firebase Auth para uid: ${uid}`);
     } catch (e) {
-      console.warn(`[syncCustomClaims] Erro ao revogar claims para uid ${uid}:`, e);
+      console.warn(`[syncCustomClaims] Aviso ao deletar usuário no Auth para uid ${uid}:`, e);
+      try {
+        await admin.auth().updateUser(uid, { disabled: true });
+        await admin.auth().setCustomUserClaims(uid, null);
+      } catch (_) {}
     }
     return null;
   }

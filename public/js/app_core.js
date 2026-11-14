@@ -2349,7 +2349,10 @@ async function renderSuperAdmin() {
     window.globalTenantsDataCache = tenants;
 
     const tenantIds = Object.keys(tenants);
-    const profileList = Object.values(profiles);
+    const profileList = Object.entries(profiles).map(([uidKey, p]) => ({
+      uid: uidKey,
+      ...(p || {})
+    }));
 
     if (totalTenantsEl) totalTenantsEl.textContent = tenantIds.length;
     if (totalUsersEl) totalUsersEl.textContent = profileList.length;
@@ -2408,7 +2411,7 @@ async function renderSuperAdmin() {
                     ${extraInfo}
                 </td>
                 <td>
-                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser('${p.uid}', '${p.email}', '${p.tenantId}')">Excluir️ Excluir</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser('${p.uid}', '${p.email || ''}', '${p.tenantId || ''}')">🗑️ Excluir</button>
                 </td>
             </tr>`;
       }).join('');
@@ -2702,22 +2705,92 @@ async function deleteTenant(tid) {
 }
 
 async function deleteGlobalUser(uid, email, tid) {
-  if (!confirm(`Deseja realmente EXCLUIR TOTALMENTE o acesso de ${email || uid}?\n(Isso removerá o Perfil e as Credenciais Master)`)) return;
-  
+  let targetUid = (uid && uid !== 'undefined') ? uid : '';
+  let targetEmail = (email && email !== 'undefined') ? email.trim().toLowerCase() : '';
+  let targetTid = (tid && tid !== 'undefined') ? tid : '';
+
+  const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+  if (targetEmail && targetEmail === (sessionUser.email || '').toLowerCase()) {
+    return toast('Você não pode excluir sua própria conta enquanto estiver logado!', 'error');
+  }
+
+  if (!confirm(`Deseja realmente EXCLUIR TOTALMENTE o acesso de ${targetEmail || targetUid}?\n(Isso removerá o Perfil e as Credenciais permanentemente)`)) return;
+
   try {
-    const updates = {};
-    if (uid) updates[`profiles/${uid}`] = null;
-    if (email) {
-      const sanitized = email.trim().toLowerCase().replace(/\./g, ',');
-      updates[`users/${sanitized}`] = null;
+    // 1. Localiza UID faltante se só temos o e-mail
+    if (!targetUid && targetEmail) {
+      try {
+        const snap = await firebase.database().ref('profiles').orderByChild('email').equalTo(targetEmail).once('value');
+        const profiles = snap.val();
+        if (profiles) targetUid = Object.keys(profiles)[0];
+      } catch (_) {}
+
+      if (!targetUid) {
+        const sanitized = targetEmail.replace(/\./g, ',');
+        try {
+          const uSnap = await firebase.database().ref(`users/${sanitized}`).once('value');
+          const uVal = uSnap.val();
+          if (uVal && uVal.uid) targetUid = uVal.uid;
+          if (uVal && uVal.tenantId && !targetTid) targetTid = uVal.tenantId;
+        } catch (_) {}
+      }
     }
-    
+
+    // 2. Localiza e-mail faltante se só temos UID
+    if (!targetEmail && targetUid) {
+      try {
+        const pSnap = await firebase.database().ref(`profiles/${targetUid}`).once('value');
+        const pVal = pSnap.val();
+        if (pVal) {
+          if (pVal.email) targetEmail = pVal.email.trim().toLowerCase();
+          if (pVal.tenantId && !targetTid) targetTid = pVal.tenantId;
+        }
+      } catch (_) {}
+    }
+
+    const updates = {};
+
+    // 3. Deleta o perfil (o gatilho na Cloud Function deleta a conta no Firebase Auth)
+    if (targetUid) {
+      updates[`profiles/${targetUid}`] = null;
+    }
+
+    // 4. Deleta credenciais do banco master e convites
+    if (targetEmail) {
+      const sanitized = targetEmail.replace(/\./g, ',');
+      updates[`users/${sanitized}`] = null;
+      updates[`invites/${sanitized}`] = null;
+    }
+
+    // 5. Se vinculado a um tenant, remove da lista de usuários da empresa
+    if (targetTid && targetTid !== 'MASTER_SYSTEM') {
+      try {
+        const uSnap = await firebase.database().ref(`tenants/${targetTid}/usuarios`).once('value');
+        const usuarios = uSnap.val();
+        if (Array.isArray(usuarios)) {
+          const filtered = usuarios.filter(u => {
+            const uEmail = (u.email || u.username || '').trim().toLowerCase();
+            return uEmail !== targetEmail && (!targetUid || u.uid !== targetUid);
+          });
+          if (filtered.length !== usuarios.length) {
+            updates[`tenants/${targetTid}/usuarios`] = filtered;
+          }
+        }
+      } catch (errT) {
+        console.warn('Aviso ao sincronizar usuarios do tenant:', errT);
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return toast('Nenhum dado encontrado para excluir.', 'error');
+    }
+
     await firebase.database().ref().update(updates);
-    
+
     toast('Usuário e Credenciais removidos com sucesso!');
     renderSuperAdmin();
   } catch (e) {
-    toast('Erro ao remover usuário completo.', 'error');
+    toast('Erro ao remover usuário completo: ' + (e.message || e), 'error');
     console.error(e);
   }
 }
