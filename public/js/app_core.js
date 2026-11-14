@@ -2328,6 +2328,38 @@ function renderBilling() {
 // Removida duplicata local para evitar sobrescrita
 
 // ==================== SUPER ADMIN (MASTER) ====================
+// Tudo que vem do banco (nome da empresa, slug, e-mail, IDs) é digitado por usuários de fora:
+// aqui nunca entra em innerHTML/onclick sem escape, senão vira XSS contra o Master.
+function _escMaster(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+// Argumento de string para onclick="fn(...)": literal JS seguro, depois escapado para atributo HTML.
+function _jsArgMaster(v) {
+  return _escMaster(JSON.stringify(String(v == null ? '' : v)));
+}
+
+// Avisa o Master e atualiza as tabelas quando uma empresa nova é criada (ex.: auto-cadastro com slug).
+function watchNewTenants() {
+  if (window._masterTenantsWatching) return;
+  window._masterTenantsWatching = true;
+  firebase.database().ref('tenants').on('child_added', (snap) => {
+    const known = window.globalTenantsDataCache || {};
+    if (known[snap.key]) return; // já estava na tela
+    const t = snap.val() || {};
+    known[snap.key] = t;
+    window.globalTenantsDataCache = known;
+    if (t.origem === 'self_signup') {
+      toast(`Nova empresa cadastrada: ${_escMaster(t.nomeEmpresa || snap.key)}`);
+    }
+    renderSuperAdmin();
+  }, (err) => {
+    console.warn('Observador de novas empresas indisponível:', err);
+    window._masterTenantsWatching = false;
+  });
+}
+
 async function renderSuperAdmin() {
   const tbody = document.getElementById('master-tenants-tbody');
   const tbodyUsers = document.getElementById('master-users-tbody');
@@ -2362,26 +2394,26 @@ async function renderSuperAdmin() {
       const config = t.config || {};
       // Busca o admin principal no nó Profilies
       const adminProfile = profileList.find(p => p.tenantId === tid && p.role === 'admin');
-      let displayEmail = adminProfile ? adminProfile.email : 'N/A';
+      let displayEmail = adminProfile ? _escMaster(adminProfile.email) : 'N/A';
 
       // Se o cliente ainda não se cadastrou (Perfil não existe), procura no nó Invites para exibir como "Pendente"
       const invitesData = window.globalInvitesDataCache || {}; // Necessita do fetch de convites acima
       if (!adminProfile) {
         const pendingKey = Object.keys(invitesData).find(k => invitesData[k].tenantId === tid && invitesData[k].role === 'admin');
-        if (pendingKey) displayEmail = pendingKey.replace(/,/g, '.') + ' <span style="font-size:10px; color:var(--orange)">(Convite)</span>';
+        if (pendingKey) displayEmail = _escMaster(pendingKey.replace(/,/g, '.')) + ' <span style="font-size:10px; color:var(--orange)">(Convite)</span>';
       }
 
       return `<tr>
             <td>
-                <div style="font-weight:600">${config.nomeEmpresa || 'Sem Nome'}</div>
-                <div style="font-size:10px; opacity:0.6">${tid}</div>
+                <div style="font-weight:600">${_escMaster(config.nomeEmpresa || 'Sem Nome')}</div>
+                <div style="font-size:10px; opacity:0.6">${_escMaster(config.slug || t.slug || tid)}.obrareal.com${t.origem === 'self_signup' ? ' · auto-cadastro' : ''}${t.plano ? ' · ' + _escMaster(t.plano) : ''}</div>
             </td>
             <td>${displayEmail}</td>
-            <td>${config.limiteObras || 2}</td>
-            <td>${config.limiteTrabalhadores || 10}</td>
+            <td>${_escMaster(config.limiteObras || 2)}</td>
+            <td>${_escMaster(config.limiteTrabalhadores || 10)}</td>
             <td>
-                <button class="btn btn-primary btn-sm" onclick="openMasterTenantModal('${tid}')">⚙️ Ajustar</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteTenant('${tid}')" style="margin-left: 5px;">Excluir</button>
+                <button class="btn btn-primary btn-sm" onclick="openMasterTenantModal(${_jsArgMaster(tid)})">⚙️ Ajustar</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteTenant(${_jsArgMaster(tid)})" style="margin-left: 5px;">Excluir</button>
             </td>
         </tr>`;
     }).join('');
@@ -2397,25 +2429,28 @@ async function renderSuperAdmin() {
         if (p.tenantId !== 'MASTER_SYSTEM') {
           const t = tenants[p.tenantId] || {};
           const config = t.config || {};
-          nomeEmp = config.nomeEmpresa || 'Empresa Excluída/Não Encontrada';
-          const slugTxt = config.slug ? `(<b>${config.slug}</b>)` : '';
-          extraInfo = `<div style="font-size:10px; opacity:0.6">ID: ${p.tenantId} ${slugTxt}</div>`;
+          nomeEmp = _escMaster(config.nomeEmpresa || 'Empresa Excluída/Não Encontrada');
+          const slugTxt = config.slug ? `(<b>${_escMaster(config.slug)}</b>)` : '';
+          extraInfo = `<div style="font-size:10px; opacity:0.6">ID: ${_escMaster(p.tenantId)} ${slugTxt}</div>`;
         }
 
         return `<tr>
-                <td><div style="font-weight:600">${p.name || 'Sem Nome'}</div></td>
-                <td>${p.email || 'N/A'}</td>
-                <td><span class="badge badge-gray">${(p.role || '').toUpperCase()}</span></td>
+                <td><div style="font-weight:600">${_escMaster(p.name || 'Sem Nome')}</div></td>
+                <td>${_escMaster(p.email || 'N/A')}</td>
+                <td><span class="badge badge-gray">${_escMaster((p.role || '').toUpperCase())}</span></td>
                 <td>
                     <div style="font-weight:600">${nomeEmp}</div>
                     ${extraInfo}
                 </td>
                 <td>
-                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser('${p.uid}', '${p.email || ''}', '${p.tenantId || ''}')">🗑️ Excluir</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser(${_jsArgMaster(p.uid)}, ${_jsArgMaster(p.email || '')}, ${_jsArgMaster(p.tenantId || '')})">🗑️ Excluir</button>
                 </td>
             </tr>`;
       }).join('');
     }
+
+    // Observa empresas novas (auto-cadastro) para aparecerem aqui sem recarregar
+    watchNewTenants();
 
     // Chama a auditoria de Webhooks
     renderWebhookLogs();

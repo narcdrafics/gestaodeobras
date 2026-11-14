@@ -2,6 +2,22 @@
 
 Todas as mudanças notáveis para o projeto **Obra Real** serão documentadas neste arquivo seguindo o padrão [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) e [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-11-14
+### Adicionado
+- Cadastro com escolha do slug: ao entrar pela primeira vez, o usuário escolhe o endereço da empresa (`<slug>.obrareal.com`) numa tela com checagem de disponibilidade em tempo real (`js/slug.js`, `js/slug_onboarding.js`).
+- A empresa é criada numa única escrita atômica (tenant + nó público + passaporte global), o que impede duas empresas com o mesmo slug e faz a conta aparecer no painel do Master.
+- Painel do Master: mostra `slug.obrareal.com`, plano e origem (auto-cadastro) de cada empresa e avisa/atualiza quando entra uma empresa nova.
+- Slugs reservados (www, app, admin, login...) não podem ser escolhidos.
+
+### Modificado
+- Auto-onboarding deixa de gerar slug aleatório (`joao123`). Em produção, após criar, o usuário é levado a `https://<slug>.obrareal.com/login.html` (e-mail preenchido); em dev/staging a URL vira `app.html?tenant=<slug>`.
+- Login em subdomínio de uma empresa por conta sem vínculo não cria mais empresa nova (antes gerava um tenant órfão).
+
+### Segurança
+- Painel do Master passa a escapar nome, slug, e-mail e IDs vindos do banco (antes iam direto para `innerHTML` e `onclick`, permitindo XSS contra o Master).
+
+---
+
 ## [1.2.0] - 2026-11-10
 ### Segurança
 - Hosting passa a publicar apenas `public/` (antes `"public": "./"` expunha JSONs de dados, regras, código das functions e testes).
