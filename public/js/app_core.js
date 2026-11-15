@@ -135,7 +135,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261114002';
+const HTML_CACHE_VERSION = '20261115001';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -2415,153 +2415,366 @@ function renderOrcamento() {
 
 async function renderRelatorios() {
   const sel = document.getElementById('rel-obra');
-  if (sel && DB.obras.length > 0) {
+  const esc = window.escHtml || ((v) => String(v == null ? '' : v));
+  if (sel) {
+    const current = sel.value;
     sel.innerHTML = '<option value="">-- Escolha uma Obra --</option>' +
-      DB.obras.map(o => `<option value="${o.cod}">${o.nome}</option>`).join('');
+      (DB.obras || []).map(o => `<option value="${esc(o.cod)}">${esc(o.nome)}</option>`).join('');
+    if (current) sel.value = current;
   }
+  const resp = document.getElementById('rel-responsavel');
+  if (resp && !resp.value) {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+      resp.value = u.name || '';
+    } catch (e) { }
+  }
+  checkRelObra();
+}
+
+function resetRelatorios() {
+  safeSetInner('rel-preview-area', `
+    <div class="ui-empty-state">
+      <div class="ui-empty-icon">📂</div>
+      <div class="ui-empty-title">Pronto para auditar</div>
+      <div class="ui-empty-text">Selecione uma obra e um período para compilar custos, medições, equipe e pendências em um relatório conciliado.</div>
+    </div>
+  `);
+  renderRelatorios();
+}
+
+function checkRelObra() {
+  const cod = document.getElementById('rel-obra')?.value || '';
+  const obra = (DB.obras || []).find(o => o && o.cod === cod);
+  const info = document.getElementById('rel-obra-info');
+  if (info) {
+    info.textContent = obra
+      ? `${obra.status || '—'}${obra.mestre ? ' · Mestre: ' + obra.mestre : ' · Sem mestre definido'}`
+      : '';
+  }
+  const num = document.getElementById('rel-numero');
+  if (num && !num.value && obra) {
+    num.value = `REL-${obra.cod}-${getTodayBR().replace(/-/g, '')}`;
+  }
+  const resp = document.getElementById('rel-responsavel');
+  if (resp && !resp.value) {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+      resp.value = u.name || '';
+    } catch (e) { }
+  }
+}
+window.checkRelObra = checkRelObra;
+
+function auditEsc(v) {
+  if (window.escHtml) return window.escHtml(v);
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function auditSafeImage(v) {
+  const s = String(v == null ? '' : v);
+  return /^(https?:\/\/|data:image\/)/i.test(s) ? s : '';
+}
+
+function auditBarWidth(valor, previsto) {
+  if (!(previsto > 0)) return 0;
+  return Math.max(0, Math.min(100, (valor / previsto) * 100));
 }
 
 function generateAuditReport() {
-  const obraCod = document.getElementById('rel-obra').value;
+  const obraCod = document.getElementById('rel-obra')?.value;
   if (!obraCod) { toast('Selecione uma obra primeiro!', 'error'); return; }
+  if (typeof window.buildObraReport !== 'function') {
+    toast('Recarregue a página para atualizar o gerador de relatórios.', 'error');
+    return;
+  }
 
-  const obra = DB.obras.find(o => o.cod === obraCod);
-  if (!obra) return;
+  const obra = (DB.obras || []).find(o => o.cod === obraCod);
+  if (!obra) { toast('Obra não encontrada.', 'error'); return; }
 
-  const orc = DB.orcamento.filter(o => o.obra === obraCod);
-  const fin = DB.financeiro.filter(f => f.obra === obraCod);
-  const med = DB.medicao.filter(m => m.obra === obraCod);
-  const com = DB.compras.filter(c => c.obra === obraCod && (c.status === 'Entregue' || c.status === 'Pago'));
+  const dataInicio = document.getElementById('rel-data-ini')?.value || '';
+  const dataFim = document.getElementById('rel-data-fim')?.value || '';
+  if (dataInicio && dataFim && dataInicio > dataFim) {
+    toast('A data inicial não pode ser maior que a final.', 'error');
+    return;
+  }
 
-  // Categorization Logic
-  const isMat = (t) => ['Material', 'Custo Direto (Material)', 'Insumos', 'Equipamento'].includes(t);
-  const isMao = (t) => ['Mão de Obra', 'Mão de obra própria', 'Empreiteiro', 'Serviços', 'Adiantamento'].includes(t);
+  const responsavel = document.getElementById('rel-responsavel')?.value || '';
+  const numero = document.getElementById('rel-numero')?.value ||
+    `REL-${obra.cod}-${getTodayBR().replace(/-/g, '')}`;
+  document.getElementById('rel-numero').value = numero;
 
-  let prevMat = orc.filter(o => isMat(o.tipo)).reduce((a, b) => a + (b.vtotal || 0), 0);
-  let prevMao = orc.filter(o => isMao(o.tipo)).reduce((a, b) => a + (b.vtotal || 0), 0);
-  let prevOut = orc.filter(o => !isMat(o.tipo) && !isMao(o.tipo)).reduce((a, b) => a + (b.vtotal || 0), 0);
+  const report = window.buildObraReport(DB, obraCod, { dataInicio, dataFim, responsavel, numero });
+  const esc = auditEsc;
+  const r = report.resumo;
+  const logo = auditSafeImage(report.logoUrl);
+  const semOrcamento = r.totalPrevisto <= 0;
+  const pctTexto = semOrcamento ? 'Sem orçamento' : `${r.pct.toFixed(1)}% do orçamento`;
+  const pctBarra = semOrcamento ? 0 : Math.min(100, Math.max(0, r.pct));
+  const fisicoTexto = r.fisico == null ? '—' : `${r.fisico.toFixed(1)}%`;
+  const fisicoBarra = r.fisico == null ? 0 : Math.min(100, Math.max(0, r.fisico));
+  const saldoClasse = r.saldo < 0 ? ' audit-value-negative' : ' audit-value-positive';
+  const dupTotal = (report.duplicados || []).reduce((a, e) => a + (Number(e.valorRealizado) || 0), 0);
+  const dupEtapas = [...new Set((report.duplicados || []).map(e => e.etapa).filter(Boolean))];
 
-  let realMat = fin.filter(f => isMat(f.tipo)).reduce((a, b) => a + (b.real || 0), 0);
-  realMat += com.reduce((a, b) => a + (b.vtotal || 0), 0); // Compras are always material
+  const categoriasHtml = report.categorias.map(c => {
+    const temPrevisto = c.previsto > 0;
+    const barra = auditBarWidth(c.realizado, c.previsto);
+    return `<tr>
+      <td><span class="audit-cat-icon">${esc(c.icon)}</span> <b>${esc(c.label)}</b></td>
+      <td class="num">${temPrevisto ? fmt(c.previsto) : '<span class="audit-muted">sem orçamento</span>'}</td>
+      <td class="num">${fmt(c.realizado)}</td>
+      <td class="num">${fmt(c.pago)}</td>
+      <td class="num">${fmt(c.aPagar)}</td>
+      <td class="num">${temPrevisto ? `${((c.realizado / c.previsto) * 100).toFixed(1)}%` : '—'}</td>
+      <td><div class="audit-bar${temPrevisto && c.realizado > c.previsto ? ' is-over' : ''}"><i style="width:${barra}%"></i></div></td>
+    </tr>`;
+  }).join('');
 
-  let realMao = fin.filter(f => isMao(f.tipo)).reduce((a, b) => a + (b.real || 0), 0);
-  realMao += med.reduce((a, b) => a + (parseFloat(b.vtotal) || 0), 0); // Medicao is always labor/service
+  const medicoesHtml = report.medicoes.length
+    ? report.medicoes.map(m => {
+      const foto = auditSafeImage(m.photoUrl);
+      return `<tr>
+        <td>${m.semana ? esc(fmtDate(m.semana)) : '—'}</td>
+        <td><b>${esc(m.etapa || m.frente || 'Etapa')}</b><br><span class="audit-muted">${esc(m.servico || '—')}</span></td>
+        <td>${esc(m.equipe || '—')}</td>
+        <td class="num">${m.qprev || 0}</td>
+        <td class="num">${m.qreal || 0}</td>
+        <td class="num">${m.avanco == null ? '—' : `${m.avanco.toFixed(1)}%`}</td>
+        <td class="num">${fmt(m.valor)}</td>
+        <td>${esc(m.pgtoStatus || 'Pendente')}</td>
+        <td>${foto ? `<img class="audit-thumb" src="${esc(foto)}" alt="Evidência" data-photo="${esc(foto)}" onclick="openLightbox(this.dataset.photo)">` : '<span class="audit-muted">—</span>'}</td>
+      </tr>`;
+    }).join('')
+    : '<tr><td colspan="9" class="audit-empty">Nenhuma medição no período selecionado.</td></tr>';
 
-  let totalPrev = prevMat + prevMao + prevOut;
-  let totalReal = realMat + realMao;
+  const equipeHtml = report.equipe.length
+    ? report.equipe.map(e => `<tr>
+        <td><b>${esc(e.nome)}</b></td>
+        <td class="num">${e.dias}</td>
+        <td class="num">${fmt(e.total)}</td>
+        <td class="num">${fmt(e.pago)}</td>
+        <td class="num">${fmt(e.aPagar)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" class="audit-empty">Nenhuma presença no período.</td></tr>';
 
-  let html = `
-    <div id="print-area" style="padding: 40px; background: white; color: #1e293b; font-family: system-ui, sans-serif; border-radius: 8px; border: 1px solid #cbd5e1;">
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px;">
-        <div>
-          <h1 style="margin:0; font-size:28px; color:var(--accent)">LAUDO DE VISTORIA E AUDITORIA</h1>
-          <p style="margin:5px 0; color:#64748b; font-weight:500;">Obra: ${obra.nome} (${obra.cod})</p>
-        </div>
-        <div style="text-align:right">
-          <p style="margin:0; font-size:14px; font-weight:600">Obra Real — Gestão Pro</p>
-          <p style="margin:0; font-size:12px; color:#64748b">${new Date().toLocaleDateString('pt-BR')}</p>
-        </div>
+  const pendenciasHtml = report.pendencias.length
+    ? report.pendencias.map(p => `<tr>
+        <td>${esc(p.tipo)}</td>
+        <td>${esc(p.desc)}</td>
+        <td>${p.data ? esc(fmtDate(p.data)) : '—'}</td>
+        <td>${esc(p.status)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="4" class="audit-empty">Nenhuma pendência encontrada.</td></tr>';
+
+  const extratoHtml = report.entradas.length
+    ? report.entradas.map(e => {
+      const cat = window.financeCategoryLabel ? window.financeCategoryLabel(e.categoria) : (e.categoria || 'Outros');
+      return `<tr>
+        <td>${e.data ? esc(fmtDate(e.data)) : '—'}</td>
+        <td>${esc(e.origem || '—')}</td>
+        <td>${esc(e.desc || '—')}</td>
+        <td>${esc(cat)}</td>
+        <td>${esc(e.status || '—')}</td>
+        <td class="num">${fmt(e.valorRealizado)}</td>
+        <td class="num">${fmt(e.reportPago)}</td>
+        <td class="num">${fmt(e.reportAPagar)}</td>
+      </tr>`;
+    }).join('')
+    : '<tr><td colspan="8" class="audit-empty">Nenhum lançamento realizado no período.</td></tr>';
+
+  const html = `
+    <div id="print-area" class="audit-report">
+      <div class="audit-actions audit-no-print">
+        <button class="btn btn-primary" onclick="printAuditReport()">🖨️ Imprimir / Salvar PDF</button>
+        <button class="btn btn-secondary" onclick="resetRelatorios()">🔙 Voltar</button>
       </div>
 
-      <!-- Resumo Geral -->
-      <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px;">
-        <div style="padding:15px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0">
-          <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Investimento Total</label>
-          <div style="font-size:20px; font-weight:700; color:#0f172a">${fmt(totalReal)}</div>
-          <small style="color:#64748b">de ${fmt(totalPrev)} planejado</small>
+      <header class="audit-header">
+        <div class="audit-brand">
+          ${logo ? `<img src="${esc(logo)}" alt="${esc(report.empresa)}">` : '<div class="audit-brand-mark">🏗️</div>'}
+          <div>
+            <strong>${esc(report.empresa)}</strong>
+            <span>Gestão de obras</span>
+          </div>
         </div>
-        <div style="padding:15px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0">
-          <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Economia / Excesso</label>
-          <div style="font-size:20px; font-weight:700; color:${totalReal > totalPrev ? '#ef4444' : '#10b981'}">${fmt(totalPrev - totalReal)}</div>
+        <div class="audit-title">
+          <h1>RELATÓRIO DE VISTORIA E ACOMPANHAMENTO</h1>
+          <p>${esc(obra.nome)} (${esc(obra.cod)})</p>
+          <p>Nº ${esc(report.numero)} · Emitido em ${esc(fmtDate(report.hoje))}</p>
         </div>
-        <div style="padding:15px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0">
-          <label style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Status Financeiro</label>
-          <div style="font-size:20px; font-weight:700; color:#0f172a">${((totalReal / totalPrev) * 100).toFixed(1)}%</div>
-        </div>
+      </header>
+
+      <div class="audit-meta">
+        <div><span>Obra</span><b>${esc(obra.nome)} (${esc(obra.cod)})</b></div>
+        <div><span>Status da obra</span><b>${esc(obra.status || '—')}</b></div>
+        <div><span>Mestre responsável</span><b>${esc(obra.mestre || 'Não definido')}</b></div>
+        <div><span>Período</span><b>${esc(report.periodoLabel)}</b></div>
+        <div><span>Responsável pelo relatório</span><b>${esc(responsavel || 'Não informado')}</b></div>
+        <div><span>Orçamento total</span><b>${semOrcamento ? 'Não definido' : fmt(r.totalPrevisto)}</b></div>
       </div>
 
-      <!-- Divisão por Categoria -->
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; background: #fff; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-        <div>
-          <h4 style="margin:0 0 15px 0; color:#475569; display:flex; align-items:center; gap:8px"><span style="font-size:20px">📦</span> MATERIAIS E INSUMOS</h4>
-          <div style="display:flex; justify-content:space-between; margin-bottom:8px">
-            <span style="font-size:13px; color:#64748b">Gasto Realizado</span>
-            <span style="font-size:14px; font-weight:700">${fmt(realMat)}</span>
-          </div>
-          <div style="height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden; margin-bottom:8px">
-            <div style="width:${Math.min(100, (realMat / prevMat) * 100)}%; height:100%; background:#6366f1"></div>
-          </div>
-          <p style="margin:0; font-size:11px; color:#94a3b8">Previsto em orçamento: ${fmt(prevMat)}</p>
+      <section class="audit-block">
+        <h2>Resumo financeiro</h2>
+        <div class="audit-summary">
+          <div class="audit-card"><span>Previsto</span><b>${semOrcamento ? '—' : fmt(r.totalPrevisto)}</b></div>
+          <div class="audit-card"><span>Realizado</span><b>${fmt(r.totalRealizado)}</b></div>
+          <div class="audit-card"><span>Pago</span><b>${fmt(r.totalPago)}</b></div>
+          <div class="audit-card"><span>A pagar</span><b>${fmt(r.totalAPagar)}</b></div>
+          <div class="audit-card"><span>Saldo do orçamento</span><b class="${saldoClasse}">${semOrcamento ? '—' : fmt(r.saldo)}</b></div>
+          <div class="audit-card"><span>Situação</span><b class="audit-status">${esc(r.status)}</b></div>
         </div>
-        <div>
-          <h4 style="margin:0 0 15px 0; color:#475569; display:flex; align-items:center; gap:8px"><span style="font-size:20px">👷</span> MÃO DE OBRA E SERVIÇOS</h4>
-          <div style="display:flex; justify-content:space-between; margin-bottom:8px">
-            <span style="font-size:13px; color:#64748b">Gasto Realizado</span>
-            <span style="font-size:14px; font-weight:700">${fmt(realMao)}</span>
+
+        <div class="audit-progress">
+          <div>
+            <div class="audit-progress-head"><span>Avanço físico (medições)</span><b>${fisicoTexto}</b></div>
+            <div class="audit-bar"><i style="width:${fisicoBarra}%"></i></div>
           </div>
-          <div style="height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden; margin-bottom:8px">
-            <div style="width:${Math.min(100, (realMao / prevMao) * 100)}%; height:100%; background:#10b981"></div>
+          <div>
+            <div class="audit-progress-head"><span>Avanço financeiro</span><b>${pctTexto}</b></div>
+            <div class="audit-bar${!semOrcamento && r.pct > 100 ? ' is-over' : ''}"><i style="width:${pctBarra}%"></i></div>
           </div>
-          <p style="margin:0; font-size:11px; color:#94a3b8">Previsto em orçamento: ${fmt(prevMao)}</p>
         </div>
-      </div>
+        <p class="audit-note">
+          ${esc(r.status)}. ${semOrcamento
+      ? 'Defina linhas no orçamento da obra para comparar previsto e realizado.'
+      : 'O percentual financeiro é calculado sobre o orçamento total da obra; saldo negativo indica gasto acima do previsto e o avanço físico é ponderado pelo valor das medições.'}
+        </p>
+      </section>
 
-      <h3 style="border-left: 4px solid var(--accent); padding-left: 10px; margin-bottom: 15px; font-size:18px">Evidências de Campo (Medições)</h3>
-      <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 30px;">
-        ${med.map(m => `
-          <div style="border: 1px solid #e2e8f0; border-radius:8px; overflow:hidden">
-            ${m.photoUrl ? `<img src="${m.photoUrl}" style="width:100%; height:150px; object-fit:cover; display:block">` : '<div style="height:150px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#94a3b8">Sem foto</div>'}
-            <div style="padding:10px; font-size:12px">
-              <b>${m.servico}</b><br>
-              <span style="color:#64748b">Fase: ${m.etapa} | Data: ${fmtDate(m.semana)}</span>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-
-      <h3 style="border-left: 4px solid var(--accent); padding-left: 10px; margin-bottom: 15px; font-size:18px">Extrato de Pagamentos Auditos</h3>
-      <table style="width:100%; border-collapse: collapse; font-size:12px">
-        <thead>
-          <tr style="background:#f1f5f9; text-align:left">
-            <th style="padding:10px; border-bottom:2px solid #e2e8f0">Data</th>
-            <th style="padding:10px; border-bottom:2px solid #e2e8f0">Descrição</th>
-            <th style="padding:10px; border-bottom:2px solid #e2e8f0">Tipo</th>
-            <th style="padding:10px; border-bottom:2px solid #e2e8f0; text-align:right">Valor</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${fin.filter(f => f.status === 'Pago').map(f => `
+      <section class="audit-block">
+        <h2>Custos por categoria</h2>
+        <table class="audit-table">
+          <thead>
             <tr>
-              <td style="padding:8px; border-bottom:1px solid #f1f5f9">${fmtDate(f.data)}</td>
-              <td style="padding:8px; border-bottom:1px solid #f1f5f9">${f.desc}</td>
-              <td style="padding:8px; border-bottom:1px solid #f1f5f9"><span style="color:#64748b; font-size:10px; text-transform:uppercase">${f.tipo}</span></td>
-              <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right"><b>${fmt(f.real)}</b></td>
+              <th>Categoria</th>
+              <th class="num">Previsto</th>
+              <th class="num">Realizado</th>
+              <th class="num">Pago</th>
+              <th class="num">A pagar</th>
+              <th class="num">%</th>
+              <th>Execução</th>
             </tr>
-          `).join('')}
-          ${com.map(c => `
+          </thead>
+          <tbody>${categoriasHtml}</tbody>
+          <tfoot>
             <tr>
-              <td style="padding:8px; border-bottom:1px solid #f1f5f9">${fmtDate(c.data)}</td>
-              <td style="padding:8px; border-bottom:1px solid #f1f5f9">${c.mat} (Ref: ${c.num})</td>
-              <td style="padding:8px; border-bottom:1px solid #f1f5f9"><span style="color:#64748b; font-size:10px; text-transform:uppercase">MATERIAL</span></td>
-              <td style="padding:8px; border-bottom:1px solid #f1f5f9; text-align:right"><b>${fmt(c.vtotal)}</b></td>
+              <td>Total</td>
+              <td class="num">${semOrcamento ? '—' : fmt(r.totalPrevisto)}</td>
+              <td class="num">${fmt(r.totalRealizado)}</td>
+              <td class="num">${fmt(r.totalPago)}</td>
+              <td class="num">${fmt(r.totalAPagar)}</td>
+              <td class="num">${pctTexto}</td>
+              <td><div class="audit-bar${!semOrcamento && r.pct > 100 ? ' is-over' : ''}"><i style="width:${pctBarra}%"></i></div></td>
             </tr>
-          `).join('')}
-        </tbody>
-      </table>
+          </tfoot>
+        </table>
+        <p class="audit-note">Compras não são somadas ao custo realizado para evitar duplicidade com lançamentos de Material. O custo vem da mesma fonte do Financeiro: lançamentos manuais, presença, medições e almoços.</p>
+        ${dupEtapas.length ? `<p class="audit-note audit-warn">⚠️ ${report.duplicados.length} lançamento(s) de Empreiteiro (${fmt(dupTotal)}) não foram somados ao realizado porque a etapa já possui medição: ${esc(dupEtapas.join(', '))}.</p>` : ''}
+      </section>
 
-      <div style="margin-top:50px; text-align:center; border-top: 1px dashed #cbd5e1; padding-top: 30px; font-size:12px; color:#94a3b8">
-        Documento gerado eletronicamente em conformidade com os registros de canteiro do Obra Real.<br>
+      <section class="audit-block">
+        <h2>Avanço por etapa (medições)</h2>
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Etapa / serviço</th>
+              <th>Equipe</th>
+              <th class="num">Qtd. prev.</th>
+              <th class="num">Qtd. real.</th>
+              <th class="num">Avanço</th>
+              <th class="num">Valor</th>
+              <th>Status</th>
+              <th>Evidência</th>
+            </tr>
+          </thead>
+          <tbody>${medicoesHtml}</tbody>
+        </table>
+      </section>
+
+      <section class="audit-block audit-grid-2">
+        <div>
+          <h2>Equipe no período</h2>
+          <table class="audit-table">
+            <thead><tr><th>Profissional</th><th class="num">Dias</th><th class="num">Custo</th><th class="num">Pago</th><th class="num">A pagar</th></tr></thead>
+            <tbody>${equipeHtml}</tbody>
+          </table>
+        </div>
+        <div>
+          <h2>Pendências</h2>
+          <table class="audit-table">
+            <thead><tr><th>Tipo</th><th>Descrição</th><th>Data</th><th>Status</th></tr></thead>
+            <tbody>${pendenciasHtml}</tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="audit-block">
+        <h2>Extrato conciliado</h2>
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Origem</th>
+              <th>Descrição</th>
+              <th>Categoria</th>
+              <th>Status</th>
+              <th class="num">Realizado</th>
+              <th class="num">Pago</th>
+              <th class="num">A pagar</th>
+            </tr>
+          </thead>
+          <tbody>${extratoHtml}</tbody>
+          <tfoot>
+            <tr>
+              <td colspan="5">Total conciliado</td>
+              <td class="num">${fmt(r.totalRealizado)}</td>
+              <td class="num">${fmt(r.totalPago)}</td>
+              <td class="num">${fmt(r.totalAPagar)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        <p class="audit-note">Conferência: pago + a pagar = ${fmt(r.totalPago + r.totalAPagar)} · realizado = ${fmt(r.totalRealizado)}.</p>
+      </section>
+
+      <section class="audit-signatures">
+        <div>
+          ${esc(responsavel || 'Responsável pelo acompanhamento')}
+          <small>Responsável pelo acompanhamento</small>
+        </div>
+        <div>
+          ${esc(report.empresa)}
+          <small>Contratante / empresa</small>
+        </div>
+      </section>
+
+      <footer class="audit-footer">
+        Documento gerado por ${esc(report.empresa)} em ${esc(fmtDate(report.hoje))}.<br>
         Relatório para fins de vistoria e acompanhamento técnico interno.
+      </footer>
+
+      <div class="audit-actions audit-no-print">
+        <button class="btn btn-primary" onclick="printAuditReport()">🖨️ Imprimir / Salvar PDF</button>
+        <button class="btn btn-secondary" onclick="resetRelatorios()">🔙 Voltar</button>
       </div>
-    </div>
-    <div style="margin-top:20px; text-align:center">
-      <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir Laudo / Salvar PDF</button>
-      <button class="btn btn-secondary" onclick="renderRelatorios()" style="margin-left:10px">🔙 Voltar</button>
     </div>
   `;
 
   safeSetInner('rel-preview-area', html);
 }
+
+function printAuditReport() {
+  document.body.classList.add('audit-print');
+  const cleanup = () => document.body.classList.remove('audit-print');
+  window.addEventListener('afterprint', cleanup, { once: true });
+  window.print();
+  setTimeout(cleanup, 1500);
+}
+window.printAuditReport = printAuditReport;
+
 
 
 // ==================== MEDIÇÃO ====================

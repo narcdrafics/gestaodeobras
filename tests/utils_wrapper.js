@@ -11,7 +11,7 @@ if (typeof window === 'undefined') {
 }
 
 // Importa o arquivo (que popula window.*)
-import '../public/js/utils.module.js?v=20260402010';
+import '../public/js/utils.module.js?v=20261115001';
 
 // Exporta do window para ESM
 export const fmt = window.fmt;
@@ -40,3 +40,7 @@ export const calcCustosDiarias = window.calcCustosDiarias;
 export const calcCustosMedicoes = window.calcCustosMedicoes;
 export const calcCustosFinanceiro = window.calcCustosFinanceiro;
 export const getPeriodoOptions = window.getPeriodoOptions;
+export const calcCustoObra = window.calcCustoObra;
+export const calcDashboardResumo = window.calcDashboardResumo;
+export const buildObraReport = window.buildObraReport;
+export const hojeLocal = window.hojeLocal;

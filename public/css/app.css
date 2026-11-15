@@ -659,3 +659,142 @@ select.form-control option { background: var(--bg2); }
   background: var(--card); border: 1px solid var(--border); border-radius: 8px;
 }
 @media print { .dash-more, #dash-actions { display: none !important; } }
+
+/* ==================== RELATÓRIO DE VISTORIA ==================== */
+.rel-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(140px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  max-width: 1400px;
+  margin: 20px 0;
+  padding: 18px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.rel-obra-field { min-width: 220px; }
+.rel-hint { display: block; margin-top: 4px; font-size: 11px; color: var(--text3); min-height: 14px; }
+.rel-filter-action { display: flex; align-items: end; }
+.rel-filter-action .btn { height: 42px; white-space: nowrap; }
+@media (max-width: 1100px) {
+  .rel-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rel-obra-field { grid-column: 1 / -1; }
+  .rel-filter-action { grid-column: 1 / -1; }
+}
+
+.audit-report {
+  background: #fff;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 32px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.45;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.audit-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-bottom: 18px; }
+.audit-actions:last-child { margin: 28px 0 0; }
+.audit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 28px;
+  border-bottom: 3px solid #e2e8f0;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+}
+.audit-brand { display: flex; align-items: center; gap: 12px; min-width: 220px; }
+.audit-brand img { max-height: 56px; max-width: 170px; object-fit: contain; }
+.audit-brand-mark {
+  width: 54px; height: 54px; border-radius: 12px; background: #f1f5f9;
+  display: flex; align-items: center; justify-content: center; font-size: 26px;
+}
+.audit-brand strong { display: block; font-size: 17px; color: #0f172a; }
+.audit-brand span { display: block; font-size: 11px; color: #64748b; }
+.audit-title { text-align: right; }
+.audit-title h1 { margin: 0; font-size: 20px; letter-spacing: 0.02em; color: #1d4ed8; }
+.audit-title p { margin: 4px 0 0; font-size: 12px; color: #475569; }
+.audit-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 22px;
+  margin-bottom: 22px;
+}
+.audit-meta div { display: flex; flex-direction: column; gap: 2px; }
+.audit-meta span {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #64748b; font-weight: 700;
+}
+.audit-meta b { font-size: 13px; color: #0f172a; font-weight: 600; }
+.audit-block { margin-bottom: 24px; break-inside: avoid; }
+.audit-block h2 {
+  margin: 0 0 10px; padding-left: 9px; border-left: 4px solid #2563eb;
+  font-size: 15px; color: #0f172a;
+}
+.audit-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 10px; }
+.audit-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; }
+.audit-card span {
+  display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #64748b; font-weight: 700;
+}
+.audit-card b { display: block; margin-top: 4px; font-size: 18px; color: #0f172a; }
+.audit-card b.audit-status { font-size: 13px; line-height: 1.3; }
+.audit-value-negative { color: #b91c1c !important; }
+.audit-value-positive { color: #047857 !important; }
+.audit-progress { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 14px; }
+.audit-progress-head { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; margin-bottom: 5px; color: #475569; }
+.audit-progress-head b { color: #0f172a; }
+.audit-bar { height: 9px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+.audit-bar > i { display: block; height: 100%; background: #2563eb; border-radius: 999px; }
+.audit-bar.is-over > i { background: #dc2626; }
+.audit-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.audit-table th {
+  background: #f1f5f9; color: #475569; text-transform: uppercase; letter-spacing: 0.03em;
+  font-size: 10px; text-align: left; padding: 8px; border-bottom: 2px solid #e2e8f0;
+}
+.audit-table td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.audit-table tfoot td { background: #f8fafc; border-top: 2px solid #e2e8f0; font-weight: 700; }
+.audit-table .num { text-align: right; white-space: nowrap; }
+.audit-muted { color: #94a3b8; font-size: 11px; }
+.audit-empty { text-align: center; color: #94a3b8; padding: 14px !important; }
+.audit-cat-icon { display: inline-block; width: 18px; }
+.audit-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; display: block; cursor: pointer; }
+.audit-note { margin: 8px 0 0; font-size: 11.5px; color: #64748b; }
+.audit-warn { color: #b45309; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 7px 10px; }
+.audit-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.audit-signatures {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 46px;
+  margin-top: 40px; padding-top: 24px; border-top: 1px dashed #cbd5e1;
+}
+.audit-signatures div { border-top: 1px solid #94a3b8; padding-top: 8px; text-align: center; font-size: 12px; font-weight: 600; }
+.audit-signatures small { display: block; margin-top: 2px; font-size: 10px; font-weight: 400; color: #64748b; }
+.audit-footer {
+  margin-top: 24px; border-top: 1px dashed #cbd5e1; padding-top: 12px;
+  text-align: center; font-size: 10.5px; color: #94a3b8;
+}
+
+@media (max-width: 768px) {
+  .audit-report { padding: 16px; }
+  .audit-header { flex-direction: column; gap: 14px; }
+  .audit-title { text-align: left; }
+  .audit-progress, .audit-grid-2, .audit-signatures { grid-template-columns: 1fr; }
+  .audit-table { display: block; overflow-x: auto; }
+}
+
+@media print {
+  body.audit-print .sidebar,
+  body.audit-print .header,
+  body.audit-print .page-header,
+  body.audit-print #rel-filters,
+  body.audit-print .trial-banner,
+  body.audit-print .mobile-nav { display: none !important; }
+  body.audit-print .main { margin: 0 !important; padding: 0 !important; width: 100% !important; overflow: visible !important; }
+  body.audit-print #rel-preview-area { margin: 0 !important; }
+  body.audit-print .audit-report { border: none; border-radius: 0; padding: 0; max-width: none; }
+  .audit-no-print { display: none !important; }
+  .audit-block, .audit-card, .audit-signatures, .audit-table tr { break-inside: avoid; }
+  .audit-report table { page-break-inside: auto; }
+  @page { margin: 12mm; }
+}

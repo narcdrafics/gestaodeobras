@@ -212,9 +212,12 @@ function buildFinanceDateFilter(options = {}) {
 function buildFinanceEntries(fin, pres, med, alm, options = {}) {
   const entries = [];
   const filterDate = buildFinanceDateFilter(options);
+  const filterObra = options.obra
+    ? (value) => (value || 'Geral') === options.obra
+    : () => true;
 
   (fin || []).forEach((f, i) => {
-    if (!f || !filterDate(f.data)) return;
+    if (!f || !filterDate(f.data) || !filterObra(f.obra)) return;
     const isDesconto = normalizeText(f.tipo).includes('desconto');
     const realRaw = parseMoney(f.real);
     const prevRaw = parseMoney(f.prev);
@@ -222,6 +225,10 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
     const realEfetivo = realRaw > 0 ? realRaw : prevRaw;
     const valor = isDesconto ? -Math.abs(realEfetivo) : realEfetivo;
     const prev = isDesconto ? -Math.abs(prevRaw) : prevRaw;
+    // `valorRealizado` é o que efetivamente aconteceu. Diferente de `valor`, ele
+    // NÃO usa o previsto como fallback: lançamento só previsto não é custo realizado.
+    const valorRealizado = isDesconto ? -Math.abs(realRaw) : realRaw;
+    const valorPrevisto = isDesconto ? -Math.abs(prevRaw) : prevRaw;
     const status = normalizePgtoStatus(f.status || f.pgtoStatus);
     const valpagoRaw = parseMoney(f.valpago);
     const jaPago = status === 'Pago' ? valor : (status === 'Parcial' ? valpagoRaw : 0);
@@ -237,6 +244,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
       etapa: f.etapa || '', nf: f.nf || '', pgto: f.pgto || '',
       obs: f.obs || '',
       real: valor, prev, valor, hasPrev: prevRaw !== 0,
+      valorRealizado, valorPrevisto,
       status, jaPago, pendente,
       valpago: valpagoRaw,
       totalBruto: valor,
@@ -245,7 +253,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
   });
 
   (pres || []).forEach((p, i) => {
-    if (!p || !filterDate(p.data)) return;
+    if (!p || !filterDate(p.data) || !filterObra(p.obra)) return;
     const total = getPresencaCusto(p);
     if (!(total > 0)) return;
     const status = normalizePgtoStatus(p.pgtoStatus);
@@ -263,6 +271,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
       etapa: '', nf: '', pgto: p.pgto || '',
       obs: p.justif || p.obs || '',
       real: total, prev: 0, valor: total, hasPrev: false,
+      valorRealizado: total, valorPrevisto: 0,
       status, jaPago, pendente,
       valpago: valpagoRaw,
       totalBruto: total,
@@ -272,7 +281,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
   });
 
   (med || []).forEach((m, i) => {
-    if (!m) return;
+    if (!m || !filterObra(m.obra)) return;
     const data = m.semana || m.data || '';
     if (!filterDate(data)) return;
     const total = parseMoney(m.vtotal);
@@ -292,6 +301,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
       etapa: m.etapa || '', nf: m.nf || '', pgto: m.pgto || '',
       obs: m.obs || '',
       real: total, prev: 0, valor: total, hasPrev: false,
+      valorRealizado: total, valorPrevisto: 0,
       status, jaPago, pendente,
       valpago: valpagoRaw,
       totalBruto: total,
@@ -300,7 +310,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
   });
 
   (alm || []).forEach((a, i) => {
-    if (!a || !filterDate(a.data)) return;
+    if (!a || !filterDate(a.data) || !filterObra(a.obra)) return;
     const total = parseMoney(a.vtotal);
     if (!(total > 0)) return;
     const status = normalizePgtoStatus(a.pgtoStatus || a.status);
@@ -318,6 +328,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
       etapa: '', nf: '', pgto: '',
       obs: a.obs || '',
       real: total, prev: 0, valor: total, hasPrev: false,
+      valorRealizado: total, valorPrevisto: 0,
       status, jaPago, pendente,
       valpago: valpagoRaw,
       totalBruto: total,
@@ -529,26 +540,31 @@ const hojeLocal = () => getPeriodoOptions({ tipo: 'hoje' }).dataInicio;
  * (financeiro conta só o valor `real`; lançamento sem data entra no total, mas não em período).
  */
 const calcCustoObra = (db, obraCod, options = {}) => {
-  const temPeriodo = !!((options.dataInicio && options.dataFim) || options.tipo);
-  const periodo = temPeriodo
-    ? ((options.dataInicio && options.dataFim) ? { dataInicio: options.dataInicio, dataFim: options.dataFim } : getPeriodoOptions(options))
-    : null;
-  const noPeriodo = (d) => !periodo || (!!d && d >= periodo.dataInicio && d <= periodo.dataFim);
-  const doObra = (arr) => (arr || []).filter(x => x && x.obra === obraCod);
+  const periodOptions = (options.tipo && !options.dataInicio && !options.dataFim)
+    ? getPeriodoOptions(options)
+    : { dataInicio: options.dataInicio || '', dataFim: options.dataFim || '' };
+  // Mesma fonte única usada pelo Financeiro, Hoje e pelo relatório de vistoria.
+  const summary = buildFinanceEntries(
+    db.financeiro, db.presenca, db.medicao, db.almocos,
+    { ...periodOptions, obra: obraCod }
+  );
+  const entries = summary.all || [];
+  const sumBy = (source) => entries
+    .filter(e => e.source === source)
+    .reduce((a, e) => a + e.valorRealizado, 0);
+  const maoDeObra = sumBy('pre');
+  const medicoes = sumBy('med');
+  const financeiro = sumBy('fin');
+  const almocos = sumBy('alm');
 
-  const mao = calcCustosDiarias(doObra(db.presenca), periodo || { dataInicio: '0000-01-01', dataFim: '9999-12-31' });
-  const medicoes = doObra(db.medicao)
-    .filter(m => noPeriodo(m.semana || m.data))
-    .reduce((a, m) => a + (parseFloat(m.vtotal) || 0), 0);
-  const financeiro = doObra(db.financeiro)
-    .filter(f => noPeriodo(f.data))
-    .reduce((a, f) => a + (Number(f.real) || 0), 0);
-  const almocos = doObra(db.almocos)
-    .filter(a => noPeriodo(a.data))
-    .reduce((a, x) => a + (Number(x.vtotal) || 0), 0);
-  const diarias = (mao.porObra[obraCod] || []).length; // dias pagos (Presente / Meio período)
-
-  return { total: mao.custoTotal + medicoes + financeiro + almocos, maoDeObra: mao.custoTotal, medicoes, financeiro, almocos, diarias };
+  return {
+    total: entries.reduce((a, e) => a + e.valorRealizado, 0),
+    maoDeObra,
+    medicoes,
+    financeiro,
+    almocos,
+    diarias: entries.filter(e => e.source === 'pre' && e.valorRealizado > 0).length
+  };
 };
 
 const PRIORIDADE_ALERTA = { alto: 0, medio: 1, baixo: 2 };
@@ -632,6 +648,175 @@ const calcDashboardResumo = (db, hoje, role) => {
   return { hoje, kpis, linhas, alertas: calcAlertas(db, hoje, linhas, role) };
 };
 
+/**
+ * Relatório de vistoria de uma obra, calculado a partir da MESMA fonte de custos
+ * do Financeiro/Hoje/Dashboard (buildFinanceEntries).
+ *
+ * Importante:
+ * - o previsto vem do orçamento e é comparado por categoria sem diferenciar
+ *   maiúsculas/acentos (ex.: "Mão de obra" = "Mão de Obra");
+ * - "outros" também entra no total, então previsto e realizado fecham;
+ * - compras NÃO são somadas ao realizado (evita duplicar com lançamentos de Material);
+ * - lançamento apenas previsto (real = 0) não vira custo realizado.
+ */
+const buildObraReport = (db, obraCod, options = {}) => {
+  const obra = (db.obras || []).find(o => o && o.cod === obraCod) || null;
+  const dataInicio = options.dataInicio || '';
+  const dataFim = options.dataFim || '';
+  const temPeriodo = !!(dataInicio || dataFim);
+  const inPeriod = (d) => {
+    if (!temPeriodo) return true;
+    if (!d) return false;
+    if (dataInicio && d < dataInicio) return false;
+    if (dataFim && d > dataFim) return false;
+    return true;
+  };
+
+  const finance = buildFinanceEntries(
+    db.financeiro, db.presenca, db.medicao, db.almocos,
+    { dataInicio, dataFim, obra: obraCod }
+  );
+
+  const categorias = FIN_CATEGORIES.map(c => ({
+    ...c, previsto: 0, realizado: 0, pago: 0, aPagar: 0, count: 0
+  }));
+  const catMap = Object.fromEntries(categorias.map(c => [c.key, c]));
+
+  (db.orcamento || []).filter(o => o && o.obra === obraCod).forEach(o => {
+    const key = categorizeFinanceType(o.tipo);
+    const cat = catMap[key] || catMap.outros;
+    cat.previsto += parseMoney(o.vtotal);
+  });
+
+  const entradas = [];
+  const duplicados = [];
+  const etapasMedicao = new Set(
+    (db.medicao || [])
+      .filter(m => m && m.obra === obraCod && inPeriod(m.semana || m.data))
+      .map(m => normalizeText(m.etapa))
+      .filter(Boolean)
+  );
+  (finance.all || []).filter(e => e.valorRealizado !== 0).forEach(e => {
+    // Medição já representa o custo do empreiteiro naquela etapa. Se o usuário
+    // também lançou "Empreiteiro" manualmente para a mesma etapa, somar os dois
+    // duplicaria o custo. O manual fica listado à parte, mas não entra no total.
+    const duplicariaMedicao = e.source === 'fin'
+      && e.categoria === 'empreiteiro'
+      && !!e.etapa
+      && etapasMedicao.has(normalizeText(e.etapa));
+    if (duplicariaMedicao) {
+      duplicados.push(e);
+      return;
+    }
+    entradas.push(e);
+  });
+  entradas.forEach(e => {
+    const cat = catMap[e.categoria] || catMap.outros;
+    const pago = e.status === 'Pago'
+      ? e.valorRealizado
+      : (e.status === 'Parcial' ? Math.min(e.jaPago, Math.max(0, e.valorRealizado)) : 0);
+    const aPagar = Math.max(0, e.valorRealizado - pago);
+    cat.realizado += e.valorRealizado;
+    cat.pago += pago;
+    cat.aPagar += aPagar;
+    cat.count++;
+    e.reportPago = pago;
+    e.reportAPagar = aPagar;
+  });
+
+  const totalPrevisto = categorias.reduce((a, c) => a + c.previsto, 0);
+  const totalRealizado = categorias.reduce((a, c) => a + c.realizado, 0);
+  const totalPago = categorias.reduce((a, c) => a + c.pago, 0);
+  const totalAPagar = categorias.reduce((a, c) => a + c.aPagar, 0);
+  const saldo = totalPrevisto - totalRealizado;
+  const pct = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) * 100 : null;
+  let status = 'Sem orçamento definido';
+  if (pct !== null) {
+    if (pct > 100.0001) status = `Acima do orçamento em ${(pct - 100).toFixed(1)}%`;
+    else if (pct < 99.9999) status = `Abaixo do orçamento em ${(100 - pct).toFixed(1)}%`;
+    else status = 'Dentro do orçamento';
+  }
+
+  const medicoes = (db.medicao || [])
+    .filter(m => m && m.obra === obraCod && inPeriod(m.semana || m.data))
+    .map(m => {
+      const qprev = parseMoney(m.qprev);
+      const qreal = parseMoney(m.qreal);
+      return {
+        ...m,
+        qprev,
+        qreal,
+        valor: parseMoney(m.vtotal),
+        avanco: qprev > 0 ? Math.min(100, (qreal / qprev) * 100) : null
+      };
+    });
+
+  const valorMedido = medicoes.reduce((a, m) => a + m.valor, 0);
+  const fisico = valorMedido > 0
+    ? medicoes.reduce((a, m) => a + (m.avanco == null ? 0 : m.avanco) * m.valor, 0) / valorMedido
+    : null;
+
+  const equipeMap = new Map();
+  entradas.filter(e => e.source === 'pre').forEach(e => {
+    const key = e.trab || e.desc || 'Trabalhador';
+    if (!equipeMap.has(key)) {
+      equipeMap.set(key, { nome: e.desc || key, dias: 0, total: 0, pago: 0, aPagar: 0 });
+    }
+    const item = equipeMap.get(key);
+    item.dias++;
+    item.total += e.valorRealizado;
+    item.pago += e.reportPago;
+    item.aPagar += e.reportAPagar;
+  });
+  const equipe = [...equipeMap.values()].sort((a, b) => b.total - a.total);
+
+  const hoje = options.hoje || hojeLocal();
+  const pendencias = [];
+  (db.tarefas || []).filter(t => t && t.obra === obraCod && t.status !== 'Concluída').forEach(t => {
+    if (temPeriodo && t.prazo && !inPeriod(t.prazo)) return;
+    pendencias.push({
+      tipo: t.prazo && t.prazo < hoje ? 'Tarefa atrasada' : 'Tarefa',
+      desc: t.desc || 'Tarefa',
+      data: t.prazo || '',
+      status: t.status || 'Pendente'
+    });
+  });
+  (db.compras || []).filter(c => c && c.obra === obraCod && c.status === 'Aguardando').forEach(c => {
+    pendencias.push({
+      tipo: 'Compra pendente',
+      desc: c.mat || 'Material',
+      data: c.data || '',
+      status: c.status || 'Aguardando'
+    });
+  });
+
+  const empresa = (db.config && db.config.nomeEmpresa) || 'Obra Real';
+  const logoUrl = (db.config && db.config.logoUrl) || '';
+  const numero = options.numero || `REL-${obraCod}-${String(hoje).replace(/-/g, '')}`;
+  const periodoLabel = temPeriodo
+    ? `${dataInicio ? fmtDate(dataInicio) : 'início'} a ${dataFim ? fmtDate(dataFim) : 'hoje'}`
+    : 'Todo o período da obra';
+
+  return {
+    obra,
+    empresa,
+    logoUrl,
+    numero,
+    hoje,
+    periodoLabel,
+    periodo: { dataInicio, dataFim },
+    resumo: { totalPrevisto, totalRealizado, totalPago, totalAPagar, saldo, pct, status, fisico, valorMedido },
+    categorias,
+    entradas,
+    duplicados,
+    medicoes,
+    equipe,
+    pendencias,
+    orcamento: (db.orcamento || []).filter(o => o && o.obra === obraCod),
+    responsavel: options.responsavel || ''
+  };
+};
+
 /** Escapa texto digitado por usuários antes de ir para innerHTML. */
 const escHtml = (v) => String(v == null ? '' : v)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -642,6 +827,7 @@ window.hojeLocal = hojeLocal;
 window.calcCustoObra = calcCustoObra;
 window.calcAlertas = calcAlertas;
 window.calcDashboardResumo = calcDashboardResumo;
+window.buildObraReport = buildObraReport;
 
 /**
  * Define em qual período (Semana/Quinzena) uma data se encaixa dentro do mês.
