@@ -14,6 +14,7 @@ const rules = JSON.parse(fs.readFileSync(path.join(root, 'database.rules.json'),
 const tenantRules = rules.rules.tenants.$tenantId;
 const functionsSrc = fs.readFileSync(path.join(root, 'functions', 'index.js'), 'utf8');
 const authSrc = fs.readFileSync(path.join(root, 'public', 'js', 'auth_core.js'), 'utf8');
+const slugSrc = fs.readFileSync(path.join(root, 'public', 'js', 'slug.js'), 'utf8');
 const dataSrc = fs.readFileSync(path.join(root, 'public', 'js', 'data_core.js'), 'utf8');
 const appSrc = fs.readFileSync(path.join(root, 'public', 'js', 'app_core.js'), 'utf8');
 
@@ -73,7 +74,8 @@ describe('database.rules.json — tenants_public sem enumeração', () => {
   });
 
   it('escritas do nó público incluem tenantId', () => {
-    expect(authSrc).toMatch(/tenants_public\/\$\{tenantId\}[\s\S]{0,160}tenantId:\s*tenantId/);
+    // auto-cadastro (escolha do slug): a escrita mora em slug.js
+    expect(slugSrc).toMatch(/tenants_public\/\$\{slug\}`\]\s*=\s*\{[\s\S]{0,160}tenantId:\s*slug/);
     expect(appSrc).toMatch(/tenants_public\/\$\{slugVal\}[\s\S]{0,160}tenantId:\s*slugVal/);
   });
 

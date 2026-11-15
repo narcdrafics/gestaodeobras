@@ -391,6 +391,7 @@ select.form-control option { background: var(--bg2); }
 .alert-card:hover { border-color: var(--text2); }
 .alert-card.alto { border-left: 3px solid var(--red); }
 .alert-card.medio { border-left: 3px solid var(--orange); }
+.alert-card.baixo { border-left: 3px solid var(--blue); }
 .alert-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
 .alert-body h4 { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
 .alert-body p { font-size: 12px; color: var(--text3); line-height: 1.4; margin: 0; }
@@ -647,3 +648,14 @@ select.form-control option { background: var(--bg2); }
   .sync-indicator span { display: none; }
   .sync-indicator { padding: 8px; }
 }
+
+/* DASHBOARD: menu "Mais" (ações administrativas fora do topo) */
+.dash-more { position: relative; }
+.dash-more > summary { list-style: none; cursor: pointer; }
+.dash-more > summary::-webkit-details-marker { display: none; }
+.dash-more-menu {
+  position: absolute; right: 0; top: 100%; margin-top: 6px; z-index: 20;
+  display: flex; flex-direction: column; gap: 6px; padding: 8px; min-width: 170px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+}
+@media print { .dash-more, #dash-actions { display: none !important; } }

@@ -5,33 +5,28 @@ let currentEditIdx = -1; // Global variable to identify if we are creating new (
 // ==================== SYSTEM GLOBALS (ANTI-REFERENCE ERROR) ====================
 // Cria 'stubs' para evitar que saves de uma página "crachem" tentando dar reload em UI de outra página
 window.renderDashboard = window.renderDashboard || function () {
-  const hoje = getTodayBR();
+  const hoje = new Date().toISOString().split('T')[0];
   const obras = DB.obras || [];
+  const trabalhadores = DB.trabalhadores || [];
 
   // Presença hoje
   const allPresencaHoje = (DB.presenca || []).filter(p => p.data === hoje);
   const presentes = allPresencaHoje.filter(p => p.presenca === 'Presente').length;
   const faltas = allPresencaHoje.filter(p => p.presenca === 'Falta').length;
 
-  // Custo de diárias de hoje: usa SEMPRE o valor gravado na presença.
-  const custoDiariasHoje = window.calcCustosDiarias
-    ? window.calcCustosDiarias(DB.presenca, { dataInicio: hoje, dataFim: hoje }).custoTotal
-    : allPresencaHoje.reduce((a, p) => a + (window.getPresencaCusto ? window.getPresencaCusto(p) : (Number(p.total) || 0)), 0);
-
-  // Faixas de data (semana atual e mês corrente, até hoje)
-  const weekStartDate = new Date(hoje + 'T00:00:00');
-  const dow = weekStartDate.getDay();
-  weekStartDate.setDate(weekStartDate.getDate() - (dow === 0 ? 6 : dow - 1));
-  const weekStart = weekStartDate.getFullYear() + '-' + String(weekStartDate.getMonth() + 1).padStart(2, '0') + '-' + String(weekStartDate.getDate()).padStart(2, '0');
-  const monthStart = hoje.slice(0, 7) + '-01';
-
-  const buildSummary = (options) => window.summarizeFinanceCosts
-    ? window.summarizeFinanceCosts(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, options)
-    : { all: [] };
-
-  const semanal = buildSummary({ dataInicio: weekStart, dataFim: hoje });
-  const mensal = buildSummary({ dataInicio: monthStart, dataFim: hoje });
-  const totalGeral = buildSummary({});
+  // Custo diárias hoje
+  let custoTotal = 0;
+  allPresencaHoje.forEach(p => {
+    if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
+      const worker = trabalhadores.find(t => t.cod === p.trab);
+      const diaria = worker ? (parseFloat(worker.diaria) || 0) : 0;
+      const hnorm = parseFloat(p.hnorm) || 0;
+      const hextra = parseFloat(p.hextra) || 0;
+      const valorHora = hnorm > 0 ? diaria / hnorm : 0;
+      const total = hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : (p.presenca === 'Meio período' ? diaria / 2 : 0);
+      custoTotal += total;
+    }
+  });
 
   // KPIs
   const kpiGrid = document.getElementById('kpi-grid');
@@ -40,8 +35,7 @@ window.renderDashboard = window.renderDashboard || function () {
       <div class="kpi-card"><div class="kpi-label">Presentes</div><div class="kpi-val green">${presentes}</div></div>
       <div class="kpi-card"><div class="kpi-label">Faltas</div><div class="kpi-val ${faltas > 0 ? 'red' : 'green'}">${faltas}</div></div>
       <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obras.filter(o => o.status === 'Em andamento').length}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Diárias Hoje</div><div class="kpi-val blue">${fmt(custoDiariasHoje)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Custo do Mês</div><div class="kpi-val">${fmt(mensal.kpis ? mensal.kpis.total : 0)}</div><div class="kpi-sub">Todas as origens</div></div>
+      <div class="kpi-card"><div class="kpi-label">Diárias Hoje</div><div class="kpi-val blue">${fmt(custoTotal)}</div></div>
     `;
   }
 
@@ -56,47 +50,76 @@ window.renderDashboard = window.renderDashboard || function () {
 
   const alertsGrid = document.getElementById('alerts-grid');
   if (alertsGrid) {
-    alertsGrid.innerHTML = alerts.length
-      ? alerts.map(a => `<div class="alert-card ${a.prior}"><div class="alert-body"><h4>${a.tipo}</h4><p><b>${a.obra}</b> — ${a.desc}</p></div></div>`).join('')
+    alertsGrid.innerHTML = alertas.length
+      ? alertas.slice(0, MAX_ALERTAS).map(a => `<div class="alert-card ${a.prior}"><div class="alert-body"><h4>${a.tipo}</h4><p><b>${esc(a.obra)}</b> — ${esc(a.desc)}</p></div></div>`).join('')
+      + (alertas.length > MAX_ALERTAS ? `<div style="color:var(--text3);font-size:12px;padding:8px">+ ${alertas.length - MAX_ALERTAS} alertas</div>` : '')
       : '<div style="color:var(--text3);font-size:13px;padding:8px">Nenhuma pendência hoje.</div>';
   }
 
   // Resumo por Obra
   const dashObrasTbody = document.getElementById('dash-obras-tbody');
   if (dashObrasTbody) {
-    const sumByObra = (summary, cod) => (summary.all || [])
-      .filter(e => e.obra === cod)
-      .reduce((a, e) => a + (Number(e.valor) || 0), 0);
-
     let rows = '';
     obras.forEach(o => {
       const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
       const pres = pObra.filter(p => p.presenca === 'Presente').length;
       const fal = pObra.filter(p => p.presenca === 'Falta').length;
 
-      const custoSem = sumByObra(semanal, o.cod);
-      const custoMes = sumByObra(mensal, o.cod);
-      const fReal = sumByObra(totalGeral, o.cod);
-      const diariasSemana = (semanal.all || []).filter(e => e.obra === o.cod && e.source === 'pre').length;
+      // Custo semanal (últimos 7 dias)
+      const semanaAgo = new Date();
+      semanaAgo.setDate(semanaAgo.getDate() - 7);
+      const semData = semanaAgo.toISOString().split('T')[0];
+      const presSemana = (DB.presenca || []).filter(p => p.obra === o.cod && p.data >= semData && p.data <= hoje);
+      let custoSem = 0;
+      presSemana.forEach(p => {
+        if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
+          const worker = trabalhadores.find(t => t.cod === p.trab);
+          const diaria = worker ? (parseFloat(worker.diaria) || 0) : 0;
+          const hnorm = parseFloat(p.hnorm) || 0;
+          const hextra = parseFloat(p.hextra) || 0;
+          const valorHora = hnorm > 0 ? diaria / hnorm : 0;
+          custoSem += hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
+        }
+      });
+
+      // Custo mensal
+      const mesAgo = new Date();
+      mesAgo.setDate(mesAgo.getDate() - 30);
+      const mesData = mesAgo.toISOString().split('T')[0];
+      const presMes = (DB.presenca || []).filter(p => p.obra === o.cod && p.data >= mesData && p.data <= hoje);
+      let custoMes = 0;
+      presMes.forEach(p => {
+        if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
+          const worker = trabalhadores.find(t => t.cod === p.trab);
+          const diaria = worker ? (parseFloat(worker.diaria) || 0) : 0;
+          const hnorm = parseFloat(p.hnorm) || 0;
+          const hextra = parseFloat(p.hextra) || 0;
+          const valorHora = hnorm > 0 ? diaria / hnorm : 0;
+          custoMes += hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
+        }
+      });
+
+      // Total real (orçamento)
+      const fReal = (DB.financeiro || []).filter(f => f.obra === o.cod).reduce((a, f) => a + (Number(f.real) || 0), 0);
       const pctCusto = o.orc > 0 ? (fReal / o.orc * 100).toFixed(1) : 0;
 
+      // Tarefas
       const tarefasObra = (DB.tarefas || []).filter(t => t.obra === o.cod);
       const tarefasConcluidas = tarefasObra.filter(t => t.status === 'Concluída').length;
 
       rows += `<tr>
         <td data-label="Obra"><b>${o.nome}</b></td>
         <td data-label="Status">${statusBadge(o.status)}</td>
-        <td data-label="Mestre">${o.mestre || '—'}</td>
+        <td data-label="Mestre">${o.mestre || '-'}</td>
         <td data-label="Orç. Prev.">${fmt(o.orc)}</td>
-        <td data-label="Diárias (Sem.)" style="color:var(--blue)">${diariasSemana} <small style="color:var(--text3)">(${pres} hoje)</small></td>
+        <td data-label="Diárias (Sem.)" style="color:var(--blue)">${pres}</td>
         <td data-label="Custo Sem.">${fmt(custoSem)}</td>
         <td data-label="Custo Mês">${fmt(custoMes)}</td>
         <td data-label="Total Real."><b>${fmt(fReal)}</b></td>
         <td data-label="% Custo" style="color:${pctCusto > 100 ? 'var(--red)' : pctCusto > 80 ? 'var(--orange)' : 'var(--green)'}">${pctCusto}%</td>
         <td data-label="Tarefas">${tarefasConcluidas}/${tarefasObra.length}</td>
       </tr>`;
-    });
-    dashObrasTbody.innerHTML = rows || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma obra encontrada</td></tr>';
+    }).join('') || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma obra em andamento</td></tr>';
   }
 
   // Update timestamp
@@ -194,11 +217,11 @@ function setNavGroupState(cls, open, persist) {
   if (persist) {
     const state = readNavGroupState();
     state[cls] = !!open;
-    try { localStorage.setItem(NAV_GROUP_STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+    try { localStorage.setItem(NAV_GROUP_STORAGE_KEY, JSON.stringify(state)); } catch (e) { }
   }
 }
 
-window.toggleGroup = function(cls, icn) {
+window.toggleGroup = function (cls, icn) {
   const items = document.querySelectorAll('.' + cls);
   const sample = Array.from(items).find(item => item.dataset.hiddenByRole !== '1');
   const isOpen = sample ? sample.style.display !== 'none' : false;
@@ -226,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-window.showPage = async function(id) {
+window.showPage = async function (id) {
   // Atualiza o menu lateral (Estilos)
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => { if (n.getAttribute('onclick')?.includes(id)) n.classList.add('active'); });
@@ -275,7 +298,7 @@ function renderTrialBanner(daysLeft) {
 // Escuta atualizações do Firebase para gerenciar o banner de Trial e Atualizar a UI Autonamente
 window.addEventListener('firebaseSync', e => {
   const data = e.detail;
-  
+
   // 1. Atualiza Banner de Trial
   if (data.plano === 'free_trial' && data.daysLeftTrial !== undefined && data.daysLeftTrial <= 14 && data.daysLeftTrial > 0) {
     renderTrialBanner(data.daysLeftTrial);
@@ -299,7 +322,7 @@ window.addEventListener('firebaseSync', e => {
 function renderHoje(targetDate) {
   const picker = document.getElementById('hoje-date-picker');
   const hoje = targetDate || (picker ? picker.value : '') || getTodayBR();
-  
+
   // Atualiza o input de data para manter sincronia
   if (picker) {
     picker.value = hoje;
@@ -320,7 +343,7 @@ function renderHoje(targetDate) {
   const allPresencaHoje = (DB.presenca || []).filter(p => p.data === hoje);
   const presencaHoje = custosDiariasHoje.porObra ? Object.values(custosDiariasHoje.porObra).flat() : [];
   const obras = DB.obras || [];
-  
+
   // Conta presentes e faltas de TODOS os registros (incluindo sem valor diária)
   const presentes = allPresencaHoje.filter(p => p.presenca === 'Presente').length;
   const faltas = allPresencaHoje.filter(p => p.presenca === 'Falta').length;
@@ -359,7 +382,7 @@ function renderHoje(targetDate) {
       const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
       const pres = pObra.filter(p => p.presenca === 'Presente').length;
       const fal = pObra.filter(p => p.presenca === 'Falta').length;
-      
+
       rows += `<tr>
         <td data-label="Obra"><b>${o.nome}</b></td>
         <td data-label="Presentes" style="color:var(--green)">${pres}</td>
@@ -392,7 +415,7 @@ function renderHoje(targetDate) {
   }
 
   const pendentesTbody = document.getElementById('hoje-pendentes-tbody');
-  
+
   // Nova tabela: Presença por Funcionário (TODOS os registros do dia)
   const funcionariosTbody = document.getElementById('hoje-funcionarios-tbody');
   if (funcionariosTbody) {
@@ -403,10 +426,10 @@ function renderHoje(targetDate) {
       const funcao = worker ? (worker.funcao || '-') : (p.funcao || '-');
       const obra = (DB.obras || []).find(o => o.cod === p.obra);
       const obraNome = obra ? obra.nome : (p.obra || '-');
-      const statusClass = p.presenca === 'Presente' ? 'var(--green)' : 
-                        p.presenca === 'Falta' ? 'var(--red)' : 'var(--text3)';
+      const statusClass = p.presenca === 'Presente' ? 'var(--green)' :
+        p.presenca === 'Falta' ? 'var(--red)' : 'var(--text3)';
       const horas = (parseFloat(p.hnorm) || 0) + (parseFloat(p.hextra) || 0);
-      
+
       rows += `<tr>
         <td data-label="Funcionário"><b>${p.nome}</b></td>
         <td data-label="Função">${funcao}</td>
@@ -417,7 +440,7 @@ function renderHoje(targetDate) {
     });
     funcionariosTbody.innerHTML = rows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">Nenhum registro de presença hoje.</td></tr>';
   }
-  
+
   if (pendentesTbody) {
     const pendentes = pendentesSemana.map(e => ({
       tipo: e.tipo || 'Lançamento',
@@ -441,23 +464,23 @@ function renderHoje(targetDate) {
   // Nova tabela: Aditivos e Descontos
   const aditivosTbody = document.getElementById('hoje-aditivos-tbody');
   if (aditivosTbody) {
-    const items = (DB.financeiro || []).filter(f => 
-      ['Aditivo', 'Desconto', 'Adiantamento', 'Ajuste'].includes(f.tipo) && 
+    const items = (DB.financeiro || []).filter(f =>
+      ['Aditivo', 'Desconto', 'Adiantamento', 'Ajuste'].includes(f.tipo) &&
       f.status !== 'Pago' && f.status !== 'Quitado'
     );
-    
+
     aditivosTbody.innerHTML = items.length
       ? items.map(f => {
-          const isDesconto = (f.tipo || '').toLowerCase().includes('desconto');
-          const valor = parseFloat(isDesconto ? -Math.abs(f.real || f.prev) : (f.real || f.prev)) || 0;
-          return `<tr>
+        const isDesconto = (f.tipo || '').toLowerCase().includes('desconto');
+        const valor = parseFloat(isDesconto ? -Math.abs(f.real || f.prev) : (f.real || f.prev)) || 0;
+        return `<tr>
             <td data-label="Tipo">${f.tipo}</td>
             <td data-label="Descrição">${f.desc}</td>
             <td data-label="Beneficiário">${f.forn || '-'}</td>
             <td data-label="Valor" style="color:${valor < 0 ? 'var(--red)' : 'var(--green)'}"><b>${fmt(valor)}</b></td>
             <td data-label="Status">${statusBadge(f.status)}</td>
           </tr>`;
-        }).join('')
+      }).join('')
       : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum aditivo ou desconto pendente</td></tr>';
   }
 }
@@ -485,205 +508,205 @@ function setHojeToday() {
 }
 
 window.exportHoje = function exportHoje() {
-   // Create a print-friendly version with ONLY data (no selectors/buttons)
-   const hojeData = document.getElementById('hoje-data')?.textContent || '';
-   const kpiGrid = document.getElementById('kpi-grid')?.innerHTML || '';
-   const alertsGrid = document.getElementById('alerts-grid')?.innerHTML || '';
-   
-   // Custos do dia com valores históricos gravados
-   const hoje = getTodayBR();
-   const custosDiariasHoje = window.calcCustosDiarias(DB.presenca, { dataInicio: hoje, dataFim: hoje });
-   const resumoGeral = window.buildFinanceEntries
-     ? window.buildFinanceEntries(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, {})
-     : { all: [] };
-   
-   // Build "Presença por Obra" table with ALL present workers (even without daily rate)
-   const allPresencaHoje = (DB.presenca || []).filter(p => p.data === hoje);
-   const obras = DB.obras || [];
-   let obrasTbody = '';
-   obras.forEach(o => {
-     const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
-     const pres = pObra.filter(p => p.presenca === 'Presente').length;
-     const fal = pObra.filter(p => p.presenca === 'Falta').length;
-     
-     obrasTbody += `<tr>
+  // Create a print-friendly version with ONLY data (no selectors/buttons)
+  const hojeData = document.getElementById('hoje-data')?.textContent || '';
+  const kpiGrid = document.getElementById('kpi-grid')?.innerHTML || '';
+  const alertsGrid = document.getElementById('alerts-grid')?.innerHTML || '';
+
+  // Custos do dia com valores históricos gravados
+  const hoje = getTodayBR();
+  const custosDiariasHoje = window.calcCustosDiarias(DB.presenca, { dataInicio: hoje, dataFim: hoje });
+  const resumoGeral = window.buildFinanceEntries
+    ? window.buildFinanceEntries(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, {})
+    : { all: [] };
+
+  // Build "Presença por Obra" table with ALL present workers (even without daily rate)
+  const allPresencaHoje = (DB.presenca || []).filter(p => p.data === hoje);
+  const obras = DB.obras || [];
+  let obrasTbody = '';
+  obras.forEach(o => {
+    const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
+    const pres = pObra.filter(p => p.presenca === 'Presente').length;
+    const fal = pObra.filter(p => p.presenca === 'Falta').length;
+
+    obrasTbody += `<tr>
        <td><b>${o.nome}</b></td>
        <td style="color:#22c55e">${pres}</td>
        <td style="color:${fal > 0 ? '#ef4444' : '#666'}">${fal}</td>
        <td>${pres + fal}</td>
      </tr>`;
-   });
-   
-   // Build "Presença por Funcionário" table
-   let funcionariosTbody = '';
-   allPresencaHoje.forEach(p => {
-     const worker = (DB.trabalhadores || []).find(t => t.cod === p.trab);
-     const funcao = worker ? (worker.funcao || '-') : (p.funcao || '-');
-     const obra = (DB.obras || []).find(o => o.cod === p.obra);
-     const obraNome = obra ? obra.nome : (p.obra || '-');
-     const statusClass = p.presenca === 'Presente' ? '#22c55e' : 
-                        p.presenca === 'Falta' ? '#ef4444' : '#666';
-     const horas = (parseFloat(p.hnorm) || 0) + (parseFloat(p.hextra) || 0);
-     const valor = parseFloat(p.total) || 0;
-     funcionariosTbody += `<tr>
+  });
+
+  // Build "Presença por Funcionário" table
+  let funcionariosTbody = '';
+  allPresencaHoje.forEach(p => {
+    const worker = (DB.trabalhadores || []).find(t => t.cod === p.trab);
+    const funcao = worker ? (worker.funcao || '-') : (p.funcao || '-');
+    const obra = (DB.obras || []).find(o => o.cod === p.obra);
+    const obraNome = obra ? obra.nome : (p.obra || '-');
+    const statusClass = p.presenca === 'Presente' ? '#22c55e' :
+      p.presenca === 'Falta' ? '#ef4444' : '#666';
+    const horas = (parseFloat(p.hnorm) || 0) + (parseFloat(p.hextra) || 0);
+    const valor = parseFloat(p.total) || 0;
+    funcionariosTbody += `<tr>
        <td><b>${p.nome}</b></td>
        <td>${funcao}</td>
        <td>${obraNome}</td>
        <td style="color:${statusClass}">${p.presenca}</td>
        <td>${horas.toFixed(1)}h</td>
      </tr>`;
-   });
-   
-   // Build pending measurements table for print - ALL PENDING, not just the week
-   let medicoesPendentesTbody = '';
-   const allMedicoesPendentes = (DB.medicao || []).filter(m => m.pgtoStatus !== 'Pago' && (parseFloat(m.vtotal) || 0) > 0);
-   
-   const medicoesPendentesList = allMedicoesPendentes.map(m => {
-     const total = parseFloat(m.vtotal) || 0;
-     const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
-     return { 
-       tipo: 'Medição', 
-       desc: m.servico, 
-       obra: m.obra, 
-       valor: Math.max(0, total - pago), 
-       status: m.pgtoStatus 
-     };
-   });
-   
-    medicoesPendentesTbody = medicoesPendentesList.length
-      ? medicoesPendentesList.map(m => `<tr>
+  });
+
+  // Build pending measurements table for print - ALL PENDING, not just the week
+  let medicoesPendentesTbody = '';
+  const allMedicoesPendentes = (DB.medicao || []).filter(m => m.pgtoStatus !== 'Pago' && (parseFloat(m.vtotal) || 0) > 0);
+
+  const medicoesPendentesList = allMedicoesPendentes.map(m => {
+    const total = parseFloat(m.vtotal) || 0;
+    const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
+    return {
+      tipo: 'Medição',
+      desc: m.servico,
+      obra: m.obra,
+      valor: Math.max(0, total - pago),
+      status: m.pgtoStatus
+    };
+  });
+
+  medicoesPendentesTbody = medicoesPendentesList.length
+    ? medicoesPendentesList.map(m => `<tr>
           <td data-label="Tipo">${m.tipo}</td>
           <td data-label="Descrição">${m.desc}</td>
           <td data-label="Obra">${window.obName(m.obra)}</td>
           <td data-label="Valor"><b>${fmt(m.valor)}</b></td>
           <td data-label="Status">${m.status}</td>
         </tr>`).join('')
-      : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma medição pendente</td></tr>';
-    
-    // Build pending payments table for print - ALL PENDING, todas as origens
-    const pendentesGeral = (resumoGeral.all || []).filter(e => e.status !== 'Pago' && e.pendente > 0);
-    let pendentesPrintTbody = pendentesGeral.length
-      ? pendentesGeral.map(e => `<tr>
+    : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma medição pendente</td></tr>';
+
+  // Build pending payments table for print - ALL PENDING, todas as origens
+  const pendentesGeral = (resumoGeral.all || []).filter(e => e.status !== 'Pago' && e.pendente > 0);
+  let pendentesPrintTbody = pendentesGeral.length
+    ? pendentesGeral.map(e => `<tr>
           <td data-label="Tipo">${e.tipo || 'Lançamento'}</td>
           <td data-label="Descrição">${e.desc || '—'}</td>
           <td data-label="Obra">${window.obName(e.obra)}</td>
           <td data-label="Valor"><b>${fmt(e.pendente)}</b></td>
           <td data-label="Status">${e.status}</td>
         </tr>`).join('')
-      : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum pagamento pendente</td></tr>';
+    : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum pagamento pendente</td></tr>';
 
-    // Nova seção no relatório: Aditivos, Descontos e Adiantamentos
-    const aditivosPendentes = (DB.financeiro || []).filter(f => 
-      ['Aditivo', 'Desconto', 'Adiantamento', 'Ajuste'].includes(f.tipo) && 
-      f.status !== 'Pago' && f.status !== 'Quitado'
-    );
-    let aditivosPrintTbody = aditivosPendentes.length
-      ? aditivosPendentes.map(f => {
-          const isDesconto = (f.tipo || '').toLowerCase().includes('desconto');
-          const valor = parseFloat(isDesconto ? -Math.abs(f.real || f.prev) : (f.real || f.prev)) || 0;
-          return `<tr>
+  // Nova seção no relatório: Aditivos, Descontos e Adiantamentos
+  const aditivosPendentes = (DB.financeiro || []).filter(f =>
+    ['Aditivo', 'Desconto', 'Adiantamento', 'Ajuste'].includes(f.tipo) &&
+    f.status !== 'Pago' && f.status !== 'Quitado'
+  );
+  let aditivosPrintTbody = aditivosPendentes.length
+    ? aditivosPendentes.map(f => {
+      const isDesconto = (f.tipo || '').toLowerCase().includes('desconto');
+      const valor = parseFloat(isDesconto ? -Math.abs(f.real || f.prev) : (f.real || f.prev)) || 0;
+      return `<tr>
             <td data-label="Tipo">${f.tipo}</td>
             <td data-label="Descrição">${f.desc}</td>
             <td data-label="Beneficiário">${f.forn || '-'}</td>
             <td data-label="Valor"><b>${fmt(valor)}</b></td>
             <td data-label="Status">${f.status}</td>
           </tr>`;
-        }).join('')
-      : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum aditivo ou desconto pendente</td></tr>';
-     
-     const printContent = '<html>' +
-      '<head>' +
-        '<title>Relatório do Dia - Obra Real</title>' +
-        '<meta charset="utf-8">' +
-        '<style>' +
-          'body { font-family: Arial, sans-serif; margin: 10px; color: #333; font-size: 13px; }' +
-          '.page-header { margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 8px; }' +
-          '.page-title { font-size: 20px; font-weight: bold; margin: 0; }' +
-          '.page-header div:last-child { font-size: 12px; color: #666; margin-top: 3px; }' +
-          '.kpi-grid { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }' +
-          '.kpi-card { border: 1px solid #ddd; padding: 10px; min-width: 120px; flex: 1; }' +
-          '.kpi-card:hover { background: var(--bg3) !important; }' +
-          '.kpi-card-ativa { border: 2px solid var(--accent) !important; background: var(--accent) !important; color: #fff; }' +
-          '.kpi-card-ativa .kpi-label, .kpi-card-ativa .kpi-val { color: #fff !important; }' +
-          '.kpi-label { font-size: 11px; color: #666; text-transform: uppercase; }' +
-          '.kpi-val { font-size: 20px; font-weight: bold; margin-top: 3px; }' +
-          '.kpi-val.green { color: #22c55e; }' +
-          '.kpi-val.red { color: #ef4444; }' +
-          '.kpi-val.yellow { color: #eab308; }' +
-          '.kpi-val.blue { color: #3b82f6; }' +
-          '.section-title { margin-top: 10px; font-size: 16px; font-weight: bold; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }' +
-          '.alerts-grid { margin: 10px 0; }' +
-          '.alert-card { border: 1px solid #ddd; padding: 8px; margin-bottom: 5px; border-left: 3px solid #f59e0b; }' +
-          '.alert-card.alto { border-left-color: #ef4444; }' +
-          '.alert-card.medio { border-left-color: #f59e0b; }' +
-          '.alert-body h4 { margin: 0 0 3px 0; font-size: 13px; }' +
-          '.alert-body p { margin: 0; font-size: 12px; color: #666; }' +
-          '.table-wrap { margin: 10px 0; }' +
-          'table { width: 100%; border-collapse: collapse; }' +
-          'th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }' +
-          'th { background-color: #f5f5f5; font-weight: bold; font-size: 12px; }' +
-          'td { font-size: 12px; }' +
-          '@media print {' +
-            'body { margin: 10px; }' +
-            '.kpi-grid { page-break-inside: avoid; }' +
-            'table { page-break-inside: avoid; }' +
-            '* { margin: 0; padding: 0; }' +
-          '}' +
-        '</style>' +
-      '</head>' +
-      '<body>' +
-        '<div class="page-header">' +
-          '<div class="page-title">Relatório do Dia - Obra Real</div>' +
-          '<div>' + hojeData + '</div>' +
-        '</div>' +
-        '<div class="kpi-grid">' + kpiGrid + '</div>' +
-        '<div class="section-title">⚠️ Pendências do Dia</div>' +
-        '<div class="alerts-grid">' + alertsGrid + '</div>' +
-        '<div class="section-title" style="margin-top:10px">👷 Presença por Obra</div>' +
-        '<div class="table-wrap" style="margin-top:5px"><table>' +
-          '<thead><tr><th>Obra</th><th>Presentes</th><th>Faltas</th><th>Total</th></tr></thead>' +
-          '<tbody>' + obrasTbody + '</tbody>' +
-        '</table></div>' +
-        '<div class="section-title" style="margin-top:10px">👷 Presença por Funcionário</div>' +
-        '<div class="table-wrap" style="margin-top:5px"><table>' +
-          '<thead><tr><th>Funcionário</th><th>Função</th><th>Obra</th><th>Status</th><th>Horas</th></tr></thead>' +
-          '<tbody>' + funcionariosTbody + '</tbody>' +
-        '</table></div>' +
-        '<div class="section-title" style="margin-top:10px">📋 Medições Pendentes</div>' +
-        '<div class="table-wrap"><table>' +
-          '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor Pendente</th><th>Status</th></tr></thead>' +
-          '<tbody>' + medicoesPendentesTbody + '</tbody>' +
-        '</table></div>' +
-        '<div class="section-title" style="margin-top:10px">⚖️ Aditivos, Descontos e Adiantamentos</div>' +
-        '<div class="table-wrap"><table>' +
-          '<thead><tr><th>Tipo</th><th>Descrição</th><th>Beneficiário</th><th>Valor</th><th>Status</th></tr></thead>' +
-          '<tbody>' + aditivosPrintTbody + '</tbody>' +
-        '</table></div>' +
-        '<div class="section-title" style="margin-top:10px">💰 Pagamentos Pendentes</div>' +
-        '<div class="table-wrap"><table>' +
-          '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor</th><th>Status</th></tr></thead>' +
-          '<tbody>' + pendentesPrintTbody + '</tbody>' +
-        '</table></div>' +
-      '</body>' +
+    }).join('')
+    : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum aditivo ou desconto pendente</td></tr>';
+
+  const printContent = '<html>' +
+    '<head>' +
+    '<title>Relatório do Dia - Obra Real</title>' +
+    '<meta charset="utf-8">' +
+    '<style>' +
+    'body { font-family: Arial, sans-serif; margin: 10px; color: #333; font-size: 13px; }' +
+    '.page-header { margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 8px; }' +
+    '.page-title { font-size: 20px; font-weight: bold; margin: 0; }' +
+    '.page-header div:last-child { font-size: 12px; color: #666; margin-top: 3px; }' +
+    '.kpi-grid { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }' +
+    '.kpi-card { border: 1px solid #ddd; padding: 10px; min-width: 120px; flex: 1; }' +
+    '.kpi-card:hover { background: var(--bg3) !important; }' +
+    '.kpi-card-ativa { border: 2px solid var(--accent) !important; background: var(--accent) !important; color: #fff; }' +
+    '.kpi-card-ativa .kpi-label, .kpi-card-ativa .kpi-val { color: #fff !important; }' +
+    '.kpi-label { font-size: 11px; color: #666; text-transform: uppercase; }' +
+    '.kpi-val { font-size: 20px; font-weight: bold; margin-top: 3px; }' +
+    '.kpi-val.green { color: #22c55e; }' +
+    '.kpi-val.red { color: #ef4444; }' +
+    '.kpi-val.yellow { color: #eab308; }' +
+    '.kpi-val.blue { color: #3b82f6; }' +
+    '.section-title { margin-top: 10px; font-size: 16px; font-weight: bold; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }' +
+    '.alerts-grid { margin: 10px 0; }' +
+    '.alert-card { border: 1px solid #ddd; padding: 8px; margin-bottom: 5px; border-left: 3px solid #f59e0b; }' +
+    '.alert-card.alto { border-left-color: #ef4444; }' +
+    '.alert-card.medio { border-left-color: #f59e0b; }' +
+    '.alert-body h4 { margin: 0 0 3px 0; font-size: 13px; }' +
+    '.alert-body p { margin: 0; font-size: 12px; color: #666; }' +
+    '.table-wrap { margin: 10px 0; }' +
+    'table { width: 100%; border-collapse: collapse; }' +
+    'th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }' +
+    'th { background-color: #f5f5f5; font-weight: bold; font-size: 12px; }' +
+    'td { font-size: 12px; }' +
+    '@media print {' +
+    'body { margin: 10px; }' +
+    '.kpi-grid { page-break-inside: avoid; }' +
+    'table { page-break-inside: avoid; }' +
+    '* { margin: 0; padding: 0; }' +
+    '}' +
+    '</style>' +
+    '</head>' +
+    '<body>' +
+    '<div class="page-header">' +
+    '<div class="page-title">Relatório do Dia - Obra Real</div>' +
+    '<div>' + hojeData + '</div>' +
+    '</div>' +
+    '<div class="kpi-grid">' + kpiGrid + '</div>' +
+    '<div class="section-title">⚠️ Pendências do Dia</div>' +
+    '<div class="alerts-grid">' + alertsGrid + '</div>' +
+    '<div class="section-title" style="margin-top:10px">👷 Presença por Obra</div>' +
+    '<div class="table-wrap" style="margin-top:5px"><table>' +
+    '<thead><tr><th>Obra</th><th>Presentes</th><th>Faltas</th><th>Total</th></tr></thead>' +
+    '<tbody>' + obrasTbody + '</tbody>' +
+    '</table></div>' +
+    '<div class="section-title" style="margin-top:10px">👷 Presença por Funcionário</div>' +
+    '<div class="table-wrap" style="margin-top:5px"><table>' +
+    '<thead><tr><th>Funcionário</th><th>Função</th><th>Obra</th><th>Status</th><th>Horas</th></tr></thead>' +
+    '<tbody>' + funcionariosTbody + '</tbody>' +
+    '</table></div>' +
+    '<div class="section-title" style="margin-top:10px">📋 Medições Pendentes</div>' +
+    '<div class="table-wrap"><table>' +
+    '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor Pendente</th><th>Status</th></tr></thead>' +
+    '<tbody>' + medicoesPendentesTbody + '</tbody>' +
+    '</table></div>' +
+    '<div class="section-title" style="margin-top:10px">⚖️ Aditivos, Descontos e Adiantamentos</div>' +
+    '<div class="table-wrap"><table>' +
+    '<thead><tr><th>Tipo</th><th>Descrição</th><th>Beneficiário</th><th>Valor</th><th>Status</th></tr></thead>' +
+    '<tbody>' + aditivosPrintTbody + '</tbody>' +
+    '</table></div>' +
+    '<div class="section-title" style="margin-top:10px">💰 Pagamentos Pendentes</div>' +
+    '<div class="table-wrap"><table>' +
+    '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor</th><th>Status</th></tr></thead>' +
+    '<tbody>' + pendentesPrintTbody + '</tbody>' +
+    '</table></div>' +
+    '</body>' +
     '</html>';
-   
-   // Open print window
-   const printWindow = window.open('', '_blank');
-   printWindow.document.write(printContent);
-   printWindow.document.close();
-   printWindow.focus();
-   
-   // Wait for content to load then print
-   printWindow.onload = function() {
-     printWindow.print();
-     
-     // Also offer to save as PDF
-     setTimeout(() => {
-       if (confirm('Deseja salvar como PDF para enviar pelo WhatsApp?')) {
-         printWindow.print();
-       }
-     }, 1000);
-};
+
+  // Open print window
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+  printWindow.focus();
+
+  // Wait for content to load then print
+  printWindow.onload = function () {
+    printWindow.print();
+
+    // Also offer to save as PDF
+    setTimeout(() => {
+      if (confirm('Deseja salvar como PDF para enviar pelo WhatsApp?')) {
+        printWindow.print();
+      }
+    }, 1000);
+  };
 };
 
 // ==================== OBRAS ====================
@@ -691,9 +714,9 @@ function renderObras() {
   safeSetInner('obras-grid', DB.obras.map(o => {
     const fReal = DB.financeiro.filter(f => f.obra === o.cod).reduce((a, f) => a + (Number(f.real) || 0), 0);
     const pctCusto = o.orc > 0 ? (fReal / o.orc * 100).toFixed(1) : 0;
-    
+
     const tasks = DB.tarefas.filter(t => t.obra === o.cod);
-    const avgFisico = tasks.length > 0 
+    const avgFisico = tasks.length > 0
       ? (tasks.reduce((acc, t) => acc + (Number(t.perc) || 0), 0) / tasks.length).toFixed(0)
       : 0;
 
@@ -753,12 +776,12 @@ function shareObraWhatsApp(obraCod) {
   if (!o) return;
 
   const tasks = DB.tarefas.filter(t => t.obra === obraCod);
-  const avgFisico = tasks.length > 0 
+  const avgFisico = tasks.length > 0
     ? (tasks.reduce((acc, t) => acc + (Number(t.perc) || 0), 0) / tasks.length).toFixed(0)
     : 0;
 
   const fReal = DB.financeiro.filter(f => f.obra === obraCod).reduce((a, f) => a + (Number(f.real) || 0), 0);
-  
+
   // Busca presenças do dia de hoje para esta obra
   const tDay = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0');
   const pres = (DB.presenca || []).filter(p => p.obra === obraCod && p.data === tDay);
@@ -786,19 +809,19 @@ function renderTrabalhadores() {
 
   safeSetInner('trab-tbody', DB.trabalhadores.length
     ? DB.trabalhadores.map((t, i) => {
-        const pres = (DB.presenca || []).filter(p => (p.trab === t.cod || p.nome === t.nome));
-        const totalAtend = pres.filter(p => (p.presenca==='Presente'||p.presenca==='Falta')).length;
-        const presentCnt = pres.filter(p => p.presenca === 'Presente').length;
-        const assid = totalAtend > 0 ? ((presentCnt / totalAtend) * 100).toFixed(0) : 0;
-        const faltasMes = pres.filter(p => p.presenca === 'Falta' && (p.data||'').startsWith(currentMonth)).length;
+      const pres = (DB.presenca || []).filter(p => (p.trab === t.cod || p.nome === t.nome));
+      const totalAtend = pres.filter(p => (p.presenca === 'Presente' || p.presenca === 'Falta')).length;
+      const presentCnt = pres.filter(p => p.presenca === 'Presente').length;
+      const assid = totalAtend > 0 ? ((presentCnt / totalAtend) * 100).toFixed(0) : 0;
+      const faltasMes = pres.filter(p => p.presenca === 'Falta' && (p.data || '').startsWith(currentMonth)).length;
 
-        // Cálculo de Saldo Acumulado (Simplificado: Total Gerado - Saldo Pago no Financeiro)
-        const earned = pres.reduce((acc, p) => acc + (Number(p.total) || 0), 0);
-        const paid = (DB.financeiro || []).filter(f => f.source === 'pre' && f.forn === t.nome && f.status === 'Pago')
-                      .reduce((acc, f) => acc + (Number(f.real) || 0), 0);
-        const saldo = earned - paid;
+      // Cálculo de Saldo Acumulado (Simplificado: Total Gerado - Saldo Pago no Financeiro)
+      const earned = pres.reduce((acc, p) => acc + (Number(p.total) || 0), 0);
+      const paid = (DB.financeiro || []).filter(f => f.source === 'pre' && f.forn === t.nome && f.status === 'Pago')
+        .reduce((acc, f) => acc + (Number(f.real) || 0), 0);
+      const saldo = earned - paid;
 
-        return `<tr>
+      return `<tr>
           <td data-label="Cód."><span class="cod">${t.cod}</span></td>
           <td data-label="Nome / Função"><b>${t.nome}</b><br><small style="color:var(--text3)">${t.funcao || '—'}</small></td>
           <td data-label="Assiduidade (%)">
@@ -816,7 +839,7 @@ function renderTrabalhadores() {
             <button class="btn btn-danger btn-sm" onclick="deleteItem('trabalhadores',${i})">Excluir</button>
           </td>
         </tr>`;
-      }).join('')
+    }).join('')
     : uiEmptyState('Sem Trabalhadores', 'Cadastre o primeiro pedreiro, mestre ou servente para começar.', '👷‍♂️', 'Adicionar Trabalhador', 'openModal(\'modal-trabalhador\')'));
 }
 
@@ -828,8 +851,8 @@ function renderAlmocos() {
   const qStr = (document.getElementById('almoco-busca')?.value || '').toLowerCase();
 
   const filtered = list.map((a, i) => ({ ...a, _idx: i }))
-                       .filter(a => JSON.stringify(a).toLowerCase().includes(qStr))
-                       .sort((a, b) => new Date(b.data) - new Date(a.data));
+    .filter(a => JSON.stringify(a).toLowerCase().includes(qStr))
+    .sort((a, b) => new Date(b.data) - new Date(a.data));
 
   if (!filtered.length) {
     safeSetInner('almocos-tbody', '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text3)">Nenhum almoço registrado.</td></tr>');
@@ -856,19 +879,19 @@ function renderAlmocos() {
 
 function renderAlmocosKPI(list) {
   const container = document.getElementById('almocos-kpi');
-  if(!container) return;
+  if (!container) return;
   const hoje = today;
-  const almoHoje = list.filter(a => a.data === hoje).reduce((acc, a) => acc + (parseFloat(a.qtd)||0), 0);
-  const custoHoje = list.filter(a => a.data === hoje).reduce((acc, a) => acc + (parseFloat(a.vtotal)||0), 0);
-  
+  const almoHoje = list.filter(a => a.data === hoje).reduce((acc, a) => acc + (parseFloat(a.qtd) || 0), 0);
+  const custoHoje = list.filter(a => a.data === hoje).reduce((acc, a) => acc + (parseFloat(a.vtotal) || 0), 0);
+
   const todayDate = new Date();
   const fSemana = new Date(todayDate);
   const dayOfWeek = todayDate.getDay();
   const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo vira 6, segunda vira 0, etc.
   fSemana.setDate(todayDate.getDate() - diff);
   const strSemana = fSemana.toISOString().split('T')[0];
-  const qtdSemana = list.filter(a => a.data >= strSemana && a.data <= hoje).reduce((acc, a) => acc + (parseFloat(a.qtd)||0), 0);
-  const custoSemana = list.filter(a => a.data >= strSemana && a.data <= hoje).reduce((acc, a) => acc + (parseFloat(a.vtotal)||0), 0);
+  const qtdSemana = list.filter(a => a.data >= strSemana && a.data <= hoje).reduce((acc, a) => acc + (parseFloat(a.qtd) || 0), 0);
+  const custoSemana = list.filter(a => a.data >= strSemana && a.data <= hoje).reduce((acc, a) => acc + (parseFloat(a.vtotal) || 0), 0);
 
   container.innerHTML = `
     <div class="kpi-card">
@@ -899,15 +922,15 @@ function renderAlmocosKPI(list) {
 
   // Resumo Semanal por Obra
   const resumoContainer = document.getElementById('almocos-resumo');
-  if(resumoContainer) {
+  if (resumoContainer) {
     const weeklyList = list.filter(a => a.data >= strSemana && a.data <= hoje);
     const agrupadoSemanal = {};
     weeklyList.forEach(a => {
-      if(!agrupadoSemanal[a.obra]) agrupadoSemanal[a.obra] = { qtd: 0, total: 0 };
-      agrupadoSemanal[a.obra].qtd += (parseFloat(a.qtd)||0);
-      agrupadoSemanal[a.obra].total += (parseFloat(a.vtotal)||0);
+      if (!agrupadoSemanal[a.obra]) agrupadoSemanal[a.obra] = { qtd: 0, total: 0 };
+      agrupadoSemanal[a.obra].qtd += (parseFloat(a.qtd) || 0);
+      agrupadoSemanal[a.obra].total += (parseFloat(a.vtotal) || 0);
     });
-    
+
     resumoContainer.innerHTML = Object.keys(agrupadoSemanal).map(obra => `
       <div class="kpi-card" style="padding:16px;">
         <div style="font-size:12px;color:var(--text3)">${obName(obra)}</div>
@@ -1055,7 +1078,7 @@ function getCurrentWeekDates() {
   const dayOfWeek = todayObj.getDay();
   const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   startOfWeek.setDate(todayObj.getDate() - diff + (currentWeekOffset * 7));
-  
+
   const days = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(startOfWeek);
@@ -1081,10 +1104,10 @@ function renderQuadroSemanal() {
   const dayOfWeek = todayObj.getDay();
   const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo vira 6, segunda vira 0, etc.
   startOfWeek.setDate(todayObj.getDate() - diff + (currentWeekOffset * 7));
-  
+
   const days = [];
   const dayNames = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-  
+
   for (let i = 0; i < 7; i++) {
     const d = new Date(startOfWeek);
     d.setDate(startOfWeek.getDate() + i);
@@ -1123,11 +1146,11 @@ function renderQuadroSemanal() {
         <b>${w.nome}</b><br>
         <small style="color:var(--text3)">${w.funcao || '—'}</small>
       </td>`;
-    
+
     days.forEach(d => {
-      const pIdx = (DB.presenca || []).findIndex(record => 
+      const pIdx = (DB.presenca || []).findIndex(record =>
         record && record.data === d.date && (
-          record.trab === w.cod || 
+          record.trab === w.cod ||
           (record.trab == null || record.trab === '') && record.nome === w.nome
         )
       );
@@ -1329,26 +1352,26 @@ function renderPresenca() {
   try {
     const porTrab = {};
     const seenKeys = new Set(); // Para evitar duplicatas no cálculo
-    
+
     validPres.forEach(p => {
       if (!p.nome || !p.presenca) return;
-      
+
       // Chave única: data + trabalhador
       const trabKey = p.trab || p.nome;
       const uniqueKey = `${p.data}_${trabKey}`;
       if (seenKeys.has(uniqueKey)) return; // Pula duplicata
       seenKeys.add(uniqueKey);
-      
+
       const k = p.nome;
       if (!porTrab[k]) porTrab[k] = { total: 0, pendente: 0, diasTrabalhados: 0, diasFalta: 0, obra: p.obra };
-      
+
       const total = Number(p.total) || 0;
       const pago = p.pgtoStatus === 'Parcial' ? (Number(p.valpago) || 0) : 0;
       porTrab[k].total += total;
       if (p.pgtoStatus !== 'Pago') {
         porTrab[k].pendente += Math.max(0, total - pago);
       }
-      
+
       if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
         porTrab[k].diasTrabalhados++;
       } else if (p.presenca === 'Falta') {
@@ -1368,7 +1391,7 @@ function renderPresenca() {
     }).join('');
 
     safeSetInner('pres-empreitada', empreitadaHtml || '<p style="color:var(--text3); padding: 8px;">Sem registros de fechamento por trabalhador.</p>');
-  } catch(e) {
+  } catch (e) {
     console.error('Erro ao renderizar fechamento por trabalhador:', e);
   }
 
@@ -1400,8 +1423,8 @@ function setTaskView(mode) {
   document.getElementById('id-view-kanban')?.classList.toggle('active', mode === 'kanban');
   const tableCont = document.getElementById('tar-table-container');
   const kanbanCont = document.getElementById('tar-kanban-container');
-  if(tableCont) tableCont.style.display = mode === 'table' ? 'block' : 'none';
-  if(kanbanCont) kanbanCont.style.display = mode === 'kanban' ? 'block' : 'none';
+  if (tableCont) tableCont.style.display = mode === 'table' ? 'block' : 'none';
+  if (kanbanCont) kanbanCont.style.display = mode === 'kanban' ? 'block' : 'none';
   renderTarefas();
 }
 window.setTaskView = setTaskView;
@@ -1409,9 +1432,9 @@ window.setTaskView = setTaskView;
 function renderTarefas() {
   const obraFilter = document.getElementById('tar-obra-filter')?.value || '';
   const busca = (document.getElementById('tar-busca')?.value || '').toLowerCase();
-  
+
   const tasks = DB.tarefas.map((t, i) => ({ ...t, _idx: i }))
-    .filter(t => (!obraFilter || t.obra === obraFilter) && (!busca || (t.desc||'').toLowerCase().includes(busca) || (t.resp||'').toLowerCase().includes(busca)))
+    .filter(t => (!obraFilter || t.obra === obraFilter) && (!busca || (t.desc || '').toLowerCase().includes(busca) || (t.resp || '').toLowerCase().includes(busca)))
     .sort((a, b) => {
       // Ordenação decrescente por prazo (vencendo antes no topo)
       // Mas se um não tem prazo, manda pro final
@@ -1426,7 +1449,7 @@ function renderTarefas() {
   const conc = tasks.filter(t => t.status === 'Concluída').length;
   const andam = tasks.filter(t => t.status === 'Em andamento').length;
   const pend = tasks.filter(t => t.status === 'Pendente' || t.status === 'A fazer' || !t.status).length;
-  
+
   safeSetInner('tar-kpi', `
     <div class="kpi-card"><div class="kpi-label">Total Filtrado</div><div class="kpi-val">${total}</div></div>
     <div class="kpi-card"><div class="kpi-label">Concluídas</div><div class="kpi-val green">${conc}</div></div>
@@ -1472,7 +1495,7 @@ function renderTaskTable(tasks) {
 function renderKanban(tasks) {
   const colOrder = ['Pendente', 'Em andamento', 'Concluída'];
   const colTitles = { 'Pendente': '📋 Para Fazer', 'Em andamento': '🚧 Em Andamento', 'Concluída': '✅ Concluída' };
-  
+
   let html = '';
   colOrder.forEach(cId => {
     const cItems = tasks.filter(t => (t.status || 'Pendente') === cId);
@@ -1512,11 +1535,11 @@ function abrirModalEntrada() {
   if (sel) {
     sel.innerHTML = '<option value="">Selecione o item...</option>';
     (DB.estoque || []).forEach(e => {
-      const saldo = (parseFloat(e.entrada)||0) - (parseFloat(e.saida)||0);
+      const saldo = (parseFloat(e.entrada) || 0) - (parseFloat(e.saida) || 0);
       sel.innerHTML += `<option value="${e.cod}">${e.mat} (${e.unid}) — saldo: ${saldo}</option>`;
     });
   }
-  ['ent-quantidade','ent-vunit'].forEach(id => { const el = document.getElementById(id); if (el) el.value = id === 'ent-quantidade' ? '1' : '0'; });
+  ['ent-quantidade', 'ent-vunit'].forEach(id => { const el = document.getElementById(id); if (el) el.value = id === 'ent-quantidade' ? '1' : '0'; });
   const motivo = document.getElementById('ent-motivo'); if (motivo) motivo.value = '';
   const obs = document.getElementById('ent-obs'); if (obs) obs.value = '';
   const el = document.getElementById('modal-entrada-estoque');
@@ -1536,7 +1559,7 @@ async function confirmarEntrada() {
   if (!qtd || qtd <= 0) { toast('Quantidade inválida.', 'error'); return; }
   if (!motivo) { toast('Informe o motivo/NF.', 'error'); return; }
   const e = DB.estoque.find(x => x.cod === codMat);
-  if (e) e.entrada = (parseFloat(e.entrada)||0) + qtd;
+  if (e) e.entrada = (parseFloat(e.entrada) || 0) + qtd;
   DB.movEstoque.push({
     data: today, codMat, mat: e?.mat || codMat, obra: e?.obra || '',
     tipo: 'Entrada', qtd, motivo, obs: document.getElementById('ent-obs')?.value || ''
@@ -1606,12 +1629,12 @@ function renderCompras() {
 
 
 // ==================== FINANCEIRO ====================
-window.toggleFinCustomDates = function() {
+window.toggleFinCustomDates = function () {
   const sel = document.getElementById('fin-view-type');
   const customDiv = document.getElementById('fin-custom-dates');
   const standardDivs = document.querySelectorAll('.fin-standard-dates');
   if (!sel || !customDiv) return;
-  
+
   if (sel.value === 'custom') {
     customDiv.style.display = 'flex';
     standardDivs.forEach(d => d.style.display = 'none');
@@ -1632,7 +1655,7 @@ window.toggleFinCustomDates = function() {
   }
 };
 
-window.applyFinCustomPeriod = function() {
+window.applyFinCustomPeriod = function () {
   const iniEl = document.getElementById('fin-data-ini');
   const fimEl = document.getElementById('fin-data-fim');
   if (!iniEl?.value || !fimEl?.value) {
@@ -2719,6 +2742,38 @@ function renderBilling() {
 // Removida duplicata local para evitar sobrescrita
 
 // ==================== SUPER ADMIN (MASTER) ====================
+// Tudo que vem do banco (nome da empresa, slug, e-mail, IDs) é digitado por usuários de fora:
+// aqui nunca entra em innerHTML/onclick sem escape, senão vira XSS contra o Master.
+function _escMaster(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+// Argumento de string para onclick="fn(...)": literal JS seguro, depois escapado para atributo HTML.
+function _jsArgMaster(v) {
+  return _escMaster(JSON.stringify(String(v == null ? '' : v)));
+}
+
+// Avisa o Master e atualiza as tabelas quando uma empresa nova é criada (ex.: auto-cadastro com slug).
+function watchNewTenants() {
+  if (window._masterTenantsWatching) return;
+  window._masterTenantsWatching = true;
+  firebase.database().ref('tenants').on('child_added', (snap) => {
+    const known = window.globalTenantsDataCache || {};
+    if (known[snap.key]) return; // já estava na tela
+    const t = snap.val() || {};
+    known[snap.key] = t;
+    window.globalTenantsDataCache = known;
+    if (t.origem === 'self_signup') {
+      toast(`Nova empresa cadastrada: ${_escMaster(t.nomeEmpresa || snap.key)}`);
+    }
+    renderSuperAdmin();
+  }, (err) => {
+    console.warn('Observador de novas empresas indisponível:', err);
+    window._masterTenantsWatching = false;
+  });
+}
+
 async function renderSuperAdmin() {
   const tbody = document.getElementById('master-tenants-tbody');
   const tbodyUsers = document.getElementById('master-users-tbody');
@@ -2753,26 +2808,26 @@ async function renderSuperAdmin() {
       const config = t.config || {};
       // Busca o admin principal no nó Profilies
       const adminProfile = profileList.find(p => p.tenantId === tid && p.role === 'admin');
-      let displayEmail = adminProfile ? adminProfile.email : 'N/A';
+      let displayEmail = adminProfile ? _escMaster(adminProfile.email) : 'N/A';
 
       // Se o cliente ainda não se cadastrou (Perfil não existe), procura no nó Invites para exibir como "Pendente"
       const invitesData = window.globalInvitesDataCache || {}; // Necessita do fetch de convites acima
       if (!adminProfile) {
         const pendingKey = Object.keys(invitesData).find(k => invitesData[k].tenantId === tid && invitesData[k].role === 'admin');
-        if (pendingKey) displayEmail = pendingKey.replace(/,/g, '.') + ' <span style="font-size:10px; color:var(--orange)">(Convite)</span>';
+        if (pendingKey) displayEmail = _escMaster(pendingKey.replace(/,/g, '.')) + ' <span style="font-size:10px; color:var(--orange)">(Convite)</span>';
       }
 
       return `<tr>
             <td>
-                <div style="font-weight:600">${config.nomeEmpresa || 'Sem Nome'}</div>
-                <div style="font-size:10px; opacity:0.6">${tid}</div>
+                <div style="font-weight:600">${_escMaster(config.nomeEmpresa || 'Sem Nome')}</div>
+                <div style="font-size:10px; opacity:0.6">${_escMaster(config.slug || t.slug || tid)}.obrareal.com${t.origem === 'self_signup' ? ' · auto-cadastro' : ''}${t.plano ? ' · ' + _escMaster(t.plano) : ''}</div>
             </td>
             <td>${displayEmail}</td>
-            <td>${config.limiteObras || 2}</td>
-            <td>${config.limiteTrabalhadores || 10}</td>
+            <td>${_escMaster(config.limiteObras || 2)}</td>
+            <td>${_escMaster(config.limiteTrabalhadores || 10)}</td>
             <td>
-                <button class="btn btn-primary btn-sm" onclick="openMasterTenantModal('${tid}')">⚙️ Ajustar</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteTenant('${tid}')" style="margin-left: 5px;">Excluir</button>
+                <button class="btn btn-primary btn-sm" onclick="openMasterTenantModal(${_jsArgMaster(tid)})">⚙️ Ajustar</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteTenant(${_jsArgMaster(tid)})" style="margin-left: 5px;">Excluir</button>
             </td>
         </tr>`;
     }).join('');
@@ -2788,29 +2843,32 @@ async function renderSuperAdmin() {
         if (p.tenantId !== 'MASTER_SYSTEM') {
           const t = tenants[p.tenantId] || {};
           const config = t.config || {};
-          nomeEmp = config.nomeEmpresa || 'Empresa Excluída/Não Encontrada';
-          const slugTxt = config.slug ? `(<b>${config.slug}</b>)` : '';
-          extraInfo = `<div style="font-size:10px; opacity:0.6">ID: ${p.tenantId} ${slugTxt}</div>`;
+          nomeEmp = _escMaster(config.nomeEmpresa || 'Empresa Excluída/Não Encontrada');
+          const slugTxt = config.slug ? `(<b>${_escMaster(config.slug)}</b>)` : '';
+          extraInfo = `<div style="font-size:10px; opacity:0.6">ID: ${_escMaster(p.tenantId)} ${slugTxt}</div>`;
         }
 
         return `<tr>
-                <td><div style="font-weight:600">${p.name || 'Sem Nome'}</div></td>
-                <td>${p.email || 'N/A'}</td>
-                <td><span class="badge badge-gray">${(p.role || '').toUpperCase()}</span></td>
+                <td><div style="font-weight:600">${_escMaster(p.name || 'Sem Nome')}</div></td>
+                <td>${_escMaster(p.email || 'N/A')}</td>
+                <td><span class="badge badge-gray">${_escMaster((p.role || '').toUpperCase())}</span></td>
                 <td>
                     <div style="font-weight:600">${nomeEmp}</div>
                     ${extraInfo}
                 </td>
                 <td>
-                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser('${p.uid}', '${p.email || ''}', '${p.tenantId || ''}')">🗑️ Excluir</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser(${_jsArgMaster(p.uid)}, ${_jsArgMaster(p.email || '')}, ${_jsArgMaster(p.tenantId || '')})">🗑️ Excluir</button>
                 </td>
             </tr>`;
       }).join('');
     }
 
+    // Observa empresas novas (auto-cadastro) para aparecerem aqui sem recarregar
+    watchNewTenants();
+
     // Chama a auditoria de Webhooks
     renderWebhookLogs();
-    
+
     // Chama a gestão de Super Admins
     renderMasterUsers();
 
@@ -2827,7 +2885,7 @@ async function renderWebhookLogs() {
   try {
     const snap = await firebase.database().ref('webhook_debug').limitToLast(15).once('value');
     const logs = snap.val() || {};
-    const items = Object.values(logs).sort((a,b) => b.timestamp - a.timestamp);
+    const items = Object.values(logs).sort((a, b) => b.timestamp - a.timestamp);
 
     if (items.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; opacity:0.6;">Nenhum evento registrado ainda.</td></tr>';
@@ -2914,7 +2972,7 @@ async function addMasterUser() {
 
   if (!email) return toast('Informe o e-mail do novo Super Admin.', 'error');
   if (pass && pass.length < 6) return toast('A senha deve ter pelo menos 6 caracteres.', 'error');
-  
+
   if (!confirm(`Deseja realmente dar acesso TOTAL e GLOBAL para ${email}?`)) return;
 
   try {
@@ -2952,7 +3010,7 @@ async function addMasterUser() {
       } catch (authErr) {
         if (authErr.code === 'auth/email-already-in-use') {
           // Já existe no Auth: envia e-mail para definir a nova senha
-          await firebase.auth().sendPasswordResetEmail(email).catch(() => {});
+          await firebase.auth().sendPasswordResetEmail(email).catch(() => { });
           toast(`Conta já existia no Auth. Um link para definir a senha foi enviado para ${email}.`, 'warning');
         } else {
           console.warn('Aviso ao criar usuário no Auth:', authErr);
@@ -2961,7 +3019,7 @@ async function addMasterUser() {
       }
     } else {
       // Sem senha digitada: tenta enviar link para o e-mail criar sua senha
-      await firebase.auth().sendPasswordResetEmail(email).catch(() => {});
+      await firebase.auth().sendPasswordResetEmail(email).catch(() => { });
     }
 
     // Se o usuário já tiver perfil criado no banco, sincroniza imediatamente
@@ -3024,10 +3082,10 @@ function openMasterTenantModal(tid) {
   container.querySelector('#mt-email').value = '';
   container.querySelector('#mt-limite-obras').value = config.limiteObras || 0;
   container.querySelector('#mt-limite-usr').value = config.limiteUsuarios || 0;
-  
+
   // Novos campos de controle de Plano
-  if(container.querySelector('#mt-plano')) container.querySelector('#mt-plano').value = tData.plano || 'free_trial';
-  if(container.querySelector('#mt-status')) container.querySelector('#mt-status').value = tData.status || 'ativo';
+  if (container.querySelector('#mt-plano')) container.querySelector('#mt-plano').value = tData.plano || 'free_trial';
+  if (container.querySelector('#mt-status')) container.querySelector('#mt-status').value = tData.status || 'ativo';
 
   document.getElementById('modal-container').classList.add('open');
 }
@@ -3070,7 +3128,7 @@ async function saveMasterTenant() {
     updates[`tenants/${tid}/config/limiteUsuarios`] = lusr;
     updates[`tenants/${tid}/plano`] = plano;
     updates[`tenants/${tid}/status`] = status;
-    
+
     // Se mudou para Premium agora, garante validade de 30 dias se não tiver
     if (plano === 'premium') {
       updates[`tenants/${tid}/planoVencimento`] = Date.now() + (31 * 24 * 60 * 60 * 1000);
@@ -3194,7 +3252,7 @@ async function deleteGlobalUser(uid, email, tid) {
         const snap = await firebase.database().ref('profiles').orderByChild('email').equalTo(targetEmail).once('value');
         const profiles = snap.val();
         if (profiles) targetUid = Object.keys(profiles)[0];
-      } catch (_) {}
+      } catch (_) { }
 
       if (!targetUid) {
         const sanitized = targetEmail.replace(/\./g, ',');
@@ -3203,7 +3261,7 @@ async function deleteGlobalUser(uid, email, tid) {
           const uVal = uSnap.val();
           if (uVal && uVal.uid) targetUid = uVal.uid;
           if (uVal && uVal.tenantId && !targetTid) targetTid = uVal.tenantId;
-        } catch (_) {}
+        } catch (_) { }
       }
     }
 
@@ -3216,7 +3274,7 @@ async function deleteGlobalUser(uid, email, tid) {
           if (pVal.email) targetEmail = pVal.email.trim().toLowerCase();
           if (pVal.tenantId && !targetTid) targetTid = pVal.tenantId;
         }
-      } catch (_) {}
+      } catch (_) { }
     }
 
     const updates = {};
@@ -3577,7 +3635,7 @@ function filterTrabByObra() {
 
   // 2. Popula Lista de Checkboxes para Modo Massa
   if (listaMassa) {
-    listaMassa.innerHTML = filtered.length > 0 
+    listaMassa.innerHTML = filtered.length > 0
       ? filtered.map(t => `
           <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; background: rgba(var(--accent-rgb), 0.03); padding: 5px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
             <input type="checkbox" class="pr-massa-check" value="${t.cod}">
@@ -3587,7 +3645,7 @@ function filterTrabByObra() {
       : '<p style="font-size: 12px; color: var(--text3); padding: 5px;">Nenhum funcionário ativo na obra.</p>';
   }
 
-  fillTrabInfo(); 
+  fillTrabInfo();
 }
 
 function fillTrabInfo() {
@@ -3595,11 +3653,11 @@ function fillTrabInfo() {
   if (!trabEl) return;
   const sel = trabEl.value;
   const t = DB.trabalhadores.find(x => x.cod === sel);
-  
+
   // Regra SaaS: Informal não tem Hora Extra
   const hExtGrp = document.getElementById('pr-hextra-grp');
   const isInformal = t && t.vinculo === 'Informal';
-  
+
   if (hExtGrp) {
     // Esconde o grupo de hora extra se for informal
     hExtGrp.style.display = isInformal ? 'none' : '';
@@ -3763,7 +3821,7 @@ async function saveTrabalhador() {
 
   const cod = document.getElementById('tr-cod').value.trim();
   if (!cod) { toast('Informe o código', 'error'); return; }
-  
+
   // Verifica unicidade do código (desconsiderando o registro em edição)
   const duplicado = DB.trabalhadores.some((t, i) => t.cod === cod && i !== editIdx);
   if (duplicado) { toast(`Código "${cod}" já existe! Use outro.`, 'error'); return; }
@@ -3790,12 +3848,12 @@ async function saveTrabalhador() {
     const oldWorker = { ...DB.trabalhadores[editIdx] };
     const oldName = (oldWorker.nome || '').trim();
     const oldCod = (oldWorker.cod || '').trim();
-    
+
     const newName = (data.nome || '').trim();
     const newCod = (data.cod || '').trim();
 
     DB.trabalhadores[editIdx] = data; // Atualiza o cadastro principal
-    
+
     // 2. Propagação em Cascata (Se Nome OU Código mudaram)
     if ((oldName !== newName && newName) || (oldCod !== newCod && newCod)) {
       console.log(`[Sync] Propagando alteração de "${oldName}" (${oldCod}) para "${newName}" (${newCod})...`);
@@ -3903,7 +3961,7 @@ async function saveTrabalhador() {
 async function editTrabalhador(idx) {
   await openModal('modal-trabalhador');
   if (document.getElementById('tr-idx')) {
-     document.getElementById('tr-idx').value = idx;
+    document.getElementById('tr-idx').value = idx;
   }
   const t = DB.trabalhadores[idx];
   document.getElementById('tr-cod').value = t.cod;
@@ -3922,7 +3980,7 @@ async function editTrabalhador(idx) {
   document.getElementById('tr-admissao').value = t.admissao;
   document.getElementById('tr-endereco').value = t.endereco || '';
   document.getElementById('tr-cidade').value = t.cidade || '';
-  
+
   // Foto Preview
   const fPreview = document.getElementById('tr-foto-preview');
   const fUrl = document.getElementById('tr-foto-url');
@@ -3947,7 +4005,7 @@ async function savePresenca(keepOpen = false) {
   const dataVal = document.getElementById('pr-data').value;
   const obraVal = document.getElementById('pr-obra').value;
   const editIdx = parseInt(document.getElementById('pr-edit-idx').value) || -1;
-  
+
   if (!dataVal) { toast('Informe a data!', 'error'); return; }
   if (!obraVal) { toast('Selecione a obra!', 'error'); return; }
 
@@ -3966,7 +4024,7 @@ async function savePresenca(keepOpen = false) {
 
   for (const tsel of trabsParaSalvar) {
     const t = DB.trabalhadores.find(x => x.cod === tsel);
-    
+
     // Bloqueia duplicidade de data para o mesmo trabalhador (checando por código ou nome)
     const jaExiste = DB.presenca.some((p, idx) => {
       if (editIdx >= 0 && idx === editIdx) return false;
@@ -3984,10 +4042,10 @@ async function savePresenca(keepOpen = false) {
       return;
     }
 
-  // Vínculo Automático: Se o peão não estiver engajado na Obra em sua ficha local, anexa a tag!
-  if (t && (!t.obras || !t.obras.includes(obraVal))) {
-    t.obras = t.obras && t.obras.trim() !== '' ? (t.obras + ", " + obraVal) : obraVal;
-  }
+    // Vínculo Automático: Se o peão não estiver engajado na Obra em sua ficha local, anexa a tag!
+    if (t && (!t.obras || !t.obras.includes(obraVal))) {
+      t.obras = t.obras && t.obras.trim() !== '' ? (t.obras + ", " + obraVal) : obraVal;
+    }
 
     const isInformal = t && t.vinculo === 'Informal';
 
@@ -4078,7 +4136,7 @@ function togglePresencaModo() {
   const indivGrp = document.getElementById('pr-indiv-grp');
   const massaGrp = document.getElementById('pr-massa-grp');
   const hExtGrp = document.getElementById('pr-hextra-grp');
-  
+
   if (modo === 'massa') {
     indivGrp.style.display = 'none';
     massaGrp.style.display = '';
@@ -4213,12 +4271,12 @@ window.toggleDestinoMov = function () {
 // ==================== LOTE DE PAGAMENTO (FOLHA) ====================
 window.lotePendentes = [];
 
-window.getSemanaRange = function() {
+window.getSemanaRange = function () {
   const days = getCurrentWeekDates();
   return { ini: days[0], fim: days[6] };
 };
 
-window.getQuinzenaRange = function() {
+window.getQuinzenaRange = function () {
   const hoje = new Date();
   const dia = hoje.getDate();
   const ini = new Date(hoje);
@@ -4233,7 +4291,7 @@ window.getQuinzenaRange = function() {
   return { ini: ini.toISOString().split('T')[0], fim: fim.toISOString().split('T')[0] };
 };
 
-window.getMesRange = function() {
+window.getMesRange = function () {
   const hoje = new Date();
   const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0];
   const fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().split('T')[0];
@@ -4244,26 +4302,26 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
   // Evita reabrir e recriar o modal se ele já estiver aberto na tela
   const modalContainer = document.getElementById('modal-container');
   const isAlreadyOpen = modalContainer && modalContainer.classList.contains('open') && document.getElementById('lote-periodo') !== null;
-  
+
   if (!isAlreadyOpen) {
     await openModal('modal-lote');
   }
-  
+
   // Se veio de onchange do select, pegue o valor
   const sel = document.getElementById('lote-periodo');
   const periodoSel = periodo || (sel ? sel.value : 'semana');
-  
+
   // Sincroniza o select visual com o período atual selecionado
   if (sel) {
     sel.value = periodoSel;
   }
-  
+
   // Toggle campos de data customizada
   const customDiv = document.getElementById('lote-custom-dates');
   if (customDiv) {
     customDiv.style.display = periodoSel === 'custom' ? 'flex' : 'none';
   }
-  
+
   // Determinar range de datas
   let dataIni, dataFim;
   if (periodoSel === 'custom') {
@@ -4273,7 +4331,7 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
       toast('Selecione as datas inicial e final.', 'error');
       return;
     }
-    
+
     // Atualiza os inputs de data para manter os valores selecionados visíveis
     const iniEl = document.getElementById('lote-data-ini');
     const fimEl = document.getElementById('lote-data-fim');
@@ -4289,7 +4347,7 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
     dataIni = range.ini;
     dataFim = range.fim;
   }
-  
+
   // Filtrar presenças pelo período - a tabela de presença é quem manda
   let pendentesRaw = DB.presenca.filter(p => {
     if (p.pgtoStatus === 'Pago') return false;
@@ -4301,7 +4359,7 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
   const saldos = {};
   pendentesRaw.forEach(p => {
     const key = p.trab || (p.nome + '-' + p.funcao);
-    
+
     let devido = (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0);
     if (devido > 0) {
       if (!saldos[key]) {
@@ -4324,21 +4382,21 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
   window.lotePendentes = Object.values(saldos)
     .filter(s => s.valor > 0)
     .sort((a, b) => b.valor - a.valor);
-  
+
   // Atualiza título do modal com período
   const titulo = document.querySelector('#modal-lote .modal-title');
   if (titulo) {
     const labels = { semana: 'Esta Semana', quinzenal: 'Esta Quinzena', mes: 'Este Mês', custom: 'Período Customizado', todas: 'Todas as Pendências' };
     titulo.textContent = `💸 Fechamento de Folha - ${labels[periodoSel] || periodoSel}`;
   }
-  
+
   renderLoteTbody();
 };
 
 window.renderLoteTbody = function () {
   const tbody = document.getElementById('lote-tbody');
   if (!tbody) return;
-  
+
   if (lotePendentes.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;">🎉 Nenhuma diária pendente! Toda a folha já está quitada.</td></tr>';
     document.getElementById('lote-total-sel').textContent = 'R$ 0,00';
@@ -4387,7 +4445,7 @@ window.toggleLoteAll = function (el) {
   updateLoteTotal();
 };
 
-window.changeLotePeriodoCustom = function(el) {
+window.changeLotePeriodoCustom = function (el) {
   if (el.value === 'custom') {
     document.getElementById('lote-custom-dates').style.display = 'flex';
     const hoje = new Date();
@@ -4401,7 +4459,7 @@ window.changeLotePeriodoCustom = function(el) {
   }
 };
 
-window.applyCustomLotePeriod = function() {
+window.applyCustomLotePeriod = function () {
   const iniEl = document.getElementById('lote-data-ini');
   const fimEl = document.getElementById('lote-data-fim');
   if (iniEl?.value && fimEl?.value) {
@@ -4749,12 +4807,12 @@ async function saveFinanceiro() {
   const realEl = document.getElementById('fn-real');
   const statusEl = document.getElementById('fn-status');
   const valpagoEl = document.getElementById('fn-valpago');
-  
+
   if (!prevEl || !realEl || !statusEl || !valpagoEl) {
     toast('Erro: Elementos do formulário não encontrados!', 'error');
     return;
   }
-  
+
   const prev = parseFloat(prevEl.value) || 0;
   const real = parseFloat(realEl.value) || 0;
   const status = statusEl.value;
@@ -5012,17 +5070,17 @@ function deleteItem(table, idx) {
   // Proteção para estoque: não excluir se tem saldo ou está no canteiro
   if (table === 'estoque') {
     const item = DB.estoque[idx];
-    const saldo = (parseFloat(item.entrada)||0) - (parseFloat(item.saida)||0);
+    const saldo = (parseFloat(item.entrada) || 0) - (parseFloat(item.saida) || 0);
     if (saldo > 0) {
-      toast(`⚠️ "${item.mat}" tem saldo de ${saldo} ${item.unid||'un'}. Zere o estoque antes de excluir.`, 'error');
+      toast(`⚠️ "${item.mat}" tem saldo de ${saldo} ${item.unid || 'un'}. Zere o estoque antes de excluir.`, 'error');
       return;
     }
     const noCanteiro = DB.movEstoque.some(m =>
       m.codMat === item.cod &&
-      ((m.tipo||'').toLowerCase().includes('saída') || (m.tipo||'').toLowerCase().includes('saida'))
+      ((m.tipo || '').toLowerCase().includes('saída') || (m.tipo || '').toLowerCase().includes('saida'))
       && !DB.movEstoque.some(r =>
         r !== m && r.codMat === item.cod && r.obra === m.obra &&
-        ((r.tipo||'').toLowerCase() === 'retorno')
+        ((r.tipo || '').toLowerCase() === 'retorno')
       )
     );
     if (noCanteiro) {
@@ -5337,7 +5395,7 @@ if (typeof window.safeCheckAuth === 'function') {
 document.addEventListener('click', (event) => {
   const sidebar = document.querySelector('.sidebar');
   const menuToggle = document.querySelector('.menu-toggle');
-  
+
   if (sidebar && sidebar.classList.contains('open')) {
     // Se o clique não foi dentro da sidebar E não foi no botão de abrir o menu...
     if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
@@ -5350,7 +5408,7 @@ document.addEventListener('click', (event) => {
 window.addEventListener('syncStatus', (e) => {
   const { status, code } = e.detail;
   let indicator = document.getElementById('sync-indicator');
-  
+
   if (!indicator) {
     const container = document.querySelector('.header-right');
     if (!container) return;
@@ -5370,13 +5428,13 @@ window.addEventListener('syncStatus', (e) => {
   } else if (status === 'synced') {
     indicator.innerHTML = '<div class="sync-dot"></div><span>Sincronizado</span>';
     indicator.className = 'sync-indicator synced';
-    setTimeout(() => { 
-      if (indicator.classList.contains('synced')) indicator.style.opacity = '0.3'; 
+    setTimeout(() => {
+      if (indicator.classList.contains('synced')) indicator.style.opacity = '0.3';
     }, 3000);
   } else if (status === 'error') {
-    const msg = code === 'PERMISSION_DENIED' ? 'Acesso Negado (Firebase)' : 
-                code === 'DISCONNECTED' ? 'Sem Conexão' : 'Erro na Nuvem';
-    
+    const msg = code === 'PERMISSION_DENIED' ? 'Acesso Negado (Firebase)' :
+      code === 'DISCONNECTED' ? 'Sem Conexão' : 'Erro na Nuvem';
+
     indicator.innerHTML = `<div class="sync-dot"></div><span>${msg}</span> 
                            <button class="sync-retry-btn" onclick="persistDB(true); event.stopPropagation();">🔄 Tentar Agora</button>`;
     indicator.className = 'sync-indicator error';

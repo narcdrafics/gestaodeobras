@@ -88,6 +88,7 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
     const snapshot = await profileRef.once('value');
     console.log('[AuthTrace] Perfil retornado:', snapshot.val());
     let userProfile = snapshot.val();
+    let newTenantSlug = null; // preenchido quando este login acabou de criar uma empresa
 
     const sanitizedEmail = email.replace(/\./g, ',');
     
@@ -153,72 +154,55 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       await firebase.database().ref(`invites/${sanitizedEmail}`).remove();
       console.log('[AuthTrace] Perfil processado via Convite. Tenant:', userProfile.tenantId);
     } else if (!userProfile && (typeof window.isSignupProcess !== 'undefined' || isLoginPage)) {
-      // AUTO-ONBOARDING / FREE TRIAL (Self Serve)
-      console.log('[AuthTrace] Novo usuário detectado no fluxo de cadastro. Iniciando trial.');
-      
-      const slugBase = email.split('@')[0].replace(/[^a-z0-9]/g, '');
-      const numAuto = Math.floor(Math.random() * 900) + 100;
-      const tenantId = slugBase + numAuto; // Cria "joao123" pra garantir unicidade
-      
-      const dataCriacao = Date.now();
-      const trigintaDiasMs = 30 * 24 * 60 * 60 * 1000;
-      
-      const newTenant = {
-          nomeEmpresa: Name !== 'Sem Nome' ? Name + " Engenharia" : "Minha Empresa",
-          slug: tenantId,
-          emailAdmin: email,
-          status: 'ativo',
-          plano: 'free_trial', 
-          webhookCriacao: dataCriacao,
-          trialExpiracao: dataCriacao + trigintaDiasMs, // <--- Validade 30 dias inserida
-          config: {
-              nomeEmpresa: Name !== 'Sem Nome' ? Name + " Engenharia" : "Minha Empresa",
-              slug: tenantId,
-              esquemaCores: 'emerald',
-              limiteObras: 1, // Plano gratuito básico restrito
-              limiteUsuarios: 1, // Apenas o dono
-              limiteTrabalhadores: 9999 // Sem limite de pedreiros
-          }
-      };
-      
-      try {
-          // Salva Estrutura da Construtora no Banco
-          await firebase.database().ref(`tenants/${tenantId}`).set(newTenant);
-          await firebase.database().ref(`tenants_public/${tenantId}`).set({
-              slug: tenantId,
-              tenantId: tenantId,
-              nomeEmpresa: newTenant.config.nomeEmpresa,
-              esquemaCores: newTenant.config.esquemaCores
-          });
-          
-          // Salva no Painel Global Master
-          await firebase.database().ref(`users/${sanitizedEmail}`).set({
-              uid: uid,
-              tenantId: tenantId,
-              role: 'admin',
-              nome: Name,
-              origem: 'self_signup'
-          });
-
-          // Conecta o Usuário Fisicamente à Nova Bolha
-          userProfile = {
-              uid,
-              email,
-              name: Name,
-              role: 'admin',
-              tenantId: tenantId
-          };
-          await profileRef.set({ ...userProfile, status: 'ativo' });
-          console.log('[AuthTrace] Bolha Criada. Tenant Free Trial:', tenantId);
-      } catch (err) {
-          console.error('[AuthTrace] Erro de BD no Auto-Onboarding:', err);
-          await firebase.auth().signOut();
-          sessionStorage.removeItem('gestaoUser');
-          showLoginError('Erro de segurança ao criar Trial. O Servidor da Google recusou a criação. Deploy do Firebase Rules foi feito?');
-          return;
+      // AUTO-ONBOARDING / FREE TRIAL (Self Serve): o próprio usuário escolhe o slug da empresa.
+      // A criação (tenant + nó público + passaporte global) é uma única escrita atômica feita por
+      // ObraSlug.createTenantAccount; é ela que faz a empresa aparecer no painel do Master.
+      if (CURRENT_TENANT_ID) {
+        // Já estamos no endereço de uma empresa: não cria outra empresa a partir daqui.
+        await firebase.auth().signOut();
+        sessionStorage.removeItem('gestaoUser');
+        showLoginError('Esta conta não pertence a esta empresa. Para criar a sua própria empresa, acesse obrareal.com.');
+        return;
       }
+      if (typeof window.promptSlugOnboarding !== 'function' || !window.ObraSlug) {
+        await firebase.auth().signOut();
+        sessionStorage.removeItem('gestaoUser');
+        showLoginError('Não foi possível iniciar o cadastro da empresa. Recarregue a página e tente de novo.');
+        return;
+      }
+
+      console.log('[AuthTrace] Novo usuário detectado no fluxo de cadastro. Solicitando o slug da empresa.');
+      const onboarding = await window.promptSlugOnboarding({ uid, email, name: Name });
+      if (!onboarding) {
+        // Usuário cancelou a escolha do slug: encerra a sessão, nada foi criado.
+        await firebase.auth().signOut();
+        sessionStorage.removeItem('gestaoUser');
+        return;
+      }
+
+      // Conecta o usuário à empresa recém-criada
+      userProfile = {
+        uid,
+        email,
+        name: Name,
+        role: 'admin',
+        tenantId: onboarding.slug
+      };
+      try {
+        await profileRef.set({ ...userProfile, status: 'ativo' });
+      } catch (err) {
+        // A empresa já existe e o passaporte global (users/<email>) também: no próximo login
+        // o ramo "perfil restaurado" refaz o perfil sozinho.
+        console.error('[AuthTrace] Empresa criada, mas o perfil não foi gravado:', err);
+        await firebase.auth().signOut();
+        sessionStorage.removeItem('gestaoUser');
+        showLoginError('Sua empresa foi criada, mas não foi possível concluir o acesso. Entre novamente para finalizar.');
+        return;
+      }
+      newTenantSlug = onboarding.slug;
+      console.log('[AuthTrace] Empresa criada. Slug:', newTenantSlug);
     }
-    
+
     // Força uma atualização no perfil para disparar a Cloud Function 'syncCustomClaims'
     // Isso garante que usuários antigos recebam suas Custom Claims corretamente.
     // Importante: apenas `lastLogin` é escrito. Reescrever role/tenantId aqui desfaria
@@ -252,6 +236,16 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       return;
     }
 
+    // 4.1 Empresa recém-criada em produção: o slug passa a ser o endereço (slug.obrareal.com).
+    // Subdomínio é outra origem e a sessão do Firebase não acompanha, então o acesso continua
+    // lá, no login do novo endereço, com o e-mail já preenchido.
+    if (newTenantSlug && window.ObraSlug.isCrossOrigin(newTenantSlug, window.location)) {
+      await firebase.auth().signOut();
+      sessionStorage.removeItem('gestaoUser');
+      window.location.href = window.ObraSlug.buildWelcomeUrl(newTenantSlug, email, window.location);
+      return;
+    }
+
     // 5. Inicializa o Banco de Dados do Tenant Específico
     sessionStorage.setItem('gestaoUser', JSON.stringify(userProfile));
     if (typeof initDB === 'function') initDB(userProfile.tenantId);
@@ -279,7 +273,9 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       console.warn('[AuthTrace] Timeout aguardando claims. A primeira escrita no Storage pode falhar.');
     }
 
-    window.location.href = 'app.html';
+    window.location.href = newTenantSlug
+      ? window.ObraSlug.buildTenantUrl(newTenantSlug, window.location, 'app.html')
+      : 'app.html';
 
   } catch (error) {
     console.error('Erro SaaS Auth:', error);

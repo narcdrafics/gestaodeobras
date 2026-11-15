@@ -503,6 +503,137 @@ window.calcCustosFinanceiro = calcCustosFinanceiro;
 window.getPeriodoOptions = getPeriodoOptions;
 window.getPeriodLabel = getPeriodLabel;
 
+// ==================== DASHBOARD: CUSTO POR OBRA, RESUMO E ALERTAS ====================
+
+/**
+ * Hoje no fuso de São Paulo (YYYY-MM-DD).
+ * `new Date().toISOString()` usa UTC: depois das 21h no Brasil já devolve o dia seguinte
+ * e o dashboard zerava "presentes hoje".
+ */
+const hojeLocal = () => getPeriodoOptions({ tipo: 'hoje' }).dataInicio;
+
+/**
+ * Custo realizado de UMA obra = mão de obra (diárias) + empreitadas (medições) + lançamentos financeiros (real).
+ *
+ * Sem período, soma tudo desde o início: é o "Total real" do dashboard. Com { tipo, baseDate } ou
+ * { dataInicio, dataFim } soma só o período. Como as três parcelas e a regra de cálculo são as mesmas
+ * nos dois casos, o total desde o início nunca é menor que o custo de qualquer período.
+ *
+ * A mão de obra usa calcCustosDiarias (mesma regra da página Hoje); medições e financeiro são somas simples
+ * (financeiro conta só o valor `real`; lançamento sem data entra no total, mas não em período).
+ */
+const calcCustoObra = (db, obraCod, options = {}) => {
+  const temPeriodo = !!((options.dataInicio && options.dataFim) || options.tipo);
+  const periodo = temPeriodo
+    ? ((options.dataInicio && options.dataFim) ? { dataInicio: options.dataInicio, dataFim: options.dataFim } : getPeriodoOptions(options))
+    : null;
+  const noPeriodo = (d) => !periodo || (!!d && d >= periodo.dataInicio && d <= periodo.dataFim);
+  const doObra = (arr) => (arr || []).filter(x => x && x.obra === obraCod);
+
+  const mao = calcCustosDiarias(doObra(db.presenca), periodo || { dataInicio: '0000-01-01', dataFim: '9999-12-31' });
+  const medicoes = doObra(db.medicao)
+    .filter(m => noPeriodo(m.semana || m.data))
+    .reduce((a, m) => a + (parseFloat(m.vtotal) || 0), 0);
+  const financeiro = doObra(db.financeiro)
+    .filter(f => noPeriodo(f.data))
+    .reduce((a, f) => a + (Number(f.real) || 0), 0);
+  const diarias = (mao.porObra[obraCod] || []).filter(p => p.total > 0).length; // dias pagos (Presente / Meio período)
+
+  return { total: mao.custoTotal + medicoes + financeiro, maoDeObra: mao.custoTotal, medicoes, financeiro, diarias };
+};
+
+const PRIORIDADE_ALERTA = { alto: 0, medio: 1, baixo: 2 };
+
+/**
+ * Alertas do dia, do mais grave para o menos grave.
+ * `linhas` = saída de calcDashboardResumo (precisa de pctCusto por obra).
+ * `role` (opcional): mestre não acessa compras/financeiro, então não recebe esses alertas.
+ */
+const calcAlertas = (db, hoje, linhas, role) => {
+  const alertas = [];
+  const obras = db.obras || [];
+  const nomeObra = (cod) => (obras.find(o => o.cod === cod) || {}).nome || cod || 'Geral';
+  const ativas = obras.filter(o => o.status === 'Em andamento');
+  const add = (tipo, obra, desc, prior) => alertas.push({ tipo, obra, desc, prior });
+
+  (db.tarefas || []).forEach(t => {
+    if (!t || !t.prazo || t.status === 'Concluída') return;
+    if (t.prazo < hoje) add('TAREFA ATRASADA', nomeObra(t.obra), `${t.desc} (prazo ${fmtDate(t.prazo)})`, 'alto');
+    else if (t.prazo === hoje) add('TAREFA HOJE', nomeObra(t.obra), t.desc, 'medio');
+  });
+
+  if (role !== 'mestre') {
+    (linhas || []).forEach(l => {
+      if (l.obra.status !== 'Em andamento' || l.pctCusto === null) return;
+      if (l.pctCusto > 100) add('CUSTO ACIMA DO ORÇAMENTO', l.obra.nome, `${l.pctCusto.toFixed(0)}% do orçamento já foi gasto`, 'alto');
+      else if (l.pctCusto >= 80) add('CUSTO PERTO DO LIMITE', l.obra.nome, `${l.pctCusto.toFixed(0)}% do orçamento já foi gasto`, 'medio');
+    });
+    (db.compras || []).filter(c => c && c.status === 'Aguardando')
+      .forEach(c => add('COMPRA PENDENTE', nomeObra(c.obra), c.mat, 'medio'));
+  }
+
+  // Obra em andamento sem nenhuma presença lançada hoje (domingo não conta)
+  const [y, m, d] = hoje.split('-').map(Number);
+  if (new Date(y, m - 1, d).getDay() !== 0) {
+    ativas.forEach(o => {
+      const temPresenca = (db.presenca || []).some(p => p && p.obra === o.cod && p.data === hoje);
+      if (!temPresenca) add('SEM PRESENÇA HOJE', o.nome, 'Nenhuma presença lançada hoje.', 'medio');
+    });
+  }
+
+  ativas.filter(o => !o.mestre).forEach(o => add('OBRA SEM MESTRE', o.nome, 'Atribua um mestre responsável.', 'baixo'));
+
+  return alertas.sort((a, b) => PRIORIDADE_ALERTA[a.prior] - PRIORIDADE_ALERTA[b.prior]);
+};
+
+/**
+ * Tudo que o Dashboard Executivo mostra, já calculado (a tela só desenha).
+ * Semana = segunda-feira até hoje; mês = dia 1 até hoje (mesmos períodos da página Hoje).
+ */
+const calcDashboardResumo = (db, hoje, role) => {
+  hoje = hoje || hojeLocal();
+  const obras = db.obras || [];
+  const presHoje = (db.presenca || []).filter(p => p && p.data === hoje);
+
+  const kpis = {
+    presentes: presHoje.filter(p => p.presenca === 'Presente').length,
+    faltas: presHoje.filter(p => p.presenca === 'Falta').length,
+    obrasAtivas: obras.filter(o => o.status === 'Em andamento').length,
+    diariasHoje: calcCustosDiarias(db.presenca, { dataInicio: hoje, dataFim: hoje }).custoTotal
+  };
+
+  const linhas = obras.map(o => {
+    const sem = calcCustoObra(db, o.cod, { tipo: 'semana', baseDate: hoje });
+    const mes = calcCustoObra(db, o.cod, { tipo: 'mes', baseDate: hoje });
+    const total = calcCustoObra(db, o.cod);
+    const orc = Number(o.orc) || 0;
+    const tarefas = (db.tarefas || []).filter(t => t && t.obra === o.cod);
+    return {
+      obra: o,
+      diariasSem: sem.diarias,
+      custoSem: sem.total,
+      custoMes: mes.total,
+      totalReal: total.total,
+      pctCusto: orc > 0 ? (total.total / orc) * 100 : null, // null = sem orçamento definido
+      tarefasFeitas: tarefas.filter(t => t.status === 'Concluída').length,
+      tarefasTotal: tarefas.length
+    };
+  });
+
+  return { hoje, kpis, linhas, alertas: calcAlertas(db, hoje, linhas, role) };
+};
+
+/** Escapa texto digitado por usuários antes de ir para innerHTML. */
+const escHtml = (v) => String(v == null ? '' : v)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+window.escHtml = escHtml;
+window.hojeLocal = hojeLocal;
+window.calcCustoObra = calcCustoObra;
+window.calcAlertas = calcAlertas;
+window.calcDashboardResumo = calcDashboardResumo;
+
 /**
  * Define em qual período (Semana/Quinzena) uma data se encaixa dentro do mês.
  */
