@@ -161,7 +161,13 @@ const getPresencaCusto = (p) => {
   const totalGravado = parseMoney(p.total);
   if (totalGravado > 0) return totalGravado;
 
-  const diariaGravada = parseMoney(p.diaria);
+  let diariaGravada = parseMoney(p.diaria);
+  // Registros antigos podem não ter a diária gravada. Nesse caso, usa a diária
+  // atual do cadastro apenas como fallback; o valor histórico continua tendo prioridade.
+  if (!(diariaGravada > 0) && typeof DB !== 'undefined' && Array.isArray(DB.trabalhadores)) {
+    const worker = DB.trabalhadores.find(t => t && (t.cod === p.trab || (!p.trab && t.nome === p.nome)));
+    if (worker) diariaGravada = parseMoney(worker.diaria);
+  }
   if (!(diariaGravada > 0)) return 0;
   if (presenca === 'meio periodo' || presenca === 'meio-periodo') return diariaGravada / 2;
 
@@ -537,9 +543,12 @@ const calcCustoObra = (db, obraCod, options = {}) => {
   const financeiro = doObra(db.financeiro)
     .filter(f => noPeriodo(f.data))
     .reduce((a, f) => a + (Number(f.real) || 0), 0);
-  const diarias = (mao.porObra[obraCod] || []).filter(p => p.total > 0).length; // dias pagos (Presente / Meio período)
+  const almocos = doObra(db.almocos)
+    .filter(a => noPeriodo(a.data))
+    .reduce((a, x) => a + (Number(x.vtotal) || 0), 0);
+  const diarias = (mao.porObra[obraCod] || []).length; // dias pagos (Presente / Meio período)
 
-  return { total: mao.custoTotal + medicoes + financeiro, maoDeObra: mao.custoTotal, medicoes, financeiro, diarias };
+  return { total: mao.custoTotal + medicoes + financeiro + almocos, maoDeObra: mao.custoTotal, medicoes, financeiro, almocos, diarias };
 };
 
 const PRIORIDADE_ALERTA = { alto: 0, medio: 1, baixo: 2 };
