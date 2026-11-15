@@ -13,16 +13,6 @@ if (typeof window === 'undefined') {
 // Importa o arquivo (que popula window.*)
 import '../public/js/utils.module.js?v=20260402010';
 
-// Debug: log summarizeFinance after import
-if (typeof window !== 'undefined') {
-  const original = window.summarizeFinance;
-  window.summarizeFinance = (...args) => {
-    const result = original(...args);
-    console.log('[DEBUG] summarizeFinance result totalsByObra:', result.totalsByObra);
-    return result;
-  };
-}
-
 // Exporta do window para ESM
 export const fmt = window.fmt;
 export const fmtPct = window.fmtPct;
@@ -30,6 +20,9 @@ export const fmtDate = window.fmtDate;
 export const summarizePresence = window.summarizePresence;
 export const calcWeeklyPendingPayments = window.calcWeeklyPendingPayments;
 export const summarizeFinance = window.summarizeFinance;
+export const summarizeFinanceCosts = window.summarizeFinanceCosts;
+export const buildFinanceEntries = window.buildFinanceEntries;
+export const getPresencaCusto = window.getPresencaCusto;
 export const calcBudgetProgress = window.calcBudgetProgress;
 export const calcSaldo = window.calcSaldo;
 export const estoqueStatus = window.estoqueStatus;

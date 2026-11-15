@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcSaldo, estoqueStatus, fmt, fmtDate, summarizePresence, calcWeeklyPendingPayments, summarizeFinance, calcBudgetProgress } from './utils_wrapper.js';
+import { calcSaldo, estoqueStatus, fmt, fmtDate, summarizePresence, calcWeeklyPendingPayments, summarizeFinance, summarizeFinanceCosts, buildFinanceEntries, getPresencaCusto, calcBudgetProgress } from './utils_wrapper.js';
 
 describe('Cálculos de Estoque', () => {
   it('deve calcular o saldo corretamente', () => {
@@ -76,6 +76,70 @@ describe('Resumo Financeiro', () => {
     expect(res.totalsByObra['OB01'].real).toBe(1200 + 500 + 50);
     expect(res.totalsByObra['OB02'].real).toBe(3000);
     expect(res.all).toHaveLength(4);
+  });
+
+  it('deve filtrar lançamentos pelo mês selecionado', () => {
+    const fin = [
+      { obra: 'OB01', data: '2026-03-10', real: 100, status: 'Pago' },
+      { obra: 'OB01', data: '2026-04-05', real: 200, status: 'Pago' },
+      { obra: 'OB01', data: '2026-05-20', real: 400, status: 'Pago' }
+    ];
+    const pres = [
+      { obra: 'OB01', data: '2026-04-01', total: 50, pgtoStatus: 'Pago', nome: 'João' },
+      { obra: 'OB01', data: '2026-05-01', total: 70, pgtoStatus: 'Pago', nome: 'João' }
+    ];
+
+    const res = summarizeFinance(fin, pres, [], [], { ano: 2026, mes: 4 });
+    expect(res.all).toHaveLength(2);
+    expect(res.kpis.total).toBe(250);
+    expect(res.totalsByObra['OB01'].real).toBe(250);
+  });
+
+  it('deve aceitar a assinatura antiga com ano e mês posicionais', () => {
+    const fin = [
+      { obra: 'OB01', data: '2026-04-05', real: 200, status: 'Pago' },
+      { obra: 'OB01', data: '2026-05-20', real: 400, status: 'Pago' }
+    ];
+
+    const res = summarizeFinance(fin, [], [], [], 2026, 4);
+    expect(res.all).toHaveLength(1);
+    expect(res.kpis.total).toBe(200);
+  });
+
+  it('deve usar o valor histórico gravado na presença, não a diária atual', () => {
+    const pres = [{ obra: 'OB01', data: '2026-04-01', total: 180, diaria: 180, pgtoStatus: 'Pendente', nome: 'João' }];
+    const res = summarizeFinance([], pres, [], []);
+    expect(res.all[0].valor).toBe(180);
+    expect(res.all[0].pendente).toBe(180);
+    expect(res.all[0].hasPrev).toBe(false);
+    expect(getPresencaCusto({ total: 180 })).toBe(180);
+    expect(getPresencaCusto({ presenca: 'Falta', total: 180 })).toBe(0);
+    expect(getPresencaCusto({ presenca: 'Meio período', diaria: 200 })).toBe(100);
+  });
+
+  it('deve usar o previsto quando o realizado do lançamento manual está vazio', () => {
+    const fin = [{ obra: 'OB01', data: '2026-04-01', tipo: 'Material', prev: 800, real: 0, status: 'Pendente' }];
+    const res = summarizeFinanceCosts(fin, [], [], [], { ano: 2026, mes: 4 });
+    expect(res.total).toBe(800);
+    expect(res.aPagar).toBe(800);
+    expect(res.all[0].valor).toBe(800);
+    expect(res.all[0].hasPrev).toBe(true);
+  });
+
+  it('deve manter desconto como valor negativo', () => {
+    const fin = [{ obra: 'OB01', data: '2026-04-01', tipo: 'Desconto', real: 50, status: 'Pago' }];
+    const res = summarizeFinanceCosts(fin, [], [], []);
+    expect(res.total).toBe(-50);
+    expect(res.all[0].categoria).toBe('outros');
+  });
+
+  it('deve calcular o saldo restante de almoços e medições parciais', () => {
+    const alm = [{ obra: 'OB01', data: '2026-04-01', vtotal: 100, pgtoStatus: 'Parcial', valpago: 40, empreiteiro: 'Equipe A' }];
+    const med = [{ obra: 'OB01', semana: '2026-04-01', vtotal: 1000, pgtoStatus: 'Parcial', valpago: 300, equipe: 'Equipe B' }];
+    const res = summarizeFinanceCosts([], [], med, alm, { ano: 2026, mes: 4 });
+    expect(res.all.find(e => e.source === 'alm').pendente).toBe(60);
+    expect(res.all.find(e => e.source === 'med').pendente).toBe(700);
+    expect(res.aPagar).toBe(760);
   });
 });
 

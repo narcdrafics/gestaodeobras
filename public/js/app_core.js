@@ -5,29 +5,34 @@ let currentEditIdx = -1; // Global variable to identify if we are creating new (
 // ==================== SYSTEM GLOBALS (ANTI-REFERENCE ERROR) ====================
 // Cria 'stubs' para evitar que saves de uma página "crachem" tentando dar reload em UI de outra página
 window.renderDashboard = window.renderDashboard || function () {
-  const hoje = new Date().toISOString().split('T')[0];
+  const hoje = getTodayBR();
   const obras = DB.obras || [];
-  const trabalhadores = DB.trabalhadores || [];
-  
+
   // Presença hoje
   const allPresencaHoje = (DB.presenca || []).filter(p => p.data === hoje);
   const presentes = allPresencaHoje.filter(p => p.presenca === 'Presente').length;
   const faltas = allPresencaHoje.filter(p => p.presenca === 'Falta').length;
-  
-  // Custo diárias hoje
-  let custoTotal = 0;
-  allPresencaHoje.forEach(p => {
-    if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
-      const worker = trabalhadores.find(t => t.cod === p.trab);
-      const diaria = worker ? (parseFloat(worker.diaria) || 0) : 0;
-      const hnorm = parseFloat(p.hnorm) || 0;
-      const hextra = parseFloat(p.hextra) || 0;
-      const valorHora = hnorm > 0 ? diaria / hnorm : 0;
-      const total = hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : (p.presenca === 'Meio período' ? diaria / 2 : 0);
-      custoTotal += total;
-    }
-  });
-  
+
+  // Custo de diárias de hoje: usa SEMPRE o valor gravado na presença.
+  const custoDiariasHoje = window.calcCustosDiarias
+    ? window.calcCustosDiarias(DB.presenca, { dataInicio: hoje, dataFim: hoje }).custoTotal
+    : allPresencaHoje.reduce((a, p) => a + (window.getPresencaCusto ? window.getPresencaCusto(p) : (Number(p.total) || 0)), 0);
+
+  // Faixas de data (semana atual e mês corrente, até hoje)
+  const weekStartDate = new Date(hoje + 'T00:00:00');
+  const dow = weekStartDate.getDay();
+  weekStartDate.setDate(weekStartDate.getDate() - (dow === 0 ? 6 : dow - 1));
+  const weekStart = weekStartDate.getFullYear() + '-' + String(weekStartDate.getMonth() + 1).padStart(2, '0') + '-' + String(weekStartDate.getDate()).padStart(2, '0');
+  const monthStart = hoje.slice(0, 7) + '-01';
+
+  const buildSummary = (options) => window.summarizeFinanceCosts
+    ? window.summarizeFinanceCosts(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, options)
+    : { all: [] };
+
+  const semanal = buildSummary({ dataInicio: weekStart, dataFim: hoje });
+  const mensal = buildSummary({ dataInicio: monthStart, dataFim: hoje });
+  const totalGeral = buildSummary({});
+
   // KPIs
   const kpiGrid = document.getElementById('kpi-grid');
   if (kpiGrid) {
@@ -35,10 +40,11 @@ window.renderDashboard = window.renderDashboard || function () {
       <div class="kpi-card"><div class="kpi-label">Presentes</div><div class="kpi-val green">${presentes}</div></div>
       <div class="kpi-card"><div class="kpi-label">Faltas</div><div class="kpi-val ${faltas > 0 ? 'red' : 'green'}">${faltas}</div></div>
       <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obras.filter(o => o.status === 'Em andamento').length}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Diárias Hoje</div><div class="kpi-val blue">${fmt(custoTotal)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Diárias Hoje</div><div class="kpi-val blue">${fmt(custoDiariasHoje)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Custo do Mês</div><div class="kpi-val">${fmt(mensal.kpis ? mensal.kpis.total : 0)}</div><div class="kpi-sub">Todas as origens</div></div>
     `;
   }
-  
+
   // Alertas
   const alerts = [];
   (DB.tarefas || []).filter(t => t.prazo === hoje && t.status !== 'Concluída').forEach(t => {
@@ -47,71 +53,42 @@ window.renderDashboard = window.renderDashboard || function () {
   (DB.compras || []).filter(c => c.status === 'Aguardando').forEach(c => {
     alerts.push({ tipo: 'COMPRA PENDENTE', obra: window.obName(c.obra), desc: c.mat, prior: 'medio' });
   });
-  
+
   const alertsGrid = document.getElementById('alerts-grid');
   if (alertsGrid) {
     alertsGrid.innerHTML = alerts.length
       ? alerts.map(a => `<div class="alert-card ${a.prior}"><div class="alert-body"><h4>${a.tipo}</h4><p><b>${a.obra}</b> — ${a.desc}</p></div></div>`).join('')
       : '<div style="color:var(--text3);font-size:13px;padding:8px">Nenhuma pendência hoje.</div>';
   }
-  
+
   // Resumo por Obra
   const dashObrasTbody = document.getElementById('dash-obras-tbody');
   if (dashObrasTbody) {
+    const sumByObra = (summary, cod) => (summary.all || [])
+      .filter(e => e.obra === cod)
+      .reduce((a, e) => a + (Number(e.valor) || 0), 0);
+
     let rows = '';
     obras.forEach(o => {
       const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
       const pres = pObra.filter(p => p.presenca === 'Presente').length;
       const fal = pObra.filter(p => p.presenca === 'Falta').length;
-      
-      // Custo semanal (últimos 7 dias)
-      const semanaAgo = new Date();
-      semanaAgo.setDate(semanaAgo.getDate() - 7);
-      const semData = semanaAgo.toISOString().split('T')[0];
-      const presSemana = (DB.presenca || []).filter(p => p.obra === o.cod && p.data >= semData && p.data <= hoje);
-      let custoSem = 0;
-      presSemana.forEach(p => {
-        if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
-          const worker = trabalhadores.find(t => t.cod === p.trab);
-          const diaria = worker ? (parseFloat(worker.diaria) || 0) : 0;
-          const hnorm = parseFloat(p.hnorm) || 0;
-          const hextra = parseFloat(p.hextra) || 0;
-          const valorHora = hnorm > 0 ? diaria / hnorm : 0;
-          custoSem += hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
-        }
-      });
-      
-      // Custo mensal
-      const mesAgo = new Date();
-      mesAgo.setDate(mesAgo.getDate() - 30);
-      const mesData = mesAgo.toISOString().split('T')[0];
-      const presMes = (DB.presenca || []).filter(p => p.obra === o.cod && p.data >= mesData && p.data <= hoje);
-      let custoMes = 0;
-      presMes.forEach(p => {
-        if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
-          const worker = trabalhadores.find(t => t.cod === p.trab);
-          const diaria = worker ? (parseFloat(worker.diaria) || 0) : 0;
-          const hnorm = parseFloat(p.hnorm) || 0;
-          const hextra = parseFloat(p.hextra) || 0;
-          const valorHora = hnorm > 0 ? diaria / hnorm : 0;
-          custoMes += hnorm > 0 ? diaria + (hextra * valorHora * 1.5) : 0;
-        }
-      });
-      
-      // Total real (orçamento)
-      const fReal = (DB.financeiro || []).filter(f => f.obra === o.cod).reduce((a, f) => a + (Number(f.real) || 0), 0);
+
+      const custoSem = sumByObra(semanal, o.cod);
+      const custoMes = sumByObra(mensal, o.cod);
+      const fReal = sumByObra(totalGeral, o.cod);
+      const diariasSemana = (semanal.all || []).filter(e => e.obra === o.cod && e.source === 'pre').length;
       const pctCusto = o.orc > 0 ? (fReal / o.orc * 100).toFixed(1) : 0;
-      
-      // Tarefas
+
       const tarefasObra = (DB.tarefas || []).filter(t => t.obra === o.cod);
       const tarefasConcluidas = tarefasObra.filter(t => t.status === 'Concluída').length;
-      
+
       rows += `<tr>
         <td data-label="Obra"><b>${o.nome}</b></td>
         <td data-label="Status">${statusBadge(o.status)}</td>
-        <td data-label="Mestre">${o.mestre || '-'}</td>
+        <td data-label="Mestre">${o.mestre || '—'}</td>
         <td data-label="Orç. Prev.">${fmt(o.orc)}</td>
-        <td data-label="Diárias (Sem.)" style="color:var(--blue)">${pres}</td>
+        <td data-label="Diárias (Sem.)" style="color:var(--blue)">${diariasSemana} <small style="color:var(--text3)">(${pres} hoje)</small></td>
         <td data-label="Custo Sem.">${fmt(custoSem)}</td>
         <td data-label="Custo Mês">${fmt(custoMes)}</td>
         <td data-label="Total Real."><b>${fmt(fReal)}</b></td>
@@ -121,7 +98,7 @@ window.renderDashboard = window.renderDashboard || function () {
     });
     dashObrasTbody.innerHTML = rows || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma obra encontrada</td></tr>';
   }
-  
+
   // Update timestamp
   const dashUpdated = document.getElementById('dash-updated');
   if (dashUpdated) {
@@ -173,7 +150,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20260515001';
+const HTML_CACHE_VERSION = '20261114001';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -199,13 +176,55 @@ async function carregarHTML(caminho) {
   }
 }
 
+const NAV_GROUPS = { 'grp-op': 'ic-op', 'grp-prod': 'ic-prod', 'grp-sup': 'ic-sup', 'grp-fin': 'ic-fin' };
+const NAV_GROUP_STORAGE_KEY = 'obra_real_nav_groups';
+
+function readNavGroupState() {
+  try { return JSON.parse(localStorage.getItem(NAV_GROUP_STORAGE_KEY)) || {}; }
+  catch { return {}; }
+}
+
+function setNavGroupState(cls, open, persist) {
+  document.querySelectorAll('.' + cls).forEach(item => {
+    if (item.dataset.hiddenByRole === '1') return;
+    item.style.display = open ? 'block' : 'none';
+  });
+  const icon = document.getElementById(NAV_GROUPS[cls]);
+  if (icon) icon.textContent = open ? '▼' : '▶';
+  if (persist) {
+    const state = readNavGroupState();
+    state[cls] = !!open;
+    try { localStorage.setItem(NAV_GROUP_STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+}
+
 window.toggleGroup = function(cls, icn) {
   const items = document.querySelectorAll('.' + cls);
-  const isOpen = items[0]?.style.display !== 'none';
-  items.forEach(item => item.style.display = isOpen ? 'none' : 'block');
+  const sample = Array.from(items).find(item => item.dataset.hiddenByRole !== '1');
+  const isOpen = sample ? sample.style.display !== 'none' : false;
+  const nextOpen = !isOpen;
+
+  if (NAV_GROUPS[cls]) {
+    setNavGroupState(cls, nextOpen, true);
+    return;
+  }
+
+  items.forEach(item => { item.style.display = nextOpen ? 'block' : 'none'; });
   const icon = document.getElementById(icn);
-  if (icon) icon.textContent = isOpen ? '▶' : '▼';
-}
+  if (icon) icon.textContent = nextOpen ? '▼' : '▶';
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  const state = readNavGroupState();
+  Object.keys(NAV_GROUPS).forEach(cls => {
+    const icon = document.getElementById(NAV_GROUPS[cls]);
+    if (state[cls]) {
+      setNavGroupState(cls, true, false);
+    } else if (icon) {
+      icon.textContent = '▶';
+    }
+  });
+});
 
 window.showPage = async function(id) {
   // Atualiza o menu lateral (Estilos)
@@ -291,8 +310,11 @@ function renderHoje(targetDate) {
   if (dataEl) dataEl.textContent = ` — ${fmtDate(hoje)}`;
 
   const custosDiariasHoje = window.calcCustosDiarias(DB.presenca, { dataInicio: hoje, dataFim: hoje });
-  const custosMedicoes = window.calcCustosMedicoes(DB.medicao, { tipo: 'semana', baseDate: hoje });
-  const custosFinanceiro = window.calcCustosFinanceiro(DB.financeiro, { tipo: 'semana', baseDate: hoje });
+  // Fonte única de custos/pendências da semana (diárias + medições + manuais + almoços)
+  const resumoSemana = window.summarizeFinanceCosts
+    ? window.summarizeFinanceCosts(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, { tipo: 'semana', baseDate: hoje })
+    : { all: [] };
+  const pendentesSemana = (resumoSemana.all || []).filter(e => e.status !== 'Pago' && e.pendente > 0);
 
   // Busca TODOS os registros de presença do dia, independente de ter valor diária configurado
   const allPresencaHoje = (DB.presenca || []).filter(p => p.data === hoje);
@@ -331,27 +353,12 @@ function renderHoje(targetDate) {
   const obrasTbody = document.getElementById('hoje-obras-tbody');
   if (obrasTbody) {
     // Mostra TODOS os trabalhadores presentes no dia, independente de ter pagamento pendente
-    // Usa o valor diária ATUAL do trabalhador (DB.trabalhadores), não o valor armazendo no registro
     let rows = '';
     obras.forEach(o => {
       // Busca TODOS os registros de presença do dia para esta obra
       const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
       const pres = pObra.filter(p => p.presenca === 'Presente').length;
       const fal = pObra.filter(p => p.presenca === 'Falta').length;
-      
-      // Recalcula usando o valor diária ATUAL do trabalhador (reflete alterações globais)
-      let val = 0;
-      pObra.forEach(p => {
-        if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
-          const worker = (DB.trabalhadores || []).find(t => t.cod === p.trab);
-          const diariaAtual = worker ? (parseFloat(worker.diaria) || 0) : 0;
-          const hnorm = parseFloat(p.hnorm) || 0;
-          const hextra = parseFloat(p.hextra) || 0;
-          const valorHora = hnorm > 0 ? diariaAtual / hnorm : 0;
-          const totalRecalc = hnorm > 0 ? diariaAtual + (hextra * valorHora * 1.5) : (p.presenca === 'Meio período' ? diariaAtual / 2 : 0);
-          val += totalRecalc;
-        }
-      });
       
       rows += `<tr>
         <td data-label="Obra"><b>${o.nome}</b></td>
@@ -390,7 +397,6 @@ function renderHoje(targetDate) {
   const funcionariosTbody = document.getElementById('hoje-funcionarios-tbody');
   if (funcionariosTbody) {
     // Mostra TODOS os trabalhadores com registro de presença hoje
-    // Usa o valor diária ATUAL do trabalhador (DB.trabalhadores), não o valor armazenado no registro
     let rows = '';
     allPresencaHoje.forEach(p => {
       const worker = (DB.trabalhadores || []).find(t => t.cod === p.trab);
@@ -400,17 +406,6 @@ function renderHoje(targetDate) {
       const statusClass = p.presenca === 'Presente' ? 'var(--green)' : 
                         p.presenca === 'Falta' ? 'var(--red)' : 'var(--text3)';
       const horas = (parseFloat(p.hnorm) || 0) + (parseFloat(p.hextra) || 0);
-      
-      // Recalcula usando o valor diária ATUAL do trabalhador (reflete alterações globais)
-      let valorRecalc = 0;
-      if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
-        const diariaAtual = worker ? (parseFloat(worker.diaria) || 0) : 0;
-        const hnorm = parseFloat(p.hnorm) || 0;
-        const hextra = parseFloat(p.hextra) || 0;
-        const valorHora = hnorm > 0 ? diariaAtual / hnorm : 0;
-        valorRecalc = hnorm > 0 ? diariaAtual + (hextra * valorHora * 1.5) : 
-                       (p.presenca === 'Meio período' ? diariaAtual / 2 : 0);
-      }
       
       rows += `<tr>
         <td data-label="Funcionário"><b>${p.nome}</b></td>
@@ -424,25 +419,13 @@ function renderHoje(targetDate) {
   }
   
   if (pendentesTbody) {
-    const pendentes = [];
-    
-    custosDiariasHoje.pendente.forEach(p => {
-      const total = parseFloat(p.total) || 0;
-      const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
-      pendentes.push({ tipo: 'Diária', desc: p.nome, obra: p.obra, valor: Math.max(0, total - pago), status: p.pgtoStatus });
-    });
-    
-    custosMedicoes.pendente.forEach(m => {
-      const total = parseFloat(m.vtotal) || 0;
-      const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
-      pendentes.push({ tipo: 'Medição', desc: m.servico, obra: m.obra, valor: Math.max(0, total - pago), status: m.pgtoStatus });
-    });
-    
-    custosFinanceiro.pendente.forEach(f => {
-      const total = Number(f.real) || Number(f.prev) || 0;
-      const pago = f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0;
-      pendentes.push({ tipo: 'Financeiro', desc: f.desc, obra: f.obra, valor: Math.max(0, total - pago), status: f.status });
-    });
+    const pendentes = pendentesSemana.map(e => ({
+      tipo: e.tipo || 'Lançamento',
+      desc: e.desc || '—',
+      obra: e.obra,
+      valor: e.pendente,
+      status: e.status
+    }));
 
     pendentesTbody.innerHTML = pendentes.length
       ? pendentes.map(p => `<tr>
@@ -507,11 +490,12 @@ window.exportHoje = function exportHoje() {
    const kpiGrid = document.getElementById('kpi-grid')?.innerHTML || '';
    const alertsGrid = document.getElementById('alerts-grid')?.innerHTML || '';
    
-   // Recalculate values for today (same as in renderHoje)
+   // Custos do dia com valores históricos gravados
    const hoje = getTodayBR();
    const custosDiariasHoje = window.calcCustosDiarias(DB.presenca, { dataInicio: hoje, dataFim: hoje });
-   const custosMedicoes = window.calcCustosMedicoes(DB.medicao, { tipo: 'semana', baseDate: hoje });
-   const custosFinanceiro = window.calcCustosFinanceiro(DB.financeiro, { tipo: 'semana', baseDate: hoje });
+   const resumoGeral = window.buildFinanceEntries
+     ? window.buildFinanceEntries(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, {})
+     : { all: [] };
    
    // Build "Presença por Obra" table with ALL present workers (even without daily rate)
    const allPresencaHoje = (DB.presenca || []).filter(p => p.data === hoje);
@@ -521,20 +505,6 @@ window.exportHoje = function exportHoje() {
      const pObra = allPresencaHoje.filter(p => p.obra === o.cod);
      const pres = pObra.filter(p => p.presenca === 'Presente').length;
      const fal = pObra.filter(p => p.presenca === 'Falta').length;
-     
-     // Recalcula usando o valor diária ATUAL do trabalhador (reflete alterações globais)
-     let val = 0;
-     pObra.forEach(p => {
-       if (p.presenca === 'Presente' || p.presenca === 'Meio período') {
-         const worker = (DB.trabalhadores || []).find(t => t.cod === p.trab);
-         const diariaAtual = worker ? (parseFloat(worker.diaria) || 0) : 0;
-         const hnorm = parseFloat(p.hnorm) || 0;
-         const hextra = parseFloat(p.hextra) || 0;
-         const valorHora = hnorm > 0 ? diariaAtual / hnorm : 0;
-         const totalRecalc = hnorm > 0 ? diariaAtual + (hextra * valorHora * 1.5) : (p.presenca === 'Meio período' ? diariaAtual / 2 : 0);
-         val += totalRecalc;
-       }
-     });
      
      obrasTbody += `<tr>
        <td><b>${o.nome}</b></td>
@@ -590,18 +560,15 @@ window.exportHoje = function exportHoje() {
         </tr>`).join('')
       : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma medição pendente</td></tr>';
     
-    // Build pending payments table for print - ALL PENDING
-    const financeiroPendentes = (DB.financeiro || []).filter(f => 
-      !['Aditivo', 'Desconto', 'Adiantamento', 'Ajuste'].includes(f.tipo) && 
-      f.status !== 'Pago' && f.status !== 'Quitado'
-    );
-    let pendentesPrintTbody = financeiroPendentes.length
-      ? financeiroPendentes.map(f => `<tr>
-          <td data-label="Tipo">${f.tipo || '-'}</td>
-          <td data-label="Descrição">${f.desc || '-'}</td>
-          <td data-label="Obra">${window.obName(f.obra)}</td>
-          <td data-label="Valor"><b>${fmt(f.real || f.prev)}</b></td>
-          <td data-label="Status">${f.status}</td>
+    // Build pending payments table for print - ALL PENDING, todas as origens
+    const pendentesGeral = (resumoGeral.all || []).filter(e => e.status !== 'Pago' && e.pendente > 0);
+    let pendentesPrintTbody = pendentesGeral.length
+      ? pendentesGeral.map(e => `<tr>
+          <td data-label="Tipo">${e.tipo || 'Lançamento'}</td>
+          <td data-label="Descrição">${e.desc || '—'}</td>
+          <td data-label="Obra">${window.obName(e.obra)}</td>
+          <td data-label="Valor"><b>${fmt(e.pendente)}</b></td>
+          <td data-label="Status">${e.status}</td>
         </tr>`).join('')
       : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Nenhum pagamento pendente</td></tr>';
 
@@ -993,6 +960,12 @@ function selectAllAlmoco(check) {
   document.querySelectorAll('.al-massa-check').forEach(c => c.checked = check);
 }
 
+window.toggleAlmocoParcial = function () {
+  const statusEl = document.getElementById('al-status');
+  const grp = document.getElementById('al-parcial-grp');
+  if (grp) grp.style.display = statusEl && statusEl.value === 'Parcial' ? '' : 'none';
+};
+
 async function saveAlmoco(keepOpen = false) {
   const modoMassa = document.querySelector('input[name="al-modo"]:checked')?.value === 'massa';
   const dataVal = document.getElementById('al-data').value;
@@ -1002,6 +975,12 @@ async function saveAlmoco(keepOpen = false) {
   const vunit = parseFloat(document.getElementById('al-vunit').value) || 0;
   const vtotal = qtd * vunit;
   const obs = document.getElementById('al-obs').value;
+  const statusEl = document.getElementById('al-status');
+  const valpagoEl = document.getElementById('al-valpago');
+  const pgtoStatus = statusEl ? statusEl.value : 'Pendente';
+  let valpago = parseFloat(valpagoEl?.value) || 0;
+  if (pgtoStatus === 'Pago') valpago = vtotal;
+  else if (pgtoStatus !== 'Parcial') valpago = 0;
 
   if (!dataVal || !obraVal) { toast('Preencha data e obra!', 'error'); return; }
 
@@ -1026,7 +1005,7 @@ async function saveAlmoco(keepOpen = false) {
         continue;
       }
     }
-    const data = { data: dataVal, obra: obraVal, empreiteiro: emp, qtd, vunit, vtotal, obs };
+    const data = { data: dataVal, obra: obraVal, empreiteiro: emp, qtd, vunit, vtotal, obs, pgtoStatus, valpago };
     if (editIdx >= 0 && !modoMassa) {
       DB.almocos[editIdx] = data;
     } else {
@@ -1059,6 +1038,11 @@ async function editAlmoco(idx) {
   document.getElementById('al-vunit').value = a.vunit;
   document.getElementById('al-vtotal').value = a.vtotal;
   document.getElementById('al-obs').value = a.obs || '';
+  const statusEl = document.getElementById('al-status');
+  if (statusEl) statusEl.value = a.pgtoStatus || 'Pendente';
+  const valpagoEl = document.getElementById('al-valpago');
+  if (valpagoEl) valpagoEl.value = a.valpago || '';
+  toggleAlmocoParcial();
 }
 
 // ==================== PRESENÇA ====================
@@ -1649,31 +1633,469 @@ window.toggleFinCustomDates = function() {
 };
 
 window.applyFinCustomPeriod = function() {
-  // Sincroniza as datas do header com os inputs de filtro da tabela
   const iniEl = document.getElementById('fin-data-ini');
   const fimEl = document.getElementById('fin-data-fim');
-  const tableFrom = document.getElementById('fin-table-date-from');
-  const tableTo = document.getElementById('fin-table-date-to');
-  if (iniEl && tableFrom) tableFrom.value = iniEl.value;
-  if (fimEl && tableTo) tableTo.value = fimEl.value;
+  if (!iniEl?.value || !fimEl?.value) {
+    toast('Selecione as datas inicial e final.', 'error');
+    return;
+  }
+  if (iniEl.value > fimEl.value) {
+    toast('A data inicial deve ser anterior à final.', 'error');
+    return;
+  }
   renderFinanceiro();
 };
 
-let window_finSemanaSelecionada = null;
+// ==================== FINANCEIRO (fonte única) ====================
+const FIN_MAIN_CATEGORIES = ['mao-de-obra', 'empreiteiro', 'almoco', 'material'];
+
+const finState = {
+  categoria: 'todos',
+  status: '',
+  busca: '',
+  groupBy: 'tipo',
+  page: 1,
+  pageSize: 25,
+  periodLabel: '',
+  selected: new Set(),
+  expanded: new Set(),
+  collapsedGroups: new Set()
+};
+window.finState = finState;
+
+const finKey = (e) => `${e.source}:${e.idx}`;
+
+function finCategoryMeta(key) {
+  return (window.FIN_CATEGORIES || []).find(c => c.key === key) || { key: key || 'outros', label: 'Outros', icon: '📌' };
+}
+
+function finCategoryBadgeClass(key) {
+  return {
+    'mao-de-obra': 'badge-blue',
+    'empreiteiro': 'badge-orange',
+    'almoco': 'badge-yellow',
+    'material': 'badge-gray',
+    'outros': 'badge-gray'
+  }[key] || 'badge-gray';
+}
+
+function finObraName(cod) {
+  const o = (DB.obras || []).find(x => x.cod === cod);
+  return o ? o.nome : (cod || 'Geral');
+}
+
+function finText(v) {
+  const t = (!v || v === 'undefined' || v === 'indefinido') ? '—' : v;
+  return (typeof escapeHTML === 'function') ? escapeHTML(String(t)) : String(t);
+}
+
+function finEntriesMap() {
+  const map = new Map();
+  ((window._finSummary && window._finSummary.all) || []).forEach(e => map.set(finKey(e), e));
+  return map;
+}
+
+function finWeekLabel(dateStr) {
+  if (window.getPeriodLabel) return window.getPeriodLabel(dateStr, 'semanal');
+  return 'Semana';
+}
+
+function finDerivedStatus(entries) {
+  if (!entries.length) return 'Pendente';
+  if (entries.every(e => e.status === 'Pago')) return 'Pago';
+  if (entries.some(e => e.jaPago > 0)) return 'Parcial';
+  if (entries.some(e => e.status === 'Atrasado')) return 'Atrasado';
+  return 'Pendente';
+}
+
+function finStatusMatches(entry, status) {
+  if (!status) return true;
+  if (status === 'pago') return entry.status === 'Pago';
+  if (status === 'a-pagar') return entry.status !== 'Pago' && entry.pendente > 0;
+  if (status === 'parcial') return entry.status === 'Parcial';
+  if (status === 'atrasado') return entry.status === 'Atrasado';
+  return true;
+}
+
+function finBuscaMatches(entry) {
+  if (!finState.busca) return true;
+  const hay = [
+    entry.data, fmtDate(entry.data), entry.obra, finObraName(entry.obra),
+    entry.tipo, entry.desc, entry.benef, entry.etapa, entry.nf, entry.pgto, entry.obs
+  ].join(' ').toLowerCase();
+  return hay.includes(finState.busca.toLowerCase());
+}
+
+function finValueHtml(entry) {
+  const color = entry.valor < 0 ? 'var(--red)' : 'var(--text)';
+  let sub = '<span style="color:var(--orange)">A pagar</span>';
+  if (entry.status === 'Pago') {
+    sub = '<span style="color:var(--green)">Pago</span>';
+  } else if (entry.jaPago > 0) {
+    sub = `<span style="color:var(--orange)">Pago ${fmt(entry.jaPago)} · falta ${fmt(entry.pendente)}</span>`;
+  }
+  return `<b style="color:${color}">${fmt(entry.valor)}</b><br><small>${sub}</small>`;
+}
+
+function renderFinKpis(summary) {
+  const el = document.getElementById('fin-kpis');
+  if (!el) return;
+
+  const card = (label, value, extraClass, active, onclick, sub) => `
+    <div class="kpi-card fin-kpi ${extraClass || ''} ${active ? 'active' : ''}" onclick="${onclick}" role="button" tabindex="0">
+      <div class="kpi-label">${label}</div>
+      <div class="kpi-val">${value}</div>
+      <div class="kpi-sub">${sub || ''}</div>
+    </div>`;
+
+  const isCustom = document.getElementById('fin-view-type')?.value === 'custom';
+  const totalLabel = isCustom ? 'Total do período' : 'Total do mês';
+  let html = card(totalLabel, fmt(summary.kpis.total), '', finState.categoria === 'todos' && !finState.status, 'clearFinFilters()', `${finState.periodLabel} · ${summary.kpis.count} lançamentos`);
+  html += card('Pago', fmt(summary.kpis.pago), 'fin-kpi-success', finState.status === 'pago', "setFinStatus('pago')", 'Baixas confirmadas');
+  html += card('A pagar', fmt(summary.kpis.aPagar), 'fin-kpi-danger', finState.status === 'a-pagar', "setFinStatus('a-pagar')", 'Saldo em aberto');
+
+  FIN_MAIN_CATEGORIES.forEach(key => {
+    const cat = summary.byCategory[key];
+    if (!cat) return;
+    html += card(`${cat.icon} ${cat.label}`, fmt(cat.total), '', finState.categoria === key, `setFinCategory('${key}')`, `${cat.count} lançamentos · ${fmt(cat.aPagar)} a pagar`);
+  });
+
+  const outros = summary.byCategory.outros;
+  if (outros && outros.count > 0) {
+    html += card(`${outros.icon} ${outros.label}`, fmt(outros.total), '', finState.categoria === 'outros', "setFinCategory('outros')", `${outros.count} lançamentos · ${fmt(outros.aPagar)} a pagar`);
+  }
+
+  el.innerHTML = html;
+}
+
+function renderFinTabs(summary) {
+  const el = document.getElementById('fin-tabs');
+  if (!el) return;
+
+  const tabs = [{ key: 'todos', label: 'Todos', icon: '📋', count: summary.all.length }];
+  FIN_MAIN_CATEGORIES.forEach(key => {
+    const cat = summary.byCategory[key];
+    if (cat) tabs.push({ key, label: cat.label, icon: cat.icon, count: cat.count });
+  });
+  if (summary.byCategory.outros && summary.byCategory.outros.count > 0) {
+    tabs.push({ key: 'outros', label: summary.byCategory.outros.label, icon: summary.byCategory.outros.icon, count: summary.byCategory.outros.count });
+  }
+
+  el.innerHTML = tabs.map(t => `
+    <button type="button" class="fin-tab ${finState.categoria === t.key ? 'active' : ''}" onclick="setFinCategory('${t.key}')">
+      ${t.icon} ${t.label}<span class="count">${t.count}</span>
+    </button>`).join('');
+}
+
+function finSelectedEntries() {
+  const map = finEntriesMap();
+  return [...finState.selected].map(k => map.get(k)).filter(Boolean);
+}
+
+function renderFinBulkBar() {
+  const bar = document.getElementById('fin-bulk-bar');
+  if (!bar) return;
+
+  const entries = finSelectedEntries();
+  if (!entries.length) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+
+  const pendentes = entries.filter(e => e.status !== 'Pago' && e.pendente > 0);
+  const total = entries.reduce((a, e) => a + (Number(e.valor) || 0), 0);
+  const totalPendente = pendentes.reduce((a, e) => a + (Number(e.pendente) || 0), 0);
+
+  bar.style.display = 'flex';
+  bar.innerHTML = `
+    <b>${entries.length} selecionado(s)</b>
+    <span>Total: ${fmt(total)}</span>
+    <span class="fin-bulk-total">A pagar: ${fmt(totalPendente)}</span>
+    <div style="flex:1"></div>
+    <button class="btn btn-secondary btn-sm" onclick="bulkMarcarPago()" ${pendentes.length ? '' : 'disabled'}>✅ Marcar como pago</button>
+    <button class="btn btn-primary btn-sm" onclick="bulkPagarPix()" ${pendentes.length ? '' : 'disabled'}>💸 Pagar por PIX (${pendentes.length})</button>
+    <button class="btn btn-secondary btn-sm" onclick="clearFinSelection()">Limpar</button>
+  `;
+}
+
+function finEntryActions(entry) {
+  const source = entry.source;
+  const idx = entry.idx;
+  const key = finKey(entry);
+  let items = '';
+  const editMap = {
+    fin: `editFinanceiro(${idx})`,
+    pre: `editPresenca(${idx})`,
+    med: `editMedicao(${idx})`,
+    alm: `editAlmoco(${idx})`
+  };
+  if (editMap[source]) items += `<button onclick="${editMap[source]}">✏️ Editar</button>`;
+
+  if (entry.status !== 'Pago' && entry.pendente > 0) {
+    items += `<button onclick="initiatePixPayment('${source}', ${idx})">💸 Pagar via PIX</button>`;
+    items += `<button onclick="markFinEntryPaid('${key}')">✅ Marcar como pago</button>`;
+  }
+  items += `<button class="danger" onclick="deleteFinEntry('${source}', ${idx})">🗑️ Excluir</button>`;
+
+  return `<details class="fin-actions" onclick="event.stopPropagation()">
+    <summary title="Ações">⋯</summary>
+    <div class="fin-actions-menu">${items || '<button disabled>Sem ações</button>'}</div>
+  </details>`;
+}
+
+function finDetailRow(entry) {
+  const diff = entry.valor - entry.prev;
+  const diffColor = diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)';
+  return `<tr class="fin-detail-row">
+    <td colspan="7">
+      <div class="fin-detail-grid">
+        <div>Etapa<b>${finText(entry.etapa)}</b></div>
+        <div>Valor previsto<b>${fmt(entry.prev)}</b></div>
+        <div>Forma pgto<b>${finText(entry.pgto)}</b></div>
+        <div>NF / Comprovante<b>${finText(entry.nf)}</b></div>
+        <div>Observações<b>${finText(entry.obs)}</b></div>
+        ${entry.hasPrev ? `<div>Diferença<b style="color:${diffColor}">${fmt(diff)}</b></div>` : ''}
+      </div>
+    </td>
+  </tr>`;
+}
+
+function finEntryRow(entry, options = {}) {
+  const key = finKey(entry);
+  const checked = finState.selected.has(key) ? 'checked' : '';
+  const expanded = finState.expanded.has(key);
+  const detailToggle = entry.manual
+    ? `<button class="fin-group-toggle" onclick="toggleFinDetail('${key}')" title="Ver detalhes">${expanded ? '▾' : '▸'}</button>`
+    : '';
+  const childClass = options.child ? 'fin-child-row' : 'fin-row';
+  const catBadge = finCategoryBadgeClass(entry.categoria);
+  const autoTag = entry.auto ? '<span class="badge badge-gray fin-tag">Automático</span>' : '';
+
+  let html = `<tr class="${childClass}">
+    <td data-label="Data">
+      <input type="checkbox" class="fin-check" ${checked} onchange="toggleFinSelect('${key}', this.checked)">
+      ${detailToggle}${fmtDate(entry.data)}
+    </td>
+    <td data-label="Obra">${finText(finObraName(entry.obra))}</td>
+    <td data-label="Descrição">
+      <span class="badge ${catBadge} fin-tag">${finText(entry.tipo)}</span>
+      <b>${finText(entry.desc)}</b>${autoTag}
+    </td>
+    <td data-label="Beneficiário">${finText(entry.benef)}</td>
+    <td data-label="Valor" style="text-align:right">${finValueHtml(entry)}</td>
+    <td data-label="Status">${statusBadge(entry.status)}</td>
+    <td data-label="Ações" style="text-align:center">${finEntryActions(entry)}</td>
+  </tr>`;
+
+  if (entry.manual && expanded) html += finDetailRow(entry);
+  return html;
+}
+
+function finLaborGroupHtml(unit, unitIndex) {
+  const expanded = finState.expanded.has(unit.key);
+  const allSelected = unit.entries.every(e => finState.selected.has(finKey(e)));
+  const obras = [...new Set(unit.entries.map(e => finObraName(e.obra)))].join(', ');
+  const pseudoEntry = {
+    valor: unit.valor, jaPago: unit.jaPago, pendente: unit.pendente, status: finDerivedStatus(unit.entries)
+  };
+
+  let html = `<tr class="fin-row fin-labor-row">
+    <td data-label="Data">
+      <input type="checkbox" class="fin-check" ${allSelected ? 'checked' : ''} onchange="toggleFinGroupSelection(${unitIndex}, this.checked)">
+      <button class="fin-group-toggle" onclick="toggleFinLabor(${unitIndex})" title="Expandir diárias">${expanded ? '▾' : '▸'}</button>
+      ${fmtDate(unit.entries[0]?.data)}
+    </td>
+    <td data-label="Obra">${finText(obras)}</td>
+    <td data-label="Descrição">
+      <span class="badge badge-blue fin-tag">Diária</span>
+      <b>${finText(unit.benef)}</b>
+      <small style="color:var(--text3)"> · ${unit.week} · ${unit.entries.length} diária(s)</small>
+    </td>
+    <td data-label="Beneficiário">${finText(unit.benef)}</td>
+    <td data-label="Valor" style="text-align:right">${finValueHtml(pseudoEntry)}</td>
+    <td data-label="Status">${statusBadge(pseudoEntry.status)}</td>
+    <td data-label="Ações" style="text-align:center">
+      <details class="fin-actions" onclick="event.stopPropagation()">
+        <summary title="Ações">⋯</summary>
+        <div class="fin-actions-menu">
+          <button onclick="toggleFinLabor(${unitIndex})">${expanded ? '▴ Recolher' : '▾ Ver'} diárias</button>
+          ${unit.pendente > 0 ? `<button onclick="markFinUnitPaid(${unitIndex})">✅ Marcar grupo como pago</button>` : ''}
+        </div>
+      </details>
+    </td>
+  </tr>`;
+
+  if (expanded) {
+    html += unit.entries.map(e => finEntryRow(e, { child: true })).join('');
+  }
+  return html;
+}
+
+function finGroupHeaderHtml(unit, unitIndex) {
+  const collapsed = finState.collapsedGroups.has(unit.groupKey);
+  const allSelected = unit.entries.every(e => finState.selected.has(finKey(e)));
+  return `<tr class="fin-group-row">
+    <td colspan="7">
+      <div class="fin-group-label">
+        <input type="checkbox" class="fin-check" ${allSelected ? 'checked' : ''} onchange="toggleFinGroupSelection(${unitIndex}, this.checked)">
+        <button class="fin-group-toggle" onclick="toggleFinGroupCollapse(${unitIndex})" title="Recolher/expandir grupo">${collapsed ? '▶' : '▼'}</button>
+        <span>${unit.label}</span>
+        <span class="badge badge-gray">${unit.entries.length}</span>
+        <span class="fin-group-total">Total ${fmt(unit.total)} · A pagar ${fmt(unit.aPagar)}</span>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function finBuildUnits(entries) {
+  const groups = new Map();
+  entries.forEach(e => {
+    const rawKey = finState.groupBy === 'obra' ? (e.obra || 'Geral') : e.categoria;
+    if (!groups.has(rawKey)) groups.set(rawKey, []);
+    groups.get(rawKey).push(e);
+  });
+
+  let keys = [...groups.keys()];
+  if (finState.groupBy === 'tipo') {
+    keys.sort((a, b) => {
+      const order = [...FIN_MAIN_CATEGORIES, 'outros'];
+      return order.indexOf(a) - order.indexOf(b);
+    });
+  } else {
+    keys.sort((a, b) => finObraName(a).localeCompare(finObraName(b)));
+  }
+
+  const units = [];
+  keys.forEach(rawKey => {
+    const groupEntries = groups.get(rawKey);
+    const groupKey = `${finState.groupBy}:${rawKey}`;
+    units.push({
+      kind: 'group',
+      groupKey,
+      label: finState.groupBy === 'obra'
+        ? `🏗️ ${finText(finObraName(rawKey))}`
+        : `${finCategoryMeta(rawKey).icon} ${finCategoryMeta(rawKey).label}`,
+      entries: groupEntries,
+      total: groupEntries.reduce((a, e) => a + (Number(e.valor) || 0), 0),
+      aPagar: groupEntries.reduce((a, e) => a + (Number(e.pendente) || 0), 0)
+    });
+
+    if (finState.collapsedGroups.has(groupKey)) return;
+
+    const laborGroups = new Map();
+    groupEntries.forEach(e => {
+      if (e.categoria === 'mao-de-obra' && e.source === 'pre') {
+        const wk = finWeekLabel(e.data);
+        const k = `${e.benef}|${wk}`;
+        if (!laborGroups.has(k)) {
+          const unit = {
+            kind: 'labor',
+            key: `labor:${k}`,
+            benef: e.benef || 'Trabalhador',
+            week: wk,
+            entries: [],
+            valor: 0,
+            jaPago: 0,
+            pendente: 0
+          };
+          laborGroups.set(k, unit);
+          units.push(unit);
+        }
+        const unit = laborGroups.get(k);
+        unit.entries.push(e);
+        unit.valor += Number(e.valor) || 0;
+        unit.jaPago += Number(e.jaPago) || 0;
+        unit.pendente += Number(e.pendente) || 0;
+      } else {
+        units.push({ kind: 'row', key: finKey(e), entry: e });
+      }
+    });
+  });
+  return units;
+}
+
+function renderFinPagination(totalUnits, page, totalPages, start, end) {
+  const el = document.getElementById('fin-pagination');
+  if (!el) return;
+  if (!totalUnits) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = `
+    <span>Exibindo ${start + 1}–${end} de ${totalUnits} linha(s)</span>
+    <div class="fin-page-buttons">
+      <button class="btn btn-secondary btn-sm" onclick="setFinPage(${page - 1})" ${page <= 1 ? 'disabled' : ''}>◀ Anterior</button>
+      <span>Página ${page} de ${totalPages}</span>
+      <button class="btn btn-secondary btn-sm" onclick="setFinPage(${page + 1})" ${page >= totalPages ? 'disabled' : ''}>Próxima ▶</button>
+    </div>`;
+}
+
+function renderFinTable(summary) {
+  const tbody = document.getElementById('fin-tbody');
+  if (!tbody) return;
+  const tfoot = document.getElementById('fin-tfoot');
+
+  const filtered = (summary.all || []).filter(e => {
+    if (finState.categoria !== 'todos' && e.categoria !== finState.categoria) return false;
+    if (!finStatusMatches(e, finState.status)) return false;
+    if (!finBuscaMatches(e)) return false;
+    return true;
+  });
+
+  filtered.sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || String(a.source).localeCompare(String(b.source)) || a.idx - b.idx);
+
+  const units = finBuildUnits(filtered);
+  window._finUnits = units;
+
+  const total = filtered.reduce((a, e) => a + (Number(e.valor) || 0), 0);
+  const totalAPagar = filtered.reduce((a, e) => a + (Number(e.pendente) || 0), 0);
+
+  if (tfoot) {
+    tfoot.innerHTML = filtered.length
+      ? `<tr style="font-weight:700;background:var(--bg1);border-top:2px solid var(--accent)">
+          <td colspan="4" style="text-align:right">Total do filtro (${filtered.length})</td>
+          <td style="text-align:right">${fmt(total)}<br><small style="color:var(--orange)">A pagar ${fmt(totalAPagar)}</small></td>
+          <td colspan="2"></td>
+        </tr>`
+      : '';
+  }
+
+  if (!units.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7" style="text-align:center;padding:36px;color:var(--text3)">Nenhum lançamento encontrado para os filtros atuais.</td></tr>';
+    renderFinPagination(0, 1, 1, 0, 0);
+    return;
+  }
+
+  const pageSize = finState.pageSize > 0 ? finState.pageSize : units.length;
+  const totalPages = Math.max(1, Math.ceil(units.length / pageSize));
+  if (finState.page > totalPages) finState.page = totalPages;
+  if (finState.page < 1) finState.page = 1;
+  const start = (finState.page - 1) * pageSize;
+  const end = Math.min(units.length, start + pageSize);
+
+  const indexed = units.map((u, i) => ({ u, i })).slice(start, end);
+  tbody.innerHTML = indexed.map(({ u, i }) => {
+    if (u.kind === 'group') return finGroupHeaderHtml(u, i);
+    if (u.kind === 'labor') return finLaborGroupHtml(u, i);
+    return finEntryRow(u.entry);
+  }).join('');
+
+  renderFinPagination(units.length, finState.page, totalPages, start, end);
+}
 
 function renderFinanceiro() {
   const selMonth = document.getElementById('fin-month');
   const selYear = document.getElementById('fin-year');
   const selView = document.getElementById('fin-view-type');
-
   if (!selMonth || !selYear || !selView) return;
 
-  // Inicialização de filtros se vazios
   if (selYear.options.length === 0) {
     const curY = new Date().getFullYear();
     [curY, curY - 1, curY - 2].forEach(y => {
       const opt = document.createElement('option');
-      opt.value = y; opt.textContent = y;
+      opt.value = y;
+      opt.textContent = y;
       selYear.appendChild(opt);
     });
     selMonth.value = new Date().getMonth() + 1;
@@ -1683,312 +2105,281 @@ function renderFinanceiro() {
   const mm = selMonth.value;
   const yy = selYear.value;
   const view = selView.value;
-  window.finViewType = view; // Para uso no helper do modulo
+  window.finViewType = view;
 
-  // Atualizar subtitle
   const subtitles = { mes: 'Fluxo Mensal', custom: 'Período Personalizado' };
   const subtitle = document.getElementById('fin-period-subtitle');
   if (subtitle) subtitle.textContent = subtitles[view] || 'Fluxo de Caixa';
 
-  // Filtrar por datas customizadas
-  const iniEl = document.getElementById('fin-data-ini');
-  const fimEl = document.getElementById('fin-data-fim');
-  const customIni = iniEl?.value;
-  const fimCustom = fimEl?.value;
+  const customIni = document.getElementById('fin-data-ini')?.value;
+  const customFim = document.getElementById('fin-data-fim')?.value;
 
-const getNome = (c) => { const o = DB.obras.find(x => x.cod === c); return o ? o.nome : (c || 'Geral'); };
-   
-  // Filtrar por datas customizadas - modo simple direto
-  let allFin = [];
-  
-  const useCustom = view === 'custom';
-  if (useCustom && customIni && fimCustom) {
-    // Modo custom: pega TODOS os lançamentos e filtra por data
-    const todos = [];
-    
-    // Manuais
-    DB.financeiro?.forEach((f, i) => {
-      if (f.data && f.data >= customIni && f.data <= fimCustom) {
-        todos.push({ source: 'fin', idx: i, ...f, real: parseFloat(f.real)||0, prev: parseFloat(f.prev)||0 });
-      }
-    });
-    
-    // Presença
-    DB.presenca?.forEach((p, i) => {
-      if (p.data && p.data >= customIni && p.data <= fimCustom && (p.total||0) > 0) {
-        todos.push({ 
-          source: 'pre', idx: i, data: p.data, obra: p.obra, tipo: 'Mão de obra',
-          desc: '[Diária] ' + p.nome, forn: p.nome, real: parseFloat(p.total)||0, prev: 0,
-          status: p.pgtoStatus || 'Pendente'
-        });
-      }
-    });
-    
-    // Medições
-    DB.medicao?.forEach((m, i) => {
-      if ((m.data || m.semana) && (m.vtotal||0) > 0) {
-        const d = m.semana || m.data;
-        if (d >= customIni && d <= fimCustom) {
-          todos.push({ 
-            source: 'med', idx: i, data: d, obra: m.obra, tipo: 'Empreiteiro',
-            desc: '[Medição] ' + (m.servico||''), forn: m.equipe||'', real: parseFloat(m.vtotal)||0, prev: 0,
-            status: m.pgtoStatus || 'Pendente'
-          });
-        }
-      }
-    });
-    
-    // Almoços
-    DB.almocos?.forEach((a, i) => {
-      if (a.data && a.data >= customIni && a.data <= fimCustom && (a.vtotal||0) > 0) {
-        todos.push({ 
-          source: 'alm', idx: i, data: a.data, obra: a.obra, tipo: 'Almoço',
-          desc: '[Almoço] ' + a.empreiteiro, forn: a.empreiteiro, real: parseFloat(a.vtotal)||0, prev: 0,
-          status: 'Pendente'
-        });
-      }
-    });
-    
-    allFin = todos;
+  let options;
+  let periodLabel;
+  if (view === 'custom' && customIni && customFim) {
+    options = { dataInicio: customIni, dataFim: customFim, viewType: 'semanal' };
+    periodLabel = `${fmtDate(customIni)} a ${fmtDate(customFim)}`;
   } else {
-    // Modo mensal/padrao
-    const summary = window.summarizeFinance(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, { tipo: 'mes', mes: mm, ano: yy, viewType: view });
-    allFin = summary.all || [];
+    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    options = { ano: yy, mes: mm, viewType: 'semanal' };
+    periodLabel = `${monthNames[Number(mm) - 1]}/${yy}`;
+  }
+  finState.periodLabel = periodLabel;
+
+  const summary = window.summarizeFinanceCosts
+    ? window.summarizeFinanceCosts(DB.financeiro, DB.presenca, DB.medicao, DB.almocos, options)
+    : { all: [], byCategory: {}, kpis: { total: 0, pago: 0, aPagar: 0, count: 0 } };
+  window._finSummary = summary;
+  window._allFinRows = summary.all || [];
+
+  // Remove seleções que não existem mais no período
+  const validKeys = new Set((summary.all || []).map(finKey));
+  [...finState.selected].forEach(k => { if (!validKeys.has(k)) finState.selected.delete(k); });
+
+  if (finState.categoria !== 'todos' && !summary.byCategory[finState.categoria]) {
+    finState.categoria = 'todos';
   }
 
-  // ORDENAÇÃO DECRESCENTE POR DATA
-  allFin.sort((a, b) => {
-    const da = a.data || '';
-    const db = b.data || '';
-    return db.localeCompare(da);
-  });
+  renderFinKpis(summary);
+  renderFinTabs(summary);
+  renderFinBulkBar();
+  renderFinTable(summary);
+  updateFinGroupButtons();
 
-  // Renderização simples: apenas um card com total do período
-  let sumHtml = '';
-  const totalPeriodo = allFin.reduce((sum, f) => sum + (f.real || 0), 0);
-  
-  const periodoLabel = view === 'custom' && customIni && fimCustom 
-    ? `${customIni} a ${fimCustom}` 
-    : `${['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][mm-1]}/${yy}`;
-  
-  sumHtml = `<div class="kpi-card" style="border-left:4px solid var(--accent); background: var(--bg2);">
-    <div class="kpi-label" style="opacity:0.8">${periodoLabel}</div>
-    <div class="kpi-val" style="font-size:24px; font-weight:800; margin: 4px 0;">${fmt(totalPeriodo)}</div>
-    <div style="font-size:11px; color:var(--text3)">${allFin.length} registros</div>
-  </div>`;
-
-  safeSetInner('fin-summary', sumHtml);
-
-// Separar tabelas por tipo: custos diários, empreiteiros, almoços
-  // Lançamentos manuais (source=fin) são distribuídos pela tabela correta baseado no tipo
-  const isEmpreiteiro = (t) => ['empreiteiro', 'medição', 'medicao'].includes((t||'').toLowerCase());
-  const isAlmoco = (t) => (t||'').toLowerCase().includes('almoço') || (t||'').toLowerCase().includes('almoco');
-  const isMaterial = (t) => ['material', 'insumos', 'equipamento'].includes((t||'').toLowerCase());
-  
-  const diarios = allFin.filter(f => f.source === 'pre' || (f.source === 'fin' && !isEmpreiteiro(f.tipo) && !isAlmoco(f.tipo)));
-  const empreiteiros = allFin.filter(f => f.source === 'med' || (f.source === 'fin' && isEmpreiteiro(f.tipo)));
-  const almocos = allFin.filter(f => f.source === 'alm' || (f.source === 'fin' && isAlmoco(f.tipo)));
-
-  // Tabela 1: Custos Diários (Mão de obra própria)
-  let tbodyDiarios = '';
-  diarios.forEach(f => {
-    const diff = f.real - f.prev;
-    let editBtn = f.source === 'fin' 
-      ? `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px"></button>`
-      : `<button class="btn btn-secondary btn-sm" onclick="editPresenca(${f.idx})" style="margin-right:8px"></button>`;
-    let delBtn = f.source === 'fin'
-      ? `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">Excluir</button>`
-      : `<button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${f.idx})">Excluir</button>`;
-    let payBtn = f.status !== 'Pago' ? `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('${f.source === 'fin' ? 'fin' : 'pre'}', ${f.idx})" style="margin-right:8px;background:var(--green);border-color:var(--green);" title="Pagar via PIX">💸</button>` : '';
-    tbodyDiarios += `<tr class="fin-row" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}" data-date="${f.data||''}">
-      <td data-label="Data">${fmtDate(f.data)}</td>
-      <td data-label="Obra">${getNome(f.obra)}</td>
-      <td data-label="Etapa"><small>${f.etapa}</small></td>
-      <td data-label="Tipo" style="white-space:nowrap">${f.tipo}${f.source !== 'fin' ? '<span class="badge badge-gray" style="font-size:10px;margin-left:4px;opacity:0.7">Automático</span>' : ''}</td>
-      <td data-label="Descrição"><b>${f.desc}</b></td>
-      <td data-label="Fornec./Benef."><small>${f.forn}</small></td>
-      <td data-label="Vl. Prev.">${fmt(f.prev)}</td>
-       <td data-label="Vl. Real." style="color:${f.status === 'Pago' ? (f.real > 0 ? 'var(--green)' : 'var(--text)') : 'var(--orange)'};font-weight:600">${f.status === 'Pago' ? fmt(f.real) : fmt(f.pendente)}</td>
-      <td data-label="Diferença" style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
-      <td data-label="Pgto"><small>${f.pgto}</small></td>
-      <td data-label="Status">${statusBadge(f.status)}</td>
-      <td data-label="NF"><small>${f.nf}</small></td>
-      <td>${payBtn}${editBtn}${delBtn}</td>
-    </tr>`;
-  });
-  // Totais Diários
-  const sumDiariosPrev = diarios.reduce((s, f) => s + (f.prev || 0), 0);
-  const sumDiariosReal = diarios.reduce((s, f) => s + (f.real || 0), 0);
-  const sumDiariosDiff = sumDiariosReal - sumDiariosPrev;
-  const diaristas = diarios.filter(f => f.source === 'pre');
-  const aditivos = diarios.filter(f => (f.tipo||'').toLowerCase() === 'adiantamento');
-  const ajustes = diarios.filter(f => ['ajuste', 'desconto'].includes((f.tipo||'').toLowerCase()));
-  const outros = diarios.filter(f => f.source !== 'pre' && !['adiantamento', 'ajuste', 'desconto'].includes((f.tipo||'').toLowerCase()));
-  const sumSub = (arr, k) => arr.reduce((s, f) => s + (f[k] || 0), 0);
-  const subRows = [
-    { label: '👷 Diaristas', prev: sumSub(diaristas, 'prev'), real: sumSub(diaristas, 'real') },
-    { label: '📌 Aditivos', prev: sumSub(aditivos, 'prev'), real: sumSub(aditivos, 'real') },
-    { label: '🔧 Ajustes', prev: sumSub(ajustes, 'prev'), real: sumSub(ajustes, 'real') },
-    { label: '📦 Outros', prev: sumSub(outros, 'prev'), real: sumSub(outros, 'real') },
-  ];
-  let tfootDiarios = `<tr style="font-weight:700;background:var(--bg1);border-top:2px solid var(--accent)"><td colspan="6" style="text-align:right;padding:6px 8px">Totais Diários</td><td>${fmt(sumDiariosPrev)}</td><td>${fmt(sumDiariosReal)}</td><td style="color:${sumDiariosDiff > 0 ? 'var(--red)' : sumDiariosDiff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(sumDiariosDiff)}</td><td colspan="4"></td></tr>`;
-  subRows.forEach(r => {
-    const d = r.real - r.prev;
-    tfootDiarios += `<tr style="font-size:12px;color:var(--text3);background:var(--bg1)"><td colspan="6" style="text-align:right;padding:2px 8px">${r.label}</td><td>${fmt(r.prev)}</td><td>${fmt(r.real)}</td><td style="color:${d > 0 ? 'var(--red)' : d < 0 ? 'var(--green)' : 'var(--text3)'}">${fmt(d)}</td><td colspan="4"></td></tr>`;
-  });
-  safeSetInner('fin-diarios-tbody', (tbodyDiarios || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem diárias pendentes</td></tr>') + tfootDiarios);
-
-  // Tabela 2: Empreiteiros (Medições)
-  let tbodyEmpreiteiros = '';
-  empreiteiros.forEach(f => {
-    const diff = f.real - f.prev;
-    let editBtn = f.source === 'fin'
-      ? `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px"></button>`
-      : `<button class="btn btn-secondary btn-sm" onclick="editMedicao(${f.idx})" style="margin-right:8px"> Med.</button>`;
-    let delBtn = f.source === 'fin'
-      ? `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">Excluir</button>`
-      : `<button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${f.idx})">Excluir</button>`;
-    let payBtn = f.status !== 'Pago' ? `<button class="btn btn-success btn-sm" onclick="initiatePixPayment('${f.source === 'fin' ? 'fin' : 'med'}', ${f.idx})" style="margin-right:8px;background:var(--green);border-color:var(--green);" title="Pagar via PIX">💸</button>` : '';
-    tbodyEmpreiteiros += `<tr class="fin-row" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}" data-date="${f.data||''}">
-      <td data-label="Data">${fmtDate(f.data)}</td>
-      <td data-label="Obra">${getNome(f.obra)}</td>
-      <td data-label="Etapa"><small>${f.etapa}</small></td>
-      <td data-label="Tipo" style="white-space:nowrap">${f.tipo}${f.source !== 'fin' ? '<span class="badge badge-gray" style="font-size:10px;margin-left:4px;opacity:0.7">Automático</span>' : ''}</td>
-      <td data-label="Descrição"><b>${f.desc}</b></td>
-      <td data-label="Fornec./Benef."><small>${f.forn}</small></td>
-      <td data-label="Vl. Prev.\">${fmt(f.prev)}</td>
-       <td data-label="Vl. Real." style="color:${f.status === 'Pago' ? (f.real > 0 ? 'var(--green)' : 'var(--text)') : 'var(--orange)'};font-weight:600">${f.status === 'Pago' ? fmt(f.real) : fmt(f.pendente)}</td>
-      <td data-label="Diferença" style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
-      <td data-label="Pgto"><small>${f.pgto}</small></td>
-      <td data-label="Status">${statusBadge(f.status)}</td>
-      <td data-label="NF"><small>${f.nf}</small></td>
-      <td>${payBtn}${editBtn}${delBtn}</td>
-    </tr>`;
-  });
-  safeSetInner('fin-empreiteiros-tbody', tbodyEmpreiteiros || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem medições pendentes</td></tr>');
-
-  // Totais Empreiteiros
-  const sumEmprPrev = empreiteiros.reduce((s, f) => s + (f.prev || 0), 0);
-  const sumEmprReal = empreiteiros.reduce((s, f) => s + (f.real || 0), 0);
-  const sumEmprDiff = sumEmprReal - sumEmprPrev;
-  const tfootEmpreiteiros = `<tr style="font-weight:700;background:var(--bg1);border-top:2px solid var(--accent)"><td colspan="6" style="text-align:right;padding:6px 8px">Total Empreiteiros</td><td>${fmt(sumEmprPrev)}</td><td>${fmt(sumEmprReal)}</td><td style="color:${sumEmprDiff > 0 ? 'var(--red)' : sumEmprDiff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(sumEmprDiff)}</td><td colspan="4"></td></tr>`;
-  safeSetInner('fin-empreiteiros-tbody', (tbodyEmpreiteiros || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem medições pendentes</td></tr>') + tfootEmpreiteiros);
-
-  // Tabela 3: Almoços
-  let tbodyAlmocos = '';
-  almocos.forEach(f => {
-    const diff = f.real - f.prev;
-    let editBtn = f.source === 'fin'
-      ? `<button class="btn btn-secondary btn-sm" onclick="editFinanceiro(${f.idx})" style="margin-right:8px"></button>`
-      : `<button class="btn btn-secondary btn-sm" onclick="editAlmoco(${f.idx})" style="margin-right:8px"></button>`;
-    let delBtn = f.source === 'fin'
-      ? `<button class="btn btn-danger btn-sm" onclick="deleteItem('financeiro',${f.idx})">Excluir</button>`
-      : `<button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${f.idx})">Excluir</button>`;
-    tbodyAlmocos += `<tr class="fin-row" data-tipo="${(f.tipo||'').toLowerCase()}" data-status="${(f.status||'').toLowerCase()}" data-date="${f.data||''}">
-      <td data-label="Data">${fmtDate(f.data)}</td>
-      <td data-label="Obra">${getNome(f.obra)}</td>
-      <td data-label="Etapa"><small>${f.etapa}</small></td>
-      <td data-label="Tipo" style="white-space:nowrap">${f.tipo}</td>
-      <td data-label="Descrição"><b>${f.desc}</b></td>
-      <td data-label="Fornec./Benef."><small>${f.forn}</small></td>
-      <td data-label="Vl. Prev.">${fmt(f.prev)}</td>
-       <td data-label="Vl. Real." style="color:${f.status === 'Pago' ? (f.real > 0 ? 'var(--green)' : 'var(--text)') : 'var(--orange)'};font-weight:600">${f.status === 'Pago' ? fmt(f.real) : fmt(f.pendente)}</td>
-      <td data-label="Diferença" style="color:${diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(diff)}</td>
-      <td data-label="Pgto"><small>${f.pgto}</small></td>
-      <td data-label="Status">${statusBadge(f.status)}</td>
-      <td data-label="NF"><small>${f.nf}</small></td>
-      <td>${editBtn}${delBtn}</td>
-    </tr>`;
-  });
-  safeSetInner('fin-almocos-tbody', tbodyAlmocos || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem almoços pendentes</td></tr>');
-
-  // Totais Almoços
-  const sumAlmocoPrev = almocos.reduce((s, f) => s + (f.prev || 0), 0);
-  const sumAlmocoReal = almocos.reduce((s, f) => s + (f.real || 0), 0);
-  const sumAlmocoDiff = sumAlmocoReal - sumAlmocoPrev;
-  const tfootAlmocos = `<tr style="font-weight:700;background:var(--bg1);border-top:2px solid var(--accent)"><td colspan="6" style="text-align:right;padding:6px 8px">Total Almoços</td><td>${fmt(sumAlmocoPrev)}</td><td>${fmt(sumAlmocoReal)}</td><td style="color:${sumAlmocoDiff > 0 ? 'var(--red)' : sumAlmocoDiff < 0 ? 'var(--green)' : 'var(--text)'}">${fmt(sumAlmocoDiff)}</td><td colspan="4"></td></tr>`;
-  safeSetInner('fin-almocos-tbody', (tbodyAlmocos || '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:8px">Sem almoços pendentes</td></tr>') + tfootAlmocos);
-
-  window._allFinRows = allFin;
-  
-  // Aplica o filtro atual após a renderização para manter a consistência
-  if (typeof filterFinanceiro === 'function') filterFinanceiro();
+  const statusEl = document.getElementById('fin-status-filter');
+  if (statusEl && statusEl.value !== finState.status) statusEl.value = finState.status;
+  const buscaEl = document.getElementById('fin-busca');
+  if (buscaEl && buscaEl.value !== finState.busca) buscaEl.value = finState.busca;
+  const sizeEl = document.getElementById('fin-page-size');
+  if (sizeEl) sizeEl.value = String(finState.pageSize);
 }
 window.renderFinanceiro = renderFinanceiro;
 
-// Filtro combinado (tipo + status + busca + datas) do financeiro — usa data-attributes
-function filterFinanceiro() {
-  console.log('🎬 Executando filtro financeiro...');
-  const tipo     = (document.getElementById('fin-tipo-filter')?.value   || '').toLowerCase().trim();
-  const status   = (document.getElementById('fin-status-filter')?.value || '').toLowerCase().trim();
-  const busca    = (document.getElementById('fin-busca')?.value         || '').toLowerCase().trim();
-  const dateFrom = (document.getElementById('fin-table-date-from')?.value || '').trim();
-  const dateTo   = (document.getElementById('fin-table-date-to')?.value   || '').trim();
-  
-  // Seleciona todas as linhas das três tabelas
-  const rows = [
-    ...document.querySelectorAll('#fin-diarios-tbody .fin-row'),
-    ...document.querySelectorAll('#fin-empreiteiros-tbody .fin-row'),
-    ...document.querySelectorAll('#fin-almocos-tbody .fin-row')
-  ];
+function updateFinGroupButtons() {
+  const tipo = document.getElementById('fin-group-tipo');
+  const obra = document.getElementById('fin-group-obra');
+  if (tipo) tipo.classList.toggle('active', finState.groupBy === 'tipo');
+  if (obra) obra.classList.toggle('active', finState.groupBy === 'obra');
+}
 
-  let visibleCount = 0;
-  rows.forEach(row => {
-    const rt = (row.dataset.tipo   || '');
-    const rs = (row.dataset.status || '');
-    const rd = (row.dataset.date   || '');
-    const rb = (row.innerText || '').toLowerCase();
-    
-    const matchTipo   = !tipo   || rt.includes(tipo);
-    const matchStatus = !status || rs.includes(status);
-    const matchBusca  = !busca  || rb.includes(busca);
-    const matchDateFrom = !dateFrom || rd >= dateFrom;
-    const matchDateTo   = !dateTo   || rd <= dateTo;
-    
-    const ok = matchTipo && matchStatus && matchBusca && matchDateFrom && matchDateTo;
-    row.style.display = ok ? '' : 'none';
-    if (ok) visibleCount++;
-  });
-  
-  console.log(`📊 Filtro: ${visibleCount}/${rows.length} linhas visíveis | tipo=${tipo||'*'} status=${status||'*'} de=${dateFrom||'*'} até=${dateTo||'*'} busca=${busca||'*'}`);
+// Filtros
+function filterFinanceiro() {
+  finState.status = document.getElementById('fin-status-filter')?.value || '';
+  finState.busca = document.getElementById('fin-busca')?.value || '';
+  finState.page = 1;
+  renderFinanceiro();
 }
 window.filterFinanceiro = filterFinanceiro;
 
-// Limpar filtro de datas da tabela
+window.setFinCategory = function (key) {
+  finState.categoria = finState.categoria === key ? 'todos' : key;
+  finState.page = 1;
+  renderFinanceiro();
+};
+
+window.setFinStatus = function (status) {
+  finState.status = finState.status === status ? '' : status;
+  finState.page = 1;
+  renderFinanceiro();
+};
+
+window.clearFinFilters = function () {
+  finState.categoria = 'todos';
+  finState.status = '';
+  finState.page = 1;
+  renderFinanceiro();
+};
+
+window.setFinGroup = function (groupBy) {
+  finState.groupBy = groupBy === 'obra' ? 'obra' : 'tipo';
+  finState.page = 1;
+  renderFinanceiro();
+};
+
+window.setFinPageSize = function (value) {
+  finState.pageSize = parseInt(value, 10) || 0;
+  finState.page = 1;
+  renderFinanceiro();
+};
+
+window.setFinPage = function (page) {
+  finState.page = Math.max(1, parseInt(page, 10) || 1);
+  renderFinanceiro();
+};
+
+// Seleção
+window.toggleFinSelect = function (key, checked) {
+  if (checked) finState.selected.add(key);
+  else finState.selected.delete(key);
+  renderFinanceiro();
+};
+
+window.toggleFinGroupSelection = function (unitIndex, checked) {
+  const unit = (window._finUnits || [])[unitIndex];
+  if (!unit || !unit.entries) return;
+  unit.entries.forEach(e => {
+    if (checked) finState.selected.add(finKey(e));
+    else finState.selected.delete(finKey(e));
+  });
+  renderFinanceiro();
+};
+
+window.clearFinSelection = function () {
+  finState.selected.clear();
+  renderFinanceiro();
+};
+
+// Expansão
+window.toggleFinDetail = function (key) {
+  if (finState.expanded.has(key)) finState.expanded.delete(key);
+  else finState.expanded.add(key);
+  renderFinanceiro();
+};
+
+window.toggleFinLabor = function (unitIndex) {
+  const unit = (window._finUnits || [])[unitIndex];
+  if (!unit) return;
+  if (finState.expanded.has(unit.key)) finState.expanded.delete(unit.key);
+  else finState.expanded.add(unit.key);
+  renderFinanceiro();
+};
+
+window.toggleFinGroupCollapse = function (unitIndex) {
+  const unit = (window._finUnits || [])[unitIndex];
+  if (!unit || !unit.groupKey) return;
+  if (finState.collapsedGroups.has(unit.groupKey)) finState.collapsedGroups.delete(unit.groupKey);
+  else finState.collapsedGroups.add(unit.groupKey);
+  renderFinanceiro();
+};
+
+// Baixas
+function finApplyPaid(entry) {
+  if (!entry || entry.status === 'Pago' || !(entry.pendente > 0)) return false;
+  if (entry.source === 'fin') {
+    const f = DB.financeiro[entry.idx];
+    if (!f) return false;
+    f.status = 'Pago';
+    f.valpago = entry.valor;
+    return true;
+  }
+  if (entry.source === 'pre') {
+    const p = DB.presenca[entry.idx];
+    if (!p) return false;
+    p.pgtoStatus = 'Pago';
+    p.valpago = entry.valor;
+    return true;
+  }
+  if (entry.source === 'med') {
+    const m = DB.medicao[entry.idx];
+    if (!m) return false;
+    m.pgtoStatus = 'Pago';
+    m.valpago = entry.valor;
+    return true;
+  }
+  if (entry.source === 'alm') {
+    const a = DB.almocos[entry.idx];
+    if (!a) return false;
+    a.pgtoStatus = 'Pago';
+    a.valpago = entry.valor;
+    return true;
+  }
+  return false;
+}
+
+async function finAfterPayment() {
+  finState.selected.clear();
+  await persistDB();
+  renderFinanceiro();
+  if (typeof renderDashboard === 'function') renderDashboard();
+}
+
+window.markFinEntryPaid = async function (key) {
+  const entry = finEntriesMap().get(key);
+  if (!finApplyPaid(entry)) { toast('Este lançamento não está pendente.', 'info'); return; }
+  await finAfterPayment();
+  toast('Lançamento marcado como pago.');
+};
+
+window.markFinUnitPaid = async function (unitIndex) {
+  const unit = (window._finUnits || [])[unitIndex];
+  if (!unit || !unit.entries) return;
+  let changed = 0;
+  unit.entries.forEach(e => { if (finApplyPaid(e)) changed++; });
+  if (!changed) { toast('Nenhum lançamento pendente neste grupo.', 'info'); return; }
+  await finAfterPayment();
+  toast(`${changed} lançamento(s) marcado(s) como pago.`);
+};
+
+window.bulkMarcarPago = async function () {
+  const entries = finSelectedEntries().filter(e => e.status !== 'Pago' && e.pendente > 0);
+  if (!entries.length) { toast('Nenhum lançamento pendente selecionado.', 'info'); return; }
+  let changed = 0;
+  entries.forEach(e => { if (finApplyPaid(e)) changed++; });
+  await finAfterPayment();
+  toast(`${changed} lançamento(s) marcado(s) como pago.`);
+};
+
+window.bulkPagarPix = function () {
+  const entries = finSelectedEntries().filter(e => e.status !== 'Pago' && e.pendente > 0);
+  if (!entries.length) { toast('Nenhum lançamento pendente selecionado.', 'info'); return; }
+  window._finPixQueue = entries.map(e => ({ source: e.source, idx: e.idx, amount: e.pendente }));
+  openNextFinPix();
+};
+
+window.openNextFinPix = function () {
+  const queue = window._finPixQueue;
+  if (!queue || !queue.length) {
+    window._finPixQueue = null;
+    finState.selected.clear();
+    renderFinanceiro();
+    return;
+  }
+  const item = queue.shift();
+  if (typeof initiatePixPayment === 'function') {
+    initiatePixPayment(item.source, item.idx, { amount: item.amount, bulk: true });
+  }
+};
+
+window.cancelFinPixQueue = function () {
+  window._finPixQueue = null;
+};
+
+window.deleteFinEntry = function (source, idx) {
+  const tableMap = { fin: 'financeiro', pre: 'presenca', med: 'medicao', alm: 'almocos' };
+  const table = tableMap[source];
+  if (!table || typeof deleteItem !== 'function') return;
+  deleteItem(table, idx);
+};
+
+// Limpar filtro de período (volta para o mês)
 function clearFinDateFilter() {
-  const from = document.getElementById('fin-table-date-from');
-  const to = document.getElementById('fin-table-date-to');
-  if (from) from.value = '';
-  if (to) to.value = '';
-  filterFinanceiro();
+  const ini = document.getElementById('fin-data-ini');
+  const fim = document.getElementById('fin-data-fim');
+  const view = document.getElementById('fin-view-type');
+  if (ini) ini.value = '';
+  if (fim) fim.value = '';
+  if (view) view.value = 'mes';
+  if (typeof toggleFinCustomDates === 'function') toggleFinCustomDates();
+  renderFinanceiro();
 }
 window.clearFinDateFilter = clearFinDateFilter;
 
 // Helper para determinar semana/período de uma data
-window.getSemanaPeriodo = function(dataStr, year, month, viewType) {
+window.getSemanaPeriodo = function (dataStr, year, month, viewType) {
   if (!dataStr) return null;
-  
-  const [y, m, d] = dataStr.split('-').map(Number);
+  const d = Number(dataStr.split('-')[2]);
   if (viewType === 'quinzenal') {
     return d <= 15 ? '1ª Quinzena' : '2ª Quinzena';
   }
-  
-  // Determina semana do mês (1-5)
-  const semana = Math.ceil(d / 7);
-  return `Semana ${semana}`;
+  return `Semana ${Math.ceil(d / 7)}`;
 };
 
-// Função para filtrar por semana ao clicar no kpi-card
-window.filtrarSemanaFinanceiro = function(semana) {
-  if (semana === window_finSemanaSelecionada || !semana) {
-    window_finSemanaSelecionada = null;
-  } else {
-    window_finSemanaSelecionada = semana;
-  }
+// Mantido por compatibilidade com chamadas antigas
+window.filtrarSemanaFinanceiro = function (semana) {
+  window._finSemanaSelecionada = semana || null;
   renderFinanceiro();
-  toast(window_finSemanaSelecionada ? `Filtrando: ${semana}` : 'Filtro limpo', 'info');
+  toast(semana ? `Filtrando: ${semana}` : 'Filtro limpo', 'info');
 };
-
 
 // ==================== EXPORT FUNCTIONS ====================
 function exportarImagemDashboard() {
@@ -2541,9 +2932,22 @@ async function addMasterUser() {
       try {
         const secAppName = 'SecAuth_' + Date.now();
         const secApp = firebase.initializeApp(firebase.app().options, secAppName);
-        await secApp.auth().createUserWithEmailAndPassword(email, pass);
+        const cred = await secApp.auth().createUserWithEmailAndPassword(email, pass);
+        const newUid = cred.user.uid;
         await secApp.auth().signOut();
         await secApp.delete();
+
+        // Como o admin logado é Super Admin, já cria o perfil completo no banco de dados
+        await firebase.database().ref(`profiles/${newUid}`).set({
+          uid: newUid,
+          email: email,
+          name: 'Administrador Mestre',
+          role: 'super_admin',
+          tenantId: 'MASTER_SYSTEM',
+          status: 'ativo',
+          criadoEm: Date.now()
+        });
+
         toast(`Conta criada com sucesso com a senha inicial para ${email}!`);
       } catch (authErr) {
         if (authErr.code === 'auth/email-already-in-use') {
@@ -3091,6 +3495,11 @@ async function openModal(id) {
     }
     m.querySelector('#al-data').value = today;
     calcAlmocoTotal();
+    const alStatus = document.getElementById('al-status');
+    if (alStatus) alStatus.value = 'Pendente';
+    const alValpago = document.getElementById('al-valpago');
+    if (alValpago) alValpago.value = '';
+    if (typeof toggleAlmocoParcial === 'function') toggleAlmocoParcial();
     const radioIndiv = m.querySelector('input[name="al-modo"][value="individual"]');
     if (radioIndiv) { radioIndiv.checked = true; }
     const indivGrp = document.getElementById('al-indiv-grp');
@@ -4695,7 +5104,15 @@ function toast(msg, type = 'success') {
 // ==================== INIT ====================
 window.onclick = function (e) {
   const container = document.getElementById('modal-container');
-  if (e.target === container) closeModal(); // Fecha qualquer modal que estiver aberto se clicar fora
+  if (e.target === container) {
+    // Fechar o PIX pelo overlay também cancela a transação/fila em andamento
+    const pixAtivo = (typeof activePixTransaction !== 'undefined' && activePixTransaction) || window._finPixQueue;
+    if (pixAtivo && typeof cancelPixPayment === 'function') {
+      cancelPixPayment();
+      return;
+    }
+    closeModal(); // Fecha qualquer modal que estiver aberto se clicar fora
+  }
 };
 
 document.getElementById('header-date').textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });

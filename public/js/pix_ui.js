@@ -5,18 +5,22 @@
 
 let activePixTransaction = null;
 
-async function initiatePixPayment(source, idx) {
+async function initiatePixPayment(source, idx, opts = {}) {
     let amount = 0;
     let receiver = '';
     let pixKey = '';
     let keyType = null;
     let description = '';
+    const customAmount = Number(opts && opts.amount);
+    const hasCustomAmount = Number.isFinite(customAmount) && customAmount > 0;
 
     if (source === 'pre') {
         const p = DB.presenca[idx];
         if (!p) { toast('Registro não encontrado. Recarregue a página.', 'error'); return; }
         const t = DB.trabalhadores.find(x => x.cod === p.trab);
-        amount = parseFloat(p.total) || 0;
+        const total = window.getPresencaCusto ? window.getPresencaCusto(p) : (parseFloat(p.total) || 0);
+        const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
+        amount = hasCustomAmount ? customAmount : Math.max(0, total - pago);
         receiver = t ? t.nome : (p.nome || 'TRABALHADOR');
         pixKey = t ? (t.pixkey || '') : '';
         keyType = t ? (t.pixtipo || null) : null;
@@ -35,7 +39,9 @@ async function initiatePixPayment(source, idx) {
     } else if (source === 'med') {
         const m = DB.medicao[idx];
         if (!m) { toast('Medição não encontrada. Recarregue a página.', 'error'); return; }
-        amount = parseFloat(m.vtotal) || 0;
+        const total = parseFloat(m.vtotal) || 0;
+        const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
+        amount = hasCustomAmount ? customAmount : Math.max(0, total - pago);
         receiver = m.equipe || 'EQUIPE';
         pixKey = '';
         description = `MEDICAO ${m.servico}`;
@@ -44,7 +50,9 @@ async function initiatePixPayment(source, idx) {
         const f = DB.financeiro[idx];
         if (!f) { toast('Lançamento não encontrado. Recarregue a página.', 'error'); return; }
         // Usa o valor realizado se > 0; caso contrário usa o previsto
-        amount = (parseFloat(f.real) > 0) ? parseFloat(f.real) : parseFloat(f.prev) || 0;
+        const total = (parseFloat(f.real) > 0) ? parseFloat(f.real) : (parseFloat(f.prev) || 0);
+        const pago = f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0;
+        amount = hasCustomAmount ? customAmount : Math.max(0, total - pago);
         receiver = f.forn || 'FORNECEDOR';
         pixKey = f.pixkey || '';
         const t = f.trab ? DB.trabalhadores.find(x => x.cod === f.trab) : DB.trabalhadores.find(x => x.nome === f.forn);
@@ -53,6 +61,16 @@ async function initiatePixPayment(source, idx) {
             pixKey = t.pixkey || '';
         }
         description = f.desc || 'PAGAMENTO';
+
+    } else if (source === 'alm') {
+        const a = DB.almocos[idx];
+        if (!a) { toast('Almoço não encontrado. Recarregue a página.', 'error'); return; }
+        const total = parseFloat(a.vtotal) || 0;
+        const pago = a.pgtoStatus === 'Parcial' ? (parseFloat(a.valpago) || 0) : 0;
+        amount = hasCustomAmount ? customAmount : Math.max(0, total - pago);
+        receiver = a.empreiteiro || 'EQUIPE';
+        pixKey = '';
+        description = `ALMOCO ${a.data} ${a.empreiteiro}`;
     }
 
     // Garante valor maior que zero antes de prosseguir
@@ -73,7 +91,7 @@ async function initiatePixPayment(source, idx) {
         return;
     }
 
-    activePixTransaction = { source, idx, amount, receiver };
+    activePixTransaction = { source, idx, amount, receiver, bulk: !!(opts && opts.bulk) };
 
     await openModal('modal-pix-view');
     
@@ -93,11 +111,15 @@ async function initiatePixPayment(source, idx) {
 async function confirmPixPaid() {
     if (!activePixTransaction) return;
     
-    const { source, idx, amount } = activePixTransaction;
+    const { source, idx, amount, bulk } = activePixTransaction;
     
     if (source === 'pre') {
         const p = DB.presenca[idx];
-        if (p) { p.pgtoStatus = 'Pago'; p.valpago = parseFloat(p.total) || amount; }
+        if (p) {
+            const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
+            p.pgtoStatus = 'Pago';
+            p.valpago = pago + amount;
+        }
     } else if (source === 'lote') {
         const item = window.lotePendentes?.[idx];
         if (item) {
@@ -107,17 +129,49 @@ async function confirmPixPaid() {
         }
     } else if (source === 'med') {
         const m = DB.medicao[idx];
-        if (m) { m.pgtoStatus = 'Pago'; m.valpago = parseFloat(m.vtotal) || amount; }
+        if (m) {
+            const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
+            m.pgtoStatus = 'Pago';
+            m.valpago = pago + amount;
+        }
     } else if (source === 'fin') {
         const f = DB.financeiro[idx];
-        if (f) { f.status = 'Pago'; f.valpago = amount; }
+        if (f) {
+            const pago = f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0;
+            f.status = 'Pago';
+            f.valpago = pago + amount;
+        }
+    } else if (source === 'alm') {
+        const a = DB.almocos[idx];
+        if (a) {
+            const pago = a.pgtoStatus === 'Parcial' ? (parseFloat(a.valpago) || 0) : 0;
+            a.pgtoStatus = 'Pago';
+            a.valpago = pago + amount;
+        }
     }
     
     toast('Pagamento confirmado com sucesso!');
+    activePixTransaction = null;
     closeModal('modal-pix-view');
     await persistDB();
     renderFinanceiro && renderFinanceiro();
     renderDashboard && renderDashboard();
-    
-    activePixTransaction = null;
+    renderAlmocos && renderAlmocos();
+    renderPresenca && renderPresenca();
+
+    if (bulk && window._finPixQueue) {
+        setTimeout(() => {
+            if (typeof openNextFinPix === 'function') openNextFinPix();
+        }, 250);
+    }
 }
+
+function cancelPixPayment() {
+    if (typeof cancelFinPixQueue === 'function') cancelFinPixQueue();
+    activePixTransaction = null;
+    closeModal('modal-pix-view');
+}
+
+window.initiatePixPayment = initiatePixPayment;
+window.confirmPixPaid = confirmPixPaid;
+window.cancelPixPayment = cancelPixPayment;

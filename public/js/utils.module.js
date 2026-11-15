@@ -106,248 +106,333 @@ const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) => {
 
 window.calcWeeklyPendingPayments = calcWeeklyPendingPayments;
 
-/**
- * Consolida todo o financeiro (Manuais, Presença, Medições, Almoços).
- */
-const summarizeFinance = (fin, pres, med, alm, year, month, viewType) => {
-  let all = [];
-  const filterDate = (d) => {
-    if (!year || !month) return true; // Sem filtro se null
-    if (!d) return false;
-    const parts = d.split('-');
-    return parseInt(parts[0]) === parseInt(year) && parseInt(parts[1]) === parseInt(month);
-  };
+const FIN_CATEGORIES = [
+  { key: 'mao-de-obra', label: 'Mão de obra', icon: '👷' },
+  { key: 'empreiteiro', label: 'Empreiteiros', icon: '🔨' },
+  { key: 'almoco', label: 'Almoços', icon: '🍱' },
+  { key: 'material', label: 'Material', icon: '🧱' },
+  { key: 'outros', label: 'Outros', icon: '📌' }
+];
 
-  // Lançamentos manuais
-  fin.forEach((f, i) => {
-    if (filterDate(f.data)) {
-      const real = parseFloat(f.real) || 0;
-      const prev = parseFloat(f.prev) || 0;
-      const isDesconto = (f.tipo || '').toLowerCase().includes('desconto');
-      
-      all.push({
-        source: 'fin', idx: i, ...f,
-        real: isDesconto ? -Math.abs(real) : real,
-        prev: isDesconto ? -Math.abs(prev) : prev
-      });
-    }
-  });
+const normalizeText = (v) => String(v == null ? '' : v)
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
-  // Presença
-  pres.forEach((p, i) => {
-    if ((p.total || 0) > 0 && filterDate(p.data)) {
-      const total = parseFloat(p.total) || 0;
-      const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
-      const pendente = p.pgtoStatus !== 'Pago' ? Math.max(0, total - pago) : 0;
-       all.push({
-        source: 'pre', idx: i,
-        data: p.data, obra: p.obra,
-        tipo: 'Mão de obra própria',
-        desc: '[Diária] ' + p.nome,
-        forn: p.nome || '',
-        real: total, prev: 0,
-        status: p.pgtoStatus || 'Pendente',
-        totalBruto: total,
-        pendente: p.pgtoStatus !== 'Pago' ? Math.max(0, total - (pago || 0)) : 0,
-        jaPago: pago
-      });
-    }
-  });
-
-  // Medições
-  med.forEach((m, i) => {
-    const dMed = m.semana || m.data;
-    if ((m.vtotal || 0) > 0 && filterDate(dMed)) {
-      const total = parseFloat(m.vtotal) || 0;
-      const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
-      const pendente = m.pgtoStatus !== 'Pago' ? Math.max(0, total - pago) : 0;
-       all.push({
-        source: 'med', idx: i,
-        data: dMed, obra: m.obra,
-        tipo: 'Empreiteiro',
-        desc: '[Medição] ' + m.servico,
-        forn: m.equipe || '',
-        real: total, prev: 0,
-        status: m.pgtoStatus || 'Pendente',
-        totalBruto: total,
-        pendente: m.pgtoStatus !== 'Pago' ? Math.max(0, total - (pago || 0)) : 0,
-        jaPago: pago
-      });
-    }
-  });
-
-  // Almoços
-  alm.forEach(a => {
-    if ((a.vtotal || 0) > 0 && filterDate(a.data)) {
-      const total = parseFloat(a.vtotal) || 0;
-      all.push({
-        source: 'alm', idx: -1,
-        data: a.data, obra: a.obra,
-        tipo: 'Almoço Empreiteiro',
-        desc: '[Almoço] ' + a.empreiteiro,
-        forn: a.empreiteiro || '',
-        real: total, prev: 0,
-        status: 'Pendente',
-        totalBruto: total,
-        pendente: total,
-        jaPago: 0
-      });
-    }
-  });
-
-  // Agrupamento por Obra (Legado/Total) e por Período (Novo)
-  const totalsByObra = {};
-  const totalsByPeriod = {};
-
-  all.forEach(f => {
-    const cod = f.obra || 'Geral';
-    if (!totalsByObra[cod]) totalsByObra[cod] = { prev: 0, real: 0, diff: 0 };
-    totalsByObra[cod].prev += f.prev;
-    totalsByObra[cod].real += f.real;
-    totalsByObra[cod].diff = totalsByObra[cod].real - totalsByObra[cod].prev;
-
-    // Lógica de Agrupamento por Período (Semanal/Quinzenal)
-    if (f.data) {
-      const pId = getPeriodLabel(f.data, viewType || 'semanal');
-      if (!totalsByPeriod[pId]) totalsByPeriod[pId] = { real: 0, items: 0 };
-      totalsByPeriod[pId].real += f.real;
-      totalsByPeriod[pId].items++;
-    }
-  });
-
-  return { all, totalsByObra, totalsByPeriod };
+const parseMoney = (v) => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  if (v == null || v === '') return 0;
+  const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
 };
 
-window.summarizeFinance = summarizeFinance;
+const normalizePgtoStatus = (status) => {
+  const s = normalizeText(status);
+  if (s === 'pago' || s === 'quitado') return 'Pago';
+  if (s === 'parcial') return 'Parcial';
+  if (s === 'atrasado') return 'Atrasado';
+  if (s === 'pago parcial') return 'Parcial';
+  return 'Pendente';
+};
+
+const categorizeFinanceType = (tipo) => {
+  const t = normalizeText(tipo);
+  if (!t) return 'outros';
+  if (t.includes('almo')) return 'almoco';
+  if (t.includes('empreit') || t.includes('medi')) return 'empreiteiro';
+  if (t.includes('material') || t.includes('insumo') || t.includes('equipamento')) return 'material';
+  if (t.includes('mao de obra') || t.includes('diaria') || t.includes('salario')) return 'mao-de-obra';
+  return 'outros';
+};
+
+const financeCategoryLabel = (key) => {
+  const found = FIN_CATEGORIES.find(c => c.key === key);
+  return found ? found.label : 'Outros';
+};
 
 /**
- * Calcula custos de diárias por período
- * options pode ter: tipo ('semana', 'mes', 'hoje') OU dataInicio/dataFim
+ * Valor realmente gravado no lançamento de presença.
+ * Regra do app: usa o valor histórico da diária (não o valor atual do cadastro),
+ * para que reajustes futuros não alterem o passado.
  */
-const calcCustosDiarias = (presenca, options = {}) => {
-  let dataInicio, dataFim;
-  
-  if (options.dataInicio && options.dataFim) {
-    dataInicio = options.dataInicio;
-    dataFim = options.dataFim;
-  } else {
+const getPresencaCusto = (p) => {
+  if (!p) return 0;
+  const presenca = normalizeText(p.presenca);
+  if (presenca === 'falta') return 0;
+
+  const totalGravado = parseMoney(p.total);
+  if (totalGravado > 0) return totalGravado;
+
+  const diariaGravada = parseMoney(p.diaria);
+  if (!(diariaGravada > 0)) return 0;
+  if (presenca === 'meio periodo' || presenca === 'meio-periodo') return diariaGravada / 2;
+
+  const hnorm = parseMoney(p.hnorm);
+  const hextra = parseMoney(p.hextra);
+  const valorHora = hnorm > 0 ? diariaGravada / hnorm : 0;
+  return hnorm > 0 ? diariaGravada + (hextra * valorHora * 1.5) : diariaGravada;
+};
+
+function buildFinanceDateFilter(options = {}) {
+  let dataInicio = options.dataInicio || '';
+  let dataFim = options.dataFim || '';
+  const year = options.ano != null ? options.ano : options.year;
+  const month = options.mes != null ? options.mes : options.month;
+
+  if (!dataInicio && !dataFim && year != null && month != null) {
+    const y = parseInt(year);
+    const m = parseInt(month);
+    dataInicio = `${y}-${String(m).padStart(2, '0')}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    dataFim = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  } else if (!dataInicio && !dataFim && options.tipo) {
     const periodo = getPeriodoOptions(options);
     dataInicio = periodo.dataInicio;
     dataFim = periodo.dataFim;
   }
-  
-  const seen = new Set();
-  const diarias = (presenca || []).filter(p => {
-    if (!p || !p.data || p.data < dataInicio || p.data > dataFim) return false;
-    const trabKey = p.trab || p.nome;
-    const uniqueKey = `${p.data}_${trabKey}`;
-    if (seen.has(uniqueKey)) return false;
-    seen.add(uniqueKey);
+
+  return (date) => {
+    if (!dataInicio && !dataFim) return true;
+    if (!date) return false;
+    if (dataInicio && date < dataInicio) return false;
+    if (dataFim && date > dataFim) return false;
     return true;
-  });
-  
-  // Recalcula usando o valor diária ATUAL do trabalhador (DB.trabalhadores)
-  const diariasComValor = diarias.map(p => {
-    const worker = (DB.trabalhadores || []).find(t => t.cod === p.trab);
-    const diariaAtual = worker ? (parseFloat(worker.diaria) || 0) : 0;
-    const hnorm = parseFloat(p.hnorm) || 0;
-    const hextra = parseFloat(p.hextra) || 0;
-    let totalRecalc = 0;
-    
-    if (p.presenca === 'Presente') {
-      const valorHora = hnorm > 0 ? diariaAtual / hnorm : 0;
-      totalRecalc = hnorm > 0 ? diariaAtual + (hextra * valorHora * 1.5) : diariaAtual;
-    } else if (p.presenca === 'Meio período') {
-      totalRecalc = diariaAtual / 2;
-    }
-    
-    // Atualiza o total para refletir o valor ATUAL
-    return { ...p, total: totalRecalc };
-  });
-  
-  const custoTotal = diariasComValor.reduce((a, p) => a + (parseFloat(p.total) || 0), 0);
-  const pendente = diariasComValor.filter(p => p.pgtoStatus !== 'Pago');
-  const pendenteTotal = pendente.reduce((a, p) => {
-    const total = parseFloat(p.total) || 0;
-    const pago = p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0;
-    return a + Math.max(0, total - pago);
-  }, 0);
-  
-  return {
-    registros: diariasComValor.length,
-    custoTotal,
-    pendente,
-    pendenteTotal,
-    porObra: groupedByObra(diariasComValor)
   };
 }
+
+/**
+ * Fonte única de lançamentos financeiros do app.
+ * Manuais + presença + medições + almoços, todos normalizados e com o valor
+ * histórico efetivamente gravado em cada origem.
+ */
+function buildFinanceEntries(fin, pres, med, alm, options = {}) {
+  const entries = [];
+  const filterDate = buildFinanceDateFilter(options);
+
+  (fin || []).forEach((f, i) => {
+    if (!f || !filterDate(f.data)) return;
+    const isDesconto = normalizeText(f.tipo).includes('desconto');
+    const realRaw = parseMoney(f.real);
+    const prevRaw = parseMoney(f.prev);
+    // Usa o realizado quando informado; senão, o previsto é o valor efetivo do lançamento.
+    const realEfetivo = realRaw > 0 ? realRaw : prevRaw;
+    const valor = isDesconto ? -Math.abs(realEfetivo) : realEfetivo;
+    const prev = isDesconto ? -Math.abs(prevRaw) : prevRaw;
+    const status = normalizePgtoStatus(f.status || f.pgtoStatus);
+    const valpagoRaw = parseMoney(f.valpago);
+    const jaPago = status === 'Pago' ? valor : (status === 'Parcial' ? valpagoRaw : 0);
+    const pendente = isDesconto ? 0 : (status === 'Pago' ? 0 : Math.max(0, valor - jaPago));
+
+    entries.push({
+      source: 'fin', idx: i, manual: true, auto: false,
+      data: f.data || '', obra: f.obra || 'Geral',
+      tipo: f.tipo || 'Geral',
+      categoria: categorizeFinanceType(f.tipo),
+      desc: f.desc || 'Lançamento manual',
+      forn: f.forn || '', benef: f.forn || '',
+      etapa: f.etapa || '', nf: f.nf || '', pgto: f.pgto || '',
+      obs: f.obs || '',
+      real: valor, prev, valor, hasPrev: prevRaw !== 0,
+      status, jaPago, pendente,
+      valpago: valpagoRaw,
+      totalBruto: valor,
+      origem: 'Lançamento manual'
+    });
+  });
+
+  (pres || []).forEach((p, i) => {
+    if (!p || !filterDate(p.data)) return;
+    const total = getPresencaCusto(p);
+    if (!(total > 0)) return;
+    const status = normalizePgtoStatus(p.pgtoStatus);
+    const valpagoRaw = parseMoney(p.valpago);
+    const jaPago = status === 'Pago' ? total : (status === 'Parcial' ? Math.min(valpagoRaw, total) : 0);
+    const pendente = status === 'Pago' ? 0 : Math.max(0, total - jaPago);
+    const nome = p.nome || p.trab || 'Trabalhador';
+
+    entries.push({
+      source: 'pre', idx: i, manual: false, auto: true,
+      data: p.data || '', obra: p.obra || 'Geral',
+      tipo: 'Diária', tipoOrigem: 'Mão de obra própria',
+      categoria: 'mao-de-obra',
+      desc: nome, forn: nome, benef: nome,
+      etapa: '', nf: '', pgto: p.pgto || '',
+      obs: p.justif || p.obs || '',
+      real: total, prev: 0, valor: total, hasPrev: false,
+      status, jaPago, pendente,
+      valpago: valpagoRaw,
+      totalBruto: total,
+      trab: p.trab || '', funcao: p.funcao || '',
+      origem: 'Presença'
+    });
+  });
+
+  (med || []).forEach((m, i) => {
+    if (!m) return;
+    const data = m.semana || m.data || '';
+    if (!filterDate(data)) return;
+    const total = parseMoney(m.vtotal);
+    if (!(total > 0)) return;
+    const status = normalizePgtoStatus(m.pgtoStatus);
+    const valpagoRaw = parseMoney(m.valpago);
+    const jaPago = status === 'Pago' ? total : (status === 'Parcial' ? Math.min(valpagoRaw, total) : 0);
+    const pendente = status === 'Pago' ? 0 : Math.max(0, total - jaPago);
+    const equipe = m.equipe || 'Equipe';
+
+    entries.push({
+      source: 'med', idx: i, manual: false, auto: true,
+      data, obra: m.obra || 'Geral',
+      tipo: 'Empreiteiro', tipoOrigem: 'Medição',
+      categoria: 'empreiteiro',
+      desc: m.servico || 'Medição', forn: equipe, benef: equipe,
+      etapa: m.etapa || '', nf: m.nf || '', pgto: m.pgto || '',
+      obs: m.obs || '',
+      real: total, prev: 0, valor: total, hasPrev: false,
+      status, jaPago, pendente,
+      valpago: valpagoRaw,
+      totalBruto: total,
+      origem: 'Medição'
+    });
+  });
+
+  (alm || []).forEach((a, i) => {
+    if (!a || !filterDate(a.data)) return;
+    const total = parseMoney(a.vtotal);
+    if (!(total > 0)) return;
+    const status = normalizePgtoStatus(a.pgtoStatus || a.status);
+    const valpagoRaw = parseMoney(a.valpago);
+    const jaPago = status === 'Pago' ? total : (status === 'Parcial' ? Math.min(valpagoRaw, total) : 0);
+    const pendente = status === 'Pago' ? 0 : Math.max(0, total - jaPago);
+    const nome = a.empreiteiro || 'Equipe';
+
+    entries.push({
+      source: 'alm', idx: i, manual: false, auto: true,
+      data: a.data || '', obra: a.obra || 'Geral',
+      tipo: 'Almoço', tipoOrigem: 'Almoço',
+      categoria: 'almoco',
+      desc: nome, forn: nome, benef: nome,
+      etapa: '', nf: '', pgto: '',
+      obs: a.obs || '',
+      real: total, prev: 0, valor: total, hasPrev: false,
+      status, jaPago, pendente,
+      valpago: valpagoRaw,
+      totalBruto: total,
+      qtd: parseMoney(a.qtd),
+      origem: 'Almoço'
+    });
+  });
+
+  const totalsByObra = {};
+  const totalsByPeriod = {};
+  const byCategory = {};
+  FIN_CATEGORIES.forEach(c => {
+    byCategory[c.key] = { key: c.key, label: c.label, icon: c.icon, total: 0, pago: 0, aPagar: 0, count: 0 };
+  });
+  let total = 0;
+  let pago = 0;
+  let aPagar = 0;
+
+  entries.forEach(f => {
+    const cod = f.obra || 'Geral';
+    if (!totalsByObra[cod]) totalsByObra[cod] = { prev: 0, real: 0, diff: 0 };
+    totalsByObra[cod].prev += f.prev;
+    totalsByObra[cod].real += f.valor;
+    totalsByObra[cod].diff = totalsByObra[cod].real - totalsByObra[cod].prev;
+
+    const cat = byCategory[f.categoria] || byCategory.outros;
+    cat.total += f.valor;
+    cat.pago += f.jaPago;
+    cat.aPagar += f.pendente;
+    cat.count++;
+
+    total += f.valor;
+    pago += f.jaPago;
+    aPagar += f.pendente;
+
+    if (f.data) {
+      const pId = getPeriodLabel(f.data, options.viewType || 'semanal');
+      if (!totalsByPeriod[pId]) totalsByPeriod[pId] = { real: 0, items: 0 };
+      totalsByPeriod[pId].real += f.valor;
+      totalsByPeriod[pId].items++;
+    }
+  });
+
+  const kpis = { total, pago, aPagar, count: entries.length };
+  return { all: entries, entries, totalsByObra, totalsByPeriod, byCategory, kpis };
+}
+
+function summarizeFinanceCosts(fin, pres, med, alm, options = {}) {
+  const summary = buildFinanceEntries(fin, pres, med, alm, options);
+  return {
+    ...summary,
+    total: summary.kpis.total,
+    pago: summary.kpis.pago,
+    aPagar: summary.kpis.aPagar
+  };
+}
+
+/**
+ * Consolida todo o financeiro (Manuais, Presença, Medições, Almoços).
+ * Aceita a assinatura antiga (..., year, month, viewType) e a nova
+ * (..., { ano, mes, viewType }) ou (..., { dataInicio, dataFim }).
+ */
+const summarizeFinance = (fin, pres, med, alm, yearOrOptions, month, viewType) => {
+  const options = (yearOrOptions && typeof yearOrOptions === 'object')
+    ? { ...yearOrOptions }
+    : { ano: yearOrOptions, mes: month, viewType };
+  return buildFinanceEntries(fin, pres, med, alm, options);
+};
+
+window.summarizeFinance = summarizeFinance;
+window.summarizeFinanceCosts = summarizeFinanceCosts;
+window.buildFinanceEntries = buildFinanceEntries;
+window.getPresencaCusto = getPresencaCusto;
+window.categorizeFinanceType = categorizeFinanceType;
+window.financeCategoryLabel = financeCategoryLabel;
+window.FIN_CATEGORIES = FIN_CATEGORIES;
+
+/**
+ * Calcula custos de diárias por período.
+ * Usa SEMPRE o valor gravado na presença (nunca a diária atual do cadastro).
+ * options pode ter: tipo ('semana', 'mes', 'hoje'), dataInicio/dataFim ou ano/mes.
+ */
+const calcCustosDiarias = (presenca, options = {}) => {
+  const { all } = buildFinanceEntries([], presenca, [], [], options);
+  const pendente = all.filter(p => p.status !== 'Pago' && p.pendente > 0);
+  return {
+    registros: all.length,
+    custoTotal: all.reduce((a, p) => a + p.valor, 0),
+    pendente,
+    pendenteTotal: all.reduce((a, p) => a + p.pendente, 0),
+    porObra: groupedByObra(all)
+  };
+};
 
 /**
  * Calcula custos de medições (empreitas) por período
  */
 const calcCustosMedicoes = (medicao, options = {}) => {
-  const { dataInicio, dataFim } = getPeriodoOptions(options);
-  
-  const seen = new Set();
-  const medicoes = (medicao || []).filter(m => {
-    const d = m.semana || m.data;
-    if (!d || d < dataInicio || d > dataFim || !(parseFloat(m.vtotal) || 0) > 0) return false;
-    const uniqueKey = `${d}_${m.equipe || m.servico}`;
-    if (seen.has(uniqueKey)) return false;
-    seen.add(uniqueKey);
-    return true;
-  });
-  
-  const custoTotal = medicoes.reduce((a, m) => a + (parseFloat(m.vtotal) || 0), 0);
-  const pendente = medicoes.filter(m => m.pgtoStatus !== 'Pago');
-  const pendenteTotal = pendente.reduce((a, m) => {
-    const total = parseFloat(m.vtotal) || 0;
-    const pago = m.pgtoStatus === 'Parcial' ? (parseFloat(m.valpago) || 0) : 0;
-    return a + Math.max(0, total - pago);
-  }, 0);
-  
+  const { all } = buildFinanceEntries([], [], medicao, [], options);
+  const pendente = all.filter(m => m.status !== 'Pago' && m.pendente > 0);
   return {
-    registros: medicoes.length,
-    custoTotal,
+    registros: all.length,
+    custoTotal: all.reduce((a, m) => a + m.valor, 0),
     pendente,
-    pendenteTotal,
-    porObra: groupedByObra(medicoes)
+    pendenteTotal: all.reduce((a, m) => a + m.pendente, 0),
+    porObra: groupedByObra(all)
   };
 };
 
 /**
- * Calcula custos financeiros por período
+ * Calcula custos financeiros (lançamentos manuais) por período
  */
 const calcCustosFinanceiro = (financeiro, options = {}) => {
-  const { dataInicio, dataFim } = getPeriodoOptions(options);
-  
-  const seen = new Set();
-  const lancamentos = (financeiro || []).filter(f => {
-    if (!f || !f.data || f.data < dataInicio || f.data > dataFim) return false;
-    const uniqueKey = `${f.data}_${f.desc || f.forn}`;
-    if (seen.has(uniqueKey)) return false;
-    seen.add(uniqueKey);
-    return true;
-  });
-  
-  const custoTotal = lancamentos.reduce((a, f) => {
-    const val = Number(f.real) || Number(f.prev) || 0;
-    return a + val;
-  }, 0);
-  
-  const pendente = lancamentos.filter(f => f.status !== 'Pago');
-  const pendenteTotal = pendente.reduce((a, f) => {
-    const total = Number(f.real) || Number(f.prev) || 0;
-    const pago = f.status === 'Parcial' ? (parseFloat(f.valpago) || 0) : 0;
-    return a + Math.max(0, total - pago);
-  }, 0);
-  
+  const { all } = buildFinanceEntries(financeiro, [], [], [], options);
+  const pendente = all.filter(f => f.status !== 'Pago' && f.pendente > 0);
   return {
-    registros: lancamentos.length,
-    custoTotal,
+    registros: all.length,
+    custoTotal: all.reduce((a, f) => a + f.valor, 0),
     pendente,
-    pendenteTotal,
-    porObra: groupedByObra(lancamentos)
+    pendenteTotal: all.reduce((a, f) => a + f.pendente, 0),
+    porObra: groupedByObra(all)
   };
 };
 
@@ -416,6 +501,7 @@ window.calcCustosDiarias = calcCustosDiarias;
 window.calcCustosMedicoes = calcCustosMedicoes;
 window.calcCustosFinanceiro = calcCustosFinanceiro;
 window.getPeriodoOptions = getPeriodoOptions;
+window.getPeriodLabel = getPeriodLabel;
 
 /**
  * Define em qual período (Semana/Quinzena) uma data se encaixa dentro do mês.

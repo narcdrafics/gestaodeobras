@@ -52,8 +52,9 @@
 <!-- SIDEBAR -->
 <nav class="sidebar">
   <div class="nav-section">Principal</div>
-  <div class="nav-item active" onclick="showPage('hoje')"><span class="ico">📅</span> <span>Hoje</span></div>
+  <div class="nav-item" onclick="showPage('hoje')"><span class="ico">📅</span> <span>Hoje</span></div>
   <div class="nav-item" onclick="showPage('dashboard')"><span class="ico">📊</span> <span>Dashboard</span></div>
+  <div class="nav-item" onclick="showPage('presenca')"><span class="ico">✅</span> <span>Presença (Ponto)</span></div>
 
   <div class="nav-section" onclick="toggleGroup('grp-op', 'ic-op')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
     <span><span class="ico">🏗️</span> Operação</span>
@@ -68,7 +69,6 @@
     <span><span class="ico">🛠️</span> Produção (Canteiro)</span>
     <span id="ic-prod" style="font-size:12px; color:var(--text3)">▶</span>
   </div>
-  <div class="nav-item grp-prod" style="display:none" onclick="showPage('presenca')"><span class="ico">✅</span> <span>Presença (Ponto)</span></div>
   <div class="nav-item grp-prod" style="display:none" onclick="showPage('medicao')"><span class="ico">📐</span> <span>Medições</span></div>
 
   <div class="nav-item grp-prod" style="display:none" onclick="showPage('fotos')"><span class="ico">📸</span> <span>Galeria de Fotos</span></div>
@@ -79,13 +79,13 @@
   </div>
   <div class="nav-item grp-sup" style="display:none" onclick="showPage('estoque')"><span class="ico">🏪</span> <span>Estoque</span></div>
   <div class="nav-item grp-sup" style="display:none" onclick="showPage('movEstoque')"><span class="ico">🔄</span> <span>Movimentações</span></div>
+  <div class="nav-item grp-sup" style="display:none" onclick="showPage('compras')"><span class="ico">🛒</span> <span>Compras</span></div>
 
   <div class="nav-section" onclick="toggleGroup('grp-fin', 'ic-fin')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
     <span><span class="ico">🏢</span> Escritório</span>
     <span id="ic-fin" style="font-size:12px; color:var(--text3)">▶</span>
   </div>
   <div class="nav-item grp-fin" style="display:none" onclick="showPage('orcamento')"><span class="ico">💰</span> <span>Orçamento</span></div>
-  <div class="nav-item grp-fin" style="display:none" onclick="showPage('compras')"><span class="ico">🛒</span> <span>Compras</span></div>
   <div class="nav-item grp-fin" style="display:none" onclick="showPage('financeiro')"><span class="ico">⚖️</span> <span>Financeiro</span></div>
   <div class="nav-item grp-fin" style="display:none" onclick="showPage('relatorios')"><span class="ico">📄</span> <span>Relatórios</span></div>
 
@@ -174,14 +174,14 @@ window.shareScreen = async function() {
 
 
 <!-- MODULOS DE LOGICA — carregado primeiro (blocking) para popular window.* antes dos defer -->
-<script src="js/utils.module.js?v=20260428001"></script>
+<script src="js/utils.module.js?v=20261114001"></script>
 <script src="js/estoque.module.js?v=20261112001"></script>
 
 <script defer src="js/pix_logic.js?v=20260428001"></script>
-<script defer src="js/pix_ui.js?v=20260428001"></script>
+<script defer src="js/pix_ui.js?v=20261114001"></script>
 <script defer src="js/data_core.js?v=20261112002"></script>
-<script defer src="js/auth_core.js?v=20261112002"></script>
-<script defer src="js/app_core.js?v=20261112002"></script>
+<script defer src="js/auth_core.js?v=20261114001"></script>
+<script defer src="js/app_core.js?v=20261114001"></script>
 
 <!-- CARREGAR MODAIS ESTOQUE -->
 <script defer>

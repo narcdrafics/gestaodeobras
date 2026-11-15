@@ -121,7 +121,9 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
         uid,
         email,
         name: userProfile?.name || globalData.nome || Name,
-        role: isSuper ? 'super_admin' : (globalData.role || userProfile?.role || 'admin'),
+        // Para novos perfis criados pelo cliente, usamos 'admin' para respeitar a regra do banco (que proíbe cliente de auto-conceder super_admin).
+        // A Cloud Function syncCustomClaims promove imediatamente para 'super_admin' e concede as Custom Claims.
+        role: (snapshot.exists() && isSuper) ? 'super_admin' : (isSuper ? 'admin' : (globalData.role || 'admin')),
         tenantId: isSuper ? 'MASTER_SYSTEM' : (globalData.tenantId || userProfile?.tenantId)
       };
       if (!snapshot.exists()) {
@@ -129,7 +131,6 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       } else {
         const updates = { name: userProfile.name };
         if (isSuper) {
-          updates.role = 'super_admin';
           updates.tenantId = 'MASTER_SYSTEM';
           updates.status = 'ativo';
         }
@@ -262,6 +263,11 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       const tokenResult = await firebase.auth().currentUser.getIdTokenResult(true);
       if (tokenResult.claims && (tokenResult.claims.tenantId === userProfile.tenantId || tokenResult.claims.role === 'super_admin')) {
         claimsProntas = true;
+        if (tokenResult.claims.role === 'super_admin') {
+          userProfile.role = 'super_admin';
+          userProfile.tenantId = 'MASTER_SYSTEM';
+          sessionStorage.setItem('gestaoUser', JSON.stringify(userProfile));
+        }
         console.log('[AuthTrace] Custom Claims confirmadas!');
         break;
       }
@@ -454,6 +460,7 @@ function setRestrictions(user) {
     // ISOLAR SUPER ADMIN (Oculta abas de empresas: Obras, Dashboard, Financeiro, etc.)
     document.querySelectorAll('.nav-item').forEach(el => {
       if (!el.classList.contains('super-admin-only') && !el.getAttribute('onclick')?.includes('doLogout')) {
+        el.dataset.hiddenByRole = '1';
         el.style.display = 'none';
       }
     });
@@ -475,7 +482,10 @@ function setRestrictions(user) {
 
   hidePages.forEach(p => {
     const nav = document.querySelector(`.nav-item[onclick="showPage('${p}')"]`);
-    if (nav) nav.style.display = 'none';
+    if (nav) {
+      nav.dataset.hiddenByRole = '1';
+      nav.style.display = 'none';
+    }
   });
 
   // SaaS: Carrega página inicial automaticamente após aplicar restrições
@@ -489,6 +499,8 @@ function setRestrictions(user) {
 
     if (activeUser.role === 'super_admin') {
       showPage('super_admin');
+    } else if (activeUser.role === 'mestre') {
+      showPage('hoje');
     } else {
       showPage('dashboard');
     }
