@@ -11,7 +11,7 @@ if (typeof window === 'undefined') {
 }
 
 // Importa o arquivo (que popula window.*)
-import '../public/js/utils.module.js?v=20261115002';
+import '../public/js/utils.module.js?v=20261115003';
 
 // Exporta do window para ESM
 export const fmt = window.fmt;

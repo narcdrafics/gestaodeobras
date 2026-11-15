@@ -135,7 +135,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261115002';
+const HTML_CACHE_VERSION = '20261115003';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -2899,7 +2899,12 @@ function renderMedicao() {
       const qprev = parseFloat(m.qprev) || 0;
       const pct = qprev > 0 ? (qacum / qprev) * 100 : null;
       const photos = Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
-      return `<tr>
+      const thumbHtml = photos.length
+        ? `<div class="med-row-photos">${photos.slice(0, 3).map(u =>
+            `<img class="med-thumb" src="${medicaoEsc(u)}" alt="Evidência" loading="lazy">`
+          ).join('')}${photos.length > 3 ? `<span class="med-photo-more">+${photos.length - 3}</span>` : ''}</div>`
+        : '<span class="med-muted">—</span>';
+      return `<tr class="med-row" onclick="medicaoRowClick(event, ${m._idx})" title="${photos.length ? 'Clique para ver as fotos' : 'Sem fotos'}">
         <td>${medicaoEsc(fmtDate(m.semana || m.data))}</td>
         <td><b>${medicaoEsc(m.etapa || '—')}</b><br><span class="med-muted">${medicaoEsc(m.servico || '—')}</span></td>
         <td>${medicaoEsc(m.equipe || '—')}</td>
@@ -2909,7 +2914,7 @@ function renderMedicao() {
         <td class="num">${fmt(m.vtotal || 0)}</td>
         <td><span class="badge ${aprovClass}">${aprov}</span></td>
         <td>${medicaoEsc(m.pgtoStatus || 'Pendente')}</td>
-        <td>${photos.length ? `<button class="btn btn-secondary btn-sm" onclick="openMedicaoFotos(${m._idx})" title="Ver evidências">📷 ${photos.length}</button>` : '—'}</td>
+        <td>${thumbHtml}</td>
         <td>
           <div class="med-actions">
             ${aprov !== 'Aprovada' ? `<button class="btn btn-secondary btn-sm" onclick="setMedicaoAprovacao(${m._idx},'Aprovada')" title="Aprovar medição">Aprovar</button>` : ''}
@@ -2971,7 +2976,7 @@ function openMedicaoHistorico(key) {
             <td>${medicaoEsc(window.medicaoAprovacao ? window.medicaoAprovacao(m) : 'Aprovada')}</td>
             <td>${medicaoEsc(m.pgtoStatus || 'Pendente')}</td>
             <td>${photos.length
-              ? photos.slice(0, 3).map(u => `<img class="med-history-thumb" src="${medicaoEsc(u)}" alt="Evidência" data-photo="${medicaoEsc(u)}" onclick="openLightbox(this.dataset.photo)">`).join('') + (photos.length > 3 ? ` <span class="med-muted">+${photos.length - 3}</span>` : '')
+              ? photos.slice(0, 3).map((u, i) => `<img class="med-history-thumb" src="${medicaoEsc(u)}" alt="Evidência" onclick="openMedicaoFotos(${m._idx}, ${i})">`).join('') + (photos.length > 3 ? ` <span class="med-muted">+${photos.length - 3}</span>` : '')
               : '—'}</td>
             <td>${medicaoEsc(m.obs || '—')}</td>
           </tr>`;
@@ -2992,29 +2997,105 @@ function closeMedicaoHistorico() {
 }
 window.closeMedicaoHistorico = closeMedicaoHistorico;
 
-function openMedicaoFotos(idx) {
+function medicaoRowClick(event, idx) {
+  // Cliques em botões, links ou campos da linha não abrem a galeria.
+  if (event && event.target && event.target.closest('button, a, input, select, textarea, label')) return;
+  openMedicaoFotos(idx);
+}
+window.medicaoRowClick = medicaoRowClick;
+
+function medicaoPhotoList(m) {
+  if (!m) return [];
+  return Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
+}
+
+function openMedicaoFotos(idx, startIndex = 0) {
   const m = DB.medicao[idx];
   if (!m) return;
-  const photos = Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
-  if (!photos.length) { toast('Nenhuma foto registrada.', 'error'); return; }
-  const panel = document.getElementById('med-historico');
-  if (!panel) { openLightbox(photos[0]); return; }
-  panel.style.display = '';
-  panel.innerHTML = `
-    <div class="med-history-head">
-      <div>
-        <b>Evidências da medição</b>
-        <span>${medicaoEsc(m.etapa || '—')} · ${medicaoEsc(m.servico || '—')} · ${medicaoEsc(fmtDate(m.semana || m.data))}</span>
-      </div>
-      <button class="btn btn-secondary btn-sm" onclick="closeMedicaoHistorico()">Fechar</button>
-    </div>
-    <div class="med-photo-gallery">
-      ${photos.map(u => `<img src="${medicaoEsc(u)}" alt="Evidência" data-photo="${medicaoEsc(u)}" onclick="openLightbox(this.dataset.photo)">`).join('')}
-    </div>
-  `;
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const photos = medicaoPhotoList(m);
+  if (!photos.length) { toast('Nenhuma foto registrada nesta medição.', 'error'); return; }
+  const index = Math.max(0, Math.min(Number(startIndex) || 0, photos.length - 1));
+  window._medicaoGallery = {
+    photos,
+    index,
+    title: `${m.etapa || 'Medição'} · ${m.servico || 'Serviço'}`,
+    meta: [fmtDate(m.semana || m.data), m.equipe].filter(Boolean).join(' · ')
+  };
+  renderMedicaoGallery();
+  document.addEventListener('keydown', medicaoGalleryKeydown);
 }
 window.openMedicaoFotos = openMedicaoFotos;
+
+function renderMedicaoGallery() {
+  const g = window._medicaoGallery;
+  if (!g) return;
+  let overlay = document.getElementById('med-photo-modal');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'med-photo-modal';
+    overlay.className = 'med-gallery-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) closeMedicaoGallery(); };
+    document.body.appendChild(overlay);
+  }
+  const total = g.photos.length;
+  const current = g.photos[g.index] || '';
+  overlay.innerHTML = `
+    <div class="med-gallery-box" role="dialog" aria-modal="true" aria-label="Fotos da medição">
+      <div class="med-gallery-head">
+        <div>
+          <b>Evidências da medição</b>
+          <span>${medicaoEsc(g.title)}${g.meta ? ` — ${medicaoEsc(g.meta)}` : ''}</span>
+        </div>
+        <button type="button" class="med-gallery-close" onclick="closeMedicaoGallery()" title="Fechar">×</button>
+      </div>
+      <div class="med-gallery-stage">
+        ${total > 1 ? '<button type="button" class="med-gallery-nav prev" onclick="medicaoGalleryNav(-1)" title="Foto anterior">‹</button>' : ''}
+        <img src="${medicaoEsc(current)}" alt="Evidência ${g.index + 1} de ${total}" data-photo="${medicaoEsc(current)}" onclick="openLightbox(this.dataset.photo)">
+        ${total > 1 ? '<button type="button" class="med-gallery-nav next" onclick="medicaoGalleryNav(1)" title="Próxima foto">›</button>' : ''}
+      </div>
+      <div class="med-gallery-count">Foto ${g.index + 1} de ${total}</div>
+      ${total > 1 ? `<div class="med-gallery-thumbs">${g.photos.map((u, i) =>
+        `<img src="${medicaoEsc(u)}" alt="Miniatura ${i + 1}" class="${i === g.index ? 'active' : ''}" onclick="medicaoGallerySelect(${i})">`
+      ).join('')}</div>` : ''}
+    </div>
+  `;
+  overlay.classList.add('open');
+}
+window.renderMedicaoGallery = renderMedicaoGallery;
+
+function medicaoGalleryNav(delta) {
+  const g = window._medicaoGallery;
+  if (!g || g.photos.length < 2) return;
+  g.index = (g.index + delta + g.photos.length) % g.photos.length;
+  renderMedicaoGallery();
+}
+window.medicaoGalleryNav = medicaoGalleryNav;
+
+function medicaoGallerySelect(i) {
+  const g = window._medicaoGallery;
+  if (!g || !g.photos[i]) return;
+  g.index = i;
+  renderMedicaoGallery();
+}
+window.medicaoGallerySelect = medicaoGallerySelect;
+
+function closeMedicaoGallery() {
+  const overlay = document.getElementById('med-photo-modal');
+  if (overlay) {
+    overlay.classList.remove('open');
+    overlay.innerHTML = '';
+  }
+  window._medicaoGallery = null;
+  document.removeEventListener('keydown', medicaoGalleryKeydown);
+}
+window.closeMedicaoGallery = closeMedicaoGallery;
+
+function medicaoGalleryKeydown(e) {
+  if (!window._medicaoGallery) return;
+  if (e.key === 'Escape') closeMedicaoGallery();
+  else if (e.key === 'ArrowLeft') medicaoGalleryNav(-1);
+  else if (e.key === 'ArrowRight') medicaoGalleryNav(1);
+}
 
 async function setMedicaoAprovacao(idx, status) {
   const m = DB.medicao[idx];

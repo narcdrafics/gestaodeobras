@@ -873,6 +873,73 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .med-photo-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .med-photo-gallery img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); }
 
+/* Fotos na lista de medições */
+.med-row { cursor: pointer; transition: background .15s; }
+.med-row:hover { background: rgba(var(--accent-rgb, 255,107,53), 0.06); }
+.med-row-photos { display: flex; align-items: center; gap: 4px; }
+.med-thumb {
+  width: 42px; height: 42px; object-fit: cover; border-radius: 6px;
+  border: 1px solid var(--border); display: block;
+}
+.med-photo-more {
+  font-size: 11px; color: var(--text3); background: var(--bg3);
+  border-radius: 999px; padding: 2px 6px;
+}
+
+/* Popup de fotos da medição */
+.med-gallery-overlay {
+  position: fixed; inset: 0; z-index: 9999; display: none;
+  align-items: center; justify-content: center; padding: 20px;
+  background: rgba(0, 0, 0, 0.78); backdrop-filter: blur(3px);
+}
+.med-gallery-overlay.open { display: flex; }
+.med-gallery-box {
+  background: var(--bg2); border: 1px solid var(--border2, var(--border));
+  border-radius: 14px; width: min(880px, 100%); max-height: 92vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0,0,0,.5);
+}
+.med-gallery-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+}
+.med-gallery-head b { display: block; font-size: 15px; }
+.med-gallery-head span { display: block; font-size: 12px; color: var(--text3); margin-top: 2px; }
+.med-gallery-close {
+  border: none; background: transparent; color: var(--text2);
+  font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px;
+}
+.med-gallery-close:hover { color: var(--text); }
+.med-gallery-stage {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  background: #000; min-height: 220px; flex: 1; overflow: hidden;
+}
+.med-gallery-stage img {
+  max-width: 100%; max-height: 62vh; object-fit: contain; display: block; cursor: zoom-in;
+}
+.med-gallery-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 42px; height: 42px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.45);
+  color: #fff; font-size: 26px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.med-gallery-nav:hover { background: rgba(0,0,0,.7); }
+.med-gallery-nav.prev { left: 12px; }
+.med-gallery-nav.next { right: 12px; }
+.med-gallery-count {
+  text-align: center; font-size: 12px; color: var(--text3); padding: 8px 12px 0;
+}
+.med-gallery-thumbs {
+  display: flex; gap: 8px; padding: 10px 16px 16px; overflow-x: auto;
+}
+.med-gallery-thumbs img {
+  width: 64px; height: 64px; object-fit: cover; border-radius: 6px;
+  border: 2px solid transparent; opacity: .65; cursor: pointer; flex: 0 0 auto;
+}
+.med-gallery-thumbs img:hover { opacity: 1; }
+.med-gallery-thumbs img.active { border-color: var(--accent); opacity: 1; }
+
 /* Modal de medição */
 .med-form { display: flex; flex-direction: column; gap: 18px; }
 .med-form-section {
