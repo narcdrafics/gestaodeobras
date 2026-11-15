@@ -135,7 +135,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261115001';
+const HTML_CACHE_VERSION = '20261115002';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -2535,20 +2535,29 @@ function generateAuditReport() {
 
   const medicoesHtml = report.medicoes.length
     ? report.medicoes.map(m => {
-      const foto = auditSafeImage(m.photoUrl);
+      const photos = (Array.isArray(m.photos) ? m.photos : (m.photoUrl ? [m.photoUrl] : []))
+        .map(auditSafeImage).filter(Boolean);
+      const aprov = m.aprovacao || 'Aprovada';
+      const aprovCls = aprov === 'Rejeitada' ? 'audit-value-negative' : (aprov === 'Pendente' ? '' : 'audit-value-positive');
+      const thumbs = photos.slice(0, 3).map(u =>
+        `<img class="audit-thumb" src="${esc(u)}" alt="Evidência" data-photo="${esc(u)}" onclick="openLightbox(this.dataset.photo)">`
+      ).join('');
+      const extra = photos.length > 3 ? `<span class="audit-muted">+${photos.length - 3}</span>` : '';
       return `<tr>
         <td>${m.semana ? esc(fmtDate(m.semana)) : '—'}</td>
         <td><b>${esc(m.etapa || m.frente || 'Etapa')}</b><br><span class="audit-muted">${esc(m.servico || '—')}</span></td>
         <td>${esc(m.equipe || '—')}</td>
         <td class="num">${m.qprev || 0}</td>
         <td class="num">${m.qreal || 0}</td>
-        <td class="num">${m.avanco == null ? '—' : `${m.avanco.toFixed(1)}%`}</td>
+        <td class="num">${m.qacum == null ? (m.qreal || 0) : m.qacum}</td>
+        <td class="num">${m.pctAcum == null ? '—' : `${m.pctAcum.toFixed(1)}%`}</td>
         <td class="num">${fmt(m.valor)}</td>
+        <td class="${aprovCls}">${esc(aprov)}</td>
         <td>${esc(m.pgtoStatus || 'Pendente')}</td>
-        <td>${foto ? `<img class="audit-thumb" src="${esc(foto)}" alt="Evidência" data-photo="${esc(foto)}" onclick="openLightbox(this.dataset.photo)">` : '<span class="audit-muted">—</span>'}</td>
+        <td>${thumbs || '<span class="audit-muted">—</span>'}${extra}</td>
       </tr>`;
     }).join('')
-    : '<tr><td colspan="9" class="audit-empty">Nenhuma medição no período selecionado.</td></tr>';
+    : '<tr><td colspan="11" class="audit-empty">Nenhuma medição no período selecionado.</td></tr>';
 
   const equipeHtml = report.equipe.length
     ? report.equipe.map(e => `<tr>
@@ -2684,11 +2693,13 @@ function generateAuditReport() {
               <th>Etapa / serviço</th>
               <th>Equipe</th>
               <th class="num">Qtd. prev.</th>
-              <th class="num">Qtd. real.</th>
-              <th class="num">Avanço</th>
+              <th class="num">Qtd. atual</th>
+              <th class="num">Acum.</th>
+              <th class="num">% acum.</th>
               <th class="num">Valor</th>
-              <th>Status</th>
-              <th>Evidência</th>
+              <th>Aprovação</th>
+              <th>Pagamento</th>
+              <th>Evidências</th>
             </tr>
           </thead>
           <tbody>${medicoesHtml}</tbody>
@@ -2777,36 +2788,424 @@ window.printAuditReport = printAuditReport;
 
 
 
-// ==================== MEDIÇÃO ====================
-function renderMedicao() {
-  const list = DB.medicao.map((m, i) => ({ ...m, _idx: i }))
-    .sort((a, b) => (b.semana || '').localeCompare(a.semana || ''));
-
-  safeSetInner('med-tbody', list.length
-    ? list.map(m => {
-      const av = m.qprev > 0 ? (m.qreal / m.qprev) : 0;
-      return `<tr>
-          <td>${fmtDate(m.semana)}</td><td>${obName(m.obra)}</td><td>${m.etapa}</td>
-          <td>${cleanText(m.frente)}</td><td>${cleanText(m.equipe)}</td><td>${m.servico}</td>
-          <td>${m.unid}</td><td>${m.qprev}</td><td>${m.qreal}</td>
-          <td>${fmt(m.vtotal || 0)}</td>
-          <td><div style="display:flex;align-items:center;gap:6px">
-            <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(av * 100, 100)}%;background:${av >= 1 ? 'var(--green)' : av >= 0.7 ? 'var(--accent2)' : 'var(--orange)'}"></div></div>
-            <span style="font-size:12px">${(av * 100).toFixed(1)}%</span>
-          </div></td>
-          <td>${statusBadge(m.retr === 'Sim' ? 'Alta' : 'Baixa').replace('Alta', 'Sim').replace('Baixa', 'Não')}</td>
-          <td>${m.obs || '—'}</td>
-          <td>
-             <div style="display:flex; gap:8px; align-items:center">
-               ${m.photoUrl ? `<span style="cursor:pointer; font-size:18px" title="Ver Evidência" onclick="openLightbox('${m.photoUrl}')">📷</span>` : ''}
-               <button class="btn btn-secondary btn-sm" onclick="editMedicao(${m._idx})"></button>
-               <button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${m._idx})">Excluir</button>
-             </div>
-          </td>
-        </tr>`;
-    }).join('')
-    : uiEmptyState('Sem Medições', 'Acompanhe o avanço das empreiteiras e os laudos dos terceirizados.', '📏', 'Lançar Medição', 'openModal(\'modal-medicao\')'));
+// ==================== MEDIÇÃO / PRODUÇÃO ====================
+function medicaoEsc(v) {
+  return window.escHtml ? window.escHtml(v) : String(v == null ? '' : v);
 }
+
+function medicaoOptions(select, values, current, placeholder) {
+  if (!select) return;
+  const keep = current != null ? current : select.value;
+  const opts = [];
+  if (placeholder) opts.push(`<option value="">${medicaoEsc(placeholder)}</option>`);
+  values.forEach(v => {
+    const value = typeof v === 'object' ? v.value : v;
+    const label = typeof v === 'object' ? v.label : v;
+    opts.push(`<option value="${medicaoEsc(value)}">${medicaoEsc(label)}</option>`);
+  });
+  select.innerHTML = opts.join('');
+  if (keep && [...select.options].some(o => o.value === keep)) select.value = keep;
+}
+
+function medicaoBudgetLines(obra) {
+  return (DB.orcamento || [])
+    .map((o, i) => ({ ...o, _idx: i }))
+    .filter(o => o && o.obra === obra);
+}
+
+function populateMedicaoFiltroEtapas() {
+  const obra = document.getElementById('med-filter-obra')?.value || '';
+  const sel = document.getElementById('med-filter-etapa');
+  if (!sel) return;
+  const etapas = new Set();
+  medicaoBudgetLines(obra).forEach(o => { if (o.etapa) etapas.add(o.etapa); });
+  (DB.medicao || []).filter(m => m && m.obra === obra).forEach(m => { if (m.etapa) etapas.add(m.etapa); });
+  medicaoOptions(sel, [...etapas].sort((a, b) => a.localeCompare(b)), sel.value, 'Todas as etapas');
+}
+
+function renderMedicao() {
+  const obraSel = document.getElementById('med-filter-obra');
+  if (obraSel) {
+    medicaoOptions(
+      obraSel,
+      (DB.obras || []).map(o => ({ value: o.cod, label: `${o.cod} — ${o.nome}` })),
+      obraSel.value,
+      'Todas as obras'
+    );
+    if (!obraSel.value && (DB.obras || []).length) obraSel.value = DB.obras[0].cod;
+  }
+  populateMedicaoFiltroEtapas();
+
+  const obra = obraSel?.value || '';
+  const dataInicio = document.getElementById('med-filter-ini')?.value || '';
+  const dataFim = document.getElementById('med-filter-fim')?.value || '';
+  const etapa = document.getElementById('med-filter-etapa')?.value || '';
+  const aprovacao = document.getElementById('med-filter-aprovacao')?.value || '';
+  const busca = (document.getElementById('med-filter-busca')?.value || '').toLowerCase().trim();
+
+  if (!obra) {
+    safeSetInner('med-kpis', '');
+    safeSetInner('med-servicos-tbody', '<tr><td colspan="10" class="med-empty">Selecione uma obra para ver o avanço por serviço.</td></tr>');
+    safeSetInner('med-tbody', '<tr><td colspan="11" class="med-empty">Selecione uma obra para listar as medições.</td></tr>');
+    const countEl = document.getElementById('med-count');
+    if (countEl) countEl.textContent = '';
+    return;
+  }
+
+  const resumo = window.buildMedicaoResumo
+    ? window.buildMedicaoResumo(DB, obra, { dataInicio, dataFim, etapa, aprovacao })
+    : { servicos: [], medicoes: [], totais: { valorMedido: 0, aAprovar: 0, aprovado: 0, rejeitado: 0, fisico: null, retrabalho: 0, count: 0 } };
+  const t = resumo.totais;
+
+  const fisicoTxt = t.fisico == null ? '—' : `${t.fisico.toFixed(1)}%`;
+  safeSetInner('med-kpis', `
+    <div class="med-kpi"><span>Avanço físico acumulado</span><b>${fisicoTxt}</b><small>ponderado pelo orçamento</small></div>
+    <div class="med-kpi"><span>Medido no período</span><b>${fmt(t.valorMedido)}</b><small>${t.count} medição(ões)</small></div>
+    <div class="med-kpi med-kpi-warn"><span>A aprovar</span><b>${fmt(t.aAprovar)}</b><small>aguardando aprovação</small></div>
+    <div class="med-kpi med-kpi-ok"><span>Aprovado</span><b>${fmt(t.aprovado)}</b><small>liberado para pagamento</small></div>
+    ${t.rejeitado > 0 ? `<div class="med-kpi med-kpi-danger"><span>Rejeitado</span><b>${fmt(t.rejeitado)}</b><small>fora do custo e do avanço</small></div>` : ''}
+  `);
+
+  const servicos = resumo.servicos.filter(s => !busca || [s.etapa, s.desc].some(v => String(v || '').toLowerCase().includes(busca)));
+  safeSetInner('med-servicos-tbody', servicos.length
+    ? servicos.map(s => {
+      const pct = s.pct == null ? null : s.pct;
+      const pctTxt = pct == null ? 'sem orçamento' : `${pct.toFixed(1)}%`;
+      const fill = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+      const over = pct != null && pct > 100;
+      return `<tr>
+        <td>${medicaoEsc(s.etapa || '—')}</td>
+        <td><b>${medicaoEsc(s.desc || '—')}</b>${s.temOrcamento ? '' : ' <span class="med-tag">sem orçamento</span>'}</td>
+        <td>${medicaoEsc(s.unid || '—')}</td>
+        <td class="num">${s.qprev || 0}</td>
+        <td class="num">${s.qacum || 0}</td>
+        <td class="num ${s.saldo < 0 ? 'med-negative' : ''}">${s.saldo}</td>
+        <td><div class="med-progress"><div class="med-progress-bar${over ? ' is-over' : ''}"><i style="width:${fill}%"></i></div><span>${pctTxt}</span></div></td>
+        <td class="num">${fmt(s.valorAcum)}</td>
+        <td class="num">${s.aprovPend > 0 ? fmt(s.aprovPend) : '—'}</td>
+        <td><button class="btn btn-secondary btn-sm" data-key="${medicaoEsc(s.key)}" onclick="openMedicaoHistorico(this.dataset.key)">Histórico</button></td>
+      </tr>`;
+    }).join('')
+    : '<tr><td colspan="10" class="med-empty">Nenhum serviço de orçamento ou medição para esta obra.</td></tr>');
+
+  const lista = resumo.medicoes.filter(m => !busca || [m.servico, m.etapa, m.equipe, m.obs].some(v => String(v || '').toLowerCase().includes(busca)));
+  safeSetInner('med-tbody', lista.length
+    ? lista.map(m => {
+      const aprov = window.medicaoAprovacao ? window.medicaoAprovacao(m) : 'Aprovada';
+      const aprovClass = aprov === 'Aprovada' ? 'badge-green' : aprov === 'Rejeitada' ? 'badge-red' : 'badge-orange';
+      const qant = parseFloat(m.qant) || 0;
+      const qreal = parseFloat(m.qreal) || 0;
+      const qacum = parseFloat(m.qacum) || (qant + qreal);
+      const qprev = parseFloat(m.qprev) || 0;
+      const pct = qprev > 0 ? (qacum / qprev) * 100 : null;
+      const photos = Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
+      return `<tr>
+        <td>${medicaoEsc(fmtDate(m.semana || m.data))}</td>
+        <td><b>${medicaoEsc(m.etapa || '—')}</b><br><span class="med-muted">${medicaoEsc(m.servico || '—')}</span></td>
+        <td>${medicaoEsc(m.equipe || '—')}</td>
+        <td class="num">${qreal}</td>
+        <td class="num">${qacum}</td>
+        <td class="num">${pct == null ? '—' : pct.toFixed(1) + '%'}</td>
+        <td class="num">${fmt(m.vtotal || 0)}</td>
+        <td><span class="badge ${aprovClass}">${aprov}</span></td>
+        <td>${medicaoEsc(m.pgtoStatus || 'Pendente')}</td>
+        <td>${photos.length ? `<button class="btn btn-secondary btn-sm" onclick="openMedicaoFotos(${m._idx})" title="Ver evidências">📷 ${photos.length}</button>` : '—'}</td>
+        <td>
+          <div class="med-actions">
+            ${aprov !== 'Aprovada' ? `<button class="btn btn-secondary btn-sm" onclick="setMedicaoAprovacao(${m._idx},'Aprovada')" title="Aprovar medição">Aprovar</button>` : ''}
+            ${aprov !== 'Rejeitada' ? `<button class="btn btn-secondary btn-sm" onclick="setMedicaoAprovacao(${m._idx},'Rejeitada')" title="Rejeitar medição">Rejeitar</button>` : ''}
+            <button class="btn btn-secondary btn-sm" onclick="editMedicao(${m._idx})">Editar</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${m._idx})">Excluir</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('')
+    : '<tr><td colspan="11" class="med-empty">Nenhuma medição encontrada para os filtros.</td></tr>');
+
+  const countEl = document.getElementById('med-count');
+  if (countEl) countEl.textContent = `${lista.length} medição(ões) no período`;
+}
+window.renderMedicao = renderMedicao;
+
+function openMedicaoHistorico(key) {
+  const panel = document.getElementById('med-historico');
+  if (!panel) return;
+  const obra = document.getElementById('med-filter-obra')?.value || '';
+  const resumo = window.buildMedicaoResumo
+    ? window.buildMedicaoResumo(DB, obra)
+    : { servicos: [] };
+  const servico = (resumo.servicos || []).find(s => s.key === key);
+  const lista = (DB.medicao || [])
+    .map((m, i) => ({ ...m, _idx: i }))
+    .filter(m => m && m.obra === obra && window.medicaoServiceKey && window.medicaoServiceKey(m) === key)
+    .sort((a, b) => (b.semana || '').localeCompare(a.semana || ''));
+  const pct = servico && servico.pct != null ? `${servico.pct.toFixed(1)}%` : 'sem orçamento';
+
+  panel.style.display = '';
+  panel.innerHTML = `
+    <div class="med-history-head">
+      <div>
+        <b>Histórico do serviço</b>
+        <span>${medicaoEsc(servico?.etapa || '—')} · ${medicaoEsc(servico?.desc || 'Serviço')}</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="closeMedicaoHistorico()">Fechar</button>
+    </div>
+    <div class="med-history-summary">
+      <div><span>Previsto</span><b>${servico ? servico.qprev : 0} ${medicaoEsc(servico?.unid || '')}</b></div>
+      <div><span>Acumulado</span><b>${servico ? servico.qacum : 0}</b></div>
+      <div><span>Saldo</span><b>${servico ? servico.saldo : 0}</b></div>
+      <div><span>Executado</span><b>${pct}</b></div>
+      <div><span>Valor medido</span><b>${fmt(servico ? servico.valorAcum : 0)}</b></div>
+    </div>
+    <div class="table-responsive">
+      <table class="med-history-table">
+        <thead><tr><th>Data</th><th>Qtd. atual</th><th>Acum.</th><th>Valor</th><th>Equipe</th><th>Aprovação</th><th>Pagamento</th><th>Evidências</th><th>Obs.</th></tr></thead>
+        <tbody>${lista.length ? lista.map(m => {
+          const photos = Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
+          return `<tr>
+            <td>${medicaoEsc(fmtDate(m.semana || m.data))}</td>
+            <td class="num">${m.qreal || 0}</td>
+            <td class="num">${m.qacum || ((parseFloat(m.qant) || 0) + (parseFloat(m.qreal) || 0))}</td>
+            <td class="num">${fmt(m.vtotal || 0)}</td>
+            <td>${medicaoEsc(m.equipe || '—')}</td>
+            <td>${medicaoEsc(window.medicaoAprovacao ? window.medicaoAprovacao(m) : 'Aprovada')}</td>
+            <td>${medicaoEsc(m.pgtoStatus || 'Pendente')}</td>
+            <td>${photos.length
+              ? photos.slice(0, 3).map(u => `<img class="med-history-thumb" src="${medicaoEsc(u)}" alt="Evidência" data-photo="${medicaoEsc(u)}" onclick="openLightbox(this.dataset.photo)">`).join('') + (photos.length > 3 ? ` <span class="med-muted">+${photos.length - 3}</span>` : '')
+              : '—'}</td>
+            <td>${medicaoEsc(m.obs || '—')}</td>
+          </tr>`;
+        }).join('') : '<tr><td colspan="9" class="med-empty">Nenhuma medição registrada para este serviço.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+window.openMedicaoHistorico = openMedicaoHistorico;
+
+function closeMedicaoHistorico() {
+  const panel = document.getElementById('med-historico');
+  if (panel) {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+  }
+}
+window.closeMedicaoHistorico = closeMedicaoHistorico;
+
+function openMedicaoFotos(idx) {
+  const m = DB.medicao[idx];
+  if (!m) return;
+  const photos = Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
+  if (!photos.length) { toast('Nenhuma foto registrada.', 'error'); return; }
+  const panel = document.getElementById('med-historico');
+  if (!panel) { openLightbox(photos[0]); return; }
+  panel.style.display = '';
+  panel.innerHTML = `
+    <div class="med-history-head">
+      <div>
+        <b>Evidências da medição</b>
+        <span>${medicaoEsc(m.etapa || '—')} · ${medicaoEsc(m.servico || '—')} · ${medicaoEsc(fmtDate(m.semana || m.data))}</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="closeMedicaoHistorico()">Fechar</button>
+    </div>
+    <div class="med-photo-gallery">
+      ${photos.map(u => `<img src="${medicaoEsc(u)}" alt="Evidência" data-photo="${medicaoEsc(u)}" onclick="openLightbox(this.dataset.photo)">`).join('')}
+    </div>
+  `;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+window.openMedicaoFotos = openMedicaoFotos;
+
+async function setMedicaoAprovacao(idx, status) {
+  const m = DB.medicao[idx];
+  if (!m) return;
+  if (status === 'Rejeitada' && !confirm('Rejeitar esta medição? Ela deixa de contar como custo e como avanço físico.')) return;
+  let user = {};
+  try { user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}'); } catch (e) { }
+  m.aprovacao = status;
+  m.aprovadoPor = user.name || m.aprovadoPor || '';
+  m.aprovadoEm = getTodayBR();
+  await persistDB();
+  renderMedicao();
+  if (typeof renderFinanceiro === 'function') renderFinanceiro();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  toast(`Medição ${status.toLowerCase()}!`);
+}
+window.setMedicaoAprovacao = setMedicaoAprovacao;
+
+// ---------- Modal de medição ----------
+function medicaoSessionName() {
+  try {
+    const u = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+    return u.name || '';
+  } catch (e) { return ''; }
+}
+
+function populateMedicaoServicos() {
+  const sel = document.getElementById('md-orc-servico');
+  if (!sel) return;
+  const obra = document.getElementById('md-obra')?.value || '';
+  const actual = sel.value;
+  const linhas = medicaoBudgetLines(obra);
+  sel.innerHTML = '<option value="">— Serviço avulso (sem vínculo) —</option>' + linhas.map(o => {
+    const key = window.budgetServiceKey ? window.budgetServiceKey(o) : '';
+    const label = `${o.etapa || 'Sem etapa'} — ${o.desc || 'Serviço'} (${o.qtd || 0} ${o.unid || ''})`;
+    return `<option value="${medicaoEsc(key)}">${medicaoEsc(label)}</option>`;
+  }).join('');
+  if (actual && [...sel.options].some(o => o.value === actual)) sel.value = actual;
+}
+
+function populateMedicaoDatalists() {
+  const obra = document.getElementById('md-obra')?.value || '';
+  const etapas = new Set(['Fundação', 'Estrutura', 'Alvenaria', 'Acabamento', 'Instalações']);
+  medicaoBudgetLines(obra).forEach(o => { if (o.etapa) etapas.add(o.etapa); });
+  (DB.medicao || []).filter(m => m && m.obra === obra).forEach(m => { if (m.etapa) etapas.add(m.etapa); });
+
+  const frentes = new Set();
+  (DB.medicao || []).filter(m => m && m.obra === obra).forEach(m => { if (m.frente) frentes.add(m.frente); });
+
+  const equipes = new Set();
+  (DB.trabalhadores || []).forEach(t => {
+    if (t.equipe && t.equipe !== 'Própria') equipes.add(t.equipe);
+    if (t.nome) equipes.add(t.nome);
+  });
+  (DB.medicao || []).filter(m => m && m.obra === obra).forEach(m => { if (m.equipe) equipes.add(m.equipe); });
+  (DB.almocos || []).forEach(a => { if (a.empreiteiro) equipes.add(a.empreiteiro); });
+
+  const fill = (id, values) => {
+    const dl = document.getElementById(id);
+    if (dl) dl.innerHTML = [...values].sort((a, b) => a.localeCompare(b)).map(v => `<option value="${medicaoEsc(v)}">`).join('');
+  };
+  fill('md-etapas-list', etapas);
+  fill('md-frentes-list', frentes);
+  fill('md-equipes-list', equipes);
+}
+
+function onMedicaoObraChange() {
+  populateMedicaoServicos();
+  populateMedicaoDatalists();
+  const sel = document.getElementById('md-orc-servico');
+  if (sel) sel.value = '';
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value; };
+  set('md-orc-key', '');
+  set('md-servico', '');
+  set('md-etapa', '');
+  set('md-qprev', '');
+  set('md-vunit', '0.00');
+  onMedicaoServicoChange();
+}
+window.onMedicaoObraChange = onMedicaoObraChange;
+
+function onMedicaoServicoChange() {
+  const key = document.getElementById('md-orc-servico')?.value || '';
+  const line = medicaoBudgetLines(document.getElementById('md-obra')?.value || '')
+    .find(o => (window.budgetServiceKey ? window.budgetServiceKey(o) : '') === key);
+  const avulsoGrp = document.getElementById('md-servico-avulso-grp');
+  const hint = document.getElementById('md-orc-hint');
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value; };
+  set('md-orc-key', line ? key : '');
+
+  if (line) {
+    if (avulsoGrp) avulsoGrp.style.display = 'none';
+    set('md-servico', line.desc || '');
+    set('md-etapa', line.etapa || '');
+    set('md-unid', line.unid || '');
+    set('md-qprev', line.qtd || '');
+    const vunit = Number(line.vunit) > 0
+      ? line.vunit
+      : (Number(line.qtd) > 0 && Number(line.vtotal) > 0 ? Number(line.vtotal) / Number(line.qtd) : 0);
+    set('md-vunit', vunit);
+    if (hint) hint.textContent = `Vinculado ao orçamento: ${line.etapa || 'Sem etapa'} — ${line.desc || 'Serviço'}. Quantidade e unidade vêm do orçamento.`;
+  } else {
+    if (avulsoGrp) avulsoGrp.style.display = '';
+    if (hint) hint.textContent = 'Serviço avulso: não entra no avanço acumulado por serviço do orçamento.';
+  }
+  updateMedicaoAnterior();
+}
+window.onMedicaoServicoChange = onMedicaoServicoChange;
+
+function updateMedicaoAnterior() {
+  const idx = parseInt(document.getElementById('md-edit-idx')?.value) || -1;
+  const obra = document.getElementById('md-obra')?.value || '';
+  const orcKey = document.getElementById('md-orc-key')?.value || '';
+  const servico = document.getElementById('md-servico')?.value || '';
+  const etapa = document.getElementById('md-etapa')?.value || '';
+  const qant = window.medicaoQuantidadeAnterior
+    ? window.medicaoQuantidadeAnterior(DB, { obra, orcKey, etapa, servico, excludeIdx: idx })
+    : 0;
+  const el = document.getElementById('md-qant');
+  if (el) el.value = qant;
+  recalcMedicao();
+}
+window.updateMedicaoAnterior = updateMedicaoAnterior;
+
+function recalcMedicao() {
+  const num = (id) => parseFloat(document.getElementById(id)?.value) || 0;
+  const qprev = num('md-qprev');
+  const qant = num('md-qant');
+  const qreal = num('md-qreal');
+  const vunit = num('md-vunit');
+  const qacum = qant + qreal;
+  const saldo = qprev - qacum;
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value; };
+  set('md-qacum', qacum);
+  set('md-qsaldo', saldo);
+  set('md-avanco', qprev > 0 ? (qacum / qprev * 100).toFixed(1) : '');
+  set('md-vtotal', (qreal * vunit).toFixed(2));
+}
+window.recalcMedicao = recalcMedicao;
+
+function syncMedicaoRetrabalho() {
+  const qtd = parseFloat(document.getElementById('md-retr-qtd')?.value) || 0;
+  const sel = document.getElementById('md-retr');
+  if (sel) sel.value = qtd > 0 ? 'Sim' : 'Não';
+}
+window.syncMedicaoRetrabalho = syncMedicaoRetrabalho;
+
+function renderMedicaoPhotoPreview() {
+  const box = document.getElementById('md-photo-preview');
+  if (!box) return;
+  const photos = window._medicaoPhotos || [];
+  box.style.display = photos.length ? 'grid' : 'none';
+  box.innerHTML = photos.map((u, i) => `
+    <div class="md-photo-item">
+      <img src="${medicaoEsc(u)}" alt="Evidência" data-photo="${medicaoEsc(u)}" onclick="openLightbox(this.dataset.photo)">
+      <button type="button" class="md-photo-remove" onclick="removeMedicaoPhoto(${i})" title="Remover foto">×</button>
+    </div>
+  `).join('');
+}
+window.renderMedicaoPhotoPreview = renderMedicaoPhotoPreview;
+
+function removeMedicaoPhoto(idx) {
+  if (!Array.isArray(window._medicaoPhotos)) return;
+  window._medicaoPhotos.splice(idx, 1);
+  renderMedicaoPhotoPreview();
+}
+window.removeMedicaoPhoto = removeMedicaoPhoto;
+
+async function handleMedicaoPhotos(input) {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  if (!Array.isArray(window._medicaoPhotos)) window._medicaoPhotos = [];
+  const room = Math.max(0, 6 - window._medicaoPhotos.length);
+  const selected = files.slice(0, room);
+  if (files.length > room) toast(`Limite de 6 fotos por medição. ${files.length - room} arquivo(s) ignorado(s).`, 'error');
+
+  for (const file of selected) {
+    toast('Enviando foto...', 'success');
+    try {
+      const url = await uploadEvidenceFile(file);
+      window._medicaoPhotos.push(url);
+      renderMedicaoPhotoPreview();
+    } catch (err) {
+      console.error('Upload Error:', err);
+      toast(`${uploadErrorMessage(err)} (${err.code || 'Ver console'})`, 'error');
+      break;
+    }
+  }
+  input.value = '';
+}
+window.handleMedicaoPhotos = handleMedicaoPhotos;
 
 // ==================== ADMINISTRAÇÃO ====================
 function renderAdmin() {
@@ -2869,17 +3268,18 @@ function renderFotos() {
     }
   });
 
-  // 2. Coleta das Medições
+  // 2. Coleta das Medições (suporta múltiplas fotos e o formato antigo)
   DB.medicao.forEach(m => {
-    if (m.photoUrl) {
+    const photos = Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
+    photos.forEach(url => {
       allPhotos.push({
-        url: m.photoUrl,
+        url,
         obra: m.obra,
         origem: 'Medição',
         desc: m.servico,
-        data: m.semana || ''
+        data: m.semana || m.data || ''
       });
-    }
+    });
   });
 
   // Filtragem e Ordenação
@@ -3715,7 +4115,22 @@ async function openModal(id) {
       fillMatInfo();
     }
   }
-  if (id === 'modal-medicao') document.getElementById('md-semana').value = today;
+  if (id === 'modal-medicao') {
+    const mdEditIdx = document.getElementById('md-edit-idx') ? parseInt(document.getElementById('md-edit-idx').value) : -1;
+    if (mdEditIdx === -1) {
+      document.getElementById('md-semana').value = today;
+      window._medicaoPhotos = [];
+      const aprov = document.getElementById('md-aprovacao');
+      if (aprov) aprov.value = 'Pendente';
+      const pgto = document.getElementById('md-pgto-status');
+      if (pgto) pgto.value = 'Pendente';
+      populateMedicaoServicos();
+      populateMedicaoDatalists();
+      onMedicaoServicoChange();
+      recalcMedicao();
+      renderMedicaoPhotoPreview();
+    }
+  }
   if (id === 'modal-almoco') {
     const osel = m.querySelector('#al-obra');
     if (osel) osel.innerHTML = DB.obras.map(o => `<option value="${o.cod}">${o.cod} — ${o.nome}</option>`).join('');
@@ -3781,7 +4196,10 @@ function closeModal(id) {
   const ocEditIdx = document.getElementById('oc-edit-idx');
   if (id === 'modal-orcamento' && ocEditIdx) ocEditIdx.value = '-1';
   const mdEditIdx = document.getElementById('md-edit-idx');
-  if (id === 'modal-medicao' && mdEditIdx) mdEditIdx.value = '-1';
+  if (id === 'modal-medicao' && mdEditIdx) {
+    mdEditIdx.value = '-1';
+    window._medicaoPhotos = [];
+  }
   const trEditIdx = document.getElementById('tr-idx');
   if (id === 'modal-trabalhador' && trEditIdx) trEditIdx.value = '-1';
 }
@@ -4430,11 +4848,8 @@ function calcFinDiff() {
   document.getElementById('fn-diff').value = (r - p).toFixed(2);
 }
 function calcAvanco() {
-  const p = parseFloat(document.getElementById('md-qprev').value) || 0;
-  const r = parseFloat(document.getElementById('md-qreal').value) || 0;
-  const v = parseFloat(document.getElementById('md-vunit').value) || 0;
-  document.getElementById('md-avanco').value = p > 0 ? (r / p * 100).toFixed(1) : 0;
-  document.getElementById('md-vtotal').value = (r * v).toFixed(2);
+  // Mantido por compatibilidade: o cálculo agora é acumulado.
+  if (typeof recalcMedicao === 'function') recalcMedicao();
 }
 
 window.toggleDestinoMov = function () {
@@ -5115,69 +5530,126 @@ async function editOrcamento(idx) {
 }
 
 async function saveMedicao() {
+  const num = (id) => parseFloat(document.getElementById(id)?.value) || 0;
+  const val = (id) => (document.getElementById(id)?.value || '').trim();
 
-  const qprev = parseFloat(document.getElementById('md-qprev').value) || 0;
-  const qreal = parseFloat(document.getElementById('md-qreal').value) || 0;
-  const vunit = parseFloat(document.getElementById('md-vunit').value) || 0;
+  const semana = val('md-semana');
+  const obra = val('md-obra');
+  const servico = val('md-servico');
+  const etapa = val('md-etapa');
+
+  if (!semana) { toast('Informe a data da medição.', 'error'); return; }
+  if (!obra) { toast('Selecione a obra.', 'error'); return; }
+  if (!servico) { toast('Selecione o serviço medido.', 'error'); return; }
+
+  const qreal = num('md-qreal');
+  if (!(qreal > 0)) { toast('Informe uma quantidade medida maior que zero.', 'error'); return; }
+
+  const editIdx = parseInt(val('md-edit-idx')) || -1;
+  const orcKey = val('md-orc-key');
+  const qprev = num('md-qprev');
+  const vunit = num('md-vunit');
+  const qant = window.medicaoQuantidadeAnterior
+    ? window.medicaoQuantidadeAnterior(DB, { obra, orcKey, etapa, servico, excludeIdx: editIdx })
+    : 0;
+
+  const anterior = DB.medicao[editIdx] || {};
+  const aprovacao = window.normalizeAprovacao
+    ? window.normalizeAprovacao(val('md-aprovacao') || anterior.aprovacao || 'Pendente')
+    : (val('md-aprovacao') || 'Pendente');
+  const photos = Array.isArray(window._medicaoPhotos) ? window._medicaoPhotos.filter(Boolean) : [];
+  const retrQtd = num('md-retr-qtd');
+
+  let user = {};
+  try { user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}'); } catch (e) { }
+
   const data = {
-    semana: document.getElementById('md-semana').value,
-    obra: document.getElementById('md-obra').value,
-    etapa: document.getElementById('md-etapa').value,
-    frente: document.getElementById('md-frente').value,
-    equipe: document.getElementById('md-equipe').value,
-    servico: document.getElementById('md-servico').value,
-    unid: document.getElementById('md-unid').value,
-    qprev, qreal,
+    semana, obra, etapa,
+    frente: val('md-frente'),
+    equipe: val('md-equipe'),
+    servico,
+    orcKey,
+    unid: val('md-unid'),
+    qprev, qant, qreal,
+    qacum: qant + qreal,
     vunit, vtotal: qreal * vunit,
-    retr: document.getElementById('md-retr').value,
-    pgtoStatus: document.getElementById('md-pgto-status').value,
-    valpago: parseFloat(document.getElementById('md-valpago').value) || 0,
-    photoUrl: document.getElementById('md-photo-url').value || '',
-    obs: document.getElementById('md-obs').value
+    retr: retrQtd > 0 ? 'Sim' : 'Não',
+    retrQtd,
+    aprovacao,
+    aprovadoPor: aprovacao !== 'Pendente' ? (anterior.aprovadoPor || user.name || '') : '',
+    aprovadoEm: aprovacao !== 'Pendente' ? (anterior.aprovadoEm || getTodayBR()) : '',
+    pgtoStatus: val('md-pgto-status') || 'Pendente',
+    valpago: num('md-valpago'),
+    photos,
+    photoUrl: photos[0] || '',
+    obs: val('md-obs')
   };
-  const editIdx = parseInt(document.getElementById('md-edit-idx').value) || -1;
+
+  const parcialMsg = data.pgtoStatus === 'Parcial'
+    ? ` Status Parcial: falta pagar R$ ${Math.max(0, data.vtotal - data.valpago).toFixed(2).replace('.', ',')}.`
+    : '';
+
   if (editIdx >= 0) {
     DB.medicao[editIdx] = data;
-    let tmsg = 'Medição atualizada!';
-    if (data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.vtotal - data.valpago).toFixed(2).replace('.', ',')}`;
-    toast(tmsg);
+    toast(`Medição atualizada!${parcialMsg}`);
   } else {
     DB.medicao.push(data);
-    let tmsg = 'Medição salva!';
-    if (data.pgtoStatus === 'Parcial') tmsg = `Status Parcial: Falta Pagar R$ ${(data.vtotal - data.valpago).toFixed(2).replace('.', ',')}`;
-    toast(tmsg);
+    toast(`Medição registrada!${parcialMsg}`);
   }
-  closeModal('modal-medicao'); await persistDB(); renderMedicao && renderMedicao(); renderFinanceiro && renderFinanceiro(); renderDashboard && renderDashboard();
+
+  closeModal('modal-medicao');
+  window._medicaoPhotos = [];
+  await persistDB();
+  if (typeof renderMedicao === 'function') renderMedicao();
+  if (typeof renderFinanceiro === 'function') renderFinanceiro();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  if (typeof renderFotos === 'function') renderFotos();
 }
 
 async function editMedicao(idx) {
+  const m = DB.medicao[idx];
+  if (!m) return;
   await openModal('modal-medicao');
   document.getElementById('md-edit-idx').value = idx;
-  const m = DB.medicao[idx];
-  document.getElementById('md-semana').value = m.semana;
-  document.getElementById('md-obra').value = m.obra;
+  document.getElementById('md-semana').value = m.semana || m.data || '';
+  document.getElementById('md-obra').value = m.obra || '';
+  populateMedicaoServicos();
+  populateMedicaoDatalists();
+
+  const orcKey = m.orcKey || '';
+  const sel = document.getElementById('md-orc-servico');
+  if (sel) {
+    sel.value = [...sel.options].some(o => o.value === orcKey) ? orcKey : '';
+    if (sel.value === '' && orcKey) onMedicaoServicoChange();
+  }
+
+  document.getElementById('md-servico').value = cleanInput(m.servico);
   document.getElementById('md-etapa').value = cleanInput(m.etapa);
   document.getElementById('md-frente').value = cleanInput(m.frente);
   document.getElementById('md-equipe').value = cleanInput(m.equipe);
-  document.getElementById('md-servico').value = cleanInput(m.servico);
   document.getElementById('md-unid').value = cleanInput(m.unid);
-  document.getElementById('md-qprev').value = m.qprev;
-  document.getElementById('md-qreal').value = m.qreal;
-  document.getElementById('md-vunit').value = m.vunit || 0;
+  document.getElementById('md-qprev').value = m.qprev || 0;
+  document.getElementById('md-qreal').value = m.qreal || 0;
+  const qrealM = parseFloat(m.qreal) || 0;
+  const vtotalM = parseFloat(m.vtotal) || 0;
+  let vunitM = parseFloat(m.vunit) || 0;
+  if (!(vunitM > 0) && qrealM > 0 && vtotalM > 0) vunitM = vtotalM / qrealM;
+  document.getElementById('md-vunit').value = vunitM;
   document.getElementById('md-vtotal').value = m.vtotal || 0;
-  document.getElementById('md-retr').value = m.retr;
+  const retrQtd = document.getElementById('md-retr-qtd');
+  if (retrQtd) retrQtd.value = m.retrQtd || '';
+  const retr = document.getElementById('md-retr');
+  if (retr) retr.value = m.retr || (Number(m.retrQtd) > 0 ? 'Sim' : 'Não');
+  const aprov = document.getElementById('md-aprovacao');
+  if (aprov) aprov.value = window.medicaoAprovacao ? window.medicaoAprovacao(m) : (m.aprovacao || 'Pendente');
   document.getElementById('md-pgto-status').value = m.pgtoStatus || 'Pendente';
   document.getElementById('md-valpago').value = m.valpago || '';
-  document.getElementById('md-photo-url').value = m.photoUrl || '';
-  toggleParcial('md');
-  const preview = document.getElementById('md-photo-preview');
-  if (m.photoUrl) {
-    preview.style.display = 'block';
-    preview.querySelector('img').src = m.photoUrl;
-  } else {
-    preview.style.display = 'none';
-  }
   document.getElementById('md-obs').value = cleanInput(m.obs);
+  toggleParcial('md');
+
+  window._medicaoPhotos = Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
+  renderMedicaoPhotoPreview();
+  updateMedicaoAnterior();
 }
 
 async function saveUsuario() {
@@ -5462,58 +5934,50 @@ function changeMasterPassword() {
 }
 
 // ==================== PHOTO MANAGEMENT & LIGHTBOX ====================
-async function handleFileUpload(input, previewId, urlInputId) {
-  const file = input.files[0];
-  if (!file) return;
+function uploadErrorMessage(err) {
+  const code = err && err.code;
+  if (code === 'storage/unauthorized') return 'Erro de permissão (confirme as regras do Storage).';
+  if (code === 'storage/quota-exceeded') return 'Limite de armazenamento atingido.';
+  if (code === 'storage/retry-limit-exceeded') return 'Tempo limite excedido. Verifique sua conexão ou se o Storage está ativo.';
+  if (code === 'storage/unknown') return 'Erro desconhecido no Firebase Storage.';
+  if (err && /storage/i.test(err.message || '')) return err.message;
+  return 'Erro ao enviar foto.';
+}
+window.uploadErrorMessage = uploadErrorMessage;
 
-  // Log para depuração inicial
-  console.log('Iniciando Upload:', { name: file.name, size: file.size, type: file.type });
-
-  if (typeof firebase.storage !== 'function') {
-    console.error('Firebase Storage SDK not loaded!');
-    toast('Erro: SDK de Storage não carregado.', 'error');
-    return;
-  }
-
-  // Verifica se o bucket está configurado
+async function uploadEvidenceFile(file) {
+  if (!file) throw new Error('Arquivo inválido.');
+  if (typeof firebase.storage !== 'function') throw new Error('SDK de Storage não carregado.');
   const bucket = firebase.app().options.storageBucket;
-  if (!bucket) {
-    console.error('Storage Bucket não configurado no firebaseConfig!');
-    toast('Erro: Bucket de Storage não configurado.', 'error');
-    return;
-  }
-  console.log('Usando Bucket:', bucket);
+  if (!bucket) throw new Error('Bucket de Storage não configurado.');
 
   const user = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
   const tid = user.tenantId || 'global';
+  const storage = firebase.storage();
+  const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+  const filePath = `tenants/${tid}/evidencias/${fileName}`;
+  const fileRef = storage.ref().child(filePath);
 
+  const uploadTask = fileRef.put(file, { contentType: file.type });
+  uploadTask.on('state_changed',
+    (snapshot) => {
+      const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+      console.log('Upload is ' + progress.toFixed(0) + '% done');
+    },
+    (error) => { console.error('Upload task error:', error); }
+  );
+
+  await uploadTask;
+  return fileRef.getDownloadURL();
+}
+window.uploadEvidenceFile = uploadEvidenceFile;
+
+async function handleFileUpload(input, previewId, urlInputId) {
+  const file = input.files[0];
+  if (!file) return;
   toast('Enviando foto...', 'success');
-
   try {
-    const storage = firebase.storage();
-    const storageRef = storage.ref();
-    const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-    const filePath = `tenants/${tid}/evidencias/${fileName}`;
-    const fileRef = storageRef.child(filePath);
-
-    console.log('Caminho do Arquivo:', filePath);
-
-    const metadata = { contentType: file.type };
-    const uploadTask = fileRef.put(file, metadata);
-
-    // Acompanhamento de progresso opcional (para debug futuro)
-    uploadTask.on('state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        console.log('Upload is ' + progress + '% done');
-      },
-      (error) => { throw error; }
-    );
-
-    await uploadTask;
-    const url = await fileRef.getDownloadURL();
-    console.log('Upload concluído! URL:', url);
-
+    const url = await uploadEvidenceFile(file);
     safeSetValue(urlInputId, url);
     const preview = document.getElementById(previewId);
     if (preview) {
@@ -5521,23 +5985,10 @@ async function handleFileUpload(input, previewId, urlInputId) {
       const img = preview.querySelector('img');
       if (img) img.src = url;
     }
-
     toast('Foto enviada com sucesso!');
   } catch (err) {
     console.error('Upload Error Completo:', err);
-    let errorMsg = 'Erro ao enviar foto.';
-
-    if (err.code === 'storage/unauthorized') {
-      errorMsg = 'Erro de Permissão (Confirme as Regras do Storage).';
-    } else if (err.code === 'storage/quota-exceeded') {
-      errorMsg = 'Limite de armazenamento atingido.';
-    } else if (err.code === 'storage/retry-limit-exceeded') {
-      errorMsg = 'Tempo limite excedido. Verifique sua conexão ou se o Storage está ativo.';
-    } else if (err.code === 'storage/unknown') {
-      errorMsg = 'Erro desconhecido no Firebase Storage.';
-    }
-
-    toast(`${errorMsg} (${err.code || 'Ver console'})`, 'error');
+    toast(`${uploadErrorMessage(err)} (${err.code || 'Ver console'})`, 'error');
   }
 }
 

@@ -1,35 +1,159 @@
 <input type="hidden" id="md-edit-idx" value="-1">
-<div class="modal-header"><span class="modal-title">📏 Nova Medição</span><button class="modal-close" onclick="closeModal('modal-medicao')">×</button></div>
-<div class="form-grid">
-  <div class="form-group"><label class="form-label">Semana (data) *</label><input type="date" class="form-control" id="md-semana"></div>
-  <div class="form-group"><label class="form-label">Obra *</label><select class="form-control" id="md-obra"></select></div>
-  <div class="form-group"><label class="form-label">Etapa</label><input class="form-control" id="md-etapa" placeholder="Alvenaria"></div>
-  <div class="form-group"><label class="form-label">Frente Serviço</label><input class="form-control" id="md-frente" placeholder="Alvenaria ext."></div>
-  <div class="form-group"><label class="form-label">Equipe</label><input class="form-control" id="md-equipe" placeholder="Pedreiros"></div>
-  <div class="form-group form-full"><label class="form-label">Serviço Executado</label><input class="form-control" id="md-servico"></div>
-  <div class="form-group"><label class="form-label">Unid.</label><input class="form-control" id="md-unid" placeholder="m²"></div>
-  <div class="form-group"><label class="form-label">Qtd. Prevista</label><input type="number" class="form-control" id="md-qprev" oninput="calcAvanco()"></div>
-  <div class="form-group"><label class="form-label">Qtd. Realizada</label><input type="number" step="0.01" class="form-control" id="md-qreal" oninput="calcAvanco()"></div>
-  <div class="form-group"><label class="form-label">Vl. Unit. (R$)</label><input type="number" step="0.01" class="form-control" id="md-vunit" value="0.00" oninput="calcAvanco()"></div>
-  <div class="form-group"><label class="form-label">Vl. Total (R$)</label><input type="number" step="0.01" class="form-control" id="md-vtotal" readonly></div>
-  <div class="form-group"><label class="form-label">% Avanço</label><input type="number" class="form-control" id="md-avanco" readonly></div>
-  <div class="form-group"><label class="form-label">Retrabalho?</label>
-    <select class="form-control" id="md-retr"><option>Não</option><option>Sim</option></select></div>
-  <div class="form-group"><label class="form-label">Status Pgto</label>
-    <select class="form-control" id="md-pgto-status" onchange="toggleParcial('md')"><option>Pendente</option><option>Pago</option><option>Parcial</option><option>Atrasado</option></select></div>
-  <div class="form-group" id="md-parcial-grp" style="display:none"><label class="form-label">Vl. Pago (Parcial)</label><input type="number" step="0.01" class="form-control" id="md-valpago" oninput="calcParcial('md')"></div>
-  <div id="md-parcial-msg" class="form-full" style="display:none; color: var(--orange); font-size: 13px; font-weight: bold; margin-bottom: 10px; padding: 5px; background: rgba(245, 158, 11, 0.1); border-radius: 4px;"></div>
-  <div class="form-group form-full"><label class="form-label">Obs.</label><input class="form-control" id="md-obs"></div>
-  <div class="form-group form-full">
-    <label class="form-label">📸 Foto da Medição (Evidência)</label>
-    <input type="file" id="md-file" class="form-control" accept="image/*" capture="camera" onchange="handleFileUpload(this, 'md-photo-preview', 'md-photo-url')">
-    <input type="hidden" id="md-photo-url">
-    <div id="md-photo-preview" style="margin-top:10px; display:none">
-       <img src="" style="max-width:100%; border-radius:8px; border:1px solid var(--border)">
-    </div>
-  </div>
+<input type="hidden" id="md-orc-key" value="">
+
+<div class="modal-header">
+  <span class="modal-title">📏 Medição de Produção</span>
+  <button class="modal-close" onclick="closeModal('modal-medicao')">×</button>
 </div>
-<div class="modal-footer">
-  <button class="btn btn-secondary" onclick="closeModal('modal-medicao')">Cancelar</button>
-  <button class="btn btn-primary" onclick="saveMedicao()">Salvar</button>
+
+<div class="med-form">
+  <section class="med-form-section">
+    <h4>1. Identificação</h4>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Data da medição *</label>
+        <input type="date" class="form-control" id="md-semana">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Obra *</label>
+        <select class="form-control" id="md-obra" onchange="onMedicaoObraChange()"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Etapa</label>
+        <input class="form-control" id="md-etapa" list="md-etapas-list" placeholder="Fundação, Alvenaria...">
+        <datalist id="md-etapas-list"></datalist>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Frente de serviço</label>
+        <input class="form-control" id="md-frente" list="md-frentes-list" placeholder="Alvenaria externa">
+        <datalist id="md-frentes-list"></datalist>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Equipe / empreiteiro</label>
+        <input class="form-control" id="md-equipe" list="md-equipes-list" placeholder="Pedreiros, empreiteira...">
+        <datalist id="md-equipes-list"></datalist>
+      </div>
+    </div>
+  </section>
+
+  <section class="med-form-section">
+    <h4>2. Serviço do orçamento</h4>
+    <div class="form-grid">
+      <div class="form-group form-full">
+        <label class="form-label">Serviço contratado</label>
+        <select class="form-control" id="md-orc-servico" onchange="onMedicaoServicoChange()"></select>
+        <small class="med-hint" id="md-orc-hint">Selecione um serviço do orçamento para calcular o acumulado.</small>
+      </div>
+      <div class="form-group form-full" id="md-servico-avulso-grp">
+        <label class="form-label">Descrição do serviço avulso</label>
+        <input class="form-control" id="md-servico" placeholder="Serviço não cadastrado no orçamento" oninput="updateMedicaoAnterior()">
+      </div>
+    </div>
+  </section>
+
+  <section class="med-form-section">
+    <h4>3. Quantidades e avanço</h4>
+    <div class="form-grid med-form-grid-4">
+      <div class="form-group">
+        <label class="form-label">Unidade</label>
+        <input class="form-control" id="md-unid" placeholder="m²">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Qtd. prevista</label>
+        <input type="number" step="0.01" class="form-control" id="md-qprev" oninput="recalcMedicao()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Qtd. anterior (histórico)</label>
+        <input type="number" step="0.01" class="form-control" id="md-qant" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Qtd. atual *</label>
+        <input type="number" step="0.01" class="form-control" id="md-qreal" oninput="recalcMedicao()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Qtd. acumulada</label>
+        <input type="number" step="0.01" class="form-control" id="md-qacum" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Saldo restante</label>
+        <input type="number" step="0.01" class="form-control" id="md-qsaldo" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">% executado</label>
+        <input class="form-control" id="md-avanco" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Valor unitário (R$)</label>
+        <input type="number" step="0.01" class="form-control" id="md-vunit" oninput="recalcMedicao()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Valor medido (R$)</label>
+        <input class="form-control" id="md-vtotal" readonly>
+      </div>
+    </div>
+    <div class="med-form-inline">
+      <div class="form-group">
+        <label class="form-label">Retrabalho</label>
+        <select class="form-control" id="md-retr">
+          <option value="Não">Não</option>
+          <option value="Sim">Sim</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Qtd. retrabalho</label>
+        <input type="number" step="0.01" class="form-control" id="md-retr-qtd" oninput="syncMedicaoRetrabalho()">
+      </div>
+    </div>
+  </section>
+
+  <section class="med-form-section">
+    <h4>4. Evidências e aprovação</h4>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Aprovação da medição</label>
+        <select class="form-control" id="md-aprovacao">
+          <option value="Pendente">Pendente</option>
+          <option value="Aprovada">Aprovada</option>
+          <option value="Rejeitada">Rejeitada</option>
+        </select>
+        <small class="med-hint">Rejeitada não conta como custo nem como avanço.</small>
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">Fotos (até 6)</label>
+        <input type="file" class="form-control" id="md-photos-input" accept="image/*" multiple onchange="handleMedicaoPhotos(this)">
+        <div class="md-photo-grid" id="md-photo-preview" style="display:none"></div>
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">Observações</label>
+        <textarea class="form-control" id="md-obs" rows="3" placeholder="Pendências, ocorrências, local medido..."></textarea>
+      </div>
+    </div>
+  </section>
+
+  <section class="med-form-section med-payment-section">
+    <h4>5. Pagamento (financeiro)</h4>
+    <p class="med-muted">O pagamento não altera o avanço físico. Use apenas para controle financeiro da empreitada.</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Status do pagamento</label>
+        <select class="form-control" id="md-pgto-status" onchange="toggleParcial('md')">
+          <option value="Pendente">Pendente</option>
+          <option value="Parcial">Parcial</option>
+          <option value="Pago">Pago</option>
+        </select>
+      </div>
+      <div class="form-group" id="md-parcial-grp" style="display:none">
+        <label class="form-label">Valor pago (R$)</label>
+        <input type="number" step="0.01" class="form-control" id="md-valpago" oninput="calcParcial('md')">
+      </div>
+      <div class="form-group form-full">
+        <div class="med-warning" id="md-parcial-msg" style="display:none"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="modal-footer">
+    <button class="btn btn-secondary" onclick="closeModal('modal-medicao')">Cancelar</button>
+    <button class="btn btn-primary" onclick="saveMedicao()">Salvar Medição</button>
+  </div>
 </div>

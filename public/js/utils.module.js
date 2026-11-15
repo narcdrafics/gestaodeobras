@@ -148,6 +148,150 @@ const financeCategoryLabel = (key) => {
   return found ? found.label : 'Outros';
 };
 
+// ==================== MEDIÇÃO / PRODUÇÃO ====================
+const normalizeAprovacao = (v) => {
+  const s = normalizeText(v);
+  if (s === 'aprovada' || s === 'aprovado') return 'Aprovada';
+  if (s === 'rejeitada' || s === 'rejeitado') return 'Rejeitada';
+  return 'Pendente';
+};
+
+// Registros antigos não tinham aprovação: continuam valendo como aprovados.
+const medicaoAprovacao = (m) => (m && (m.aprovacao || m.aprovado))
+  ? normalizeAprovacao(m.aprovacao || m.aprovado)
+  : 'Aprovada';
+
+/** Chave estável de um serviço do orçamento (obra + etapa + descrição). */
+const budgetServiceKey = (o) => {
+  if (!o) return '';
+  return [o.obra, o.etapa, o.desc].map(normalizeText).join('|');
+};
+
+const medicaoServiceKey = (m) => {
+  if (!m) return '';
+  if (m.orcKey) return String(m.orcKey);
+  return [m.obra, m.etapa, m.servico].map(normalizeText).join('|');
+};
+
+/**
+ * Consolida a produção de uma obra por serviço do orçamento.
+ * - `qacum` é o histórico completo do serviço (não só o período filtrado);
+ * - medições rejeitadas não contam como produção nem como custo;
+ * - `fisico` é o avanço acumulado ponderado pelo valor de cada serviço.
+ */
+const buildMedicaoResumo = (db, obraCod, options = {}) => {
+  const dataInicio = options.dataInicio || '';
+  const dataFim = options.dataFim || '';
+  const etapaFilter = normalizeText(options.etapa || '');
+  const aprovFilter = options.aprovacao ? normalizeAprovacao(options.aprovacao) : '';
+  const inPeriod = (d) => {
+    if (!dataInicio && !dataFim) return true;
+    if (!d) return false;
+    if (dataInicio && d < dataInicio) return false;
+    if (dataFim && d > dataFim) return false;
+    return true;
+  };
+
+  const servicos = new Map();
+  const ensureServico = (key, base) => {
+    if (!servicos.has(key)) {
+      servicos.set(key, {
+        key, etapa: '', desc: '', unid: '', qprev: 0, vunit: 0, vtotal: 0,
+        qacum: 0, valorAcum: 0, count: 0, aprovPend: 0, temOrcamento: false
+      });
+    }
+    const s = servicos.get(key);
+    if (base) {
+      if (!s.etapa && base.etapa) s.etapa = base.etapa;
+      if (!s.desc && base.desc) s.desc = base.desc;
+      if (!s.unid && base.unid) s.unid = base.unid;
+    }
+    return s;
+  };
+
+  (db.orcamento || []).filter(o => o && o.obra === obraCod).forEach(o => {
+    const key = budgetServiceKey(o);
+    const s = ensureServico(key, o);
+    s.temOrcamento = true;
+    s.qprev += parseMoney(o.qtd);
+    s.vtotal += parseMoney(o.vtotal);
+    if (!(s.vunit > 0)) s.vunit = parseMoney(o.vunit);
+  });
+
+  const todas = (db.medicao || [])
+    .map((m, i) => ({ ...m, _idx: i }))
+    .filter(m => m && m.obra === obraCod);
+
+  // Acumulado = histórico completo (medições rejeitadas ficam de fora).
+  todas.filter(m => medicaoAprovacao(m) !== 'Rejeitada').forEach(m => {
+    const key = medicaoServiceKey(m);
+    const s = ensureServico(key, { etapa: m.etapa, desc: m.servico, unid: m.unid });
+    s.qacum += parseMoney(m.qreal);
+    s.valorAcum += parseMoney(m.vtotal);
+    s.count++;
+    if (!(s.vunit > 0)) s.vunit = parseMoney(m.vunit);
+    // Compatibilidade: medições antigas/avulsas trazem a própria quantidade prevista.
+    if (!s.temOrcamento) s.qprev = Math.max(s.qprev, parseMoney(m.qprev));
+  });
+
+  const lista = todas.filter(m =>
+    inPeriod(m.semana || m.data) &&
+    (!etapaFilter || normalizeText(m.etapa) === etapaFilter) &&
+    (!aprovFilter || medicaoAprovacao(m) === aprovFilter)
+  );
+
+  lista.filter(m => medicaoAprovacao(m) === 'Pendente').forEach(m => {
+    const s = ensureServico(medicaoServiceKey(m));
+    s.aprovPend += parseMoney(m.vtotal);
+  });
+
+  const servicosArr = [...servicos.values()]
+    .filter(s => (!etapaFilter || normalizeText(s.etapa) === etapaFilter))
+    .map(s => ({
+      ...s,
+      saldo: s.qprev - s.qacum,
+      pct: s.qprev > 0 ? (s.qacum / s.qprev) * 100 : null
+    }))
+    .filter(s => s.temOrcamento || s.count > 0)
+    .sort((a, b) => (a.etapa || '').localeCompare(b.etapa || '') || (a.desc || '').localeCompare(b.desc || ''));
+
+  const valorMedido = lista.reduce((a, m) => a + parseMoney(m.vtotal), 0);
+  const aAprovar = lista.filter(m => medicaoAprovacao(m) === 'Pendente').reduce((a, m) => a + parseMoney(m.vtotal), 0);
+  const aprovado = lista.filter(m => medicaoAprovacao(m) === 'Aprovada').reduce((a, m) => a + parseMoney(m.vtotal), 0);
+  const rejeitado = lista.filter(m => medicaoAprovacao(m) === 'Rejeitada').reduce((a, m) => a + parseMoney(m.vtotal), 0);
+
+  // Peso: valor do orçamento quando existe; senão, o valor já medido (legado).
+  const comPeso = servicosArr
+    .map(s => ({ s, peso: (s.temOrcamento && s.vtotal > 0) ? s.vtotal : s.valorAcum }))
+    .filter(x => x.s.qprev > 0 && x.peso > 0);
+  const pesoTotal = comPeso.reduce((a, x) => a + x.peso, 0);
+  const fisico = pesoTotal > 0
+    ? comPeso.reduce((a, x) => a + Math.min(100, Math.max(0, x.s.pct == null ? 0 : x.s.pct)) * x.peso, 0) / pesoTotal
+    : null;
+
+  return {
+    servicos: servicosArr,
+    medicoes: lista.slice().sort((a, b) => (b.semana || '').localeCompare(a.semana || '')),
+    totais: {
+      valorMedido, aAprovar, aprovado, rejeitado,
+      fisico,
+      retrabalho: lista.reduce((a, m) => a + parseMoney(m.retrQtd), 0),
+      count: lista.length
+    }
+  };
+};
+
+/** Quantidade já medida de um serviço, excluindo o registro em edição. */
+const medicaoQuantidadeAnterior = (db, info = {}) => {
+  const key = info.orcKey || [info.obra, info.etapa, info.servico].map(normalizeText).join('|');
+  const excludeIdx = Number.isInteger(info.excludeIdx) ? info.excludeIdx : -1;
+  return (db.medicao || []).reduce((acc, m, i) => {
+    if (!m || i === excludeIdx || m.obra !== info.obra) return acc;
+    if (medicaoAprovacao(m) === 'Rejeitada') return acc;
+    return medicaoServiceKey(m) === key ? acc + parseMoney(m.qreal) : acc;
+  }, 0);
+};
+
 /**
  * Valor realmente gravado no lançamento de presença.
  * Regra do app: usa o valor histórico da diária (não o valor atual do cadastro),
@@ -282,6 +426,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
 
   (med || []).forEach((m, i) => {
     if (!m || !filterObra(m.obra)) return;
+    if (medicaoAprovacao(m) === 'Rejeitada') return; // rejeitada não é custo
     const data = m.semana || m.data || '';
     if (!filterDate(data)) return;
     const total = parseMoney(m.vtotal);
@@ -303,6 +448,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
       real: total, prev: 0, valor: total, hasPrev: false,
       valorRealizado: total, valorPrevisto: 0,
       status, jaPago, pendente,
+      aprovacao: medicaoAprovacao(m),
       valpago: valpagoRaw,
       totalBruto: total,
       origem: 'Medição'
@@ -405,6 +551,12 @@ window.getPresencaCusto = getPresencaCusto;
 window.categorizeFinanceType = categorizeFinanceType;
 window.financeCategoryLabel = financeCategoryLabel;
 window.FIN_CATEGORIES = FIN_CATEGORIES;
+window.normalizeAprovacao = normalizeAprovacao;
+window.medicaoAprovacao = medicaoAprovacao;
+window.budgetServiceKey = budgetServiceKey;
+window.medicaoServiceKey = medicaoServiceKey;
+window.buildMedicaoResumo = buildMedicaoResumo;
+window.medicaoQuantidadeAnterior = medicaoQuantidadeAnterior;
 
 /**
  * Calcula custos de diárias por período.
@@ -742,19 +894,27 @@ const buildObraReport = (db, obraCod, options = {}) => {
     .map(m => {
       const qprev = parseMoney(m.qprev);
       const qreal = parseMoney(m.qreal);
+      const qant = parseMoney(m.qant);
+      const qacum = parseMoney(m.qacum) || (qant + qreal);
       return {
         ...m,
+        semana: m.semana || m.data || '',
         qprev,
         qreal,
+        qant,
+        qacum,
         valor: parseMoney(m.vtotal),
-        avanco: qprev > 0 ? Math.min(100, (qreal / qprev) * 100) : null
+        aprovacao: medicaoAprovacao(m),
+        photos: Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []),
+        avanco: qprev > 0 ? Math.min(100, (qreal / qprev) * 100) : null,
+        pctAcum: qprev > 0 ? Math.min(100, (qacum / qprev) * 100) : null
       };
     });
 
-  const valorMedido = medicoes.reduce((a, m) => a + m.valor, 0);
-  const fisico = valorMedido > 0
-    ? medicoes.reduce((a, m) => a + (m.avanco == null ? 0 : m.avanco) * m.valor, 0) / valorMedido
-    : null;
+  // Avanço físico acumulado por serviço (ponderado pelo valor do orçamento).
+  const medicaoResumo = buildMedicaoResumo(db, obraCod, { dataInicio, dataFim });
+  const fisico = medicaoResumo.totais.fisico;
+  const valorMedido = medicaoResumo.totais.valorMedido;
 
   const equipeMap = new Map();
   entradas.filter(e => e.source === 'pre').forEach(e => {

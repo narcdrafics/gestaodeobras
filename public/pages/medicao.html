@@ -1,16 +1,103 @@
 <div class="page-header">
-  <div class="page-title">Medição <small>Avanço físico semanal — Mestre</small></div>
-  <button class="btn btn-primary" onclick="openModal('modal-medicao')">+ Nova Medição</button>
+  <div class="page-title">Medição <small>Produção física e aprovação de empreitada</small></div>
+  <div class="page-actions">
+    <button class="btn btn-secondary" onclick="window.print()">Imprimir</button>
+    <button class="btn btn-primary" onclick="openModal('modal-medicao')">+ Nova Medição</button>
+  </div>
 </div>
-<div class="table-wrap">
-  <div class="table-toolbar">
-    <h3>Medição de Avanço Físico</h3>
-    <div class="toolbar-right">
-      <input class="search-input" placeholder="Buscar..." oninput="filterTable('med-tbody', this.value, [1,2,3])">
+
+<div class="med-filters">
+  <div class="med-filter-grid">
+    <div class="form-group">
+      <label class="form-label">Obra *</label>
+      <select class="form-control" id="med-filter-obra" onchange="renderMedicao()"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">De</label>
+      <input type="date" class="form-control" id="med-filter-ini" onchange="renderMedicao()">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Até</label>
+      <input type="date" class="form-control" id="med-filter-fim" onchange="renderMedicao()">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Etapa</label>
+      <select class="form-control" id="med-filter-etapa" onchange="renderMedicao()"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Aprovação</label>
+      <select class="form-control" id="med-filter-aprovacao" onchange="renderMedicao()">
+        <option value="">Todas</option>
+        <option value="Pendente">Pendente</option>
+        <option value="Aprovada">Aprovada</option>
+        <option value="Rejeitada">Rejeitada</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Buscar</label>
+      <input class="form-control" id="med-filter-busca" placeholder="Serviço, equipe, obs..." oninput="renderMedicao()">
     </div>
   </div>
-  <table>
-    <thead><tr><th>Semana</th><th>Obra</th><th>Etapa</th><th>Frente</th><th>Equipe</th><th>Serviço</th><th>Unid.</th><th>Qtd. Prev.</th><th>Qtd. Real.</th><th>Vl. Total (R$)</th><th>% Avanço</th><th>Retrabalho?</th><th>Obs.</th><th>Ações</th></tr></thead>
-    <tbody id="med-tbody"></tbody>
-  </table>
 </div>
+
+<div class="med-kpis" id="med-kpis"></div>
+
+<div class="card med-panel">
+  <div class="med-panel-head">
+    <div>
+      <h3>Avanço acumulado por serviço</h3>
+      <p class="med-muted">Quantidades acumuladas consideram todo o histórico do serviço. Percentual ponderado pelo orçamento.</p>
+    </div>
+    <span class="med-count" id="med-count"></span>
+  </div>
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Etapa</th>
+          <th>Serviço contratado</th>
+          <th>Unid.</th>
+          <th class="num">Previsto</th>
+          <th class="num">Acumulado</th>
+          <th class="num">Saldo</th>
+          <th>% executado</th>
+          <th class="num">Valor medido</th>
+          <th class="num">A aprovar</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="med-servicos-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card med-panel">
+  <div class="med-panel-head">
+    <div>
+      <h3>Medições do período</h3>
+      <p class="med-muted">Aprovação é física. Pagamento é financeiro e não altera o avanço da obra.</p>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Etapa / Serviço</th>
+          <th>Equipe</th>
+          <th class="num">Qtd. atual</th>
+          <th class="num">Acum.</th>
+          <th class="num">%</th>
+          <th class="num">Valor</th>
+          <th>Aprovação</th>
+          <th>Pagamento</th>
+          <th>Fotos</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="med-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card med-history" id="med-historico" style="display:none"></div>

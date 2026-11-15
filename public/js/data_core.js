@@ -378,11 +378,15 @@ function persistDB(force = false) {
     }
     if (Array.isArray(toCache.medicao)) {
       toCache.medicao = toCache.medicao.map(m => {
+        let rest = m;
         if (m.photoUrl && m.photoUrl.startsWith('data:')) {
-          const { photoUrl, ...rest } = m;
-          return rest;
+          const { photoUrl, ...others } = rest;
+          rest = others;
         }
-        return m;
+        if (Array.isArray(rest.photos)) {
+          rest = { ...rest, photos: rest.photos.filter(u => !String(u).startsWith('data:')) };
+        }
+        return rest;
       });
     }
 
@@ -452,11 +456,15 @@ function persistDB(force = false) {
       }
       if (Array.isArray(dbForCloud.medicao)) {
         dbForCloud.medicao = dbForCloud.medicao.map(m => {
+          let rest = m;
           if (m.photoUrl && m.photoUrl.startsWith('data:')) {
-            const { photoUrl, ...rest } = m;
-            return rest;
+            const { photoUrl, ...others } = rest;
+            rest = others;
           }
-          return m;
+          if (Array.isArray(rest.photos)) {
+            rest = { ...rest, photos: rest.photos.filter(u => !String(u).startsWith('data:')) };
+          }
+          return rest;
         });
       }
 
