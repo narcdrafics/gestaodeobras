@@ -16,7 +16,7 @@
 <title>Obra Real - Gestão Profissional de Obras</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 <!-- TESTE DE DEPLOY AUTOMATICO: 2026-03-21 15:15 -->
 <link rel="stylesheet" href="css/app.css?v=20261115003">
 <!-- Firebase App (the core Firebase SDK) -->
@@ -35,7 +35,9 @@
 <!-- HEADER -->
 <header class="header">
   <div class="header-left">
-    <button class="menu-toggle" onclick="toggleMenu()" style="background:none; border:none; color:var(--text); font-size:20px; cursor:pointer;" title="Menu principal">☰</button>
+    <button class="menu-toggle" onclick="toggleMenu()" style="background:none; border:none; color:var(--text); cursor:pointer;" title="Menu principal">
+      <span class="material-symbols-outlined">menu</span>
+    </button>
     <div id="brand-container" style="display:flex; align-items:center;">
        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
     </div>
@@ -43,7 +45,7 @@
   
   <div class="header-right">
     <button id="btn-header-share" class="header-btn-share" onclick="shareScreen()" title="Compartilhar visual">
-      <span class="share-icon">📤</span>
+      <span class="material-symbols-outlined share-icon md-18">share</span>
       <span class="share-text">Compartilhar</span>
     </button>
     <div class="header-date" id="header-date" style="font-size: 13px; color: var(--text3); border-left: 1px solid var(--border); padding-left: 12px; height: 100%; display: flex; align-items: center;"></div>
@@ -54,51 +56,50 @@
 <!-- SIDEBAR -->
 <nav class="sidebar">
   <div class="nav-section">Principal</div>
-  <div class="nav-item" onclick="showPage('hoje')"><span class="ico">📅</span> <span>Hoje</span></div>
-  <div class="nav-item" onclick="showPage('dashboard')"><span class="ico">📊</span> <span>Dashboard</span></div>
-  <div class="nav-item" onclick="showPage('presenca')"><span class="ico">✅</span> <span>Presença (Ponto)</span></div>
+  <div class="nav-item" onclick="showPage('hoje')"><span class="material-symbols-outlined ico">calendar_today</span> <span>Hoje</span></div>
+  <div class="nav-item" onclick="showPage('dashboard')"><span class="material-symbols-outlined ico">dashboard</span> <span>Dashboard</span></div>
+  <div class="nav-item" onclick="showPage('presenca')"><span class="material-symbols-outlined ico">fact_check</span> <span>Presença (Ponto)</span></div>
 
-  <div class="nav-section" onclick="toggleGroup('grp-op', 'ic-op')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
-    <span><span class="ico">🏗️</span> Operação</span>
-    <span id="ic-op" style="font-size:12px; color:var(--text3)">▶</span>
+  <div class="nav-section" onclick="toggleGroup('grp-op', 'ic-op')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding-right:10px;">
+    <span style="display:inline-flex; align-items:center; gap:6px;"><span class="material-symbols-outlined ico">construction</span> Operação</span>
+    <span class="material-symbols-outlined" id="ic-op" style="font-size:18px; color:var(--text3); transition:transform 0.2s;">chevron_right</span>
   </div>
-  <div class="nav-item grp-op" style="display:none" onclick="showPage('obras')"><span class="ico">🏢</span> <span>Obras</span></div>
-  <div class="nav-item grp-op" style="display:none" onclick="showPage('tarefas')"><span class="ico">📋</span> <span>Tarefas</span></div>
-  <div class="nav-item grp-op" style="display:none" onclick="showPage('trabalhadores')"><span class="ico">👷</span> <span>Trabalhadores</span></div>
-  <div class="nav-item grp-op" style="display:none" onclick="showPage('almocos')"><span class="ico">🍱</span> <span>Almoços</span></div>
+  <div class="nav-item grp-op" style="display:none" onclick="showPage('obras')"><span class="material-symbols-outlined ico">apartment</span> <span>Obras</span></div>
+  <div class="nav-item grp-op" style="display:none" onclick="showPage('tarefas')"><span class="material-symbols-outlined ico">checklist</span> <span>Tarefas</span></div>
+  <div class="nav-item grp-op" style="display:none" onclick="showPage('trabalhadores')"><span class="material-symbols-outlined ico">engineering</span> <span>Trabalhadores</span></div>
+  <div class="nav-item grp-op" style="display:none" onclick="showPage('almocos')"><span class="material-symbols-outlined ico">restaurant</span> <span>Almoços</span></div>
 
-  <div class="nav-section" onclick="toggleGroup('grp-prod', 'ic-prod')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
-    <span><span class="ico">🛠️</span> Produção (Canteiro)</span>
-    <span id="ic-prod" style="font-size:12px; color:var(--text3)">▶</span>
+  <div class="nav-section" onclick="toggleGroup('grp-prod', 'ic-prod')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding-right:10px;">
+    <span style="display:inline-flex; align-items:center; gap:6px;"><span class="material-symbols-outlined ico">handyman</span> Produção (Canteiro)</span>
+    <span class="material-symbols-outlined" id="ic-prod" style="font-size:18px; color:var(--text3); transition:transform 0.2s;">chevron_right</span>
   </div>
-  <div class="nav-item grp-prod" style="display:none" onclick="showPage('medicao')"><span class="ico">📐</span> <span>Medições</span></div>
+  <div class="nav-item grp-prod" style="display:none" onclick="showPage('medicao')"><span class="material-symbols-outlined ico">straighten</span> <span>Medições</span></div>
+  <div class="nav-item grp-prod" style="display:none" onclick="showPage('fotos')"><span class="material-symbols-outlined ico">photo_camera</span> <span>Galeria de Fotos</span></div>
 
-  <div class="nav-item grp-prod" style="display:none" onclick="showPage('fotos')"><span class="ico">📸</span> <span>Galeria de Fotos</span></div>
-
-  <div class="nav-section" onclick="toggleGroup('grp-sup', 'ic-sup')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
-    <span><span class="ico">📦</span> Suprimentos</span>
-    <span id="ic-sup" style="font-size:12px; color:var(--text3)">▶</span>
+  <div class="nav-section" onclick="toggleGroup('grp-sup', 'ic-sup')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding-right:10px;">
+    <span style="display:inline-flex; align-items:center; gap:6px;"><span class="material-symbols-outlined ico">inventory_2</span> Suprimentos</span>
+    <span class="material-symbols-outlined" id="ic-sup" style="font-size:18px; color:var(--text3); transition:transform 0.2s;">chevron_right</span>
   </div>
-  <div class="nav-item grp-sup" style="display:none" onclick="showPage('estoque')"><span class="ico">🏪</span> <span>Estoque</span></div>
-  <div class="nav-item grp-sup" style="display:none" onclick="showPage('movEstoque')"><span class="ico">🔄</span> <span>Movimentações</span></div>
-  <div class="nav-item grp-sup" style="display:none" onclick="showPage('compras')"><span class="ico">🛒</span> <span>Compras</span></div>
+  <div class="nav-item grp-sup" style="display:none" onclick="showPage('estoque')"><span class="material-symbols-outlined ico">warehouse</span> <span>Estoque</span></div>
+  <div class="nav-item grp-sup" style="display:none" onclick="showPage('movEstoque')"><span class="material-symbols-outlined ico">swap_horiz</span> <span>Movimentações</span></div>
+  <div class="nav-item grp-sup" style="display:none" onclick="showPage('compras')"><span class="material-symbols-outlined ico">shopping_cart</span> <span>Compras</span></div>
 
-  <div class="nav-section" onclick="toggleGroup('grp-fin', 'ic-fin')" style="cursor:pointer; display:flex; justify-content:space-between; padding-right:10px;">
-    <span><span class="ico">🏢</span> Escritório</span>
-    <span id="ic-fin" style="font-size:12px; color:var(--text3)">▶</span>
+  <div class="nav-section" onclick="toggleGroup('grp-fin', 'ic-fin')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding-right:10px;">
+    <span style="display:inline-flex; align-items:center; gap:6px;"><span class="material-symbols-outlined ico">domain</span> Escritório</span>
+    <span class="material-symbols-outlined" id="ic-fin" style="font-size:18px; color:var(--text3); transition:transform 0.2s;">chevron_right</span>
   </div>
-  <div class="nav-item grp-fin" style="display:none" onclick="showPage('orcamento')"><span class="ico">💰</span> <span>Orçamento</span></div>
-  <div class="nav-item grp-fin" style="display:none" onclick="showPage('financeiro')"><span class="ico">⚖️</span> <span>Financeiro</span></div>
-  <div class="nav-item grp-fin" style="display:none" onclick="showPage('relatorios')"><span class="ico">📄</span> <span>Relatórios</span></div>
+  <div class="nav-item grp-fin" style="display:none" onclick="showPage('orcamento')"><span class="material-symbols-outlined ico">payments</span> <span>Orçamento</span></div>
+  <div class="nav-item grp-fin" style="display:none" onclick="showPage('financeiro')"><span class="material-symbols-outlined ico">account_balance</span> <span>Financeiro</span></div>
+  <div class="nav-item grp-fin" style="display:none" onclick="showPage('relatorios')"><span class="material-symbols-outlined ico">description</span> <span>Relatórios</span></div>
 
   <div class="nav-section admin-only" style="display:none">Sistema</div>
-  <div class="nav-item admin-only" style="display:none" onclick="showPage('admin')"><span class="ico">⚙️</span> <span>Administração</span></div>
+  <div class="nav-item admin-only" style="display:none" onclick="showPage('admin')"><span class="material-symbols-outlined ico">settings</span> <span>Administração</span></div>
 
   <div class="nav-section super-admin-only" style="display:none">SaaS Master</div>
-  <div class="nav-item super-admin-only" style="display:none" onclick="showPage('super_admin')"><span class="ico">👑</span> <span>Painel Master</span></div>
+  <div class="nav-item super-admin-only" style="display:none" onclick="showPage('super_admin')"><span class="material-symbols-outlined ico">shield_person</span> <span>Painel Master</span></div>
   
   <div class="nav-section">Acesso</div>
-  <div class="nav-item" onclick="doLogout()"><span class="ico">🚪</span> <span>Sair do Sistema</span></div>
+  <div class="nav-item" onclick="doLogout()"><span class="material-symbols-outlined ico">logout</span> <span>Sair do Sistema</span></div>
 </nav>
 
 <!-- DYNAMIC MAIN CONTENT -->
@@ -120,7 +121,7 @@
 window.shareScreen = async function() {
   const el = document.getElementById('conteudo-principal');
   if (!el) return;
-  if(typeof toast === 'function') toast('📸 Gerando extrato visual...', 'info');
+  if(typeof toast === 'function') toast('Gerando extrato visual...', 'info');
   
   const oldOv = el.style.overflow;
   const oldH = el.style.height;

@@ -190,7 +190,7 @@ function selecionarTipoMov(tipo) {
     else if (id === 'motivo-opcional-label') e.style.display = isAjuste ? 'none' : 'inline';
     else e.style.display = isAjuste ? 'block' : 'none';
   });
-  const rotulos = { saida_canteiro: '📤 Registrar Saída', retorno: '📥 Registrar Retorno', transferencia: '🔄 Registrar Transferência', ajuste: '✏️ Aplicar Ajuste' };
+  const rotulos = { saida_canteiro: "<span class='material-symbols-outlined md-16' style='vertical-align:middle;margin-right:4px;'>upload</span>Registrar Saída", retorno: "<span class='material-symbols-outlined md-16' style='vertical-align:middle;margin-right:4px;'>download</span>Registrar Retorno", transferencia: "<span class='material-symbols-outlined md-16' style='vertical-align:middle;margin-right:4px;'>swap_horiz</span>Registrar Transferência", ajuste: "<span class='material-symbols-outlined md-16' style='vertical-align:middle;margin-right:4px;'>edit</span>Aplicar Ajuste" };
   const btn = document.getElementById('mov-btn-texto'); if (btn) btn.textContent = rotulos[tipo] || 'Confirmar';
   const btnC = document.getElementById('mov-btn-confirmar'); if (btnC) btnC.disabled = false;
   if (_movItemAtual) onItemChange();
@@ -204,7 +204,7 @@ function ocultarTodosCamposCondicionais() {
 }
 
 function alertarEntradaBloqueada() {
-  alert('⚠️ Para entrada de itens, use "Nova Entrada" na tela de estoque.');
+  alert('Para entrada de itens, use "Nova Entrada" na tela de estoque.');
 }
 window.alertarEntradaBloqueada = alertarEntradaBloqueada;
 
@@ -238,7 +238,7 @@ async function onObraOrigemRetornoChange() {
   if (!infoDiv) return;
   if (!obraId || !_movCanteiroData[obraId]) { infoDiv.style.display = 'none'; return; }
   const dado = _movCanteiroData[obraId];
-  infoDiv.textContent = `📦 ${dado.quantidade} ${dado.unidade || ''} disponível para retorno`;
+  infoDiv.textContent = `${dado.quantidade} ${dado.unidade || ''} disponível para retorno`;
   infoDiv.style.display = 'block';
 }
 window.onObraOrigemRetornoChange = onObraOrigemRetornoChange;
@@ -249,7 +249,7 @@ async function onTransfOrigemChange() {
   if (!infoDiv) return;
   if (!obraId || !_movCanteiroData[obraId]) { infoDiv.style.display = 'none'; return; }
   const dado = _movCanteiroData[obraId];
-  infoDiv.textContent = `📦 ${dado.quantidade} ${dado.unidade || ''} disponível para transferência`;
+  infoDiv.textContent = `${dado.quantidade} ${dado.unidade || ''} disponível para transferência`;
   infoDiv.style.display = 'block';
 }
 window.onTransfOrigemChange = onTransfOrigemChange;
@@ -261,7 +261,7 @@ function validarQuantidadeInput() {
   if (!qty || qty <= 0) { erroDiv.textContent = 'Quantidade deve ser maior que zero.'; erroDiv.style.display = 'block'; return; }
   if (_movTipoAtual === 'saida_canteiro') {
     const item = getItemCache(_movItemAtual);
-    if (item && qty > (item.quantidade || 0)) { erroDiv.textContent = `⚠ Excede o estoque (${item.quantidade} ${item.unidade}).`; erroDiv.style.display = 'block'; return; }
+    if (item && qty > (item.quantidade || 0)) { erroDiv.textContent = `Excede o estoque (${item.quantidade} ${item.unidade}).`; erroDiv.style.display = 'block'; return; }
   }
   erroDiv.style.display = 'none';
 }
@@ -298,7 +298,7 @@ async function confirmarMovimentacao() {
       };
       fecharModalMovimentacao();
       await persistDB();
-      mostrarToast('✅ Movimentação atualizada!', 'success');
+      mostrarToast('Movimentação atualizada!', 'success');
       if (typeof renderMovEstoque === 'function') renderMovEstoque();
       if (typeof recarregarEstoque === 'function') recarregarEstoque();
       return;
@@ -334,7 +334,7 @@ async function confirmarMovimentacao() {
 
     fecharModalMovimentacao();
     await persistDB();
-    mostrarToast('✅ Movimentação registrada!', 'success');
+    mostrarToast('Movimentação registrada!', 'success');
     recarregarEstoque();
   } catch (err) {
     console.error(err);
@@ -368,7 +368,7 @@ function editarMovimentacaoNovoModal(idx) {
 
     // Atualiza título e oculta aviso (não é nova movimentação)
     const titulo = document.getElementById('mov-modal-titulo');
-    if (titulo) titulo.textContent = '✏️ Editar Movimentação';
+    if (titulo) titulo.textContent = 'Editar Movimentação';
     const aviso = document.querySelector('.mov-aviso-entrada');
     if (aviso) aviso.style.display = 'none';
 
@@ -408,7 +408,7 @@ function editarMovimentacaoNovoModal(idx) {
     const btnC = document.getElementById('mov-btn-confirmar');
     if (btnC) btnC.disabled = false;
     const btnTxt = document.getElementById('mov-btn-texto');
-    if (btnTxt) btnTxt.textContent = '💾 Salvar Alterações';
+    if (btnTxt) btnTxt.textContent = 'Salvar Alterações';
   }, 50);
 }
 window.editarMovimentacaoNovoModal = editarMovimentacaoNovoModal;

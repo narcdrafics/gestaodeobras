@@ -8,15 +8,15 @@
     <div style="display:flex;align-items:center;gap:16px">
       <h3 style="margin:0">Controle de Tarefas</h3>
       <div class="view-toggle">
-        <button id="btn-view-table" class="view-btn active" onclick="setTaskView('table')">📊 Tabela</button>
-        <button id="id-view-kanban" class="view-btn" onclick="setTaskView('kanban')">📋 Quadro</button>
+        <button id="btn-view-table" class="view-btn active" onclick="setTaskView('table')"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">bar_chart</span> Tabela</button>
+        <button id="id-view-kanban" class="view-btn" onclick="setTaskView('kanban')"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">checklist</span> Quadro</button>
       </div>
     </div>
     <div class="toolbar-right" style="display:flex;gap:12px;flex:1;justify-content:flex-end">
       <select id="tar-obra-filter" class="form-control" style="width:160px" onchange="renderTarefas()">
         <option value="">Todas obras</option>
       </select>
-      <input class="search-input" id="tar-busca" placeholder="🔍 Buscar tarefa..." oninput="renderTarefas()" style="max-width:200px">
+      <input class="search-input" id="tar-busca" placeholder="Buscar tarefa..." oninput="renderTarefas()" style="max-width:200px">
     </div>
   </div>
   

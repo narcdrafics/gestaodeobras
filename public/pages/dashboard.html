@@ -3,23 +3,23 @@
   <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
     <div id="dash-updated" style="font-size:12px;color:var(--text3); margin-right: 8px;"></div>
     <div id="dash-actions" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
-    <button class="btn btn-secondary btn-sm" onclick="exportarImagemDashboard()">📸 WhatsApp (Img)</button>
-    <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨️ PDF / Imprimir</button>
+    <button class="btn btn-secondary btn-sm" onclick="exportarImagemDashboard()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">photo_camera</span> WhatsApp (Img)</button>
+    <button class="btn btn-secondary btn-sm" onclick="window.print()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">print</span> PDF / Imprimir</button>
     <details class="dash-more">
       <summary class="btn btn-secondary btn-sm">⋯ Mais</summary>
       <div class="dash-more-menu">
-        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-file').click()">📥 Importar</button>
-        <button class="btn btn-secondary btn-sm" onclick="exportarBackup()">💾 Exportar Banco</button>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-file').click()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">download</span> Importar</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportarBackup()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">save</span> Exportar Banco</button>
       </div>
       <input type="file" id="import-file" style="display:none" accept=".json" onchange="importarBackup(event)">
     </details>
   </div>
 </div>
 <div class="kpi-grid" id="kpi-grid"></div>
-<div class="section-title">⚠️ Alertas do Dia</div>
+<div class="section-title"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">warning</span> Alertas do Dia</div>
 <div class="alerts-grid" id="alerts-grid"></div>
 <div class="section-title" style="margin-top:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-  <span>📊 Resumo por Obra</span>
+  <span><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">bar_chart</span> Resumo por Obra</span>
   <label style="font-size:12px; font-weight:400; color:var(--text3); cursor:pointer;">
     <input type="checkbox" id="dash-show-done" onchange="renderDashboard()"> Mostrar concluídas <span id="dash-done-count"></span>
   </label>

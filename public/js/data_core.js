@@ -293,7 +293,7 @@ function loadTheme(externalCfg) {
                 <span class="app-brand-name" style="margin-left: 8px;">${cfg.nomeEmpresa || 'Obra Real'}</span>
             `;
       } else {
-        container.innerHTML = `<span id="brand-icon">🏗️</span> <span class="app-brand-name">${cfg.nomeEmpresa || 'Obra Real'}</span>`;
+        container.innerHTML = `<span class="material-symbols-outlined" id="brand-icon" style="color:var(--accent);font-size:24px;vertical-align:middle;">construction</span> <span class="app-brand-name">${cfg.nomeEmpresa || 'Obra Real'}</span>`;
       }
     }
   }
@@ -312,7 +312,7 @@ const subdomainContextPromise = (async function initSubdomainContext() {
     } else {
       console.error(`ALERTA: O subdomínio "${slug}" não corresponde a nenhuma Empresa registrada! O acesso foi interrompido por segurança.`);
       document.body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding:20px">
-        <h1 style="color:#ef4444;margin-bottom:10px">❌ Empresa Inexistente ou URL Incorreta</h1>
+        <h1 style="color:#ef4444;margin-bottom:10px"><span class="material-symbols-outlined md-24" style="vertical-align:middle;margin-right:6px;color:#ef4444;">error</span>Empresa Inexistente ou URL Incorreta</h1>
         <p style="color:#cbd5e1;max-width:500px">O subdomínio <b>${slug}</b> não está vinculado a nenhuma empresa no sistema. Por favor, verifique se a URL da sua empresa está correta ou contrate um plano.</p>
         <p style="color:#94a3b8;font-size:12px;margin-top:20px">Obra Real SaaS Security</p>
       </div>`;
@@ -498,7 +498,7 @@ function persistDB(force = false) {
       }));
 
       if (errCode === 'PERMISSION_DENIED' && typeof toast === 'function') {
-        toast('⛔ Alteração bloqueada pelo servidor: limite do plano ou permissão de segurança.', 'error');
+        toast('Alteração bloqueada pelo servidor: limite do plano ou permissão de segurança.', 'error');
       }
       if (reject) reject(err);
     } finally {
@@ -611,17 +611,18 @@ function renderBillingSection() {
 
   console.log('[Billing] Plano detectado:', plano);
 
+  const planIcon = (name) => `<span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">${name}</span>`;
   const PLANO_LABELS = {
-    free_trial: '🆓 Período de Teste (30 dias)',
-    start:      '🚀 Start',
-    pro:        '⭐ Pro',
-    premium:    '⭐ Pro',
-    master:     '🌐 Ilimitado / Master',
-    ilimitado:  '🌐 Ilimitado',
-    full_anual: '👑 Full Anual'
+    free_trial: `${planIcon('event_available')}Período de Teste (30 dias)`,
+    start:      `${planIcon('rocket_launch')}Start`,
+    pro:        `${planIcon('star')}Pro`,
+    premium:    `${planIcon('star')}Pro`,
+    master:     `${planIcon('language')}Ilimitado / Master`,
+    ilimitado:  `${planIcon('language')}Ilimitado`,
+    full_anual: `${planIcon('workspace_premium')}Full Anual`
   };
 
-  if (el('plan-name'))   el('plan-name').textContent   = PLANO_LABELS[plano] || plano;
+  if (el('plan-name'))   el('plan-name').innerHTML   = PLANO_LABELS[plano] || plano;
   if (el('limit-obras')) el('limit-obras').textContent = limiteObras >= 99  ? 'Ilimitado' : limiteObras;
   if (el('limit-usr'))   el('limit-usr').textContent   = limiteUsers >= 99  ? 'Ilimitado' : limiteUsers;
 

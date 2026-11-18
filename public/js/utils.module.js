@@ -114,11 +114,11 @@ const calcWeeklyPendingPayments = (presencaArray, obrasArray, todayStr) => {
 window.calcWeeklyPendingPayments = calcWeeklyPendingPayments;
 
 const FIN_CATEGORIES = [
-  { key: 'mao-de-obra', label: 'Mão de obra', icon: '👷' },
-  { key: 'empreiteiro', label: 'Empreiteiros', icon: '🔨' },
-  { key: 'almoco', label: 'Almoços', icon: '🍱' },
-  { key: 'material', label: 'Material', icon: '🧱' },
-  { key: 'outros', label: 'Outros', icon: '📌' }
+  { key: 'mao-de-obra', label: 'Mão de obra', icon: 'engineering' },
+  { key: 'empreiteiro', label: 'Empreiteiros', icon: 'handyman' },
+  { key: 'almoco', label: 'Almoços', icon: 'restaurant' },
+  { key: 'material', label: 'Material', icon: 'build' },
+  { key: 'outros', label: 'Outros', icon: 'push_pin' }
 ];
 
 const normalizeText = (v) => String(v == null ? '' : v)
@@ -1093,8 +1093,12 @@ const statusBadge = function(s) {
 window.statusBadge = statusBadge;
 
 const uiEmptyState = function(message, subMessage, icon, actionText, actionFn) {
+  const iconHtml = icon
+    ? `<div class="ui-empty-icon"><span class="material-symbols-outlined" style="font-size:34px;">${icon}</span></div>`
+    : '';
   return `<tr class="empty-row" style="background:transparent;border:none;box-shadow:none;">
    <td colspan="100%" style="text-align:center;padding:48px 20px;border:none;background:transparent;">
+       ${iconHtml}
        <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px;">${message}</div>
        <div style="font-size:13px;color:var(--text3);margin-bottom:20px;max-width:300px;margin-left:auto;margin-right:auto;text-wrap:balance;">${subMessage}</div>
        ${actionText ? `<button class="btn btn-primary" onclick="${actionFn}" style="margin:0 auto;">${actionText}</button>` : ''}

@@ -13,7 +13,7 @@
     <!-- Header -->
     <div class="modal-header">
       <h2 id="mov-modal-titulo">Movimentação de Estoque</h2>
-      <button class="modal-close-btn" onclick="fecharModalMovimentacao()" aria-label="Fechar">✕</button>
+      <button class="modal-close-btn" onclick="fecharModalMovimentacao()" aria-label="Fechar"><span class="material-symbols-outlined md-18">close</span></button>
     </div>
 
     <!-- Aviso importante -->
@@ -29,7 +29,7 @@
       gap: 8px;
       align-items: flex-start;
     ">
-      <span style="flex-shrink:0;margin-top:1px">⚠️</span>
+      <span style="flex-shrink:0;margin-top:1px"><span class="material-symbols-outlined md-16" style="vertical-align:middle;">warning</span></span>
       <span>Este modal é apenas para <strong>movimentações entre estoque e canteiro</strong>. Para adicionar novos itens ou repor estoque, use <strong>"Nova Entrada"</strong>.</span>
     </div>
 
@@ -38,29 +38,29 @@
       <label class="form-label" for="mov-tipo">Tipo de Movimentação <span class="required">*</span></label>
       <div class="mov-tipo-grid">
         <button type="button" class="mov-tipo-btn" data-tipo="saida_canteiro" onclick="selecionarTipoMov('saida_canteiro')">
-          <span class="mov-tipo-icon">📤</span>
+          <span class="mov-tipo-icon"><span class="material-symbols-outlined mov-tipo-icon">upload</span></span>
           <span class="mov-tipo-label">Saída para Canteiro</span>
-          <span class="mov-tipo-desc">Estoque → Obra</span>
+          <span class="mov-tipo-desc">Estoque <span class="material-symbols-outlined md-16" style="vertical-align:middle;">arrow_forward</span> Obra</span>
         </button>
         <button type="button" class="mov-tipo-btn" data-tipo="retorno" onclick="selecionarTipoMov('retorno')">
-          <span class="mov-tipo-icon">📥</span>
+          <span class="mov-tipo-icon"><span class="material-symbols-outlined mov-tipo-icon">download</span></span>
           <span class="mov-tipo-label">Retorno</span>
-          <span class="mov-tipo-desc">Obra → Estoque</span>
+          <span class="mov-tipo-desc">Obra <span class="material-symbols-outlined md-16" style="vertical-align:middle;">arrow_forward</span> Estoque</span>
         </button>
         <button type="button" class="mov-tipo-btn" data-tipo="transferencia" onclick="selecionarTipoMov('transferencia')">
-          <span class="mov-tipo-icon">🔄</span>
+          <span class="mov-tipo-icon"><span class="material-symbols-outlined mov-tipo-icon">swap_horiz</span></span>
           <span class="mov-tipo-label">Transferência</span>
-          <span class="mov-tipo-desc">Obra → Obra</span>
+          <span class="mov-tipo-desc">Obra <span class="material-symbols-outlined md-16" style="vertical-align:middle;">arrow_forward</span> Obra</span>
         </button>
         <button type="button" class="mov-tipo-btn" data-tipo="ajuste" onclick="selecionarTipoMov('ajuste')">
-          <span class="mov-tipo-icon">✏️</span>
+          <span class="mov-tipo-icon"><span class="material-symbols-outlined mov-tipo-icon">edit</span></span>
           <span class="mov-tipo-label">Ajuste</span>
           <span class="mov-tipo-desc">Correção de saldo</span>
         </button>
       </div>
       <!-- Botão ENTRADA bloqueado visivelmente -->
       <div class="mov-entrada-bloqueada" onclick="alertarEntradaBloqueada()" title="Use o botão Nova Entrada no cadastro de estoque">
-        <span>🔒 Entrada de itens — use o botão <strong>Nova Entrada</strong> no estoque</span>
+        <span><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">lock</span> Entrada de itens — use o botão <strong>Nova Entrada</strong> no estoque</span>
       </div>
     </div>
 
@@ -262,7 +262,7 @@
   display: flex;
   gap: 8px;
 }
-.mov-erros-container li::before { content: '✕'; flex-shrink: 0; }
+.mov-erros-container li::before { content: 'error'; font-family: 'Material Symbols Outlined'; font-size: 14px; flex-shrink: 0; }
 
 .form-error { font-size: 12px; color: #FF6B6B; margin-top: 4px; }
 .form-hint  { font-size: 12px; color: #6b7280; margin-top: 4px; }

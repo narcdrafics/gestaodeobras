@@ -1,14 +1,14 @@
 <input type="hidden" id="al-edit-idx" value="-1">
 <div class="modal-header">
-  <span class="modal-title">🍱 Lançar Almoço</span>
-  <button class="modal-close" onclick="closeModal('modal-almoco')">×</button>
+  <span class="modal-title"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">restaurant</span>Lançar Almoço</span>
+  <button class="modal-close" onclick="closeModal('modal-almoco')"><span class="material-symbols-outlined md-18">close</span></button>
 </div>
 <div style="display:flex;gap:16px;padding:8px 16px 0;border-bottom:1px solid var(--border);margin-bottom:12px">
   <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600">
     <input type="radio" name="al-modo" value="individual" checked onchange="toggleAlmocoModo()"> Individual
   </label>
   <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600">
-    <input type="radio" name="al-modo" value="massa" onchange="toggleAlmocoModo()"> Em Lote 🚀
+    <input type="radio" name="al-modo" value="massa" onchange="toggleAlmocoModo()"> Em Lote <span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">rocket_launch</span>
   </label>
 </div>
 <div class="form-grid">

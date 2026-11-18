@@ -12,7 +12,7 @@
     <div class="kpi-label">Usuários Totais</div>
   </div>
   <div class="kpi-card" style="border: 1px solid var(--accent);">
-    <div class="kpi-label" style="font-weight: bold; margin-bottom: 8px;">👑 Master: Segurança</div>
+    <div class="kpi-label" style="font-weight: bold; margin-bottom: 8px;"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">shield_person</span> Master: Segurança</div>
     <div style="display:flex; gap:8px;">
       <input type="password" id="master-new-password" class="form-control" placeholder="Nova Senha" style="width:100%; border-radius:4px; font-size:13px; border:1px solid var(--border);">
       <button class="btn btn-primary btn-sm" onclick="changeMasterPassword()">Alterar</button>
@@ -22,7 +22,7 @@
 
 <div class="table-wrap" style="margin-top: 24px; border:1px solid var(--accent);">
   <div class="table-toolbar">
-    <h3>👑 Gestão de Administradores Mestre (Super Admins)</h3>
+    <h3><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">shield_person</span> Gestão de Administradores Mestre (Super Admins)</h3>
     <div class="toolbar-right" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
        <input type="email" id="new-master-email" class="form-control form-control-sm" placeholder="e-mail@novo.com" style="width:180px;">
        <input type="password" id="new-master-pass" class="form-control form-control-sm" placeholder="Senha inicial (opcional)" style="width:160px;">
@@ -129,8 +129,8 @@
     <div class="form-group">
       <label>Status</label>
       <select id="mt-status" class="form-control">
-        <option value="ativo">Ativo ✅</option>
-        <option value="bloqueado_pagamento">Bloqueado 🚫</option>
+        <option value="ativo">Ativo</option>
+        <option value="bloqueado_pagamento">Bloqueado</option>
       </select>
     </div>
   </div>
@@ -174,9 +174,9 @@
 
 <div class="table-wrap" style="margin-top: 24px; border-top: 2px solid var(--accent); padding-top: 20px;">
   <div class="table-toolbar">
-    <h3>🔍 Auditoria de Webhooks (Kiwify/Checkout)</h3>
+    <h3><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">search</span> Auditoria de Webhooks (Kiwify/Checkout)</h3>
     <div class="toolbar-right">
-       <button class="btn btn-secondary btn-sm" onclick="renderWebhookLogs()">🔄 Atualizar Logs</button>
+       <button class="btn btn-secondary btn-sm" onclick="renderWebhookLogs()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">sync</span> Atualizar Logs</button>
     </div>
   </div>
   <p style="font-size: 12px; color: var(--text3); margin-bottom: 12px;">Monitore aqui se as notificações de pagamento estão chegando da Kiwify.</p>

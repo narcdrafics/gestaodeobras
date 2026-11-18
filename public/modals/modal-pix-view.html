@@ -1,6 +1,6 @@
 <div class="modal-header">
-  <span class="modal-title">🏦 Pagamento via PIX</span>
-  <button class="modal-close" onclick="cancelPixPayment()">×</button>
+  <span class="modal-title"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">account_balance</span>Pagamento via PIX</span>
+  <button class="modal-close" onclick="cancelPixPayment()"><span class="material-symbols-outlined md-18">close</span></button>
 </div>
 <div style="padding: 20px; text-align: center;">
   <div id="pix-qr-container" style="background:#fff; padding:15px; border-radius:12px; display:inline-block; margin-bottom:20px;">
@@ -15,7 +15,7 @@
     <div id="pix-string-display" style="font-family:monospace; font-size:13px; word-break:break-all; color:var(--text); max-height:80px; overflow-y:auto; padding-right:8px;">
       ...
     </div>
-    <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:12px;" onclick="copyPixString()">📋 Copiar Chave</button>
+    <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:12px;" onclick="copyPixString()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">content_copy</span> Copiar Chave</button>
   </div>
 
   <div style="font-size:14px; color:var(--text); margin-bottom:24px;">
@@ -25,7 +25,7 @@
 
   <div style="display:flex; gap:12px; justify-content:center;">
     <button class="btn btn-secondary" onclick="cancelPixPayment()">Fechar</button>
-    <button class="btn btn-primary" style="background:var(--green); border-color:var(--green);" onclick="confirmPixPaid()">✅ Marcar como Pago</button>
+    <button class="btn btn-primary" style="background:var(--green); border-color:var(--green);" onclick="confirmPixPaid()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">check_circle</span> Marcar como Pago</button>
   </div>
 </div>
 

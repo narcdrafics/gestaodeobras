@@ -6,11 +6,11 @@
 
 <div class="table-wrap" style="margin-bottom: 24px;">
   <div class="table-toolbar">
-    <h3>📅 Quadro de Presença Semanal</h3>
+    <h3><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">calendar_today</span> Quadro de Presença Semanal</h3>
     <div class="toolbar-right" style="display:flex; gap:10px;">
-      <button class="btn btn-secondary btn-sm" onclick="changeWeek(-1)">◀ Semana Anterior</button>
-      <button class="btn btn-secondary btn-sm" onclick="changeWeek(1)">Próxima Semana ▶</button>
-      <button class="btn btn-primary btn-sm" onclick="prepareLotePgto('semana')">💸 Fechamento Semana</button>
+      <button class="btn btn-secondary btn-sm" onclick="changeWeek(-1)"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">arrow_back_ios</span> Semana Anterior</button>
+      <button class="btn btn-secondary btn-sm" onclick="changeWeek(1)">Próxima Semana <span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">arrow_forward_ios</span></button>
+      <button class="btn btn-primary btn-sm" onclick="prepareLotePgto('semana')"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">payments</span> Fechamento Semana</button>
     </div>
   </div>
   <div id="pres-quadro-semanal" style="overflow-x: auto; padding: 10px;">
@@ -24,16 +24,16 @@
   <div class="table-toolbar" style="flex-wrap:wrap;gap:8px;">
     <h3 style="margin:0">Registros de Presença</h3>
     <div class="toolbar-right" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-      <input class="search-input" id="pres-busca" placeholder="🔍 Nome, obra ou data..." style="min-width:180px"
+      <input class="search-input" id="pres-busca" placeholder="Nome, obra ou data..." style="min-width:180px"
         oninput="filterPresenca(this.value)">
       <select id="pres-group-select" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px" onchange="renderPresenca()">
-        <option value="trab" selected>👤 Por Peão</option>
-        <option value="obra">🏗️ Por Obra</option>
-        <option value="">📋 Lista Plana</option>
+        <option value="trab" selected>Por Peão</option>
+        <option value="obra">Por Obra</option>
+        <option value="">Lista Plana</option>
       </select>
       <select id="pres-sort-select" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px" onchange="renderPresenca()">
-        <option value="data_desc">⬇ Mais Recentes</option>
-        <option value="data_asc">⬆ Mais Antigas</option>
+        <option value="data_desc">Mais Recentes</option>
+        <option value="data_asc">Mais Antigas</option>
       </select>
     </div>
   </div>
@@ -52,7 +52,7 @@
 <!-- Fechamento Diárias -->
 <div class="table-wrap" style="margin-top:12px">
   <div class="table-toolbar">
-    <h3 style="margin:0">📅 Fechamento — Diárias (por data)</h3>
+    <h3 style="margin:0"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">calendar_today</span> Fechamento — Diárias (por data)</h3>
   </div>
   <div id="pres-totais" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px"></div>
 </div>
@@ -60,14 +60,14 @@
 <!-- Fechamento Empreitada -->
 <div class="table-wrap" style="margin-top:12px">
   <div class="table-toolbar">
-    <h3 style="margin:0">🔨 Fechamento — Por Trabalhador (dias trab. + faltas)</h3>
+    <h3 style="margin:0"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">handyman</span> Fechamento — Por Trabalhador (dias trab. + faltas)</h3>
   </div>
   <div id="pres-empreitada" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
 </div>
 
 <!-- Pagamentos Pendentes -->
 <div class="table-wrap" style="margin-top:12px">
-  <div class="table-toolbar"><h3 style="margin:0">⚠️ Pagamentos Pendentes (Semana por Obra)</h3></div>
+  <div class="table-toolbar"><h3 style="margin:0"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">warning</span> Pagamentos Pendentes (Semana por Obra)</h3></div>
   <div id="pres-pgto-pendentes" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
 </div>
 

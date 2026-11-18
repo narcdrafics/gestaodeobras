@@ -425,7 +425,7 @@ function setRestrictions(user) {
     const logoutBtn = document.createElement('button');
     logoutBtn.id = 'btn-logout';
     logoutBtn.className = 'btn btn-secondary btn-sm header-logout-btn';
-    logoutBtn.innerHTML = '<span class="logout-icon">🚪</span><span class="logout-text"> Sair</span>';
+    logoutBtn.innerHTML = '<span class="material-symbols-outlined logout-icon md-18">logout</span><span class="logout-text" style="margin-left:4px;">Sair</span>';
     logoutBtn.title = 'Sair do Sistema';
     logoutBtn.onclick = doLogout;
 
@@ -435,7 +435,7 @@ function setRestrictions(user) {
     userNameSpan.style.fontSize = '12px';
     userNameSpan.style.color = 'var(--text2)';
     userNameSpan.style.fontWeight = '500';
-    userNameSpan.innerHTML = `👤 ${user.name} <span style="opacity:0.6;font-size:10px">(${(user.role || 'admin').toUpperCase()})</span>`;
+    userNameSpan.innerHTML = `<span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">account_circle</span>${user.name} <span style="opacity:0.6;font-size:10px">(${(user.role || 'admin').toUpperCase()})</span>`;
 
     // Adiciona o nome antes da data, e o botão sair por último
     if (headerDate) {

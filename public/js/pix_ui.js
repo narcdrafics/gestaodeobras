@@ -104,7 +104,7 @@ async function initiatePixPayment(source, idx, opts = {}) {
     document.getElementById('pix-qr-container').innerHTML = `
         <img src="${qrUrl}" alt="QR Code PIX" 
              style="width:200px; height:200px;"
-             onerror="this.parentElement.innerHTML='<div style=\\'width:200px;height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed #e2e8f0;color:#94a3b8;font-size:12px;text-align:center;padding:10px;\\'>⚠️ QR Code indisponível<br><small>Use a chave Copia e Cola abaixo</small></div>'">
+             onerror="this.parentElement.innerHTML='<div style=\\'width:200px;height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed #e2e8f0;color:#94a3b8;font-size:12px;text-align:center;padding:10px;\\'><span class="material-symbols-outlined md-18" style="vertical-align:middle;">warning</span> QR Code indisponível<br><small>Use a chave Copia e Cola abaixo</small></div>'">
     `;
 }
 

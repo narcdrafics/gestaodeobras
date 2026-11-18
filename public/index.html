@@ -15,8 +15,10 @@
 <meta property="og:image" content="https://obrareal.com/img/dashboard-mockup.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 <style>
+.material-symbols-outlined{font-family:'Material Symbols Outlined';font-weight:normal;font-style:normal;line-height:1;letter-spacing:normal;text-transform:none;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;vertical-align:middle;user-select:none;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;font-size:20px}
+.material-symbols-outlined.md-16{font-size:16px;width:16px;height:16px}.material-symbols-outlined.md-18{font-size:18px;width:18px;height:18px}.material-symbols-outlined.md-20{font-size:20px;width:20px;height:20px}.material-symbols-outlined.md-24{font-size:24px;width:24px;height:24px}
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
   --bg:#0D0D0D;
@@ -273,8 +275,8 @@ footer{padding:clamp(28px,4vw,40px) var(--pad);border-top:1px solid var(--border
       <h1>Controle total<br>do seu<br><em>canteiro.</em></h1>
       <p class="hero-sub">Equipe, materiais, tarefas, custos e fotos — tudo no celular, em tempo real.</p>
       <div class="hero-actions">
-        <a href="login.html#signup" class="btn-primary">Testar grátis por 30 dias →</a>
-        <a href="#features" class="btn-ghost">Ver como funciona ↓</a>
+        <a href="login.html#signup" class="btn-primary">Testar grátis por 30 dias <span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">arrow_forward</span></a>
+        <a href="#features" class="btn-ghost">Ver como funciona <span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">south</span></a>
       </div>
       <p class="hero-note">Sem cartão. Sem contrato. Cancela quando quiser.</p>
     </div>
@@ -306,11 +308,11 @@ footer{padding:clamp(28px,4vw,40px) var(--pad);border-top:1px solid var(--border
 
 <!-- MÓDULOS -->
 <div class="modules" id="modulos">
-  <div class="mod"><div class="mod-icon">👷</div><div class="mod-name">Presença e Ponto</div><div class="mod-desc">Folha diária com diárias automáticas</div></div>
-  <div class="mod"><div class="mod-icon">✅</div><div class="mod-name">Tarefas e Etapas</div><div class="mod-desc">Kanban do andamento físico</div></div>
-  <div class="mod"><div class="mod-icon">💰</div><div class="mod-name">Financeiro</div><div class="mod-desc">Previsto vs. realizado em tempo real</div></div>
-  <div class="mod"><div class="mod-icon">📦</div><div class="mod-name">Estoque</div><div class="mod-desc">Entradas, saídas e alertas de ruptura</div></div>
-  <div class="mod"><div class="mod-icon">📸</div><div class="mod-name">Diário de Obra</div><div class="mod-desc">Linha do tempo visual com fotos</div></div>
+  <div class="mod"><div class="mod-icon"><span class="material-symbols-outlined" style="font-size:18px;">engineering</span></div><div class="mod-name">Presença e Ponto</div><div class="mod-desc">Folha diária com diárias automáticas</div></div>
+  <div class="mod"><div class="mod-icon"><span class="material-symbols-outlined" style="font-size:18px;">check_circle</span></div><div class="mod-name">Tarefas e Etapas</div><div class="mod-desc">Kanban do andamento físico</div></div>
+  <div class="mod"><div class="mod-icon"><span class="material-symbols-outlined" style="font-size:18px;">payments</span></div><div class="mod-name">Financeiro</div><div class="mod-desc">Previsto vs. realizado em tempo real</div></div>
+  <div class="mod"><div class="mod-icon"><span class="material-symbols-outlined" style="font-size:18px;">inventory_2</span></div><div class="mod-name">Estoque</div><div class="mod-desc">Entradas, saídas e alertas de ruptura</div></div>
+  <div class="mod"><div class="mod-icon"><span class="material-symbols-outlined" style="font-size:18px;">photo_camera</span></div><div class="mod-name">Diário de Obra</div><div class="mod-desc">Linha do tempo visual com fotos</div></div>
 </div>
 
 <!-- FEATURES -->
@@ -365,9 +367,9 @@ footer{padding:clamp(28px,4vw,40px) var(--pad);border-top:1px solid var(--border
         <div class="mc-head"><span class="mc-label">Tarefas em andamento</span><span class="mc-sub">8 abertas</span></div>
         <div class="kb">
           <div class="kc"><div class="kd da"></div><div style="flex:1"><div class="kt">Hidrossanitário externo — casas 6,7,8,9</div><div class="km">Encanador · vence 10/05</div><div class="kp"><div class="kpb" style="width:45%;background:var(--accent)"></div></div></div></div>
-          <div class="kc"><div class="kd db"></div><div style="flex:1"><div class="kt">Reboco casa 16</div><div class="km">Pedreiro · concluído ✓</div><div class="kp"><div class="kpb" style="width:100%;background:var(--blue)"></div></div></div></div>
+          <div class="kc"><div class="kd db"></div><div style="flex:1"><div class="kt">Reboco casa 16</div><div class="km">Pedreiro · concluído <span class="material-symbols-outlined md-16" style="vertical-align:middle;">check</span></div><div class="kp"><div class="kpb" style="width:100%;background:var(--blue)"></div></div></div></div>
           <div class="kc"><div class="kd dc"></div><div style="flex:1"><div class="kt">Contrapiso área de lazer</div><div class="km">Pedreiro · iniciado</div><div class="kp"><div class="kpb" style="width:20%;background:var(--amber)"></div></div></div></div>
-          <div class="kc"><div class="kd dd"></div><div style="flex:1"><div class="kt">Alvenaria interna — casa 8</div><div class="km" style="color:var(--red)">⚠ Atrasado 2 dias</div><div class="kp"><div class="kpb" style="width:60%;background:var(--red)"></div></div></div></div>
+          <div class="kc"><div class="kd dd"></div><div style="flex:1"><div class="kt">Alvenaria interna — casa 8</div><div class="km" style="color:var(--red)"><span class="material-symbols-outlined md-16" style="vertical-align:middle;">warning</span> Atrasado 2 dias</div><div class="kp"><div class="kpb" style="width:60%;background:var(--red)"></div></div></div></div>
         </div>
       </div>
     </div>
@@ -391,7 +393,7 @@ footer{padding:clamp(28px,4vw,40px) var(--pad);border-top:1px solid var(--border
         <div class="mc-head"><span class="mc-label">Caixa da obra</span><span class="mc-sub">Maio 2026</span></div>
         <div class="fr"><span class="fl">Orçamento total</span><span class="fv fv-blue">R$ 485.000</span></div>
         <div class="fr"><span class="fl">Executado até hoje</span><span class="fv fv-acc">R$ 312.400</span></div>
-        <div class="fr"><span class="fl">Desvio do mês</span><span class="fv fv-red">+R$ 8.200 ⚠</span></div>
+        <div class="fr"><span class="fl">Desvio do mês</span><span class="fv fv-red">+R$ 8.200 <span class="material-symbols-outlined md-16" style="vertical-align:middle;">warning</span></span></div>
         <div class="fr"><span class="fl">Vales pagos hoje</span><span class="fv fv-m">R$ 1.450</span></div>
         <div class="donut-wrap">
           <div class="donut"></div>
@@ -422,7 +424,7 @@ footer{padding:clamp(28px,4vw,40px) var(--pad);border-top:1px solid var(--border
         <div class="sr"><span class="sn">Tijolo 8 furos</span><div class="sbw"><div class="sb" style="width:18%;background:var(--red)"></div></div><span class="sq" style="color:var(--red)">900 un</span></div>
         <div class="sr"><span class="sn">Brita 1</span><div class="sbw"><div class="sb" style="width:40%;background:var(--amber)"></div></div><span class="sq" style="color:var(--amber)">2,1 m³</span></div>
         <div class="sr"><span class="sn">Aço CA-50 10mm</span><div class="sbw"><div class="sb" style="width:82%;background:var(--gold)"></div></div><span class="sq" style="color:var(--gold)">38 br</span></div>
-        <div style="margin-top:12px;font-size:11px;color:var(--red);padding:8px 10px;background:rgba(255,77,77,.07);border-radius:6px">⚠ Tijolo abaixo do mínimo — solicitar reposição</div>
+        <div style="margin-top:12px;font-size:11px;color:var(--red);padding:8px 10px;background:rgba(255,77,77,.07);border-radius:6px"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:2px;">warning</span> Tijolo abaixo do mínimo — solicitar reposição</div>
       </div>
     </div>
   </div>
@@ -444,10 +446,10 @@ footer{padding:clamp(28px,4vw,40px) var(--pad);border-top:1px solid var(--border
       <div class="mc" style="width:288px">
         <div class="mc-head"><span class="mc-label">Diário · 07/05/2026</span><span class="mc-sub">14 fotos</span></div>
         <div class="pg" style="margin-bottom:12px">
-          <div class="pt"><span>🏗</span><span>Alvenaria</span></div>
-          <div class="pt"><span>💧</span><span>Hidráulica</span></div>
-          <div class="pt"><span>🪨</span><span>Contrapiso</span></div>
-          <div class="pt"><span>🪟</span><span>Esquadrias</span></div>
+          <div class="pt"><span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">construction</span></span><span>Alvenaria</span></div>
+          <div class="pt"><span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">water_drop</span></span><span>Hidráulica</span></div>
+          <div class="pt"><span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">terrain</span></span><span>Contrapiso</span></div>
+          <div class="pt"><span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">window</span></span><span>Esquadrias</span></div>
         </div>
         <div style="padding:10px 12px;background:#161616;border-radius:6px">
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Nota do encarregado</div>
@@ -492,7 +494,7 @@ footer{padding:clamp(28px,4vw,40px) var(--pad);border-top:1px solid var(--border
     <p class="cta-p">30 dias grátis. Sem cartão. Sem enrolação.</p>
   </div>
   <div class="cta-acts">
-    <a href="login.html#signup" class="btn-primary">Testar grátis →</a>
+    <a href="login.html#signup" class="btn-primary">Testar grátis <span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">arrow_forward</span></a>
     <a href="#" class="btn-ghost">Agendar demo</a>
   </div>
 </div>

@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
+
 :root {
   --lp-bg: #09090b;
   --lp-text: #fafafa;
@@ -548,7 +550,7 @@ ul.check-list li {
 }
 
 ul.check-list li::before {
-  content: '✓';
+  content: 'check'; font-family: 'Material Symbols Outlined'; font-size:14px; line-height:1;
   color: var(--lp-accent);
   font-weight: 900;
 }

@@ -175,7 +175,7 @@ function setNavGroupState(cls, open, persist) {
     item.style.display = open ? 'block' : 'none';
   });
   const icon = document.getElementById(NAV_GROUPS[cls]);
-  if (icon) icon.textContent = open ? '▼' : '▶';
+  if (icon) icon.textContent = open ? 'expand_more' : 'chevron_right';
   if (persist) {
     const state = readNavGroupState();
     state[cls] = !!open;
@@ -196,7 +196,7 @@ window.toggleGroup = function (cls, icn) {
 
   items.forEach(item => { item.style.display = nextOpen ? 'block' : 'none'; });
   const icon = document.getElementById(icn);
-  if (icon) icon.textContent = nextOpen ? '▼' : '▶';
+  if (icon) icon.textContent = nextOpen ? 'expand_more' : 'chevron_right';
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state[cls]) {
       setNavGroupState(cls, true, false);
     } else if (icon) {
-      icon.textContent = '▶';
+      icon.textContent = 'chevron_right';
     }
   });
 });
@@ -253,7 +253,7 @@ function renderTrialBanner(daysLeft) {
   const msg = daysLeft <= 1 ? 'últimas 24 horas' : `${daysLeft} dias restantes`;
   banner.innerHTML = `
     <span>⏳ <b>${msg}</b> no seu teste grátis. Assine agora e nunca perca seus dados.</span>
-    <button class="btn-pay" onclick="openWhatsApp('Olá, quero assinar o plano Pro do Obra Real!')">Assinar Pro →</button>
+    <button class="btn-pay" onclick="openWhatsApp('Olá, quero assinar o plano Pro do Obra Real!')">Assinar Pro <span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">arrow_forward</span></button>
   `;
 }
 
@@ -622,29 +622,29 @@ window.exportHoje = function exportHoje() {
     '<div>' + hojeData + '</div>' +
     '</div>' +
     '<div class="kpi-grid">' + kpiGrid + '</div>' +
-    '<div class="section-title">⚠️ Pendências do Dia</div>' +
+    '<div class="section-title"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:4px;">warning</span> Pendências do Dia</div>' +
     '<div class="alerts-grid">' + alertsGrid + '</div>' +
-    '<div class="section-title" style="margin-top:10px">👷 Presença por Obra</div>' +
+    '<div class="section-title" style="margin-top:10px"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:4px;">engineering</span> Presença por Obra</div>' +
     '<div class="table-wrap" style="margin-top:5px"><table>' +
     '<thead><tr><th>Obra</th><th>Presentes</th><th>Faltas</th><th>Total</th></tr></thead>' +
     '<tbody>' + obrasTbody + '</tbody>' +
     '</table></div>' +
-    '<div class="section-title" style="margin-top:10px">👷 Presença por Funcionário</div>' +
+    '<div class="section-title" style="margin-top:10px"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:4px;">engineering</span> Presença por Funcionário</div>' +
     '<div class="table-wrap" style="margin-top:5px"><table>' +
     '<thead><tr><th>Funcionário</th><th>Função</th><th>Obra</th><th>Status</th><th>Horas</th></tr></thead>' +
     '<tbody>' + funcionariosTbody + '</tbody>' +
     '</table></div>' +
-    '<div class="section-title" style="margin-top:10px">📋 Medições Pendentes</div>' +
+    '<div class="section-title" style="margin-top:10px"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:4px;">straighten</span> Medições Pendentes</div>' +
     '<div class="table-wrap"><table>' +
     '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor Pendente</th><th>Status</th></tr></thead>' +
     '<tbody>' + medicoesPendentesTbody + '</tbody>' +
     '</table></div>' +
-    '<div class="section-title" style="margin-top:10px">⚖️ Aditivos, Descontos e Adiantamentos</div>' +
+    '<div class="section-title" style="margin-top:10px"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:4px;">balance</span> Aditivos, Descontos e Adiantamentos</div>' +
     '<div class="table-wrap"><table>' +
     '<thead><tr><th>Tipo</th><th>Descrição</th><th>Beneficiário</th><th>Valor</th><th>Status</th></tr></thead>' +
     '<tbody>' + aditivosPrintTbody + '</tbody>' +
     '</table></div>' +
-    '<div class="section-title" style="margin-top:10px">💰 Pagamentos Pendentes</div>' +
+    '<div class="section-title" style="margin-top:10px"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:4px;">payments</span> Pagamentos Pendentes</div>' +
     '<div class="table-wrap"><table>' +
     '<thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor</th><th>Status</th></tr></thead>' +
     '<tbody>' + pendentesPrintTbody + '</tbody>' +
@@ -713,8 +713,8 @@ function renderObras() {
         </div>
         
         <div style="display:flex;gap:4px;margin-top:auto;flex-wrap:wrap">
-          <button class="btn btn-secondary btn-sm" style="flex:1;min-width:110px" onclick="shareObraWhatsApp('${o.cod}')">📱 WhatsApp</button>
-          <button class="btn btn-primary btn-sm" style="flex:1;min-width:80px" onclick="showPage('tarefas')">📋 Tarefas</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1;min-width:110px" onclick="shareObraWhatsApp('${o.cod}')"><span class="material-symbols-outlined md-16">chat</span> WhatsApp</button>
+          <button class="btn btn-primary btn-sm" style="flex:1;min-width:80px" onclick="showPage('tarefas')"><span class="material-symbols-outlined md-16">checklist</span> Tarefas</button>
         </div>
       </div>`;
   }).join(''));
@@ -802,7 +802,7 @@ function renderTrabalhadores() {
           </td>
         </tr>`;
     }).join('')
-    : uiEmptyState('Sem Trabalhadores', 'Cadastre o primeiro pedreiro, mestre ou servente para começar.', '👷‍♂️', 'Adicionar Trabalhador', 'openModal(\'modal-trabalhador\')'));
+    : uiEmptyState('Sem Trabalhadores', 'Cadastre o primeiro pedreiro, mestre ou servente para começar.', 'engineering', 'Adicionar Trabalhador', 'openModal(\'modal-trabalhador\')'));
 }
 
 function renderAlmocos() {
@@ -985,7 +985,7 @@ async function saveAlmoco(keepOpen = false) {
     if (editIdx < 0 || !modoMassa) {
       const jaExiste = DB.almocos.some((a, i) => editIdx >= 0 && i === editIdx ? false : a.data === dataVal && a.empreiteiro === emp && a.obra === obraVal);
       if (jaExiste) {
-        toast(`⚠️ ${emp} já tem almoço lançado nesta data!`, 'error');
+        toast(`${emp} já tem almoço lançado nesta data!`, 'error');
         if (!modoMassa) return;
         continue;
       }
@@ -1119,13 +1119,13 @@ function renderQuadroSemanal() {
       const p = pIdx !== -1 ? DB.presenca[pIdx] : null;
 
       let iconClass = 'none';
-      let icon = '•';
+      let icon = '<span class="material-symbols-outlined md-16" style="vertical-align:middle;">more_horiz</span>';
       let title = 'Sem registro';
 
       if (p) {
-        if (p.presenca === 'Presente') { iconClass = 'presente'; icon = '✅'; title = 'Presente'; }
-        else if (p.presenca === 'Falta') { iconClass = 'falta'; icon = '❌'; title = 'Falta'; }
-        else if (p.presenca === 'Meio período') { iconClass = 'meio'; icon = '🌓'; title = 'Meio Período'; }
+        if (p.presenca === 'Presente') { iconClass = 'presente'; icon = '<span class="material-symbols-outlined md-16" style="vertical-align:middle;color:var(--green);">check_circle</span>'; title = 'Presente'; }
+        else if (p.presenca === 'Falta') { iconClass = 'falta'; icon = '<span class="material-symbols-outlined md-16" style="vertical-align:middle;color:var(--red);">cancel</span>'; title = 'Falta'; }
+        else if (p.presenca === 'Meio período') { iconClass = 'meio'; icon = '<span class="material-symbols-outlined md-16" style="vertical-align:middle;color:var(--orange);">contrast</span>'; title = 'Meio Período'; }
       }
 
       html += `<td>
@@ -1214,7 +1214,7 @@ function renderPresenca() {
   const groupMode = groupSelect ? groupSelect.value : 'trab';
 
   if (listForTable.length === 0) {
-    safeSetInner('pres-tbody', uiEmptyState('Folha em Branco', 'Ninguém bateu ponto hoje. Inicie o lançamento diário da obra.', '✅', 'Lançar Presença', 'openModal(\'modal-presenca\')'));
+    safeSetInner('pres-tbody', uiEmptyState('Folha em Branco', 'Ninguém bateu ponto hoje. Inicie o lançamento diário da obra.', 'check_circle', 'Lançar Presença', 'openModal(\'modal-presenca\')'));
   } else if (!groupMode) {
     safeSetInner('pres-tbody', listForTable.map(p => {
       const saldo = (Number(p.total) || 0) - (Number(p.valpago) || 0);
@@ -1228,7 +1228,7 @@ function renderPresenca() {
         <td data-label="Pgto">${p.pgtoStatus || '—'}</td>
         <td data-label="Saldo" style="color:${saldo > 0 ? 'var(--red)' : 'var(--text3)'};font-weight:${saldo > 0 ? 'bold' : 'normal'}">${saldo > 0 ? fmt(saldo) : '—'}</td>
         <td>
-          <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
+          <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px" title="Editar"><span class="material-symbols-outlined md-16">edit</span></button>
           <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">Excluir</button>
         </td>
       </tr>`;
@@ -1251,7 +1251,7 @@ function renderPresenca() {
       const icn = `ico-pres-${idx}`;
 
       tbodyHtml += `<tr class="group-header" onclick="toggleGroup('${cls}', '${icn}')" style="cursor:pointer; background:var(--bg3); font-weight:600;">
-            <td colspan="8"><span id="${icn}" style="display:inline-block; width:20px; font-size:12px; color:var(--accent);">▶</span> 
+            <td colspan="8"><span id="${icn}" class="material-symbols-outlined md-18" style="vertical-align:middle; margin-right:4px; color:var(--accent);">chevron_right</span> 
               <span style="font-size:14px; text-transform:uppercase">${k}</span> 
               <span class="badge badge-blue" style="margin-left:12px">${rows.length} registros</span>
             </td>
@@ -1270,7 +1270,7 @@ function renderPresenca() {
                 <td data-label="Pgto">${p.pgtoStatus || '—'}</td>
                 <td data-label="Saldo" style="color:${saldo > 0 ? 'var(--red)' : 'var(--text3)'};font-weight:${saldo > 0 ? 'bold' : 'normal'}">${saldo > 0 ? fmt(saldo) : '—'}</td>
                 <td>
-                  <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px">✏️</button>
+                  <button class="btn btn-secondary btn-sm" onclick="editPresenca(${p._idx})" style="margin-right:8px" title="Editar"><span class="material-symbols-outlined md-16">edit</span></button>
                   <button class="btn btn-danger btn-sm" onclick="deleteItem('presenca',${p._idx})">Excluir</button>
                 </td>
               </tr>`;
@@ -1308,7 +1308,7 @@ function renderPresenca() {
     </div>`;
   }).join('');
 
-  safeSetInner('pres-pgto-pendentes', pendentesHtml || '<p style="color:var(--green); padding: 8px; font-weight: 500;">✅ Nenhum pagamento pendente para esta semana.</p>');
+  safeSetInner('pres-pgto-pendentes', pendentesHtml || '<p style="color:var(--green); padding: 8px; font-weight: 500;"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:4px;color:var(--green);">check_circle</span>Nenhum pagamento pendente para esta semana.</p>');
 
   // ➕ FECHAMENTO POR TRABALHADOR (EMPREITADA)
   try {
@@ -1445,18 +1445,18 @@ function renderTaskTable(tasks) {
         </td>
         <td>
            <div style="display:flex; gap:8px; align-items:center">
-             ${t.photoUrl ? `<span style="cursor:pointer; font-size:18px" title="Ver Evidência" onclick="openLightbox('${t.photoUrl}')">📷</span>` : ''}
+             ${t.photoUrl ? `<span style="cursor:pointer; font-size:18px" title="Ver Evidência" onclick="openLightbox('${t.photoUrl}')"><span class="material-symbols-outlined md-18" style="vertical-align:middle;">photo_camera</span></span>` : ''}
              <button class="btn btn-secondary btn-sm" onclick="editTarefa(${t._idx})"></button>
              <button class="btn btn-danger btn-sm" onclick="deleteItem('tarefas',${t._idx})">Excluir</button>
            </div>
         </td>
       </tr>`).join('')
-    : uiEmptyState('Nenhuma Tarefa', 'O cronograma está limpo.', '📋', 'Nova Tarefa', 'openModal(\'modal-tarefa\')'));
+    : uiEmptyState('Nenhuma Tarefa', 'O cronograma está limpo.', 'checklist', 'Nova Tarefa', 'openModal(\'modal-tarefa\')'));
 }
 
 function renderKanban(tasks) {
   const colOrder = ['Pendente', 'Em andamento', 'Concluída'];
-  const colTitles = { 'Pendente': '📋 Para Fazer', 'Em andamento': '🚧 Em Andamento', 'Concluída': '✅ Concluída' };
+  const colTitles = { 'Pendente': '<span class="material-symbols-outlined md-18" style="vertical-align:middle;">checklist</span> Para Fazer', 'Em andamento': '<span class="material-symbols-outlined md-18" style="vertical-align:middle;">construction</span> Em Andamento', 'Concluída': '<span class="material-symbols-outlined md-18" style="vertical-align:middle;">check_circle</span> Concluída' };
 
   let html = '';
   colOrder.forEach(cId => {
@@ -1472,9 +1472,9 @@ function renderKanban(tasks) {
             <div class="kanban-card" onclick="editTarefa(${t._idx})">
               <div class="kanban-card-title">${t.desc}</div>
               <div class="kanban-card-meta">
-                <span>👤 ${t.resp}</span>
-                <span>🏗️ ${obName(t.obra)}</span>
-                <span>📅 Prazo: ${fmtDate(t.prazo)}</span>
+                <span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">person</span> ${t.resp}</span>
+                <span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">construction</span> ${obName(t.obra)}</span>
+                <span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">calendar_today</span> Prazo: ${fmtDate(t.prazo)}</span>
               </div>
               <div class="kanban-card-footer">
                 ${statusBadge(t.prior)}
@@ -1528,7 +1528,7 @@ async function confirmarEntrada() {
   });
   closeModalEntrada();
   await persistDB();
-  toast('✅ Entrada registrada!');
+  toast('Entrada registrada!');
   renderEstoque();
   renderMovEstoque();
 }
@@ -1551,7 +1551,7 @@ function renderEstoque() {
           </td>
         </tr>`;
     }).join('')
-    : uiEmptyState('Estoque Zerado', 'Cadastre cimento, areia ou ferramentas no almoxarifado virtual.', '📦', 'Cadastrar Material', 'openModal(\'modal-estoque\')'));
+    : uiEmptyState('Estoque Zerado', 'Cadastre cimento, areia ou ferramentas no almoxarifado virtual.', 'inventory_2', 'Cadastrar Material', 'openModal(\'modal-estoque\')'));
 }
 
 // ==================== MOV. ESTOQUE ====================
@@ -1569,7 +1569,7 @@ function renderMovEstoque() {
           <button class="btn btn-danger btn-sm" onclick="deleteItem('movEstoque',${i})">Excluir</button>
         </td>
       </tr>`).join('')
-    : uiEmptyState('Sem Movimentações', 'O depósito não teve entradas ou saídas de materiais ainda.', '🔄', 'Registrar Movimento', 'openModal(\'modal-movest\')'));
+    : uiEmptyState('Sem Movimentações', 'O depósito não teve entradas ou saídas de materiais ainda.', 'sync', 'Registrar Movimento', 'openModal(\'modal-movest\')'));
 }
 
 // ==================== COMPRAS ====================
@@ -1586,7 +1586,7 @@ function renderCompras() {
           <button class="btn btn-danger btn-sm" onclick="deleteItem('compras',${i})">Excluir</button>
         </td>
       </tr>`).join('')
-    : uiEmptyState('Nenhuma Compra', 'Crie um pedido de material novo para acompanhar as entregas dos fornecedores.', '🛒', 'Novo Pedido', 'openModal(\'modal-compra\')'));
+    : uiEmptyState('Nenhuma Compra', 'Crie um pedido de material novo para acompanhar as entregas dos fornecedores.', 'shopping_cart', 'Novo Pedido', 'openModal(\'modal-compra\')'));
 }
 
 
@@ -1651,7 +1651,7 @@ window.finState = finState;
 const finKey = (e) => `${e.source}:${e.idx}`;
 
 function finCategoryMeta(key) {
-  return (window.FIN_CATEGORIES || []).find(c => c.key === key) || { key: key || 'outros', label: 'Outros', icon: '📌' };
+  return (window.FIN_CATEGORIES || []).find(c => c.key === key) || { key: key || 'outros', label: 'Outros', icon: 'push_pin' };
 }
 
 function finCategoryBadgeClass(key) {
@@ -1742,12 +1742,12 @@ function renderFinKpis(summary) {
   FIN_MAIN_CATEGORIES.forEach(key => {
     const cat = summary.byCategory[key];
     if (!cat) return;
-    html += card(`${cat.icon} ${cat.label}`, fmt(cat.total), '', finState.categoria === key, `setFinCategory('${key}')`, `${cat.count} lançamentos · ${fmt(cat.aPagar)} a pagar`);
+    html += card(`<span class="material-symbols-outlined md-18" style="vertical-align:middle;">${cat.icon}</span>${cat.label}`, fmt(cat.total), '', finState.categoria === key, `setFinCategory('${key}')`, `${cat.count} lançamentos · ${fmt(cat.aPagar)} a pagar`);
   });
 
   const outros = summary.byCategory.outros;
   if (outros && outros.count > 0) {
-    html += card(`${outros.icon} ${outros.label}`, fmt(outros.total), '', finState.categoria === 'outros', "setFinCategory('outros')", `${outros.count} lançamentos · ${fmt(outros.aPagar)} a pagar`);
+    html += card(`<span class="material-symbols-outlined md-18" style="vertical-align:middle;">${outros.icon}</span>${outros.label}`, fmt(outros.total), '', finState.categoria === 'outros', "setFinCategory('outros')", `${outros.count} lançamentos · ${fmt(outros.aPagar)} a pagar`);
   }
 
   el.innerHTML = html;
@@ -1757,7 +1757,7 @@ function renderFinTabs(summary) {
   const el = document.getElementById('fin-tabs');
   if (!el) return;
 
-  const tabs = [{ key: 'todos', label: 'Todos', icon: '📋', count: summary.all.length }];
+  const tabs = [{ key: 'todos', label: 'Todos', icon: 'list_alt', count: summary.all.length }];
   FIN_MAIN_CATEGORIES.forEach(key => {
     const cat = summary.byCategory[key];
     if (cat) tabs.push({ key, label: cat.label, icon: cat.icon, count: cat.count });
@@ -1768,7 +1768,7 @@ function renderFinTabs(summary) {
 
   el.innerHTML = tabs.map(t => `
     <button type="button" class="fin-tab ${finState.categoria === t.key ? 'active' : ''}" onclick="setFinCategory('${t.key}')">
-      ${t.icon} ${t.label}<span class="count">${t.count}</span>
+      <span class="material-symbols-outlined md-18" style="vertical-align:middle;">${t.icon}</span>${t.label}<span class="count">${t.count}</span>
     </button>`).join('');
 }
 
@@ -1798,8 +1798,8 @@ function renderFinBulkBar() {
     <span>Total: ${fmt(total)}</span>
     <span class="fin-bulk-total">A pagar: ${fmt(totalPendente)}</span>
     <div style="flex:1"></div>
-    <button class="btn btn-secondary btn-sm" onclick="bulkMarcarPago()" ${pendentes.length ? '' : 'disabled'}>✅ Marcar como pago</button>
-    <button class="btn btn-primary btn-sm" onclick="bulkPagarPix()" ${pendentes.length ? '' : 'disabled'}>💸 Pagar por PIX (${pendentes.length})</button>
+    <button class="btn btn-secondary btn-sm" onclick="bulkMarcarPago()" ${pendentes.length ? '' : 'disabled'}><span class="material-symbols-outlined md-16">check_circle</span> Marcar como pago</button>
+    <button class="btn btn-primary btn-sm" onclick="bulkPagarPix()" ${pendentes.length ? '' : 'disabled'}><span class="material-symbols-outlined md-16">payments</span> Pagar por PIX (${pendentes.length})</button>
     <button class="btn btn-secondary btn-sm" onclick="clearFinSelection()">Limpar</button>
   `;
 }
@@ -1815,13 +1815,13 @@ function finEntryActions(entry) {
     med: `editMedicao(${idx})`,
     alm: `editAlmoco(${idx})`
   };
-  if (editMap[source]) items += `<button onclick="${editMap[source]}">✏️ Editar</button>`;
+  if (editMap[source]) items += `<button onclick="${editMap[source]}"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">edit</span>Editar</button>`;
 
   if (entry.status !== 'Pago' && entry.pendente > 0) {
-    items += `<button onclick="initiatePixPayment('${source}', ${idx})">💸 Pagar via PIX</button>`;
-    items += `<button onclick="markFinEntryPaid('${key}')">✅ Marcar como pago</button>`;
+    items += `<button onclick="initiatePixPayment('${source}', ${idx})"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">payments</span>Pagar via PIX</button>`;
+    items += `<button onclick="markFinEntryPaid('${key}')"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">check_circle</span>Marcar como pago</button>`;
   }
-  items += `<button class="danger" onclick="deleteFinEntry('${source}', ${idx})">🗑️ Excluir</button>`;
+  items += `<button class="danger" onclick="deleteFinEntry('${source}', ${idx})"><span class="material-symbols-outlined md-16" style="vertical-align:middle;">delete</span> Excluir</button>`;
 
   return `<details class="fin-actions" onclick="event.stopPropagation()">
     <summary title="Ações">⋯</summary>
@@ -1851,7 +1851,7 @@ function finEntryRow(entry, options = {}) {
   const checked = finState.selected.has(key) ? 'checked' : '';
   const expanded = finState.expanded.has(key);
   const detailToggle = entry.manual
-    ? `<button class="fin-group-toggle" onclick="toggleFinDetail('${key}')" title="Ver detalhes">${expanded ? '▾' : '▸'}</button>`
+    ? `<button class="fin-group-toggle" onclick="toggleFinDetail('${key}')" title="Ver detalhes">${expanded ? '<span class="material-symbols-outlined md-16" style="vertical-align:middle;">expand_more</span>' : '<span class="material-symbols-outlined md-16" style="vertical-align:middle;">chevron_right</span>'}</button>`
     : '';
   const childClass = options.child ? 'fin-child-row' : 'fin-row';
   const catBadge = finCategoryBadgeClass(entry.categoria);
@@ -1888,7 +1888,7 @@ function finLaborGroupHtml(unit, unitIndex) {
   let html = `<tr class="fin-row fin-labor-row">
     <td data-label="Data">
       <input type="checkbox" class="fin-check" ${allSelected ? 'checked' : ''} onchange="toggleFinGroupSelection(${unitIndex}, this.checked)">
-      <button class="fin-group-toggle" onclick="toggleFinLabor(${unitIndex})" title="Expandir diárias">${expanded ? '▾' : '▸'}</button>
+      <button class="fin-group-toggle" onclick="toggleFinLabor(${unitIndex})" title="Expandir diárias">${expanded ? '<span class="material-symbols-outlined md-16" style="vertical-align:middle;">expand_more</span>' : '<span class="material-symbols-outlined md-16" style="vertical-align:middle;">chevron_right</span>'}</button>
       ${fmtDate(unit.entries[0]?.data)}
     </td>
     <td data-label="Obra">${finText(obras)}</td>
@@ -1904,8 +1904,8 @@ function finLaborGroupHtml(unit, unitIndex) {
       <details class="fin-actions" onclick="event.stopPropagation()">
         <summary title="Ações">⋯</summary>
         <div class="fin-actions-menu">
-          <button onclick="toggleFinLabor(${unitIndex})">${expanded ? '▴ Recolher' : '▾ Ver'} diárias</button>
-          ${unit.pendente > 0 ? `<button onclick="markFinUnitPaid(${unitIndex})">✅ Marcar grupo como pago</button>` : ''}
+          <button onclick="toggleFinLabor(${unitIndex})">${expanded ? '<span class="material-symbols-outlined md-16" style="vertical-align:middle;">expand_less</span> Recolher' : '<span class="material-symbols-outlined md-16" style="vertical-align:middle;">expand_more</span> Ver'} diárias</button>
+          ${unit.pendente > 0 ? `<button onclick="markFinUnitPaid(${unitIndex})"><span class="material-symbols-outlined md-16" style="vertical-align:middle;">check_circle</span> Marcar grupo como pago</button>` : ''}
         </div>
       </details>
     </td>
@@ -1924,7 +1924,7 @@ function finGroupHeaderHtml(unit, unitIndex) {
     <td colspan="7">
       <div class="fin-group-label">
         <input type="checkbox" class="fin-check" ${allSelected ? 'checked' : ''} onchange="toggleFinGroupSelection(${unitIndex}, this.checked)">
-        <button class="fin-group-toggle" onclick="toggleFinGroupCollapse(${unitIndex})" title="Recolher/expandir grupo">${collapsed ? '▶' : '▼'}</button>
+        <button class="fin-group-toggle" onclick="toggleFinGroupCollapse(${unitIndex})" title="Recolher/expandir grupo">${collapsed ? '<span class="material-symbols-outlined md-16" style="vertical-align:middle;">chevron_right</span>' : '<span class="material-symbols-outlined md-16" style="vertical-align:middle;">expand_more</span>'}</button>
         <span>${unit.label}</span>
         <span class="badge badge-gray">${unit.entries.length}</span>
         <span class="fin-group-total">Total ${fmt(unit.total)} · A pagar ${fmt(unit.aPagar)}</span>
@@ -1959,7 +1959,7 @@ function finBuildUnits(entries) {
       kind: 'group',
       groupKey,
       label: finState.groupBy === 'obra'
-        ? `🏗️ ${finText(finObraName(rawKey))}`
+        ? `<span class="material-symbols-outlined md-16" style="vertical-align:middle;">construction</span> ${finText(finObraName(rawKey))}`
         : `${finCategoryMeta(rawKey).icon} ${finCategoryMeta(rawKey).label}`,
       entries: groupEntries,
       total: groupEntries.reduce((a, e) => a + (Number(e.valor) || 0), 0),
@@ -2010,9 +2010,9 @@ function renderFinPagination(totalUnits, page, totalPages, start, end) {
   el.innerHTML = `
     <span>Exibindo ${start + 1}–${end} de ${totalUnits} linha(s)</span>
     <div class="fin-page-buttons">
-      <button class="btn btn-secondary btn-sm" onclick="setFinPage(${page - 1})" ${page <= 1 ? 'disabled' : ''}>◀ Anterior</button>
+      <button class="btn btn-secondary btn-sm" onclick="setFinPage(${page - 1})" ${page <= 1 ? 'disabled' : ''}><span class="material-symbols-outlined md-16" style="vertical-align:middle;">arrow_back_ios</span> Anterior</button>
       <span>Página ${page} de ${totalPages}</span>
-      <button class="btn btn-secondary btn-sm" onclick="setFinPage(${page + 1})" ${page >= totalPages ? 'disabled' : ''}>Próxima ▶</button>
+      <button class="btn btn-secondary btn-sm" onclick="setFinPage(${page + 1})" ${page >= totalPages ? 'disabled' : ''}>Próxima <span class="material-symbols-outlined md-16" style="vertical-align:middle;">arrow_forward_ios</span></button>
     </div>`;
 }
 
@@ -2410,7 +2410,7 @@ function renderOrcamento() {
           </td>
         </tr>`;
     }).join('')
-    : uiEmptyState('Sem Orçamento', 'Crie as linhas de custo planejado para comparar com o real na tela do Painel.', '📐', 'Criar Linha Orçamentária', 'openModal(\'modal-orcamento\')'));
+    : uiEmptyState('Sem Orçamento', 'Crie as linhas de custo planejado para comparar com o real na tela do Painel.', 'square_foot', 'Criar Linha Orçamentária', 'openModal(\'modal-orcamento\')'));
 }
 
 async function renderRelatorios() {
@@ -2435,7 +2435,7 @@ async function renderRelatorios() {
 function resetRelatorios() {
   safeSetInner('rel-preview-area', `
     <div class="ui-empty-state">
-      <div class="ui-empty-icon">📂</div>
+      <div class="ui-empty-icon"><span class="material-symbols-outlined" style="font-size:34px;">folder_open</span></div>
       <div class="ui-empty-title">Pronto para auditar</div>
       <div class="ui-empty-text">Selecione uma obra e um período para compilar custos, medições, equipe e pendências em um relatório conciliado.</div>
     </div>
@@ -2524,7 +2524,7 @@ function generateAuditReport() {
     const temPrevisto = c.previsto > 0;
     const barra = auditBarWidth(c.realizado, c.previsto);
     return `<tr>
-      <td><span class="audit-cat-icon">${esc(c.icon)}</span> <b>${esc(c.label)}</b></td>
+      <td><span class="material-symbols-outlined audit-cat-icon">${esc(c.icon)}</span> <b>${esc(c.label)}</b></td>
       <td class="num">${temPrevisto ? fmt(c.previsto) : '<span class="audit-muted">sem orçamento</span>'}</td>
       <td class="num">${fmt(c.realizado)}</td>
       <td class="num">${fmt(c.pago)}</td>
@@ -2598,13 +2598,13 @@ function generateAuditReport() {
   const html = `
     <div id="print-area" class="audit-report">
       <div class="audit-actions audit-no-print">
-        <button class="btn btn-primary" onclick="printAuditReport()">🖨️ Imprimir / Salvar PDF</button>
-        <button class="btn btn-secondary" onclick="resetRelatorios()">🔙 Voltar</button>
+        <button class="btn btn-primary" onclick="printAuditReport()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">print</span> Imprimir / Salvar PDF</button>
+        <button class="btn btn-secondary" onclick="resetRelatorios()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">arrow_back</span> Voltar</button>
       </div>
 
       <header class="audit-header">
         <div class="audit-brand">
-          ${logo ? `<img src="${esc(logo)}" alt="${esc(report.empresa)}">` : '<div class="audit-brand-mark">🏗️</div>'}
+          ${logo ? `<img src="${esc(logo)}" alt="${esc(report.empresa)}">` : '<div class="audit-brand-mark"><span class="material-symbols-outlined" style="font-size:26px;">construction</span></div>'}
           <div>
             <strong>${esc(report.empresa)}</strong>
             <span>Gestão de obras</span>
@@ -2684,7 +2684,7 @@ function generateAuditReport() {
         </table>
         </div>
         <p class="audit-note">Compras não são somadas ao custo realizado para evitar duplicidade com lançamentos de Material. O custo vem da mesma fonte do Financeiro: lançamentos manuais, presença, medições e almoços.</p>
-        ${dupEtapas.length ? `<p class="audit-note audit-warn">⚠️ ${report.duplicados.length} lançamento(s) de Empreiteiro (${fmt(dupTotal)}) não foram somados ao realizado porque a etapa já possui medição: ${esc(dupEtapas.join(', '))}.</p>` : ''}
+        ${dupEtapas.length ? `<p class="audit-note audit-warn"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:2px;">warning</span>${report.duplicados.length} lançamento(s) de Empreiteiro (${fmt(dupTotal)}) não foram somados ao realizado porque a etapa já possui medição: ${esc(dupEtapas.join(', '))}.</p>` : ''}
       </section>
 
       <section class="audit-block">
@@ -2779,8 +2779,8 @@ function generateAuditReport() {
       </footer>
 
       <div class="audit-actions audit-no-print">
-        <button class="btn btn-primary" onclick="printAuditReport()">🖨️ Imprimir / Salvar PDF</button>
-        <button class="btn btn-secondary" onclick="resetRelatorios()">🔙 Voltar</button>
+        <button class="btn btn-primary" onclick="printAuditReport()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">print</span> Imprimir / Salvar PDF</button>
+        <button class="btn btn-secondary" onclick="resetRelatorios()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">arrow_back</span> Voltar</button>
       </div>
     </div>
   `;
@@ -3057,7 +3057,7 @@ function renderMedicaoGallery() {
           <b>Evidências da medição</b>
           <span>${medicaoEsc(g.title)}${g.meta ? ` — ${medicaoEsc(g.meta)}` : ''}</span>
         </div>
-        <button type="button" class="med-gallery-close" onclick="closeMedicaoGallery()" title="Fechar">×</button>
+        <button type="button" class="med-gallery-close" onclick="closeMedicaoGallery()" title="Fechar"><span class="material-symbols-outlined md-18">close</span></button>
       </div>
       <div class="med-gallery-stage">
         ${total > 1 ? '<button type="button" class="med-gallery-nav prev" onclick="medicaoGalleryNav(-1)" title="Foto anterior">‹</button>' : ''}
@@ -3262,7 +3262,7 @@ function renderMedicaoPhotoPreview() {
   box.innerHTML = photos.map((u, i) => `
     <div class="md-photo-item">
       <img src="${medicaoEsc(u)}" alt="Evidência" data-photo="${medicaoEsc(u)}" onclick="openLightbox(this.dataset.photo)">
-      <button type="button" class="md-photo-remove" onclick="removeMedicaoPhoto(${i})" title="Remover foto">×</button>
+      <button type="button" class="md-photo-remove" onclick="removeMedicaoPhoto(${i})" title="Remover foto"><span class="material-symbols-outlined md-16">close</span></button>
     </div>
   `).join('');
 }
@@ -3396,7 +3396,7 @@ function renderFotos() {
         </div>
       </div>
     `).join('')
-    : '<div style="color:var(--text3); padding: 40px; text-align: center; grid-column: 1/-1;">📸 Nenhuma foto encontrada para esta consulta.</div>';
+    : '<div style="color:var(--text3); padding: 40px; text-align: center; grid-column: 1/-1;"><span class="material-symbols-outlined md-18" style="vertical-align:middle;">photo_camera</span> Nenhuma foto encontrada para esta consulta.</div>';
 }
 
 // SaaS: renderBilling é fornecida por renderBillingSection() em data_core.js
@@ -3493,7 +3493,7 @@ async function renderSuperAdmin() {
             <td>${_escMaster(config.limiteObras || 2)}</td>
             <td>${_escMaster(config.limiteTrabalhadores || 10)}</td>
             <td>
-                <button class="btn btn-primary btn-sm" onclick="openMasterTenantModal(${_jsArgMaster(tid)})">⚙️ Ajustar</button>
+                <button class="btn btn-primary btn-sm" onclick="openMasterTenantModal(${_jsArgMaster(tid)})"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">settings</span> Ajustar</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteTenant(${_jsArgMaster(tid)})" style="margin-left: 5px;">Excluir</button>
             </td>
         </tr>`;
@@ -3524,7 +3524,7 @@ async function renderSuperAdmin() {
                     ${extraInfo}
                 </td>
                 <td>
-                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser(${_jsArgMaster(p.uid)}, ${_jsArgMaster(p.email || '')}, ${_jsArgMaster(p.tenantId || '')})">🗑️ Excluir</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser(${_jsArgMaster(p.uid)}, ${_jsArgMaster(p.email || '')}, ${_jsArgMaster(p.tenantId || '')})"><span class="material-symbols-outlined md-16">delete</span> Excluir</button>
                 </td>
             </tr>`;
       }).join('');
@@ -3601,8 +3601,8 @@ async function renderMasterUsers() {
         </td>
         <td><span class="badge badge-gray">${m.origem || 'N/A'}</span></td>
         <td>
-           <button class="btn btn-secondary btn-sm" onclick="sendMasterPasswordReset('${m.email}')" title="Enviar link de criação/redefinição de senha por e-mail">🔑 Senha</button>
-           <button class="btn btn-danger btn-sm" onclick="deleteMasterUser('${m.email}')" style="margin-left:4px;" title="Remover acesso master">🗑️</button>
+           <button class="btn btn-secondary btn-sm" onclick="sendMasterPasswordReset('${m.email}')" title="Enviar link de criação/redefinição de senha por e-mail"><span class="material-symbols-outlined md-16">key</span> Senha</button>
+           <button class="btn btn-danger btn-sm" onclick="deleteMasterUser('${m.email}')" style="margin-left:4px;" title="Remover acesso master"><span class="material-symbols-outlined md-16">delete</span></button>
         </td>
       </tr>
     `).join('');
@@ -4086,7 +4086,7 @@ async function injectSuperAdminTenantBanner(modalContent) {
     banner.id = 'sa-tenant-banner';
     banner.style.cssText = 'background:var(--yellow,#f59e0b22);border:1px solid var(--yellow,#f59e0b);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:13px;';
     banner.innerHTML = `
-      <span style="font-weight:600;white-space:nowrap">🏢 Empresa:</span>
+      <span style="font-weight:600;white-space:nowrap"><span class="material-symbols-outlined md-16" style="vertical-align:middle;">domain</span> Empresa:</span>
       <select id="sa-tenant-select" style="flex:1;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text1);font-size:13px;">
         <option value="">— Selecione uma empresa —</option>
         ${options}
@@ -4099,7 +4099,7 @@ async function injectSuperAdminTenantBanner(modalContent) {
     if (superAdminActiveTenant) {
       const badge = document.createElement('div');
       badge.style.cssText = 'font-size:11px;color:var(--green,#22c55e);margin-top:4px;';
-      badge.textContent = `✅ Operando em: ${superAdminActiveTenant.nome}`;
+      badge.innerHTML = `<span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;color:var(--green);">check_circle</span> Operando em: ${superAdminActiveTenant.nome}`;
       banner.appendChild(badge);
     }
   } catch (e) {
@@ -4118,7 +4118,7 @@ async function applySuperAdminTenant() {
   if (banner) {
     let badge = banner.querySelector('.sa-badge');
     if (!badge) { badge = document.createElement('div'); badge.className = 'sa-badge'; badge.style.cssText = 'font-size:11px;color:var(--green,#22c55e);margin-top:4px;'; banner.appendChild(badge); }
-    badge.textContent = '✅ Operando em: ' + nome;
+    badge.innerHTML = '<span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;color:var(--green);">check_circle</span> Operando em: ' + nome;
   }
   toast('Empresa ' + nome + ' carregada! Agora você pode salvar.', 'success');
 }
@@ -4722,7 +4722,7 @@ async function savePresenca(keepOpen = false) {
 
     if (jaExiste) {
       const nomeTrab = t ? t.nome : tsel;
-      toast(`⚠️ Já existe registro para ${nomeTrab} em ${fmtDate(dataVal)}!`, 'error');
+      toast(`Já existe registro para ${nomeTrab} em ${fmtDate(dataVal)}!`, 'error');
       if (modoMassa) continue;
       return;
     }
@@ -5069,7 +5069,7 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
   const titulo = document.querySelector('#modal-lote .modal-title');
   if (titulo) {
     const labels = { semana: 'Esta Semana', quinzenal: 'Esta Quinzena', mes: 'Este Mês', custom: 'Período Customizado', todas: 'Todas as Pendências' };
-    titulo.textContent = `💸 Fechamento de Folha - ${labels[periodoSel] || periodoSel}`;
+    titulo.innerHTML = `<span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">payments</span> Fechamento de Folha - ${labels[periodoSel] || periodoSel}`;
   }
 
   renderLoteTbody();
@@ -5080,7 +5080,7 @@ window.renderLoteTbody = function () {
   if (!tbody) return;
 
   if (lotePendentes.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;">🎉 Nenhuma diária pendente! Toda a folha já está quitada.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:4px;">celebration</span> Nenhuma diária pendente! Toda a folha já está quitada.</td></tr>';
     document.getElementById('lote-total-sel').textContent = 'R$ 0,00';
     return;
   }
@@ -5088,7 +5088,7 @@ window.renderLoteTbody = function () {
   tbody.innerHTML = lotePendentes.map((item, i) => {
     const datasUnicas = [...new Set(item.datas)].slice(0, 3).join(', ');
     const maisDias = item.datas.length > 3 ? ` +${item.datas.length - 3}` : '';
-    const descontados = item.descontados?.length ? `<br><small style="color:var(--orange)">⏸️ Folgas/feriados: ${item.descontados.join(', ')}</small>` : '';
+    const descontados = item.descontados?.length ? `<br><small style="color:var(--orange)"><span class="material-symbols-outlined md-16" style="vertical-align:middle;">pause_circle</span> Folgas/feriados: ${item.descontados.join(', ')}</small>` : '';
     return `<tr>
       <td style="text-align:center"><input type="checkbox" class="ck-lote-item" value="${i}" onchange="updateLoteTotal()" style="transform:scale(1.2)"></td>
       <td><b>${item.nome}</b> <small style="color:var(--text3)">(${item.funcao})</small><br><small style="color:var(--text2)">${datasUnicas}${maisDias}${descontados}</small></td>
@@ -5096,7 +5096,7 @@ window.renderLoteTbody = function () {
       <td style="text-align:right">Dinheiro/Pix</td>
       <td style="text-align:right; font-weight:bold; color:var(--red)">${fmt(item.valor)}</td>
       <td style="text-align:center">
-        <button class="btn btn-success btn-sm" onclick="initiatePixPayment('lote', ${i})" title="Pagar via PIX" style="background:var(--green); border-color:var(--green);">💸</button>
+        <button class="btn btn-success btn-sm" onclick="initiatePixPayment('lote', ${i})" title="Pagar via PIX" style="background:var(--green); border-color:var(--green);"><span class="material-symbols-outlined md-16">payments</span></button>
       </td>
     </tr>`;
   }).join('');
@@ -5245,7 +5245,7 @@ async function saveEstoque() {
     const matNorm = normEstoqueNome(mat);
     const dup = DB.estoque.find(e => e.obra === obra && normEstoqueNome(e.mat) === matNorm);
     if (dup) {
-      toast(`⚠️ "${mat}" já existe em "${obra}". Edite o item existente ou use movimentação para ajustar quantidade.`, 'error');
+      toast(`"${mat}" já existe em "${obra}". Edite o item existente ou use movimentação para ajustar quantidade.`, 'error');
       return;
     }
   }
@@ -5811,7 +5811,7 @@ function deleteItem(table, idx) {
     const item = DB.estoque[idx];
     const saldo = (parseFloat(item.entrada) || 0) - (parseFloat(item.saida) || 0);
     if (saldo > 0) {
-      toast(`⚠️ "${item.mat}" tem saldo de ${saldo} ${item.unid || 'un'}. Zere o estoque antes de excluir.`, 'error');
+      toast(`"${item.mat}" tem saldo de ${saldo} ${item.unid || 'un'}. Zere o estoque antes de excluir.`, 'error');
       return;
     }
     const noCanteiro = DB.movEstoque.some(m =>
@@ -5823,7 +5823,7 @@ function deleteItem(table, idx) {
       )
     );
     if (noCanteiro) {
-      if (!confirm(`⚠️ "${item.mat}" ainda pode estar no canteiro sem retorno registrado. Excluir mesmo assim?`)) return;
+      if (!confirm(`"${item.mat}" ainda pode estar no canteiro sem retorno registrado. Excluir mesmo assim?`)) return;
     }
   }
 
@@ -5843,7 +5843,7 @@ function deleteItem(table, idx) {
         m.obra === mov.obra
       );
       if (!temRetorno) {
-        if (!confirm(`⚠️ "${mov.mat}" (${mov.tipo}) ainda não tem Retorno registrado. Deletar mesmo assim?`)) return;
+        if (!confirm(`"${mov.mat}" (${mov.tipo}) ainda não tem Retorno registrado. Deletar mesmo assim?`)) return;
       } else {
         if (!confirm(`Remover "${mov.tipo}" de "${mov.mat}"? O saldo no estoque não será ajustado.`)) return;
       }
@@ -5893,7 +5893,7 @@ function toast(msg, type = 'success') {
   }
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.innerHTML = `${type === 'success' ? '✅' : '❌'} ${msg}`;
+  el.innerHTML = `${type === 'success' ? '<span class="material-symbols-outlined md-18">check_circle</span>' : '<span class="material-symbols-outlined md-18">error</span>'} ${msg}`;
   c.appendChild(el);
   setTimeout(() => el.remove(), 3000);
 }
@@ -6093,7 +6093,7 @@ function openLightbox(url) {
     lb.id = 'lightbox-container';
     lb.className = 'lightbox-overlay';
     lb.onclick = closeLightbox;
-    lb.innerHTML = `<div class="lightbox-content"><img src=""><span class="lightbox-close">×</span></div>`;
+    lb.innerHTML = `<div class="lightbox-content"><img src=""><span class="lightbox-close"><span class="material-symbols-outlined md-18">close</span></span></div>`;
     document.body.appendChild(lb);
   }
   lb.querySelector('img').src = url;
@@ -6154,7 +6154,7 @@ window.addEventListener('syncStatus', (e) => {
       code === 'DISCONNECTED' ? 'Sem Conexão' : 'Erro na Nuvem';
 
     indicator.innerHTML = `<div class="sync-dot"></div><span>${msg}</span> 
-                           <button class="sync-retry-btn" onclick="persistDB(true); event.stopPropagation();">🔄 Tentar Agora</button>`;
+                           <button class="sync-retry-btn" onclick="persistDB(true); event.stopPropagation();"><span class="material-symbols-outlined md-16">sync</span> Tentar Agora</button>`;
     indicator.className = 'sync-indicator error';
     indicator.title = `Código do Erro: ${code}`;
     indicator.style.cursor = 'pointer';

@@ -1,21 +1,21 @@
 <div class="page-header">
   <div class="page-title">Relatório <small id="hoje-data"></small></div>
   <div class="btn-group" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-    <button class="btn btn-secondary btn-sm" onclick="changeHojeDate(-1)" title="Dia anterior">◀</button>
+    <button class="btn btn-secondary btn-sm" onclick="changeHojeDate(-1)" title="Dia anterior"><span class="material-symbols-outlined md-16" style="vertical-align:middle;">arrow_back_ios</span></button>
     <input type="date" id="hoje-date-picker" class="form-control" style="width:140px; padding:4px 8px; font-size:13px;" onchange="renderHoje(this.value)">
     <button class="btn btn-secondary btn-sm" onclick="setHojeToday()" title="Ir para hoje" style="font-weight:600;">Hoje</button>
-    <button class="btn btn-secondary btn-sm" onclick="changeHojeDate(1)" title="Próximo dia">▶</button>
-    <button class="btn btn-secondary btn-sm" onclick="renderHoje(document.getElementById('hoje-date-picker').value)">🔄 Atualizar</button>
-    <button class="btn btn-primary btn-sm" onclick="exportHoje()">📤 Exportar</button>
+    <button class="btn btn-secondary btn-sm" onclick="changeHojeDate(1)" title="Próximo dia"><span class="material-symbols-outlined md-16" style="vertical-align:middle;">arrow_forward_ios</span></button>
+    <button class="btn btn-secondary btn-sm" onclick="renderHoje(document.getElementById('hoje-date-picker').value)"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">sync</span> Atualizar</button>
+    <button class="btn btn-primary btn-sm" onclick="exportHoje()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">ios_share</span> Exportar</button>
   </div>
 </div>
 
 <div class="kpi-grid" id="kpi-grid"></div>
 
-<div class="section-title">⚠️ Pendências do Dia</div>
+<div class="section-title"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">warning</span> Pendências do Dia</div>
 <div class="alerts-grid" id="alerts-grid"></div>
 
-<div class="section-title" style="margin-top:8px">👷 Presença por Obra</div>
+<div class="section-title" style="margin-top:8px"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">engineering</span> Presença por Obra</div>
 <div class="table-wrap">
   <table>
     <thead><tr><th>Obra</th><th>Present</th><th>Faltas</th><th>Total</th></tr></thead>
@@ -23,7 +23,7 @@
   </table>
 </div>
 
-<div class="section-title" style="margin-top:8px">👷 Presença por Funcionário</div>
+<div class="section-title" style="margin-top:8px"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">engineering</span> Presença por Funcionário</div>
 <div class="table-wrap">
   <table>
     <thead><tr><th>Funcionário</th><th>Função</th><th>Obra</th><th>Status</th><th>Horas</th></tr></thead>
@@ -31,7 +31,7 @@
   </table>
 </div>
 
-<div class="section-title" style="margin-top:8px">📋 Medições Pendentes</div>
+<div class="section-title" style="margin-top:8px"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">checklist</span> Medições Pendentes</div>
 <div class="table-wrap">
   <table>
     <thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor Pendente</th><th>Status</th></tr></thead>
@@ -39,7 +39,7 @@
   </table>
 </div>
 
-<div class="section-title" style="margin-top:8px">⚖️ Aditivos, Descontos e Adiantamentos</div>
+<div class="section-title" style="margin-top:8px"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">balance</span> Aditivos, Descontos e Adiantamentos</div>
 <div class="table-wrap">
   <table>
     <thead><tr><th>Tipo</th><th>Descrição</th><th>Beneficiário</th><th>Valor</th><th>Status</th></tr></thead>
@@ -47,7 +47,7 @@
   </table>
 </div>
 
-<div class="section-title" style="margin-top:8px">💰 Pagamentos Pendentes</div>
+<div class="section-title" style="margin-top:8px"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">payments</span> Pagamentos Pendentes</div>
 <div class="table-wrap">
   <table>
     <thead><tr><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Valor</th><th>Status</th></tr></thead>
