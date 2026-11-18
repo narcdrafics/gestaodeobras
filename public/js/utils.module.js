@@ -23,12 +23,19 @@ const fmtDate = (d) => {
 
   if (typeof val === 'number' || (!isNaN(Number(val)) && String(val).length > 8)) {
     const dt = new Date(Number(val));
-    return dt.toLocaleDateString('pt-BR');
+    return isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString('pt-BR');
   }
 
-  if (typeof val === 'string' && val.includes('-')) {
-    const parts = val.split('-');
-    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  if (typeof val === 'string') {
+    // Datas ISO, com ou sem hora: "2026-05-07", "2026-05-07T00:00:00Z", "2026-05-07 10:30".
+    // O horário é descartado para não quebrar a coluna de data.
+    const iso = val.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+    if (iso) {
+      const [, ano, mes, dia] = iso;
+      return `${dia.padStart(2, '0')}/${mes.padStart(2, '0')}/${ano}`;
+    }
+    // Já está em pt-BR (ou é outro texto): devolve sem alterar.
+    return val;
   }
   return val;
 };

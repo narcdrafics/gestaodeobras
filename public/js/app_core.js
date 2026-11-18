@@ -2451,6 +2451,7 @@ function checkRelObra() {
     info.textContent = obra
       ? `${obra.status || '—'}${obra.mestre ? ' · Mestre: ' + obra.mestre : ' · Sem mestre definido'}`
       : '';
+    info.title = info.textContent;
   }
   const num = document.getElementById('rel-numero');
   if (num && !num.value && obra) {
@@ -2544,7 +2545,7 @@ function generateAuditReport() {
       ).join('');
       const extra = photos.length > 3 ? `<span class="audit-muted">+${photos.length - 3}</span>` : '';
       return `<tr>
-        <td>${m.semana ? esc(fmtDate(m.semana)) : '—'}</td>
+        <td class="audit-date">${m.semana ? esc(fmtDate(m.semana)) : '—'}</td>
         <td><b>${esc(m.etapa || m.frente || 'Etapa')}</b><br><span class="audit-muted">${esc(m.servico || '—')}</span></td>
         <td>${esc(m.equipe || '—')}</td>
         <td class="num">${m.qprev || 0}</td>
@@ -2573,7 +2574,7 @@ function generateAuditReport() {
     ? report.pendencias.map(p => `<tr>
         <td>${esc(p.tipo)}</td>
         <td>${esc(p.desc)}</td>
-        <td>${p.data ? esc(fmtDate(p.data)) : '—'}</td>
+        <td class="audit-date">${p.data ? esc(fmtDate(p.data)) : '—'}</td>
         <td>${esc(p.status)}</td>
       </tr>`).join('')
     : '<tr><td colspan="4" class="audit-empty">Nenhuma pendência encontrada.</td></tr>';
@@ -2582,7 +2583,7 @@ function generateAuditReport() {
     ? report.entradas.map(e => {
       const cat = window.financeCategoryLabel ? window.financeCategoryLabel(e.categoria) : (e.categoria || 'Outros');
       return `<tr>
-        <td>${e.data ? esc(fmtDate(e.data)) : '—'}</td>
+        <td class="audit-date">${e.data ? esc(fmtDate(e.data)) : '—'}</td>
         <td>${esc(e.origem || '—')}</td>
         <td>${esc(e.desc || '—')}</td>
         <td>${esc(cat)}</td>
@@ -2620,7 +2621,7 @@ function generateAuditReport() {
         <div><span>Obra</span><b>${esc(obra.nome)} (${esc(obra.cod)})</b></div>
         <div><span>Status da obra</span><b>${esc(obra.status || '—')}</b></div>
         <div><span>Mestre responsável</span><b>${esc(obra.mestre || 'Não definido')}</b></div>
-        <div><span>Período</span><b>${esc(report.periodoLabel)}</b></div>
+        <div><span>Período</span><b class="audit-date">${esc(report.periodoLabel)}</b></div>
         <div><span>Responsável pelo relatório</span><b>${esc(responsavel || 'Não informado')}</b></div>
         <div><span>Orçamento total</span><b>${semOrcamento ? 'Não definido' : fmt(r.totalPrevisto)}</b></div>
       </div>
@@ -2655,6 +2656,7 @@ function generateAuditReport() {
 
       <section class="audit-block">
         <h2>Custos por categoria</h2>
+        <div class="audit-table-wrap">
         <table class="audit-table">
           <thead>
             <tr>
@@ -2680,16 +2682,18 @@ function generateAuditReport() {
             </tr>
           </tfoot>
         </table>
+        </div>
         <p class="audit-note">Compras não são somadas ao custo realizado para evitar duplicidade com lançamentos de Material. O custo vem da mesma fonte do Financeiro: lançamentos manuais, presença, medições e almoços.</p>
         ${dupEtapas.length ? `<p class="audit-note audit-warn">⚠️ ${report.duplicados.length} lançamento(s) de Empreiteiro (${fmt(dupTotal)}) não foram somados ao realizado porque a etapa já possui medição: ${esc(dupEtapas.join(', '))}.</p>` : ''}
       </section>
 
       <section class="audit-block">
         <h2>Avanço por etapa (medições)</h2>
+        <div class="audit-table-wrap">
         <table class="audit-table">
           <thead>
             <tr>
-              <th>Data</th>
+              <th class="audit-date">Data</th>
               <th>Etapa / serviço</th>
               <th>Equipe</th>
               <th class="num">Qtd. prev.</th>
@@ -2704,31 +2708,37 @@ function generateAuditReport() {
           </thead>
           <tbody>${medicoesHtml}</tbody>
         </table>
+        </div>
       </section>
 
       <section class="audit-block audit-grid-2">
         <div>
           <h2>Equipe no período</h2>
+          <div class="audit-table-wrap">
           <table class="audit-table">
             <thead><tr><th>Profissional</th><th class="num">Dias</th><th class="num">Custo</th><th class="num">Pago</th><th class="num">A pagar</th></tr></thead>
             <tbody>${equipeHtml}</tbody>
           </table>
+          </div>
         </div>
         <div>
           <h2>Pendências</h2>
+          <div class="audit-table-wrap">
           <table class="audit-table">
-            <thead><tr><th>Tipo</th><th>Descrição</th><th>Data</th><th>Status</th></tr></thead>
+            <thead><tr><th>Tipo</th><th>Descrição</th><th class="audit-date">Data</th><th>Status</th></tr></thead>
             <tbody>${pendenciasHtml}</tbody>
           </table>
+          </div>
         </div>
       </section>
 
       <section class="audit-block">
         <h2>Extrato conciliado</h2>
+        <div class="audit-table-wrap">
         <table class="audit-table">
           <thead>
             <tr>
-              <th>Data</th>
+              <th class="audit-date">Data</th>
               <th>Origem</th>
               <th>Descrição</th>
               <th>Categoria</th>
@@ -2748,6 +2758,7 @@ function generateAuditReport() {
             </tr>
           </tfoot>
         </table>
+        </div>
         <p class="audit-note">Conferência: pago + a pagar = ${fmt(r.totalPago + r.totalAPagar)} · realizado = ${fmt(r.totalRealizado)}.</p>
       </section>
 
