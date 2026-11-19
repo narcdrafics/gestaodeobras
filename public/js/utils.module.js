@@ -168,16 +168,110 @@ const medicaoAprovacao = (m) => (m && (m.aprovacao || m.aprovado))
   ? normalizeAprovacao(m.aprovacao || m.aprovado)
   : 'Aprovada';
 
-/** Chave estável de um serviço do orçamento (obra + etapa + descrição). */
+/** Chave textual legada (obra + etapa + descrição), usada só como fallback/migração. */
+const normalizeServiceKey = (o) => {
+  if (!o) return '';
+  const desc = o.desc != null ? o.desc : o.servico;
+  return [o.obra, o.etapa, desc].map(normalizeText).join('|');
+};
+
+/** ID estável para novos serviços do orçamento. */
+const newServiceId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'svc-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+};
+
+const sameServiceHint = (a, b) => {
+  const x = normalizeText(a);
+  const y = normalizeText(b);
+  return Boolean(x) && x === y;
+};
+
+/**
+ * Migração idempotente para vínculo por ID.
+ * - garante um ID único em cada linha do orçamento;
+ * - liga cada medição antiga ao serviço correspondente;
+ * - em chaves ambíguas, usa frente/equipe/sub-etapa para escolher;
+ * - sem correspondência, mantém a medição avulsa e marca para revisão.
+ * A chave textual antiga é preservada em `orcKey` para rastreabilidade.
+ */
+function migrateServiceIds(db) {
+  if (!db || !Array.isArray(db.orcamento) || !Array.isArray(db.medicao)) return db;
+
+  const used = new Set();
+  const byLegacy = new Map();
+  const budget = db.orcamento.filter(Boolean);
+
+  budget.forEach(o => {
+    if (!o.id || used.has(String(o.id))) o.id = newServiceId();
+    o.id = String(o.id);
+    used.add(o.id);
+    const legacy = normalizeServiceKey(o);
+    if (legacy) {
+      if (!byLegacy.has(legacy)) byLegacy.set(legacy, []);
+      if (!byLegacy.get(legacy).includes(o.id)) byLegacy.get(legacy).push(o.id);
+    }
+  });
+
+  const validIds = new Set(budget.map(o => o.id));
+
+  db.medicao.forEach(m => {
+    if (!m) return;
+    const atual = m.serviceId ? String(m.serviceId) : '';
+    if (atual && validIds.has(atual)) {
+      if (!m.orcKey) m.orcKey = atual;
+      return;
+    }
+
+    const legado = m.orcKey
+      ? normalizeText(m.orcKey)
+      : normalizeServiceKey({ obra: m.obra, etapa: m.etapa, desc: m.servico });
+    const candidatos = (byLegacy.get(legado) || [])
+      .map(id => budget.find(o => o.id === id))
+      .filter(Boolean);
+
+    let escolhido = null;
+    let revisar = false;
+
+    if (candidatos.length === 1) {
+      escolhido = candidatos[0];
+    } else if (candidatos.length > 1) {
+      const score = (o) =>
+        ((sameServiceHint(m.subEtapa, o.subEtapa) || sameServiceHint(m.subEtapa, o.subetapa)) ? 4 : 0) +
+        (sameServiceHint(m.frente, o.frente) ? 3 : 0) +
+        ((sameServiceHint(m.equipe, o.equipe) || sameServiceHint(m.equipe, o.empreiteiro)) ? 2 : 0);
+      const ranked = candidatos.map(o => ({ o, s: score(o) })).sort((a, b) => b.s - a.s);
+      escolhido = ranked[0].o;
+      revisar = ranked[0].s === 0 || Boolean(ranked[1] && ranked[1].s === ranked[0].s);
+    }
+
+    if (escolhido) {
+      m.serviceId = escolhido.id;
+      if (!m.orcKey) m.orcKey = legado;
+      if (revisar) m.serviceIdReview = true;
+    } else {
+      if (m.serviceId) delete m.serviceId;
+      if (revisar) m.serviceIdReview = true;
+    }
+  });
+
+  return db;
+}
+
+/** Chave canônica do serviço do orçamento: ID estável primeiro, texto só no legado. */
 const budgetServiceKey = (o) => {
   if (!o) return '';
-  return [o.obra, o.etapa, o.desc].map(normalizeText).join('|');
+  if (o.id) return String(o.id);
+  return normalizeServiceKey(o);
 };
 
 const medicaoServiceKey = (m) => {
   if (!m) return '';
+  if (m.serviceId) return String(m.serviceId);
   if (m.orcKey) return String(m.orcKey);
-  return [m.obra, m.etapa, m.servico].map(normalizeText).join('|');
+  return normalizeServiceKey({ obra: m.obra, etapa: m.etapa, desc: m.servico });
 };
 
 /**
@@ -203,13 +297,17 @@ const buildMedicaoResumo = (db, obraCod, options = {}) => {
   const ensureServico = (key, base) => {
     if (!servicos.has(key)) {
       servicos.set(key, {
-        key, etapa: '', desc: '', unid: '', qprev: 0, vunit: 0, vtotal: 0,
+        key, etapa: '', subEtapa: '', empreiteiro: '', frente: '',
+        desc: '', unid: '', qprev: 0, vunit: 0, vtotal: 0,
         qacum: 0, valorAcum: 0, count: 0, aprovPend: 0, temOrcamento: false
       });
     }
     const s = servicos.get(key);
     if (base) {
       if (!s.etapa && base.etapa) s.etapa = base.etapa;
+      if (!s.subEtapa && (base.subEtapa || base.subetapa)) s.subEtapa = base.subEtapa || base.subetapa;
+      if (!s.empreiteiro && base.empreiteiro) s.empreiteiro = base.empreiteiro;
+      if (!s.frente && base.frente) s.frente = base.frente;
       if (!s.desc && base.desc) s.desc = base.desc;
       if (!s.unid && base.unid) s.unid = base.unid;
     }
@@ -232,7 +330,10 @@ const buildMedicaoResumo = (db, obraCod, options = {}) => {
   // Acumulado = histórico completo (medições rejeitadas ficam de fora).
   todas.filter(m => medicaoAprovacao(m) !== 'Rejeitada').forEach(m => {
     const key = medicaoServiceKey(m);
-    const s = ensureServico(key, { etapa: m.etapa, desc: m.servico, unid: m.unid });
+    const s = ensureServico(key, {
+      etapa: m.etapa, subEtapa: m.subEtapa, desc: m.servico, unid: m.unid,
+      empreiteiro: m.equipe, frente: m.frente
+    });
     s.qacum += parseMoney(m.qreal);
     s.valorAcum += parseMoney(m.vtotal);
     s.count++;
@@ -290,7 +391,8 @@ const buildMedicaoResumo = (db, obraCod, options = {}) => {
 
 /** Quantidade já medida de um serviço, excluindo o registro em edição. */
 const medicaoQuantidadeAnterior = (db, info = {}) => {
-  const key = info.orcKey || [info.obra, info.etapa, info.servico].map(normalizeText).join('|');
+  const key = info.serviceId || info.orcKey
+    || [info.obra, info.etapa, info.servico].map(normalizeText).join('|');
   const excludeIdx = Number.isInteger(info.excludeIdx) ? info.excludeIdx : -1;
   return (db.medicao || []).reduce((acc, m, i) => {
     if (!m || i === excludeIdx || m.obra !== info.obra) return acc;
@@ -393,6 +495,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
       desc: f.desc || 'Lançamento manual',
       forn: f.forn || '', benef: f.forn || '',
       etapa: f.etapa || '', nf: f.nf || '', pgto: f.pgto || '',
+      serviceId: f.serviceId ? String(f.serviceId) : '',
       obs: f.obs || '',
       real: valor, prev, valor, hasPrev: prevRaw !== 0,
       valorRealizado, valorPrevisto,
@@ -420,6 +523,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
       categoria: 'mao-de-obra',
       desc: nome, forn: nome, benef: nome,
       etapa: '', nf: '', pgto: p.pgto || '',
+      serviceId: p.serviceId ? String(p.serviceId) : '',
       obs: p.justif || p.obs || '',
       real: total, prev: 0, valor: total, hasPrev: false,
       valorRealizado: total, valorPrevisto: 0,
@@ -451,6 +555,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
       categoria: 'empreiteiro',
       desc: m.servico || 'Medição', forn: equipe, benef: equipe,
       etapa: m.etapa || '', nf: m.nf || '', pgto: m.pgto || '',
+      serviceId: medicaoServiceKey(m),
       obs: m.obs || '',
       real: total, prev: 0, valor: total, hasPrev: false,
       valorRealizado: total, valorPrevisto: 0,
@@ -479,6 +584,7 @@ function buildFinanceEntries(fin, pres, med, alm, options = {}) {
       categoria: 'almoco',
       desc: nome, forn: nome, benef: nome,
       etapa: '', nf: '', pgto: '',
+      serviceId: a.serviceId ? String(a.serviceId) : '',
       obs: a.obs || '',
       real: total, prev: 0, valor: total, hasPrev: false,
       valorRealizado: total, valorPrevisto: 0,
@@ -551,6 +657,127 @@ const summarizeFinance = (fin, pres, med, alm, yearOrOptions, month, viewType) =
   return buildFinanceEntries(fin, pres, med, alm, options);
 };
 
+/**
+ * Board do Orçamento: uma linha por serviço, agrupada por etapa/sub-etapa.
+ * - previsto vem do orçamento;
+ * - medido vem de buildMedicaoResumo (histórico acumulado, sem duplicar medições);
+ * - pago/a pagar vem das entradas do Financeiro vinculadas por serviceId.
+ * Despesas sem serviço vinculado aparecem só no subtotal da etapa, nunca
+ * repetidas em cada serviço.
+ */
+const buildOrcamentoBoard = (db, options = {}) => {
+  const safeDb = db && typeof db === 'object' ? db : {};
+  const obra = options.obra || '';
+  const budget = (Array.isArray(safeDb.orcamento) ? safeDb.orcamento : [])
+    .map((o, i) => ({ ...o, _idx: i }))
+    .filter(o => o && (!obra || o.obra === obra));
+
+  const obras = obra
+    ? [obra]
+    : [...new Set(budget.map(o => o.obra).filter(Boolean))];
+
+  const medidoPorChave = new Map();
+  obras.forEach(cod => {
+    const resumo = buildMedicaoResumo(safeDb, cod);
+    (resumo.servicos || []).forEach(s => medidoPorChave.set(s.key, s));
+  });
+
+  const financeiro = buildFinanceEntries(
+    safeDb.financeiro || [], safeDb.presenca || [],
+    safeDb.medicao || [], safeDb.almocos || [], {}
+  );
+  const pagoPorServico = new Map();
+  const aPagarPorServico = new Map();
+  const outrosPorEtapa = new Map();
+  (financeiro.all || []).forEach(e => {
+    if (obra && (e.obra || 'Geral') !== obra) return;
+    const sid = e.serviceId ? String(e.serviceId) : '';
+    if (sid) {
+      pagoPorServico.set(sid, (pagoPorServico.get(sid) || 0) + e.jaPago);
+      aPagarPorServico.set(sid, (aPagarPorServico.get(sid) || 0) + e.pendente);
+      return;
+    }
+    if (!e.etapa) return;
+    const outro = outrosPorEtapa.get(e.etapa) || { pago: 0, aPagar: 0 };
+    outro.pago += e.jaPago;
+    outro.aPagar += e.pendente;
+    outrosPorEtapa.set(e.etapa, outro);
+  });
+
+  const linhas = budget.map(o => {
+    const key = budgetServiceKey(o);
+    const medido = medidoPorChave.get(key);
+    const medidoQtd = medido ? medido.qacum : 0;
+    const medidoValor = medido ? medido.valorAcum : 0;
+    const qtd = parseMoney(o.qtd);
+    const vtotal = parseMoney(o.vtotal);
+    const sid = String(o.id || key);
+    return {
+      ...o,
+      id: sid,
+      key,
+      subEtapa: o.subEtapa || o.subetapa || '',
+      medidoQtd,
+      medidoValor,
+      saldo: qtd - medidoQtd,
+      pct: qtd > 0 ? (medidoQtd / qtd) * 100 : null,
+      pago: pagoPorServico.get(sid) || 0,
+      aPagar: aPagarPorServico.get(sid) || 0,
+      diferenca: vtotal - medidoValor
+    };
+  });
+
+  const gruposMap = new Map();
+  linhas.forEach(o => {
+    const gk = `${o.etapa || ''}|${o.subEtapa || ''}`;
+    if (!gruposMap.has(gk)) {
+      gruposMap.set(gk, {
+        key: gk,
+        etapa: o.etapa || '',
+        subEtapa: o.subEtapa || '',
+        servicos: [],
+        semVinculo: null,
+        subtotais: { qtd: 0, medidoQtd: 0, prev: 0, medido: 0, pago: 0, aPagar: 0 }
+      });
+    }
+    const g = gruposMap.get(gk);
+    g.servicos.push(o);
+    g.subtotais.qtd += parseMoney(o.qtd);
+    g.subtotais.medidoQtd += parseMoney(o.medidoQtd);
+    g.subtotais.prev += parseMoney(o.vtotal);
+    g.subtotais.medido += parseMoney(o.medidoValor);
+    g.subtotais.pago += parseMoney(o.pago);
+    g.subtotais.aPagar += parseMoney(o.aPagar);
+  });
+
+  const grupos = [...gruposMap.values()].sort((a, b) =>
+    (a.etapa || '').localeCompare(b.etapa || '') ||
+    (a.subEtapa || '').localeCompare(b.subEtapa || '')
+  );
+
+  // Um custo sem serviço vinculado pertence à etapa uma única vez.
+  // Prefere o grupo raiz (sem subetapa) para não repetir o valor em cada
+  // subetapa — o mesmo erro do antigo "Vl. Total Real.".
+  const etapasJaContabilizadas = new Set();
+  grupos.forEach(g => {
+    const outro = outrosPorEtapa.get(g.etapa);
+    if (!outro || (!outro.pago && !outro.aPagar) || etapasJaContabilizadas.has(g.etapa)) return;
+    if (g.subEtapa && grupos.some(x => x.etapa === g.etapa && !x.subEtapa)) return;
+    g.semVinculo = { ...outro };
+    g.subtotais.pago += outro.pago;
+    g.subtotais.aPagar += outro.aPagar;
+    etapasJaContabilizadas.add(g.etapa);
+  });
+
+  const totais = grupos.reduce((acc, g) => {
+    Object.keys(acc).forEach(k => { acc[k] += parseMoney(g.subtotais[k]); });
+    return acc;
+  }, { qtd: 0, medidoQtd: 0, prev: 0, medido: 0, pago: 0, aPagar: 0 });
+
+  return { obra, grupos, linhas, totais };
+};
+
+window.buildOrcamentoBoard = buildOrcamentoBoard;
 window.summarizeFinance = summarizeFinance;
 window.summarizeFinanceCosts = summarizeFinanceCosts;
 window.buildFinanceEntries = buildFinanceEntries;
@@ -562,6 +789,9 @@ window.normalizeAprovacao = normalizeAprovacao;
 window.medicaoAprovacao = medicaoAprovacao;
 window.budgetServiceKey = budgetServiceKey;
 window.medicaoServiceKey = medicaoServiceKey;
+window.normalizeServiceKey = normalizeServiceKey;
+window.newServiceId = newServiceId;
+window.migrateServiceIds = migrateServiceIds;
 window.buildMedicaoResumo = buildMedicaoResumo;
 window.medicaoQuantidadeAnterior = medicaoQuantidadeAnterior;
 
@@ -1022,36 +1252,30 @@ function getPeriodLabel(dateStr, viewType) {
 }
 
 /**
- * Calcula o progresso do orçamento vs. gastos reais.
+ * Compatibilidade: progresso do orçamento usando a nova fonte única.
+ * `realizado` passa a ser o valor medido; pago/a pagar vêm do Financeiro.
+ * O 4º argumento (db completo) habilita medições e vínculos por ID.
  */
-const calcBudgetProgress = (orcamento, financeiro, compras) => {
-  const realCosts = {};
+const calcBudgetProgress = (orcamento, financeiro, compras, db) => {
+  const base = Array.isArray(orcamento) ? orcamento : [];
+  const dbLike = db && typeof db === 'object'
+    ? db
+    : { orcamento: base, financeiro: financeiro || [], compras: compras || [] };
+  const board = buildOrcamentoBoard(dbLike);
+  const porIdx = new Map(board.linhas.map(l => [l._idx, l]));
 
-  // Gastos realizados (Financeiro)
-  financeiro.forEach(f => {
-    if (f.status === 'Pago' || f.status === 'Parcial') {
-      const key = `${f.obra}|${f.etapa}`;
-      realCosts[key] = (realCosts[key] || 0) + (parseFloat(f.real) || 0);
-    }
-  });
-
-  // Gastos realizados (Compras)
-  compras.forEach(c => {
-    if (['Entregue', 'Pago', 'Pedido Feito'].includes(c.status)) {
-      const key = `${c.obra}|${c.etapa || 'Material'}`;
-      realCosts[key] = (realCosts[key] || 0) + (parseFloat(c.vtotal) || 0);
-    }
-  });
-
-  return orcamento.map(o => {
-    const key = `${o.obra}|${o.etapa || 'Material'}`;
-    const vreal = realCosts[key] || 0;
-    const vtotal = parseFloat(o.vtotal) || 0;
+  return base.map((o, i) => {
+    const linha = porIdx.get(i);
+    const vtotal = parseMoney(o.vtotal);
+    const medido = linha ? parseMoney(linha.medidoValor) : 0;
     return {
       ...o,
-      realizado: vreal,
-      diferenca: vtotal - vreal,
-      perc: vtotal > 0 ? ((vreal / vtotal) * 100).toFixed(1) : 0
+      medido,
+      realizado: medido,
+      pago: linha ? parseMoney(linha.pago) : 0,
+      aPagar: linha ? parseMoney(linha.aPagar) : 0,
+      diferenca: vtotal - medido,
+      perc: vtotal > 0 ? ((medido / vtotal) * 100).toFixed(1) : '0.0'
     };
   });
 };

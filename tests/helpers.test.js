@@ -144,12 +144,13 @@ describe('Resumo Financeiro', () => {
 });
 
 describe('Progresso de Orçamento', () => {
-  it('deve calcular diferença e percentual de execução', () => {
-    const orc = [{ obra: 'OB01', etapa: 'Fundação', vtotal: 10000 }];
+  it('usa o valor medido e não o gasto da etapa inteira', () => {
+    const orc = [{ obra: 'OB01', etapa: 'Fundação', vtotal: 10000, id: 'svc-a' }];
+    const med = [{ obra: 'OB01', etapa: 'Fundação', servico: 'A', serviceId: 'svc-a', qreal: 6, vtotal: 6000 }];
     const fin = [{ obra: 'OB01', etapa: 'Fundação', real: 4000, status: 'Pago' }];
-    const com = [{ obra: 'OB01', etapa: 'Fundação', vtotal: 2000, status: 'Entregue' }];
-    
-    const res = calcBudgetProgress(orc, fin, com);
+    const db = { orcamento: orc, medicao: med, financeiro: fin, presenca: [], almocos: [] };
+
+    const res = calcBudgetProgress(orc, fin, [], db);
     expect(res[0].realizado).toBe(6000);
     expect(res[0].diferenca).toBe(4000);
     expect(res[0].perc).toBe("60.0");

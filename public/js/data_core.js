@@ -61,6 +61,12 @@ function ensureSchema(db) {
   safe.orcamento = Array.isArray(safe.orcamento) ? safe.orcamento : [];
   safe.medicao = Array.isArray(safe.medicao) ? safe.medicao : [];
   safe.almocos = Array.isArray(safe.almocos) ? safe.almocos : [];
+
+  // Migração idempotente (carga local, Firebase e persistência passam por aqui).
+  // Chamada no fim para não interferir na criação dos arrays acima.
+  if (typeof window !== 'undefined' && typeof window.migrateServiceIds === 'function') {
+    window.migrateServiceIds(safe);
+  }
   return safe;
 }
 
