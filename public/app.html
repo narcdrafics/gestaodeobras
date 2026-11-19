@@ -14,7 +14,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Obra Real - Gestão Profissional de Obras</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- TESTE DE DEPLOY AUTOMATICO: 2026-03-21 15:15 -->
 <link rel="stylesheet" href="css/app.css?v=20261115003">
 <!-- Firebase App (the core Firebase SDK) -->
@@ -33,17 +35,17 @@
 <!-- HEADER -->
 <header class="header">
   <div class="header-left">
-    <button class="menu-toggle" onclick="toggleMenu()" style="background:none; border:none; color:var(--text); font-size:20px; cursor:pointer; margin-right:8px;" title="Menu principal">☰</button>
+    <button class="menu-toggle" onclick="toggleMenu()" style="background:none; border:none; color:var(--text); font-size:20px; cursor:pointer;" title="Menu principal">☰</button>
     <div id="brand-container" style="display:flex; align-items:center;">
        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
     </div>
   </div>
   
-  <!-- Removido header-center fixo para evitar sobreposição -->
-
   <div class="header-right">
-
-    <button onclick="shareScreen()" style="background:var(--accent); color:var(--accent-text); border:1px solid rgba(255,255,255,0.1); padding:6px 14px; border-radius:6px; font-size:13px; cursor:pointer; font-weight:600; transition: all 0.2s;">📤 Compartilhar</button>
+    <button id="btn-header-share" class="header-btn-share" onclick="shareScreen()" title="Compartilhar visual">
+      <span class="share-icon">📤</span>
+      <span class="share-text">Compartilhar</span>
+    </button>
     <div class="header-date" id="header-date" style="font-size: 13px; color: var(--text3); border-left: 1px solid var(--border); padding-left: 12px; height: 100%; display: flex; align-items: center;"></div>
   </div>
 </header>

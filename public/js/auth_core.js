@@ -424,16 +424,16 @@ function setRestrictions(user) {
   if (headerRight && !document.getElementById('btn-logout')) {
     const logoutBtn = document.createElement('button');
     logoutBtn.id = 'btn-logout';
-    logoutBtn.className = 'btn btn-secondary btn-sm';
-    logoutBtn.style.marginLeft = '12px';
-    logoutBtn.innerHTML = '🚪 Sair';
+    logoutBtn.className = 'btn btn-secondary btn-sm header-logout-btn';
+    logoutBtn.innerHTML = '<span class="logout-icon">🚪</span><span class="logout-text"> Sair</span>';
+    logoutBtn.title = 'Sair do Sistema';
     logoutBtn.onclick = doLogout;
 
     const userNameSpan = document.createElement('span');
     userNameSpan.id = 'active-user-badge';
+    userNameSpan.className = 'active-user-badge';
     userNameSpan.style.fontSize = '12px';
     userNameSpan.style.color = 'var(--text2)';
-    userNameSpan.style.marginLeft = '12px';
     userNameSpan.style.fontWeight = '500';
     userNameSpan.innerHTML = `👤 ${user.name} <span style="opacity:0.6;font-size:10px">(${(user.role || 'admin').toUpperCase()})</span>`;
 

@@ -116,7 +116,7 @@
             <label style="font-size:10px; color:var(--text3); display:block; margin-bottom:4px;">Nome do Subdomínio</label>
             <div style="display:flex; align-items:center; background:rgba(0,0,0,0.2); border-radius:6px; padding:0 10px; border:1px solid rgba(245,158,11,0.3);">
               <input type="text" id="subdomain-slug-input" placeholder="seu-nome" 
-                style="background:transparent; border:none; color:#fff; padding:10px 0; font-family:monospace; font-size:14px; width:100%; outline:none;"
+                style="background:transparent; border:none; color:#fff; padding:10px 0; font-family:var(--font-mono, monospace); font-size:14px; width:100%; outline:none;"
                 oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g, ''); document.getElementById('preview-slug').textContent = this.value || '...'">
               <span style="color:#94a3b8; font-size:14px; margin-left:4px;">.obrareal.com</span>
             </div>
