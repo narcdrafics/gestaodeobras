@@ -955,7 +955,7 @@ async function saveAlmoco(keepOpen = false) {
   const modoMassa = document.querySelector('input[name="al-modo"]:checked')?.value === 'massa';
   const dataVal = document.getElementById('al-data').value;
   const obraVal = document.getElementById('al-obra').value;
-  const editIdx = parseInt(document.getElementById('al-edit-idx').value) || -1;
+  const editIdx = parseEditIdx(document.getElementById('al-edit-idx').value);
   const qtd = parseFloat(document.getElementById('al-qtd').value) || 0;
   const vunit = parseFloat(document.getElementById('al-vunit').value) || 0;
   const vtotal = qtd * vunit;
@@ -3003,10 +3003,13 @@ function renderMedicao() {
       const fill = pct == null ? 0 : Math.max(0, Math.min(100, pct));
       const over = pct != null && pct > 100;
       const acoes = `<button class="btn btn-secondary btn-sm" data-key="${medicaoEsc(s.key)}" onclick="openMedicaoHistorico(this.dataset.key)">Histórico</button>`;
+      const tagRevisar = medicoes.some(m => m.serviceIdReview)
+        ? ' <span class="med-tag" title="Há medições ligadas a este serviço por aproximação (mesmo nome em mais de uma frente). Abra o Histórico para confirmar.">vínculo a revisar</span>'
+        : '';
 
       if (view === 'financeiro') {
         return `<tr class="med-row">
-          <td><b>${medicaoEsc(s.desc || '—')}</b><br><span class="med-muted">${medicaoEsc(s.etapa || '—')}${s.subEtapa ? ` · ${medicaoEsc(s.subEtapa)}` : ''}</span></td>
+          <td><b>${medicaoEsc(s.desc || '—')}</b>${tagRevisar}<br><span class="med-muted">${medicaoEsc(s.etapa || '—')}${s.subEtapa ? ` · ${medicaoEsc(s.subEtapa)}` : ''}</span></td>
           <td class="num">${fmt(s.valorAcum)}</td>
           <td class="num">${fmt(aprovado)}</td>
           <td class="num">${fmt(pago)}</td>
@@ -3017,7 +3020,7 @@ function renderMedicao() {
         </tr>`;
       }
       return `<tr class="med-row">
-        <td><b>${medicaoEsc(s.desc || '—')}</b>${s.temOrcamento ? '' : ' <span class="med-tag">sem orçamento</span>'}<br><span class="med-muted">${medicaoEsc(s.etapa || '—')}${s.subEtapa ? ` · ${medicaoEsc(s.subEtapa)}` : ''}</span></td>
+        <td><b>${medicaoEsc(s.desc || '—')}</b>${s.temOrcamento ? '' : ' <span class="med-tag">sem orçamento</span>'}${tagRevisar}<br><span class="med-muted">${medicaoEsc(s.etapa || '—')}${s.subEtapa ? ` · ${medicaoEsc(s.subEtapa)}` : ''}</span></td>
         <td>${medicaoEsc(s.frente || '—')}<br><span class="med-muted">${medicaoEsc(s.empreiteiro || '—')}</span></td>
         <td>${medicaoEsc(s.unid || '—')}</td>
         <td class="num">${s.qprev || 0}</td>
@@ -3030,7 +3033,8 @@ function renderMedicao() {
     : `<tr><td colspan="8" class="med-empty">Nenhum serviço medido nesta obra.</td></tr>`);
 
   const countEl = document.getElementById('med-count');
-  if (countEl) countEl.textContent = `${servicos.length} serviço(s) · ${t.count} medição(ões) no período`;
+  const nRevisar = (DB.medicao || []).filter(m => m && m.obra === obra && m.serviceIdReview).length;
+  if (countEl) countEl.textContent = `${servicos.length} serviço(s) · ${t.count} medição(ões) no período${nRevisar ? ` · ${nRevisar} com vínculo a revisar` : ''}`;
 }
 window.renderMedicao = renderMedicao;
 
@@ -3071,7 +3075,7 @@ function openMedicaoHistorico(key) {
           const photos = Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
           const aprovMed = window.medicaoAprovacao ? window.medicaoAprovacao(m) : 'Aprovada';
           return `<tr>
-            <td>${medicaoEsc(fmtDate(m.semana || m.data))}</td>
+            <td>${medicaoEsc(fmtDate(m.semana || m.data))}${m.serviceIdReview ? '<br><span class="med-tag" title="Ligada a este serviço por aproximação">vínculo a revisar</span>' : ''}</td>
             <td class="num">${m.qreal || 0}</td>
             <td class="num">${m.qacum || ((parseFloat(m.qant) || 0) + (parseFloat(m.qreal) || 0))}</td>
             <td class="num">${fmt(m.vtotal || 0)}</td>
@@ -3085,6 +3089,7 @@ function openMedicaoHistorico(key) {
             <td><div class="med-actions">
               ${aprovMed !== 'Aprovada' ? `<button class="btn btn-secondary btn-sm" onclick="setMedicaoAprovacao(${m._idx},'Aprovada')">Aprovar</button>` : ''}
               ${aprovMed !== 'Rejeitada' ? `<button class="btn btn-secondary btn-sm" onclick="setMedicaoAprovacao(${m._idx},'Rejeitada')">Rejeitar</button>` : ''}
+              ${m.serviceIdReview ? `<button class="btn btn-secondary btn-sm" onclick="confirmMedicaoVinculo(${m._idx})">Confirmar vínculo</button>` : ''}
               <button class="btn btn-secondary btn-sm" onclick="editMedicao(${m._idx})">Editar</button>
               <button class="btn btn-danger btn-sm" onclick="deleteItem('medicao',${m._idx})">Excluir</button>
             </div></td>
@@ -3227,6 +3232,21 @@ async function setMedicaoAprovacao(idx, status) {
 }
 window.setMedicaoAprovacao = setMedicaoAprovacao;
 
+// Confirma que o serviço ligado a esta medição está certo (some o aviso "vínculo a revisar").
+async function confirmMedicaoVinculo(idx) {
+  const m = DB.medicao[idx];
+  if (!m) return;
+  const historico = document.getElementById('med-historico');
+  const atualizarHistorico = Boolean(historico && historico.style.display !== 'none');
+  const chave = window.medicaoServiceKey ? window.medicaoServiceKey(m) : '';
+  delete m.serviceIdReview;
+  await persistDB();
+  renderMedicao();
+  if (atualizarHistorico && chave) openMedicaoHistorico(chave);
+  toast('Vínculo confirmado!');
+}
+window.confirmMedicaoVinculo = confirmMedicaoVinculo;
+
 // ---------- Modal de medição ----------
 function medicaoSessionName() {
   try {
@@ -3342,7 +3362,7 @@ function onMedicaoServicoChange() {
 window.onMedicaoServicoChange = onMedicaoServicoChange;
 
 function updateMedicaoAnterior() {
-  const idx = parseInt(document.getElementById('md-edit-idx')?.value) || -1;
+  const idx = parseEditIdx(document.getElementById('md-edit-idx')?.value);
   const obra = document.getElementById('md-obra')?.value || '';
   const serviceId = document.getElementById('md-orc-key')?.value || '';
   const servico = document.getElementById('md-servico')?.value || '';
@@ -4337,7 +4357,7 @@ async function openModal(id) {
       const etapas = [...new Set((DB.orcamento || []).map(o => o && o.etapa).filter(Boolean))];
       dl.innerHTML = etapas.map(e => `<option value="${medicaoEsc(e)}">`).join('');
     }
-    const ocEditIdx = parseInt(document.getElementById('oc-edit-idx')?.value) || -1;
+    const ocEditIdx = parseEditIdx(document.getElementById('oc-edit-idx')?.value);
     const filtroObra = document.getElementById('orc-filtro-obra')?.value;
     const selObra = m.querySelector('#oc-obra');
     if (ocEditIdx === -1 && filtroObra && selObra && [...selObra.options].some(o => o.value === filtroObra)) {
@@ -4580,7 +4600,7 @@ async function saveObra() {
 
   const cod = document.getElementById('ob-cod').value.trim();
   if (!cod) { toast('Informe o código da obra', 'error'); return; }
-  const editIdx = parseInt(document.getElementById('ob-edit-idx').value) || -1;
+  const editIdx = parseEditIdx(document.getElementById('ob-edit-idx').value);
   // Verifica unicidade do código (exceto ao editar o próprio registro)
   const duplicado = DB.obras.some((o, i) => o.cod === cod && i !== editIdx);
   if (duplicado) { toast(`Código "${cod}" já existe! Use outro.`, 'error'); return; }
@@ -4826,7 +4846,7 @@ async function savePresenca(keepOpen = false) {
   const modoMassa = document.querySelector('input[name="pr-modo"]:checked')?.value === 'massa';
   const dataVal = document.getElementById('pr-data').value;
   const obraVal = document.getElementById('pr-obra').value;
-  const editIdx = parseInt(document.getElementById('pr-edit-idx').value) || -1;
+  const editIdx = parseEditIdx(document.getElementById('pr-edit-idx').value);
 
   if (!dataVal) { toast('Informe a data!', 'error'); return; }
   if (!obraVal) { toast('Selecione a obra!', 'error'); return; }
@@ -5329,7 +5349,7 @@ async function saveTarefa() {
     photoUrl: document.getElementById('tf-photo-url').value || '',
     obs: document.getElementById('tf-obs').value
   };
-  const editIdx = parseInt(document.getElementById('tf-edit-idx').value) || -1;
+  const editIdx = parseEditIdx(document.getElementById('tf-edit-idx').value);
   if (editIdx >= 0) {
     DB.tarefas[editIdx] = data;
     toast('Tarefa atualizada!');
@@ -5370,7 +5390,7 @@ async function editTarefa(idx) {
 async function saveEstoque() {
   const mat = document.getElementById('es-mat').value.trim();
   const obra = document.getElementById('es-obra').value;
-  const editIdx = parseInt(document.getElementById('es-edit-idx').value) || -1;
+  const editIdx = parseEditIdx(document.getElementById('es-edit-idx').value);
 
   if (!mat) { toast('Informe o nome do material!', 'error'); return; }
 
@@ -5505,7 +5525,7 @@ async function saveMovEstoque() {
       vtotal: parseFloat(document.getElementById('mv-vtotal').value) || 0,
       obs: document.getElementById('mv-obs').value
     };
-    const editIdx = parseInt(document.getElementById('mv-edit-idx').value) || -1;
+    const editIdx = parseEditIdx(document.getElementById('mv-edit-idx').value);
     if (editIdx >= 0) {
       DB.movEstoque[editIdx] = data;
       toast('Movimentação atualizada!');
@@ -5587,7 +5607,7 @@ async function saveCompra() {
     conf: document.getElementById('cp-conf').value,
     obs: document.getElementById('cp-obs').value
   };
-  const editIdx = parseInt(document.getElementById('cp-edit-idx').value) || -1;
+  const editIdx = parseEditIdx(document.getElementById('cp-edit-idx').value);
   if (editIdx >= 0) {
     DB.compras[editIdx] = data;
     toast('Compra atualizada!');
@@ -5662,7 +5682,7 @@ async function saveFinanceiro() {
     obs: document.getElementById('fn-obs').value
   };
 
-  const editIdx = parseInt(document.getElementById('fn-edit-idx').value) || -1;
+  const editIdx = parseEditIdx(document.getElementById('fn-edit-idx').value);
   if (editIdx >= 0) {
     DB.financeiro[editIdx] = data;
     let tmsg = 'Lançamento financeiro atualizado!';
@@ -5720,7 +5740,7 @@ async function saveOrcamento() {
   const val = (id) => (document.getElementById(id)?.value || '').trim();
   const qtd = parseFloat(val('oc-qtd')) || 0;
   const vunit = parseFloat(val('oc-vunit')) || 0;
-  const editIdx = parseInt(val('oc-edit-idx')) || -1;
+  const editIdx = parseEditIdx(val('oc-edit-idx'));
   const anterior = editIdx >= 0 ? (DB.orcamento[editIdx] || {}) : {};
 
   // `id` é preservado na edição: as medições antigas continuam vinculadas
@@ -5741,6 +5761,16 @@ async function saveOrcamento() {
     obs: val('oc-obs')
   };
   delete data.vreal; // realizado é calculado, nunca gravado no orçamento
+
+  // Mesmo serviço (obra + etapa + descrição) com unidade diferente em outro item costuma ser erro de digitação
+  // (ex.: "Banheiros" em m² numa casa e em un na outra). Avisa, mas não bloqueia.
+  const nrm = (v) => String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const outraUnidade = (DB.orcamento || []).find((o, i) => o && i !== editIdx
+    && o.obra === data.obra && nrm(o.etapa) === nrm(data.etapa) && nrm(o.desc) === nrm(data.desc)
+    && nrm(o.unid) && nrm(data.unid) && nrm(o.unid) !== nrm(data.unid));
+  if (outraUnidade) {
+    toast(`Atenção: "${escHtml(data.desc)}" já existe em outro item com a unidade "${escHtml(outraUnidade.unid)}" (aqui: "${escHtml(data.unid)}"). Confira.`, 'warning');
+  }
 
   if (editIdx >= 0) {
     DB.orcamento[editIdx] = data;
@@ -5790,7 +5820,7 @@ async function saveMedicao() {
   const qreal = num('md-qreal');
   if (!(qreal > 0)) { toast('Informe a quantidade do dia.', 'error'); return; }
 
-  const editIdx = parseInt(val('md-edit-idx')) || -1;
+  const editIdx = parseEditIdx(val('md-edit-idx'));
   const anterior = DB.medicao[editIdx] || {};
   const linha = medicaoLinhaOrcamento(serviceId);
   const servico = linha ? (linha.desc || avulso) : avulso;
@@ -5829,6 +5859,8 @@ async function saveMedicao() {
     obs: val('md-obs')
   };
   if (!data.serviceId) delete data.serviceId;
+  // O usuário decidiu o vínculo neste formulário (trocou o serviço ou deixou avulso): sai da lista de revisão.
+  if (!data.serviceId || data.serviceId !== anterior.serviceId) delete data.serviceIdReview;
 
   if (editIdx >= 0) {
     DB.medicao[editIdx] = data;
