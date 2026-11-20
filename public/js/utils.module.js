@@ -150,6 +150,27 @@ const categorizeFinanceType = (tipo) => {
   return 'outros';
 };
 
+/**
+ * Categoria do ITEM DO ORÇAMENTO (o previsto).
+ * O realizado de um serviço com empreiteiro entra pelas medições (categoria "empreiteiro"), então o previsto
+ * precisa cair na mesma categoria mesmo que o Tipo tenha ficado no padrão do formulário ("Mão de obra").
+ * Material e equipamento continuam no tipo escolhido.
+ */
+const categorizeBudgetItem = (o) => {
+  const base = categorizeFinanceType(o && o.tipo);
+  if (base === 'mao-de-obra' && o && normalizeText(o.empreiteiro)) return 'empreiteiro';
+  return base;
+};
+
+/**
+ * Índice de edição vindo do campo oculto dos formulários (-1 = registro novo).
+ * `parseInt(v) || -1` tratava o índice 0 como "novo" e duplicava o primeiro item ao editar.
+ */
+const parseEditIdx = (v) => {
+  const n = parseInt(v, 10);
+  return Number.isInteger(n) && n >= 0 ? n : -1;
+};
+
 const financeCategoryLabel = (key) => {
   const found = FIN_CATEGORIES.find(c => c.key === key);
   return found ? found.label : 'Outros';
@@ -783,6 +804,8 @@ window.summarizeFinanceCosts = summarizeFinanceCosts;
 window.buildFinanceEntries = buildFinanceEntries;
 window.getPresencaCusto = getPresencaCusto;
 window.categorizeFinanceType = categorizeFinanceType;
+window.categorizeBudgetItem = categorizeBudgetItem;
+window.parseEditIdx = parseEditIdx;
 window.financeCategoryLabel = financeCategoryLabel;
 window.FIN_CATEGORIES = FIN_CATEGORIES;
 window.normalizeAprovacao = normalizeAprovacao;
@@ -1074,10 +1097,7 @@ const buildObraReport = (db, obraCod, options = {}) => {
   const catMap = Object.fromEntries(categorias.map(c => [c.key, c]));
 
   (db.orcamento || []).filter(o => o && o.obra === obraCod).forEach(o => {
-    // A presença de empreiteiro define a categoria: o tipo do formulário tem
-    // "Mão de obra" como padrão e costuma ficar desatualizado nos serviços
-    // terceirizados. Assim o previsto acompanha o realizado das medições.
-    const key = normalizeText(o.empreiteiro) ? 'empreiteiro' : categorizeFinanceType(o.tipo);
+    const key = categorizeBudgetItem(o);
     const cat = catMap[key] || catMap.outros;
     cat.previsto += parseMoney(o.vtotal);
   });
