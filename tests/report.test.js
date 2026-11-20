@@ -60,6 +60,25 @@ describe('buildObraReport: fonte única de custo e orçamento', () => {
     expect(r.resumo.pct).toBeCloseTo(103.03, 2);
   });
 
+  it('classifica o previsto pelo empreiteiro do item, mesmo com o tipo padrão', () => {
+    const db = baseDB();
+    db.orcamento.push(
+      { obra: 'OB1', tipo: 'Mão de obra', empreiteiro: 'Walter', vtotal: 500 },
+      { obra: 'OB1', tipo: 'Mão de obra', vtotal: 100 },
+      { obra: 'OB1', tipo: 'Material', empreiteiro: '   ', vtotal: 10 }
+    );
+
+    const r = buildObraReport(db, 'OB1', { hoje: HOJE });
+    const byKey = Object.fromEntries(r.categorias.map(c => [c.key, c]));
+
+    expect(byKey.empreiteiro.previsto).toBe(500); // Walter, tipo "Mão de obra"
+    expect(byKey.empreiteiro.realizado).toBe(1500); // medições da obra
+    expect(byKey['mao-de-obra'].previsto).toBe(2100); // item sem empreiteiro segue o tipo
+    expect(byKey.material.previsto).toBe(1010); // empreiteiro em branco não conta
+    expect(r.resumo.totalPrevisto).toBe(3910);
+    expect(r.orcamento.find(o => o.empreiteiro === 'Walter').tipo).toBe('Mão de obra'); // dado original intacto
+  });
+
   it('não soma compras nem lançamento apenas previsto ao custo realizado', () => {
     const r = buildObraReport(baseDB(), 'OB1', { hoje: HOJE });
     const byKey = Object.fromEntries(r.categorias.map(c => [c.key, c]));

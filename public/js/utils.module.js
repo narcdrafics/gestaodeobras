@@ -1043,7 +1043,9 @@ const calcDashboardResumo = (db, hoje, role) => {
  *
  * Importante:
  * - o previsto vem do orçamento e é comparado por categoria sem diferenciar
- *   maiúsculas/acentos (ex.: "Mão de obra" = "Mão de Obra");
+ *   maiúsculas/acentos (ex.: "Mão de obra" = "Mão de Obra"); item com
+ *   empreiteiro preenchido conta como "Empreiteiros", mesmo se o tipo estiver
+ *   errado (ex.: serviço terceirizado salvo como "Mão de obra");
  * - "outros" também entra no total, então previsto e realizado fecham;
  * - compras NÃO são somadas ao realizado (evita duplicar com lançamentos de Material);
  * - lançamento apenas previsto (real = 0) não vira custo realizado.
@@ -1072,7 +1074,10 @@ const buildObraReport = (db, obraCod, options = {}) => {
   const catMap = Object.fromEntries(categorias.map(c => [c.key, c]));
 
   (db.orcamento || []).filter(o => o && o.obra === obraCod).forEach(o => {
-    const key = categorizeFinanceType(o.tipo);
+    // A presença de empreiteiro define a categoria: o tipo do formulário tem
+    // "Mão de obra" como padrão e costuma ficar desatualizado nos serviços
+    // terceirizados. Assim o previsto acompanha o realizado das medições.
+    const key = normalizeText(o.empreiteiro) ? 'empreiteiro' : categorizeFinanceType(o.tipo);
     const cat = catMap[key] || catMap.outros;
     cat.previsto += parseMoney(o.vtotal);
   });
