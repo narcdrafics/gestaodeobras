@@ -12,6 +12,7 @@ const os = require('os');
 const crypto = require('crypto');
 
 const { detectarEtapas } = require('./whatsapp/obra-etapas');
+const { handleKiwifyWebhook } = require('./kiwify');
 
 const OPENAI_KEY = defineSecret('OPENAI_KEY');
 const META_ACCESS_TOKEN = defineSecret('META_ACCESS_TOKEN');
@@ -19,6 +20,7 @@ const META_PHONE_NUMBER_ID = defineSecret('META_PHONE_NUMBER_ID');
 const META_VERIFY_TOKEN = defineSecret('META_VERIFY_TOKEN');
 const META_APP_SECRET = defineSecret('META_APP_SECRET');
 const META_WABA_ID = defineSecret('META_WABA_ID');
+const KIWIFY_TOKEN = defineSecret('KIWIFY_TOKEN');
 
 admin.initializeApp();
 const db = admin.database();
@@ -778,3 +780,17 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
     return null;
   }
 });
+
+// ==================== WEBHOOK KIWIFY (SAAS BILLING) ====================
+exports.kiwifyWebhook = onRequest({
+  secrets: [KIWIFY_TOKEN],
+  cors: false,
+  memory: '256MiB',
+  timeoutSeconds: 60
+}, async (req, res) => {
+  return handleKiwifyWebhook(req, res, {
+    secret: KIWIFY_TOKEN.value(),
+    db: admin.database()
+  });
+});
+

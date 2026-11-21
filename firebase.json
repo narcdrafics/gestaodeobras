@@ -7,6 +7,10 @@
     ],
     "rewrites": [
       {
+        "source": "/api/kiwify",
+        "function": "kiwifyWebhook"
+      },
+      {
         "source": "/api/whatsapp",
         "function": "whatsappWebhook"
       },
