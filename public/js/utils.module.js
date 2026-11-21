@@ -1144,8 +1144,22 @@ const buildObraReport = (db, obraCod, options = {}) => {
   const totalAPagar = categorias.reduce((a, c) => a + c.aPagar, 0);
   const saldo = totalPrevisto - totalRealizado;
   const pct = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) * 100 : null;
+
+  // Gasto realizado em categorias que não têm nenhuma linha no orçamento.
+  // Quando isso existe e o previsto cobre menos da metade do realizado, a razão
+  // realizado/previsto mede o que falta cadastrar — não um estouro de verdade.
+  // Ex.: obra com 4 serviços de revestimento no orçamento e R$ 145 mil de mão de
+  // obra própria sem previsão não está "793% acima": o orçamento está incompleto.
+  const COBERTURA_MINIMA_CONFIAVEL = 50;
+  const realizadoSemPrevisto = categorias.reduce((a, c) => a + (c.previsto <= 0 ? c.realizado : 0), 0);
+  const coberturaOrcamento = totalRealizado > 0 ? (totalPrevisto / totalRealizado) * 100 : null;
+  const orcamentoParcial = totalPrevisto > 0 && realizadoSemPrevisto > 0
+    && coberturaOrcamento !== null && coberturaOrcamento < COBERTURA_MINIMA_CONFIAVEL;
+
   let status = 'Sem orçamento definido';
-  if (pct !== null) {
+  if (orcamentoParcial) {
+    status = `Orçamento incompleto: ${fmt(realizadoSemPrevisto)} sem previsão`;
+  } else if (pct !== null) {
     if (pct > 100.0001) status = `Acima do orçamento em ${(pct - 100).toFixed(1)}%`;
     else if (pct < 99.9999) status = `Abaixo do orçamento em ${(100 - pct).toFixed(1)}%`;
     else status = 'Dentro do orçamento';
@@ -1227,7 +1241,10 @@ const buildObraReport = (db, obraCod, options = {}) => {
     hoje,
     periodoLabel,
     periodo: { dataInicio, dataFim },
-    resumo: { totalPrevisto, totalRealizado, totalPago, totalAPagar, saldo, pct, status, fisico, valorMedido },
+    resumo: {
+      totalPrevisto, totalRealizado, totalPago, totalAPagar, saldo, pct, status, fisico, valorMedido,
+      orcamentoParcial, realizadoSemPrevisto, coberturaOrcamento
+    },
     categorias,
     entradas,
     duplicados,

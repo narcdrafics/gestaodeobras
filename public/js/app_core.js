@@ -2578,8 +2578,13 @@ function generateAuditReport() {
   const r = report.resumo;
   const logo = auditSafeImage(report.logoUrl);
   const semOrcamento = r.totalPrevisto <= 0;
-  const pctTexto = semOrcamento ? 'Sem orçamento' : `${r.pct.toFixed(1)}% do orçamento`;
-  const pctBarra = semOrcamento ? 0 : Math.min(100, Math.max(0, r.pct));
+  const orcamentoParcial = Boolean(r.orcamentoParcial);
+  const comparavel = !semOrcamento && !orcamentoParcial;
+  const pctTexto = semOrcamento ? 'Sem orçamento'
+    : orcamentoParcial ? `${r.coberturaOrcamento.toFixed(1)}% de cobertura`
+      : `${r.pct.toFixed(1)}% do orçamento`;
+  const pctBarra = semOrcamento ? 0 : Math.min(100, Math.max(0, orcamentoParcial ? r.coberturaOrcamento : r.pct));
+  const pctOver = comparavel && r.pct > 100 ? ' is-over' : '';
   const fisicoTexto = r.fisico == null ? '—' : `${r.fisico.toFixed(1)}%`;
   const fisicoBarra = r.fisico == null ? 0 : Math.min(100, Math.max(0, r.fisico));
   const saldoClasse = r.saldo < 0 ? ' audit-value-negative' : ' audit-value-positive';
@@ -2689,7 +2694,7 @@ function generateAuditReport() {
         <div><span>Mestre responsável</span><b>${esc(obra.mestre || 'Não definido')}</b></div>
         <div><span>Período</span><b class="audit-date">${esc(report.periodoLabel)}</b></div>
         <div><span>Responsável pelo relatório</span><b>${esc(responsavel || 'Não informado')}</b></div>
-        <div><span>Orçamento total</span><b>${semOrcamento ? 'Não definido' : fmt(r.totalPrevisto)}</b></div>
+        <div><span>${orcamentoParcial ? 'Orçamento cadastrado' : 'Orçamento total'}</span><b>${semOrcamento ? 'Não definido' : fmt(r.totalPrevisto)}</b></div>
       </div>
 
       <section class="audit-block">
@@ -2699,7 +2704,7 @@ function generateAuditReport() {
           <div class="audit-card"><span>Realizado</span><b>${fmt(r.totalRealizado)}</b></div>
           <div class="audit-card"><span>Pago</span><b>${fmt(r.totalPago)}</b></div>
           <div class="audit-card"><span>A pagar</span><b>${fmt(r.totalAPagar)}</b></div>
-          <div class="audit-card"><span>Saldo do orçamento</span><b class="${saldoClasse}">${semOrcamento ? '—' : fmt(r.saldo)}</b></div>
+          <div class="audit-card"><span>Saldo do orçamento</span><b class="${saldoClasse}">${comparavel ? fmt(r.saldo) : '—'}</b></div>
           <div class="audit-card"><span>Situação</span><b class="audit-status">${esc(r.status)}</b></div>
         </div>
 
@@ -2710,13 +2715,15 @@ function generateAuditReport() {
           </div>
           <div>
             <div class="audit-progress-head"><span>Avanço financeiro</span><b>${pctTexto}</b></div>
-            <div class="audit-bar${!semOrcamento && r.pct > 100 ? ' is-over' : ''}"><i style="width:${pctBarra}%"></i></div>
+            <div class="audit-bar${pctOver}"><i style="width:${pctBarra}%"></i></div>
           </div>
         </div>
         <p class="audit-note">
           ${esc(r.status)}. ${semOrcamento
       ? 'Defina linhas no orçamento da obra para comparar previsto e realizado.'
-      : 'O percentual financeiro é calculado sobre o orçamento total da obra; saldo negativo indica gasto acima do previsto e o avanço físico é ponderado pelo valor das medições.'}
+      : orcamentoParcial
+        ? `Há ${fmt(r.realizadoSemPrevisto)} de custo no período em categorias sem orçamento. O previsto cadastrado (${fmt(r.totalPrevisto)}) equivale a ${r.coberturaOrcamento.toFixed(1)}% do realizado (${fmt(r.totalRealizado)}); a comparação de estouro só é válida quando as etapas faltantes estiverem cadastradas.`
+        : 'O percentual financeiro é calculado sobre o orçamento total da obra; saldo negativo indica gasto acima do previsto e o avanço físico é ponderado pelo valor das medições.'}
         </p>
       </section>
 
@@ -2744,7 +2751,7 @@ function generateAuditReport() {
               <td class="num">${fmt(r.totalPago)}</td>
               <td class="num">${fmt(r.totalAPagar)}</td>
               <td class="num">${pctTexto}</td>
-              <td><div class="audit-bar${!semOrcamento && r.pct > 100 ? ' is-over' : ''}"><i style="width:${pctBarra}%"></i></div></td>
+              <td><div class="audit-bar${pctOver}"><i style="width:${pctBarra}%"></i></div></td>
             </tr>
           </tfoot>
         </table>

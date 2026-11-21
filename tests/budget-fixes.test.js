@@ -93,6 +93,49 @@ describe('Relatório com os dados reais da Timbumba', () => {
   });
 });
 
+describe('Orçamento parcial: a razão realizado/previsto não vira "estouro"', () => {
+  // Reproduz os números relatados: 23.020 previstos (4 serviços) x 205.778 gastos na obra toda.
+  const relObraToda = () => {
+    const db = dbReal();
+    db.presenca = [
+      { obra: OB, data: '2026-11-10', trab: 'w1', nome: 'Equipe própria', presenca: 'Presente', total: 145198, pgtoStatus: 'Pendente' }
+    ];
+    db.financeiro = [
+      { obra: OB, data: '2026-11-15', tipo: 'Geral', desc: 'Outras etapas da obra', real: 52000, prev: 0, status: 'Pago' }
+    ];
+    return buildObraReport(db, OB, { hoje: HOJE, dataInicio: '2026-11-01', dataFim: '2026-11-19' });
+  };
+
+  it('23.020 previstos cobrem 11,2% dos 205.778 gastos, com 197.198 sem previsão', () => {
+    const r = relObraToda();
+    expect(r.resumo.totalPrevisto).toBe(23020);
+    expect(r.resumo.totalRealizado).toBe(205778);
+    expect(r.resumo.coberturaOrcamento).toBeCloseTo(11.2, 1);
+    expect(r.resumo.realizadoSemPrevisto).toBe(197198);
+    expect(r.resumo.orcamentoParcial).toBe(true);
+  });
+
+  it('a situação fala em orçamento incompleto, não em "Acima do orçamento em 793,9%"', () => {
+    const r = relObraToda();
+    expect(r.resumo.pct).toBeCloseTo(893.9, 1); // a conta crua continua disponível
+    expect(r.resumo.status).toContain('Orçamento incompleto');
+    expect(r.resumo.status).toContain('197.198');
+    expect(r.resumo.status).not.toContain('Acima do orçamento');
+  });
+
+  it('orçamento que cobre todas as categorias continua mostrando estouro normalmente', () => {
+    const db = dbReal();
+    db.orcamento.push({ id: 'mo', obra: OB, tipo: 'Mão de obra', desc: 'Equipe própria', vtotal: 100000 });
+    db.presenca = [
+      { obra: OB, data: '2026-11-10', trab: 'w1', nome: 'Equipe própria', presenca: 'Presente', total: 145198, pgtoStatus: 'Pendente' }
+    ];
+    const r = buildObraReport(db, OB, { hoje: HOJE, dataInicio: '2026-11-01', dataFim: '2026-11-19' });
+    expect(r.resumo.realizadoSemPrevisto).toBe(0);
+    expect(r.resumo.orcamentoParcial).toBe(false);
+    expect(r.resumo.status).toContain('Acima do orçamento');
+  });
+});
+
 describe('Migração: mesmo serviço em duas casas com empreiteiros diferentes', () => {
   // Medições antigas, sem serviceId, só com a chave de texto (obra|etapa|serviço) e a equipe digitada
   const legadas = (equipe) => ({ obra: OB, etapa: 'Revestimentos', servico: 'Revestimentos e pisos', equipe, qreal: 10, vtotal: 350, aprovacao: 'Aprovada' });
