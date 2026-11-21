@@ -42,6 +42,10 @@ if (!firebase.apps.length) {
 }
 
 let dbRef = null;
+// Listener separado: quando o tenant está bloqueado as regras negam a leitura do nó
+// inteiro, mas o campo billingState continua legível para exibir a tela de bloqueio.
+let billingStateRef = null;
+let lastTenantData = null;
 let DB = JSON.parse(JSON.stringify(staticDB));
 let isFirstLoad = true;
 let CURRENT_TENANT_ID = null; // SaaS: Armazena o ID do tenant detectado por subdomínio
@@ -73,6 +77,149 @@ function ensureSchema(db) {
 // Limites efetivos do plano. Fonte: campo protegido pelas Firebase Rules.
 // O fallback é sempre o plano mais restrito (nunca "ilimitado").
 const PLAN_DEFAULTS = { obras: 1, usuarios: 1, trabalhadores: 9999 };
+
+function _getBillingSessionUser() {
+  try {
+    return JSON.parse(sessionStorage.getItem('gestaoUser') || '{}') || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+/**
+ * Espelho local (somente UX) de calcularBillingState() no servidor.
+ * Nunca substitui as regras do RTDB — apenas antecipa a tela enquanto o job diário não roda.
+ */
+function calcularEstadoBillingLocal(data, agora = Date.now()) {
+  const DIAM = 24 * 60 * 60 * 1000;
+  const t = data || {};
+
+  if (t.status === 'bloqueado_pagamento' || t.status === 'bloqueado') return 'bloqueado';
+
+  if (t.plano === 'free_trial') {
+    const expiracao = Number(t.trialExpiracao) || 0;
+    if (!expiracao) return 'ativo';
+    const msApos = agora - expiracao;
+    if (msApos <= 0) return 'ativo';
+    if (msApos <= 7 * DIAM) return 'somente_leitura';
+    return 'bloqueado';
+  }
+
+  const vencimento = Number(t.planoVencimento) || 0;
+  const carenciaAte = Number(t.carenciaAte) || 0;
+  const carenciaValida = carenciaAte > 0 &&
+    (carenciaAte > agora || (vencimento > 0 && agora >= vencimento));
+
+  if (!carenciaValida) {
+    if (!vencimento || agora < vencimento) return 'ativo';
+    if (agora <= vencimento + (5 * DIAM)) return 'carencia';
+  } else if (agora <= carenciaAte) {
+    return 'carencia';
+  }
+
+  const inicioLeitura = carenciaValida ? carenciaAte : vencimento + (5 * DIAM);
+  if (agora <= inicioLeitura + (7 * DIAM)) return 'somente_leitura';
+  return 'bloqueado';
+}
+
+/**
+ * Renderiza o estado de cobrança no front-end:
+ *  - 'bloqueado': Exibe tela com opções de reativação imediata (sem alert/logout intrusivo).
+ *  - 'somente_leitura': Exibe banner informando que novos lançamentos estão travados no servidor.
+ *  - 'carencia': Exibe banner de alerta de tolerância para regularização.
+ *
+ * Este cálculo é apenas experiência de uso: as regras do RTDB são a autoridade.
+ */
+function renderBillingEnforcement(data) {
+  if (!data || typeof data !== 'object') return;
+
+  // Guardado para que a troca de página (showPage) possa reaplicar o estado ao banner.
+  window.__lastBillingData = data;
+
+  const sessionUser = _getBillingSessionUser();
+  const isSuperAdmin = sessionUser.role === 'super_admin' || sessionUser.email === 'tonycampelo@gmail.com';
+  const isMasterTenant = _currentTenantId === 'MASTER_SYSTEM' || CURRENT_TENANT_ID === 'MASTER_SYSTEM';
+
+  if (isSuperAdmin || isMasterTenant) {
+    window.IS_READONLY_MODE = false;
+    const bs = document.getElementById('screen-blocked');
+    if (bs) bs.style.display = 'none';
+    const bc = document.getElementById('billing-banner-container');
+    if (bc) bc.style.display = 'none';
+    return;
+  }
+
+  const agora = Date.now();
+  let state = data.billingState;
+
+  // Fallback client-side para garantir experiência imediata enquanto o job não roda.
+  if (!state) state = calcularEstadoBillingLocal(data, agora);
+
+  const blockedScreen = document.getElementById('screen-blocked');
+  const bannerContainer = document.getElementById('billing-banner-container');
+
+  if (state === 'bloqueado') {
+    window.IS_READONLY_MODE = true;
+    if (blockedScreen) {
+      blockedScreen.style.display = 'flex';
+      const titleEl = document.getElementById('blocked-title');
+      const descEl = document.getElementById('blocked-desc');
+      if (data.plano === 'free_trial') {
+        if (titleEl) titleEl.textContent = 'Período de Testes Encerrado';
+        if (descEl) descEl.textContent = 'Seus 30 dias de teste grátis e a tolerância de leitura terminaram. Todos os seus dados continuam salvos com segurança. Escolha um plano abaixo para reativar seu acesso:';
+      } else {
+        if (titleEl) titleEl.textContent = 'Assinatura Suspensa';
+        if (descEl) descEl.textContent = 'Sua assinatura expirou. Todos os seus dados, fotos e medições continuam preservados no servidor. Escolha um plano abaixo para liberar o sistema na hora:';
+      }
+    }
+    if (bannerContainer) bannerContainer.style.display = 'none';
+    return;
+  }
+
+  if (blockedScreen) blockedScreen.style.display = 'none';
+
+  if (state === 'somente_leitura') {
+    window.IS_READONLY_MODE = true;
+    if (bannerContainer) {
+      bannerContainer.style.display = 'block';
+      bannerContainer.innerHTML = `
+        <div class="billing-banner readonly-banner">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="material-symbols-outlined md-20" style="color:#d97706;">visibility</span>
+            <div>
+              <b>Modo Somente Leitura:</b> Seu plano expirou. Seus dados estão salvos, mas edições e novos lançamentos estão bloqueados no servidor.
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="showPage('admin')" style="white-space:nowrap; margin-left:auto;">
+            Reativar Plano
+          </button>
+        </div>
+      `;
+    }
+  } else if (state === 'carencia') {
+    window.IS_READONLY_MODE = false;
+    if (bannerContainer) {
+      bannerContainer.style.display = 'block';
+      bannerContainer.innerHTML = `
+        <div class="billing-banner grace-banner">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="material-symbols-outlined md-20" style="color:#f59e0b;">warning</span>
+            <div>
+              <b>Aviso de Cobrança:</b> A renovação do seu plano está pendente. Você está no período de carência. Regularize para não perder o acesso.
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="showPage('admin')" style="white-space:nowrap; margin-left:auto; background:#f59e0b; border-color:#f59e0b;">
+            Regularizar Pagamento
+          </button>
+        </div>
+      `;
+    }
+  } else {
+    window.IS_READONLY_MODE = false;
+    if (bannerContainer) bannerContainer.style.display = 'none';
+  }
+}
+window.renderBillingEnforcement = renderBillingEnforcement;
 
 function getPlanLimits() {
   const cfg = (DB && DB.config) || {};
@@ -181,16 +328,44 @@ function initDB(tenantId) {
     } catch(e) { console.warn('Erro ao ler cache local:', e); }
   }
 
-  // Remove listener anterior se existir
+  // Remove listeners anteriores se existirem
   if (dbRef) {
     dbRef.off('value');
   }
+  if (billingStateRef) {
+    billingStateRef.off('value');
+    billingStateRef = null;
+  }
+  lastTenantData = null;
+  window.__billingState = null;
+
   _currentTenantId = tenantId;
   dbRef = firebase.database().ref('tenants/' + tenantId);
   dbRef.on('value', _onFirebaseValue, (error) => {
+    // Quando bloqueado, o PERMISSION_DENIED é esperado: a tela de bloqueio já explica.
+    if (window.__billingState === 'bloqueado') return;
     console.error('Firebase Read Error:', error);
     if (typeof toast === 'function') toast('Erro ao ler a nuvem!', 'error');
   });
+
+  // Status de cobrança é lido isoladamente: as rules permitem mesmo no bloqueio.
+  billingStateRef = firebase.database().ref('tenants/' + tenantId + '/billingState');
+  billingStateRef.on('value', _onBillingStateValue, (error) => {
+    console.warn('[Billing] Não foi possível ler o estado de cobrança:', error && error.code);
+  });
+}
+
+// Handler do estado de cobrança (funciona mesmo quando a leitura do tenant é negada)
+function _onBillingStateValue(snapshot) {
+  const state = snapshot.val();
+  window.__billingState = state || null;
+  const dados = {
+    ...(lastTenantData || {}),
+    plano: (lastTenantData && lastTenantData.plano) || DB.plano,
+    status: (lastTenantData && lastTenantData.status) || DB.status,
+    billingState: state || null
+  };
+  renderBillingEnforcement(dados);
 }
 
 // Handler centralizado do listener Firebase
@@ -203,32 +378,23 @@ function _onFirebaseValue(snapshot) {
   }
   const data = snapshot.val();
   if (data) {
+    lastTenantData = data;
 
-    // SaaS: Trava de Inadimplência e Bloqueios
-    if (data.status === 'bloqueado_pagamento') {
-      console.warn('[SaaS] Bloqueio por falta de pagamento detectado.');
-      alert('⚠️ Sua assinatura SaaS está suspensa por falta de pagamento. O sistema foi bloqueado para proteção dos dados.\n\nPor favor, entre em contato com o Suporte (WhatsApp).');
-      if (typeof doLogout === 'function') doLogout();
+    // SaaS: Gestão de Ciclo de Vida e Estados de Cobrança (Ativo, Carência, Somente Leitura, Bloqueado)
+    renderBillingEnforcement(data);
+
+    if (data.billingState === 'bloqueado' || data.status === 'bloqueado_pagamento') {
+      console.warn('[SaaS] Acesso bloqueado por cobrança/expiração.');
       return;
     }
 
-    // SaaS: Trava de Tempo do Free Trial (30 dias)
-    if (data.plano === 'free_trial' && data.trialExpiracao) {
-      const msLeft = data.trialExpiracao - Date.now();
-      const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
-      
-      // Armazena no objeto global para uso na UI
-      DB.daysLeftTrial = daysLeft;
-
-      if (msLeft <= 0) {
-        console.warn('[SaaS] Trial expirado.');
-        alert('⏰ O seu período de Teste Grátis de 30 dias chegou ao fim!\n\nEsperamos que tenha gostado do sistema. Para continuar usando o Gestão de Obras, assine um de nossos planos.');
-        if (typeof doLogout === 'function') doLogout();
-        return;
-      }
-    }
-
     DB = ensureSchema(data);
+
+    // Calculado depois do ensureSchema: gravar em DB antes substituir o objeto perdia o valor.
+    if (data.plano === 'free_trial' && data.trialExpiracao) {
+      const msLeft = Number(data.trialExpiracao) - Date.now();
+      DB.daysLeftTrial = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+    }
 
     // Restaura fotos do localStorage separado (não são salvas na nuvem por serem base64)
     try {
@@ -336,7 +502,12 @@ let _ignoreNextEcho = false; // Previne reprocessar o eco do nosso próprio salv
 // Metadados de cobrança/plano que o cliente nunca deve reescrever.
 // As Firebase Rules também bloqueiam alterações feitas fora do app (DevTools/SDK).
 const PROTECTED_TENANT_FIELDS = new Set([
-  'plano', 'planoVencimento', 'trialExpiracao', 'status', 'emailAdmin', 'webhookCriacao'
+  'plano', 'planoVencimento', 'trialExpiracao', 'status', 'emailAdmin', 'webhookCriacao',
+  // Campos de cobrança pertencem ao servidor (webhook + job diário). Reenviá-los
+  // no update do cliente faz o .validate falhar e derruba TODA a gravação.
+  'billingState', 'billingStateMotivo', 'billingStateAtualizadoEm',
+  'carenciaAte', 'avisoCarencia', 'motivoBloqueio', 'dataBloqueio',
+  'cancelamentoAgendado', 'dataCancelamento', 'origemAtivacao', 'ultimoPagamento'
 ]);
 const PROTECTED_CONFIG_FIELDS = new Set([
   'limiteObras', 'limiteUsuarios', 'limiteTrabalhadores'
@@ -364,6 +535,16 @@ function buildCloudUpdate(db) {
  * @param {boolean} force - Se true, ignora o debounce e tenta salvar imediatamente.
  */
 function persistDB(force = false) {
+  // Salvaguarda client-side de experiência de uso (as regras do servidor barram no backend)
+  const sessionUser = _getBillingSessionUser();
+  const isSuperAdmin = sessionUser.role === 'super_admin' || sessionUser.email === 'tonycampelo@gmail.com';
+  if ((window.IS_READONLY_MODE || window.__billingState === 'bloqueado') && !isSuperAdmin) {
+    if (typeof toast === 'function') {
+      toast('Modo Somente Leitura: Plano vencido. Não é permitido gravar alterações.', 'warning');
+    }
+    return Promise.resolve();
+  }
+
   // 1. BACKUP LOCAL (Sanitizado — sem base64 para respeitar limite de 5MB do iOS Safari)
   try {
     const toCache = JSON.parse(JSON.stringify(DB));
@@ -667,7 +848,7 @@ function renderBillingSection() {
  * passando o tenantId como external_reference para o webhook identificar o cliente.
  */
 function startKiwifyCheckout(plano) {
-  const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+  const sessionUser = _getBillingSessionUser();
   const tenantId = sessionUser.tenantId || _currentTenantId || '';
   const link = KIWIFY_LINKS[plano];
 

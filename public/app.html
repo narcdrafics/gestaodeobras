@@ -104,9 +104,43 @@
 
 <!-- DYNAMIC MAIN CONTENT -->
 <main class="main" id="conteudo-principal">
+  <!-- Banners de Cobrança (Carência / Somente Leitura) -->
+  <div id="billing-banner-container" style="display:none; margin-bottom:14px;"></div>
   <!-- O HTML das páginas virá para cá via JS -->
 </main>
 </div><!-- /layout -->
+
+<!-- TELA DE BLOQUEIO (Substitui o alert intrusivo) -->
+<div id="screen-blocked" style="display:none; position:fixed; inset:0; z-index:99999; background:var(--bg); flex-direction:column; align-items:center; justify-content:center; padding:20px; overflow-y:auto;">
+  <div style="max-width:520px; width:100%; background:var(--bg2, #fff); border:1px solid var(--border); border-radius:12px; padding:36px 24px; box-shadow:0 12px 36px rgba(0,0,0,0.12); text-align:center;">
+    <div style="width:60px; height:60px; background:#fee2e2; color:#ef4444; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; margin-bottom:18px;">
+      <span class="material-symbols-outlined" style="font-size:32px;">lock</span>
+    </div>
+    <h2 id="blocked-title" style="font-size:20px; font-weight:700; margin-bottom:8px; color:var(--text);">Acesso Suspenso</h2>
+    <p id="blocked-desc" style="font-size:13px; color:var(--text2); line-height:1.5; margin-bottom:24px;">
+      Seu período de acesso ao sistema foi encerrado. Todos os seus dados, obras e medições continuam preservados com segurança. Para restabelecer o acesso total, escolha um dos planos abaixo.
+    </p>
+
+    <!-- Planos para desbloqueio -->
+    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
+      <button class="btn btn-primary" onclick="startKiwifyCheckout('start')" style="padding:12px; font-size:14px; justify-content:center;">
+        <span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">rocket_launch</span> Reativar Plano Start (2 Obras)
+      </button>
+      <button class="btn btn-primary" onclick="startKiwifyCheckout('pro')" style="padding:12px; font-size:14px; justify-content:center; background:#10b981; border-color:#10b981;">
+        <span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">star</span> Reativar Plano Pro (5 Obras)
+      </button>
+      <a href="javascript:void(0)" onclick="openWhatsApp('Olá, preciso de suporte para reativar minha assinatura do Obra Real.')" class="btn btn-secondary" style="padding:12px; font-size:13px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+        <span class="material-symbols-outlined md-18">chat</span> Falar com Suporte (WhatsApp)
+      </a>
+    </div>
+
+    <div style="border-top:1px solid var(--border); padding-top:16px;">
+      <button class="btn btn-secondary btn-sm" onclick="doLogout()" style="opacity:0.85;">
+        <span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">logout</span> Sair da Conta
+      </button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL CONTAINER -->
 <div class="modal-overlay" id="modal-container">

@@ -15,8 +15,8 @@
     "tenants": {
       ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
       "$tenantId": {
-        ".read": "auth != null && (data.child('emailAdmin').val() === auth.token.email || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
-        ".write": "auth != null && (!data.exists() || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
+        ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || ((data.child('emailAdmin').val() === auth.token.email || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId) && data.child('billingState').val() !== 'bloqueado'))",
+        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || ((!data.exists() || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId) && data.child('billingState').val() !== 'somente_leitura' && data.child('billingState').val() !== 'bloqueado'))",
 
         "emailAdmin": {
           ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() ? newData.val() === data.val() : newData.isString()))"
@@ -32,6 +32,10 @@
         },
         "status": {
           ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() ? newData.val() === data.val() : newData.val() === 'ativo'))"
+        },
+        "billingState": {
+          ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || data.parent().child('emailAdmin').val() === auth.token.email || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId)",
+          ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (data.exists() ? newData.val() === data.val() : (!newData.exists() || newData.val() === 'ativo')))"
         },
         "webhookCriacao": {
           ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (!data.exists() && newData.isNumber()) || (data.exists() && newData.val() === data.val()))"
@@ -50,12 +54,12 @@
         },
 
         "estoque": {
-          ".read": "auth != null && (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
-          ".write": "auth != null && (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin')",
+          ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId && data.parent().child('billingState').val() !== 'bloqueado'))",
+          ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId && data.parent().child('billingState').val() !== 'somente_leitura' && data.parent().child('billingState').val() !== 'bloqueado'))",
           "canteiro": {
             "$obraId": {
-              ".read": "auth != null && root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId",
-              ".write": "auth != null && root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId"
+              ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId && data.parent().parent().child('billingState').val() !== 'bloqueado'))",
+              ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId && data.parent().parent().child('billingState').val() !== 'somente_leitura' && data.parent().parent().child('billingState').val() !== 'bloqueado'))"
             }
           }
         }
@@ -64,7 +68,7 @@
     "tenants_public": {
       "$slug": {
         ".read": true,
-        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || !data.exists() || data.child('tenantId').val() === root.child('profiles/' + auth.uid + '/tenantId').val() || $slug === root.child('profiles/' + auth.uid + '/tenantId').val() || newData.child('tenantId').val() === root.child('profiles/' + auth.uid + '/tenantId').val())",
+        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || ((!data.exists() || data.child('tenantId').val() === root.child('profiles/' + auth.uid + '/tenantId').val() || $slug === root.child('profiles/' + auth.uid + '/tenantId').val() || newData.child('tenantId').val() === root.child('profiles/' + auth.uid + '/tenantId').val()) && root.child('tenants/' + (data.exists() ? data.child('tenantId').val() : newData.child('tenantId').val()) + '/billingState').val() !== 'somente_leitura' && root.child('tenants/' + (data.exists() ? data.child('tenantId').val() : newData.child('tenantId').val()) + '/billingState').val() !== 'bloqueado'))",
         ".validate": "newData.val() == null || (newData.child('slug').val() === $slug && newData.child('tenantId').isString() && newData.child('tenantId').val() !== '')"
       }
     },
@@ -95,8 +99,8 @@
     },
     "tarefas_pendentes": {
       "$tenantId": {
-        ".read": "auth != null && root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId",
-        ".write": "auth != null && root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId"
+        ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId && root.child('tenants/' + $tenantId + '/billingState').val() !== 'bloqueado'))",
+        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId && root.child('tenants/' + $tenantId + '/billingState').val() !== 'somente_leitura' && root.child('tenants/' + $tenantId + '/billingState').val() !== 'bloqueado'))"
       }
     }
   }

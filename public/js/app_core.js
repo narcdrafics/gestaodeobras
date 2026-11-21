@@ -220,11 +220,22 @@ window.showPage = async function (id) {
   // Adiciona um loading simples enquanto busca
   const mainEl = document.getElementById("conteudo-principal");
   if (!mainEl) return;
+
+  // O banner de cobrança vive dentro de #conteudo-principal. Preserve-o entre
+  // navegações, senão a primeira troca de página apaga o aviso de bloqueio/leitura.
+  const bannerNode = mainEl.querySelector('#billing-banner-container');
+  const bannerHtml = bannerNode ? bannerNode.outerHTML : '';
+
   mainEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3)">Carregando tela...</div>';
 
   // Busca e injeta o HTML da pasta pages/
   const html = await carregarHTML(`pages/${id}.html`);
-  mainEl.innerHTML = `<div class="page active" id="page-${id}">${html}</div>`;
+  mainEl.innerHTML = `${bannerHtml}<div class="page active" id="page-${id}">${html}</div>`;
+
+  // Reaplica o estado atual ao banner recém-restaurado.
+  if (typeof renderBillingEnforcement === 'function' && window.__lastBillingData) {
+    renderBillingEnforcement(window.__lastBillingData);
+  }
 
   // Chama a lógica de renderização
   renderPage(id);

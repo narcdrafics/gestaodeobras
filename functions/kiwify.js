@@ -300,6 +300,8 @@ async function handleKiwifyWebhook(req, res, { secret, db }) {
 
       updates[`tenants/${tenantId}/plano`] = plano;
       updates[`tenants/${tenantId}/status`] = 'ativo';
+      updates[`tenants/${tenantId}/billingState`] = 'ativo';
+      updates[`tenants/${tenantId}/billingStateMotivo`] = 'pagamento_aprovado';
       updates[`tenants/${tenantId}/planoVencimento`] = planoVencimento;
       updates[`tenants/${tenantId}/origemAtivacao`] = 'kiwify';
       updates[`tenants/${tenantId}/ultimoPagamento`] = ultimoPagamento;
@@ -318,6 +320,8 @@ async function handleKiwifyWebhook(req, res, { secret, db }) {
     else if (orderStatus === 'refunded' || orderStatus === 'chargedback' || eventType === 'order_refunded' || eventType === 'chargeback') {
       const motivo = eventType === 'chargeback' || orderStatus === 'chargedback' ? 'chargeback' : 'reembolso';
       updates[`tenants/${tenantId}/status`] = 'bloqueado_pagamento';
+      updates[`tenants/${tenantId}/billingState`] = 'bloqueado';
+      updates[`tenants/${tenantId}/billingStateMotivo`] = motivo;
       updates[`tenants/${tenantId}/motivoBloqueio`] = motivo;
       updates[`tenants/${tenantId}/dataBloqueio`] = agora;
       updates[`tenants/${tenantId}/ultimoPagamento`] = ultimoPagamento;
@@ -334,9 +338,12 @@ async function handleKiwifyWebhook(req, res, { secret, db }) {
       if (vencimentoAtual > agora) {
         updates[`tenants/${tenantId}/cancelamentoAgendado`] = true;
         updates[`tenants/${tenantId}/dataCancelamento`] = agora;
+        updates[`tenants/${tenantId}/billingState`] = 'ativo';
         resultadoLog = `Success: Cancelamento agendado para o fim do ciclo (Tenant ${tenantId})`;
       } else {
         updates[`tenants/${tenantId}/status`] = 'carencia';
+        updates[`tenants/${tenantId}/billingState`] = 'carencia';
+        updates[`tenants/${tenantId}/billingStateMotivo`] = 'cancelamento_em_carencia';
         updates[`tenants/${tenantId}/carenciaAte`] = agora + (3 * 24 * 60 * 60 * 1000);
         updates[`tenants/${tenantId}/cancelamentoAgendado`] = true;
         resultadoLog = `Success: Tenant ${tenantId} em carência de 3 dias pós-cancelamento`;
@@ -347,6 +354,8 @@ async function handleKiwifyWebhook(req, res, { secret, db }) {
     // D. Atraso de Pagamento / Falha de Renovação (Carência da A2 - 5 dias de tolerância)
     else if (eventType === 'subscription_late' || orderStatus === 'refused') {
       updates[`tenants/${tenantId}/status`] = 'carencia';
+      updates[`tenants/${tenantId}/billingState`] = 'carencia';
+      updates[`tenants/${tenantId}/billingStateMotivo`] = 'atraso_em_carencia';
       updates[`tenants/${tenantId}/carenciaAte`] = agora + (5 * 24 * 60 * 60 * 1000);
       updates[`tenants/${tenantId}/avisoCarencia`] = 'Sua assinatura está com renovação pendente. Regularize o pagamento para evitar suspensão.';
       updates[`tenants/${tenantId}/ultimoPagamento`] = ultimoPagamento;

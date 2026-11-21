@@ -13,6 +13,7 @@ const crypto = require('crypto');
 
 const { detectarEtapas } = require('./whatsapp/obra-etapas');
 const { handleKiwifyWebhook } = require('./kiwify');
+const { atualizarBillingStatesJob } = require('./billing');
 
 const OPENAI_KEY = defineSecret('OPENAI_KEY');
 const META_ACCESS_TOKEN = defineSecret('META_ACCESS_TOKEN');
@@ -793,4 +794,16 @@ exports.kiwifyWebhook = onRequest({
     db: admin.database()
   });
 });
+
+// ==================== JOB DIÁRIO: BILLING ENFORCEMENT ====================
+exports.dailyBillingStateJob = onSchedule({
+  schedule: "every day 04:00",
+  timeZone: "America/Sao_Paulo",
+  memory: "256MiB",
+  timeoutSeconds: 120
+}, async (event) => {
+  console.log('[BillingJob] Iniciando recalculo diário de billingState...');
+  return atualizarBillingStatesJob(admin.database());
+});
+
 

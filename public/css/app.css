@@ -1134,3 +1134,27 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   .med-kpi, .med-panel, .med-history { border-color: #cbd5e1 !important; }
   body { background: #fff !important; }
 }
+
+/* BILLING ENFORCEMENT BANNERS */
+.billing-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 16px;
+}
+.billing-banner.readonly-banner {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: var(--text);
+}
+.billing-banner.grace-banner {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: var(--text);
+}
+
