@@ -207,6 +207,41 @@ tenants/{tenantId}/auditoria/{id}
 - [ ] `setRestrictions()` (`auth_core.js`): esconder nav itens bloqueados para `encarregado` (financeiro, orçamento, compras, Administração, Relatórios, etc.) e mostrar apenas: Hoje/Registro, Presença, Fotos, Tarefas, Obras (somente leitura).
 - [ ] Sentinel de usuários em `auth_core.js`: incluir `encarregado` na lista de papéis que podem existir fora do `DB.usuarios` local, se aplicável.
 
+### 3.5 Almoços — mesma usabilidade de Presença
+
+**Situação atual:** `public/pages/almocos.html` já tem KPIs, busca simples (`almoco-busca` → `renderAlmocos()` com `JSON.stringify(a).includes(q)`), tabela plana e "Resumo Semanal por Obra". Falta o que `presenca.html` já oferece: quadro semanal navegável, lançamento por clique na célula, agrupamento/ordenação e fechamentos por trabalhador/pagamento pendente.
+
+- [ ] **Quadro semanal de almoços:** novo `almoco-quadro-semanal` com botões "Semana Anterior"/"Próxima Semana" (`changeAlmocoWeek`, análogo a `changeWeek`), colunas Seg–Dom e primeira coluna fixa (sticky) com trabalhador/equipe.
+- [ ] Célula clicável com ícone de status (sem registro / lançado / pago) abrindo `modal-almoco` já com data + empreiteiro preenchidos (`openAlmocoModal(cod, data, idx)`, análogo a `openPresenceModal`).
+- [ ] **Filtros da lista:** `filterAlmoco()` (como `filterPresenca()`), selects `almoco-group-select` (Por Empreiteiro / Por Obra / Lista Plana) e `almoco-sort-select` (Mais Recentes / Mais Antigas), substituindo a busca por `JSON.stringify` — mesma toolbar de `presenca.html`.
+- [ ] **Fechamentos:** manter "Resumo Semanal por Obra" e adicionar "Fechamento — Por Empreiteiro/Trabalhador (qtd + custo)" e "Pagamentos Pendentes (semana por obra)", espelhando `pres-totais`, `pres-empreitada` e `pres-pgto-pendentes`.
+- [ ] **Fechamento Semana:** se fizer sentido, ação em lote análoga a `prepareLotePgto('semana')` usando `al-status`/`al-valpago` dos almoços.
+- [ ] **Modal/fluxo:** preservar modos Individual/Em Lote, "Marcar Todos", "Salvar e Próximo" e o **cabeçalho padrão** do modal; o clique no quadro abre em modo individual e a validação de duplicidade (data + empreiteiro + obra) continua em `saveAlmoco()`.
+- [ ] **Responsividade:** reaproveitar o CSS de `presenca.html` (`.presence-board`, coluna sticky, media queries 767px/480px) com classes `almoco-*` ou compartilhadas; KPIs do dia/semana devem acompanhar a semana navegada.
+- [ ] Permissões: quadro e lançamento disponíveis para `encarregado` e `engenheiro` (registro de obra/ponto), sem alterar as regras de papel já definidas para valores/pagamento.
+
+### 3.6 Tarefas — eficiência e presença no Dashboard
+
+**Diagnóstico (código atual):**
+
+- `public/pages/tarefas.html` / `renderTarefas()` (`app_core.js`): só filtra por obra e busca textual; **não** filtra por status, prioridade, responsável nem "vencidas"; concluídas/atrasadas ficam misturadas; a ordenação é só por prazo e não destaca atraso automaticamente.
+- Kanban: o cartão só abre o modal de edição — não arrasta entre colunas e não tem "+ Nova" por coluna.
+- Não há ação rápida na linha para concluir/iniciar/avançar `%` — tudo exige abrir o modal.
+- Dashboard: tarefas aparecem apenas como `feitas/total` na coluna "Tarefas" do resumo por obra e nos alertas (`calcAlertas` em `utils.module.js`: `TAREFA ATRASADA` / `TAREFA HOJE`), limitados a 8 e competindo com custo/compra/presença — na prática "não aparecem". Não há KPI de tarefas nem link da coluna para a página filtrada. `Hoje` mostra só tarefas com `prazo === hoje`.
+
+**Alvo:**
+
+- [ ] Filtros na toolbar: obra, **status**, prioridade, responsável, "Só vencidas", "Minhas tarefas" e botão "Limpar filtros"; manter filtros ao alternar Tabela/Quadro.
+- [ ] Ordenação por prazo/prioridade/status e agrupamento opcional por obra ou responsável.
+- [ ] Ações rápidas: checkbox "Concluir" e botão "Iniciar" na linha; no kanban, **drag-and-drop** entre colunas e "+ Nova" por coluna; toast com desfazer. Evitar re-render completo a cada tecla (debounce na busca).
+- [ ] Destaque visual: vermelho para `prazo < hoje && status !== 'Concluída'` e laranja para "vence hoje". Calcular `Atrasada` em tempo de leitura, sem depender de gravação manual do status.
+- [ ] **Dashboard:** adicionar KPI "Tarefas pendentes/atrasadas" e painel "Tarefas do dia e atrasadas" (até 5 itens: descrição, obra, responsável, prazo, botão "Concluir" e link "Ver todas" → `showPage('tarefas')` com filtro aplicado).
+- [ ] Coluna "Tarefas" do resumo por obra passa a ser clicável e abre `tarefas.html` já filtrada por aquela obra.
+- [ ] Alertas de tarefa no `calcAlertas()`: prioridade alta, agrupados ("N tarefas atrasadas") e com reserva de slots para não serem engolidos pelo limite de 8 alertas.
+- [ ] `renderHoje()`: incluir também tarefas **atrasadas**, não só as de hoje.
+- [ ] Garantir que tarefas sem `obra` ou sem `prazo` apareçam no painel como "Geral"/"Sem prazo" (ou serem exigidas no `saveTarefa()`), para não desaparecerem do dashboard.
+- [ ] Permissões: `encarregado` vê/conclui tarefas do dia (registro de obra, sem aprovação); `engenheiro` cria/edita. Atualizar os checks de role em `calcAlertas()`/`renderDashboard()` que hoje usam apenas `mestre`/`engenheiro`.
+
 ---
 
 ## 4. Arquivos a alterar (checklist)
@@ -224,7 +259,12 @@ tenants/{tenantId}/auditoria/{id}
 - [ ] `public/js/app_core.js` — `saveCompra()`/`editCompra()`/`renderCompras()` role-aware; corrigir total de colunas e vincular `evidenciaId`/`fotoIds`.
 - [ ] `public/pages/compras.html` — alinhar `<th>` com `<td>`, coluna "Recebido?" (`receb` + `conf`), sem valores/fornecedor/prazo para `engenheiro`/`encarregado`.
 - [ ] `public/pages/fotos.html` — filtro/parâmetro por obra/etapa para abrir a evidência vinculada à compra (ou `public/pages/evidencias.html` novo, se criado).
-- [ ] `public/css/app.css` — estilos do badge e da tabela de aprovações.
+- [ ] `public/pages/almocos.html` — quadro semanal navegável, toolbar com busca/grupo/ordenação iguais a `presenca.html`, fechamentos por empreiteiro e pagamentos pendentes, CSS responsivo.
+- [ ] `public/js/app_core.js` — `changeAlmocoWeek()`, `renderQuadroAlmocos()`, `openAlmocoModal()`, `filterAlmoco()` e KPIs por semana; `renderAlmocos()` passa a respeitar grupo/ordenação.
+- [ ] `public/pages/tarefas.html` — toolbar com filtros (status, prioridade, responsável, vencidas, minhas), botão limpar e opções de ordenação/agrupamento; ações rápidas e "+ Nova" por coluna no kanban.
+- [ ] `public/js/app_core.js` — `renderTarefas()` com filtros/ordenação/agrupamento e ações rápidas; `renderDashboard()` com KPI e painel de tarefas, coluna clicável; `renderHoje()` inclui atrasadas; `setTaskView()` preserva filtros.
+- [ ] `public/js/utils.module.js` — `calcAlertas()`: tarefas atrasadas agrupadas, prioridade alta e slots reservados; expor dados para o painel do dashboard.
+- [ ] `public/css/app.css` — estilos do badge e da tabela de aprovações, do painel de tarefas do dashboard, dos destaques de atraso/vence hoje e do drag-and-drop do kanban.
 - [ ] `public/app.html` — bump de cache-busting dos JS/CSS alterados.
 
 ### Backend
@@ -241,6 +281,8 @@ tenants/{tenantId}/auditoria/{id}
 - [ ] `tests/dominios-separados.test.js` (novo) — empreitadas/aditivos (`orcamento` + `financeiro`) não aparecem como compras e vice-versa; solicitação de material/ferramenta aceita pelos dois papéis e decidida pelo Engenheiro.
 - [ ] `tests/financeiro-aprovacao.test.js` (novo) — Engenheiro não grava em `financeiro`; status enviado é sempre `Pendente`; `valpago` só muda após aprovação; revalidação das regras de integridade na Function.
 - [ ] `tests/compras-segregacao.test.js` (novo) — formulário/tabela sem campos sensíveis para `engenheiro`/`encarregado`; `saveCompra()` não persiste valores/fornecedor/PIX/prazo vindos desses papéis; `comprasPrivadas` ilegível para eles; colunas alinhadas; link de evidência presente.
+- [ ] `tests/almocos-usabilidade.test.js` (novo) — quadro semanal com navegação, clique pré-preenchido, filtros/grupo/ordenação, fechamentos e responsividade equivalentes a `presenca.html`.
+- [ ] `tests/tarefas-dashboard.test.js` (novo) — filtros/ordenação/agrupamento, ações rápidas, drag-and-drop, KPI e painel de tarefas no dashboard, coluna clicável por obra, alertas agrupados e `renderHoje()` com atrasadas.
 - [ ] `tests/auth-credentials.test.js` ou novo teste de papel — opções `encarregado` e `engenheiro` no modal e nav correta para cada um.
 - [ ] `CHANGELOG.md` — entrada na próxima versão.
 
@@ -271,7 +313,14 @@ tenants/{tenantId}/auditoria/{id}
 21. [ ] Aprovação de compra continua exclusiva do admin; Engenheiro não aprova compra e Encarregado não cria pedido de compra.
 22. [ ] Formulário de compras corrigido: colunas do `<thead>` batem com as células renderizadas, "Recebido?" mostra `receb` + `conf`, e o cabeçalho padrão `modal-header`/`modal-title` foi mantido.
 23. [ ] Compra possui evidência vinculada (`evidenciaId`/`fotoIds`) e ação "Ver evidência" abre o registro em `fotos.html` filtrado por obra/etapa.
-24. [ ] `npm test -- --run` passa, incluindo os novos testes de regras, aprovação, expiração, compras, domínios separados e financeiro.
+24. [ ] Almoços têm quadro semanal com navegação entre semanas; clicar numa célula abre `modal-almoco` com data e empreiteiro pré-preenchidos.
+25. [ ] Lista de almoços tem busca por nome/obra/data, agrupamento (Por Empreiteiro / Por Obra / Lista Plana) e ordenação, equivalentes aos de Presença.
+26. [ ] Almoços exibem fechamento por empreiteiro/trabalhador e pagamentos pendentes da semana, com KPIs acompanhando a semana selecionada.
+27. [ ] Modal de almoço mantém modos Individual/Em Lote, "Marcar Todos", "Salvar e Próximo", cabeçalho padrão e layout responsivo igual ao de Presença.
+28. [ ] Tarefas: filtros por status/prioridade/responsável/vencidas, ordenação, ações rápidas e drag-and-drop no kanban; atrasadas ficam destacadas em vermelho e "vence hoje" em laranja.
+29. [ ] Dashboard mostra KPI de tarefas pendentes/atrasadas e painel "Tarefas do dia e atrasadas" com conclusão rápida e link "Ver todas"; a coluna "Tarefas" por obra abre a lista filtrada.
+30. [ ] `renderHoje()` inclui tarefas atrasadas e os alertas de tarefa são agrupados/prioritários, sem serem engolidos pelo limite de 8 alertas.
+31. [ ] `npm test -- --run` passa, incluindo os novos testes de regras, aprovação, expiração, compras, almoços, tarefas/dashboard, domínios separados e financeiro.
 
 ---
 
