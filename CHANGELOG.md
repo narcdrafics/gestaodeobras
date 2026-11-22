@@ -2,6 +2,17 @@
 
 Todas as mudanças notáveis para o projeto **Obra Real** serão documentadas neste arquivo seguindo o padrão [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) e [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-11-22
+### Adicionado
+- Recuperação de senha funcional na tela de login: o link "Esqueceu?" abre um painel que envia o link de redefinição nativo do Firebase Auth, com mensagem genérica que não revela se o e-mail está cadastrado (`login.html`, `js/auth_core.js`).
+- Ao criar um usuário no painel Admin, a Cloud Function `criarUsuarioTenant` cria a conta no Firebase Auth com uma senha temporária e o painel exibe e-mail + senha num modal, com botão para copiar (`functions/usuarios.js`, `modals/modal-credenciais-usuario.html`).
+- Rota `/api/admin/criar-usuario` no Firebase Hosting e testes de contrato para os dois fluxos (`tests/auth-credentials.test.js`).
+
+### Segurança
+- A criação de credenciais exige ID token válido, cargo `admin`/`super_admin`, convite prévio do mesmo tenant e bloqueia redefinição de senha de e-mails vinculados a outra empresa. A senha temporária nunca é gravada no Realtime Database; `role`/`tenantId` continuam sendo definidos pelo perfil e propagados por `syncCustomClaims`.
+
+---
+
 ## [1.3.0] - 2026-11-14
 ### Adicionado
 - Cadastro com escolha do slug: ao entrar pela primeira vez, o usuário escolhe o endereço da empresa (`<slug>.obrareal.com`) numa tela com checagem de disponibilidade em tempo real (`js/slug.js`, `js/slug_onboarding.js`).

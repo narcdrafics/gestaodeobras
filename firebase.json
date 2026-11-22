@@ -15,6 +15,10 @@
         "function": "whatsappWebhook"
       },
       {
+        "source": "/api/admin/criar-usuario",
+        "function": "criarUsuarioTenant"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

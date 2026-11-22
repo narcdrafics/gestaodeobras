@@ -6102,6 +6102,83 @@ async function editMedicao(idx) {
   renderMedicaoPhotoPreview();
 }
 
+// ==================== CREDENCIAL DE ACESSO AO NOVO USUÁRIO ====================
+// Erros em que o convite não deve ficar órfão no banco.
+const CRED_ERRORES_FATAIS = [
+  'metodo_nao_permitido', 'dados_invalidos', 'nao_autenticado', 'token_invalido',
+  'sem_permissao', 'tenant_invalido', 'convite_inexistente',
+  'email_vinculado_outro_tenant', 'email_ja_existe'
+];
+
+const MSG_ERRO_CRED = {
+  nao_autenticado: 'Sua sessão expirou. Entre novamente para criar usuários.',
+  token_invalido: 'Sua sessão expirou. Entre novamente para criar usuários.',
+  sem_permissao: 'Sem permissão para criar usuários nesta empresa.',
+  tenant_invalido: 'Este e-mail não pertence à empresa ativa.',
+  convite_inexistente: 'O convite deste e-mail não foi encontrado. Tente novamente.',
+  email_vinculado_outro_tenant: 'Este e-mail já está vinculado a outra empresa.',
+  email_ja_existe: 'Este e-mail já possui conta. Use "Esqueceu?" na tela de login.',
+  dados_invalidos: 'Dados inválidos. Confira e-mail, nome e empresa.'
+};
+
+async function criarCredencialAuthUsuario(dados) {
+  const token = await firebase.auth().currentUser.getIdToken();
+  const resp = await fetch('/api/admin/criar-usuario', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify(dados)
+  });
+  let data = {};
+  try { data = await resp.json(); } catch (e) { /* resposta sem corpo */ }
+  if (!resp.ok) {
+    const erro = new Error(MSG_ERRO_CRED[data.error] || 'Não foi possível gerar a credencial automaticamente.');
+    erro.code = data.error || ('http_' + resp.status);
+    erro.status = resp.status;
+    throw erro;
+  }
+  return data;
+}
+
+function abrirModalCredenciaisUsuario(credencial, nome) {
+  window._credenciaisUsuarioAtuais = credencial;
+  openModal('modal-credenciais-usuario').then(() => {
+    const set = (id, valor) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = valor;
+    };
+    set('cred-usuario-nome', nome || '');
+    set('cred-usuario-email', credencial.email || '');
+    set('cred-usuario-senha', credencial.password || '');
+  }).catch(err => {
+    console.error('Erro ao abrir modal de credenciais:', err);
+  });
+}
+
+async function copiarCredenciaisUsuario() {
+  const cred = window._credenciaisUsuarioAtuais;
+  if (!cred) return;
+  const texto = `E-mail: ${cred.email}\nSenha temporária: ${cred.password}`;
+  try {
+    await navigator.clipboard.writeText(texto);
+    toast('Credenciais copiadas!', 'success');
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      toast('Credenciais copiadas!', 'success');
+    } catch (err) {
+      toast('Não foi possível copiar. Selecione os campos manualmente.', 'error');
+    } finally {
+      ta.remove();
+    }
+  }
+}
+
 async function saveUsuario() {
   const email = document.getElementById('usr-email').value.trim().toLowerCase();
   const name = document.getElementById('usr-name').value.trim();
@@ -6114,46 +6191,89 @@ async function saveUsuario() {
   }
 
   const userSession = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
-  const tenantId = userSession.tenantId;
+  // Super Admin opera dentro de um tenant selecionado; a sessão dele continua
+  // com MASTER_SYSTEM, então o destino real é o tenant ativo.
+  const tenantId = (userSession.role === 'super_admin' &&
+    typeof superAdminActiveTenant !== 'undefined' && superAdminActiveTenant)
+    ? superAdminActiveTenant.id
+    : userSession.tenantId;
 
-  if (!tenantId) {
-    toast('Erro: Sessão sem Identificador de Empresa (Tenant).', 'error');
+  if (!tenantId || tenantId === 'MASTER_SYSTEM') {
+    toast('Erro: selecione uma empresa antes de criar usuários.', 'error');
     return;
   }
 
-  const userData = { email, name, role, tenantId };
-
-  if (editIdx >= 0) {
-    DB.usuarios[editIdx] = { email, name, role };
-    toast('Permissões de Usuário atualizadas!');
-  } else {
-    // New
+  if (editIdx < 0) {
     const limiteAcessos = getPlanLimits().usuarios; // Plano Free = 1 (apenas o dono)
     if (DB.usuarios && DB.usuarios.length >= limiteAcessos && limiteAcessos < 99) {
       toast(`Seu plano atingiu o limite de ${limiteAcessos} acessos. Faça downgrade ou o Upgrade Ilimitado!`, 'error');
       return;
     }
-
     if (DB.usuarios.find(u => u.email === email)) {
       toast('Este e-mail já está cadastrado nesta empresa.', 'error');
       return;
     }
-    DB.usuarios.push({ email, name, role });
-    toast('Novo funcionário autorizado!');
   }
+
+  const userData = { email, name, role, tenantId };
 
   // REGISTRO GLOBAL DE CONVITE (SaaS)
   // Substitui pontos por vírgulas para chaves compatíveis com Firebase
   const sanitizedEmail = email.replace(/\./g, ',');
-  try {
-    await firebase.database().ref(`invites/${sanitizedEmail}`).set(userData);
+  const inviteRef = firebase.database().ref(`invites/${sanitizedEmail}`);
+  const btnSalvar = document.querySelector('#modal-content .modal-footer .btn-primary');
+  const textoBotao = btnSalvar ? btnSalvar.textContent : null;
+  if (btnSalvar) { btnSalvar.disabled = true; btnSalvar.textContent = 'Salvando...'; }
 
-    closeModal('modal-usuario');
-    renderAdmin();
-    persistDB();
+  try {
+    await inviteRef.set(userData);
   } catch (err) {
     console.error('Erro ao gerar convite global:', err);
     toast('Erro ao sincronizar convite global.', 'error');
+    if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.textContent = textoBotao; }
+    return;
+  }
+
+  // Edição: apenas permissões. Credencial nova só para usuários recém-criados.
+  if (editIdx >= 0) {
+    DB.usuarios[editIdx] = { email, name, role };
+    toast('Permissões de Usuário atualizadas!');
+    closeModal('modal-usuario');
+    renderAdmin();
+    persistDB();
+    return;
+  }
+
+  let credencial = null;
+  let erroCredencial = null;
+  try {
+    credencial = await criarCredencialAuthUsuario(userData);
+  } catch (err) {
+    erroCredencial = err;
+    console.error('Erro ao criar credencial de acesso:', err);
+  }
+  if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.textContent = textoBotao; }
+
+  // Falha de autorização/validação: desfaz o convite para não deixar acesso órfão.
+  if (erroCredencial && CRED_ERRORES_FATAIS.includes(erroCredencial.code)) {
+    await inviteRef.remove().catch(() => {});
+    toast(erroCredencial.message, 'error');
+    return;
+  }
+
+  DB.usuarios.push({ email, name, role });
+  persistDB();
+  renderAdmin();
+
+  const editIdxEl = document.getElementById('usr-edit-idx');
+  if (editIdxEl) editIdxEl.value = '-1';
+
+  if (credencial) {
+    toast('Usuário criado! Confira as credenciais na tela.', 'success');
+    abrirModalCredenciaisUsuario(credencial, name);
+  } else {
+    closeModal('modal-usuario');
+    toast('Convite salvo. Não foi possível gerar a senha automática; o usuário poderá criar a senha no primeiro acesso.', 'warning');
   }
 }
 

@@ -75,6 +75,17 @@
     .auth-switch a:hover{color:var(--accent2);text-decoration:underline}
     
     .error-msg{background:rgba(255,77,77,0.1);color:var(--red);border:1px solid rgba(255,77,77,0.2);padding:14px;border-radius:8px;font-size:13px;text-align:center;margin-bottom:20px;display:none;font-weight:500}
+
+    .forgot-link{color:var(--accent);font-size:12px;font-weight:500;text-decoration:none;cursor:pointer}
+    .forgot-link:hover{text-decoration:underline}
+    .recovery-panel{display:none}
+    .recovery-title{font-family:'DM Serif Display',serif;font-size:28px;color:var(--text);margin-bottom:8px;letter-spacing:-0.5px}
+    .recovery-desc{color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:24px;font-weight:300}
+    .auth-msg{padding:14px;border-radius:8px;font-size:13px;text-align:center;margin-bottom:16px;display:none;font-weight:500;line-height:1.5}
+    .auth-msg.success{background:rgba(16,185,129,0.12);color:#4ade80;border:1px solid rgba(16,185,129,0.3)}
+    .auth-msg.error{background:rgba(255,77,77,0.1);color:var(--red);border:1px solid rgba(255,77,77,0.2)}
+    .link-btn{display:block;width:100%;margin-top:16px;padding:6px;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;transition:color 0.2s}
+    .link-btn:hover{color:var(--accent)}
     
     .rp-content{color:var(--text);max-width:460px;text-align:left;z-index:10;padding:40px}
     .rp-brand{font-size:12px;text-transform:uppercase;letter-spacing:3px;color:var(--muted);margin-bottom:20px;font-weight:600}
@@ -91,7 +102,8 @@
     function switchTab(mode) {
       currentMode = mode;
       window.isSignupProcess = (mode === 'signup');
-      
+      if (typeof fecharRecuperacaoSenha === 'function') fecharRecuperacaoSenha();
+
       const fieldName = document.getElementById('field-name');
       const btnAction = document.getElementById('btn-action');
       const subtitle = document.getElementById('form-subtitle');
@@ -154,7 +166,7 @@
         <div class="form-group">
           <label class="form-label" style="display:flex; justify-content:space-between;">
             Senha
-            <a href="#" style="color:var(--accent); font-size:12px; font-weight:500; text-decoration:none;">Esqueceu?</a>
+            <a class="forgot-link" onclick="abrirRecuperacaoSenha()">Esqueceu?</a>
           </label>
           <input type="password" id="auth-pass" class="form-control" placeholder="••••••••" required>
         </div>
@@ -162,15 +174,29 @@
         <button type="submit" id="btn-action" class="btn-login">Acessar Painel</button>
       </form>
 
-        <div class="divider">ou</div>
+        <div id="recovery-panel" class="recovery-panel">
+          <div class="recovery-title">Recuperar senha</div>
+          <div class="recovery-desc">Informe o e-mail da sua conta. Enviaremos um link seguro para você definir uma nova senha.</div>
+          <div class="form-group">
+            <label class="form-label">E-mail</label>
+            <input type="email" id="recovery-email" class="form-control" placeholder="voce@empresa.com">
+          </div>
+          <div id="recovery-msg" class="auth-msg"></div>
+          <button type="button" id="btn-recovery" class="btn-login" onclick="enviarLinkRecuperacao()">Enviar link de recuperação</button>
+          <button type="button" class="link-btn" onclick="fecharRecuperacaoSenha()">← Voltar para o login</button>
+        </div>
 
-        <button type="button" class="btn-google" onclick="if(typeof doGoogleLogin==='function')doGoogleLogin()">
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
-          Continuar com Google
-        </button>
+        <div id="login-extras">
+          <div class="divider">ou</div>
 
-        <div class="auth-switch" id="switch-container">
-          Ainda não tem conta? <a onclick="switchTab('signup')">Experimente Grátis</a>
+          <button type="button" class="btn-google" onclick="if(typeof doGoogleLogin==='function')doGoogleLogin()">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
+            Continuar com Google
+          </button>
+
+          <div class="auth-switch" id="switch-container">
+            Ainda não tem conta? <a onclick="switchTab('signup')">Experimente Grátis</a>
+          </div>
         </div>
       </div>
     </div>

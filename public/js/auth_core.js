@@ -12,6 +12,87 @@ function hideLoginError() {
   errorEl.style.display = 'none';
 }
 
+// ================== RECUPERAÇÃO DE SENHA (LOGIN) ==================
+function abrirRecuperacaoSenha() {
+  hideLoginError();
+  const form = document.getElementById('login-form');
+  const panel = document.getElementById('recovery-panel');
+  if (!form || !panel) return;
+
+  const emailAtual = document.getElementById('auth-email');
+  const input = document.getElementById('recovery-email');
+  if (input && emailAtual) input.value = emailAtual.value.trim();
+
+  const msg = document.getElementById('recovery-msg');
+  if (msg) {
+    msg.textContent = '';
+    msg.className = 'auth-msg';
+    msg.style.display = 'none';
+  }
+
+  form.style.display = 'none';
+  panel.style.display = 'block';
+
+  const extras = document.getElementById('login-extras');
+  if (extras) extras.style.display = 'none';
+  const subtitle = document.getElementById('form-subtitle');
+  if (subtitle) subtitle.textContent = 'Redefina o acesso à sua conta.';
+  if (input) input.focus();
+}
+
+function fecharRecuperacaoSenha() {
+  const form = document.getElementById('login-form');
+  const panel = document.getElementById('recovery-panel');
+  if (panel) panel.style.display = 'none';
+  if (form) form.style.display = '';
+  const extras = document.getElementById('login-extras');
+  if (extras) extras.style.display = '';
+  const subtitle = document.getElementById('form-subtitle');
+  if (subtitle && typeof currentMode !== 'undefined') {
+    subtitle.textContent = currentMode === 'signup'
+      ? 'Crie sua conta e comece a gerenciar suas obras.'
+      : 'Bem-vindo de volta! Faça login para continuar.';
+  }
+}
+
+function mostrarMensagemRecuperacao(texto, tipo) {
+  const msg = document.getElementById('recovery-msg');
+  if (!msg) return;
+  msg.textContent = texto;
+  msg.className = 'auth-msg' + (tipo ? ' ' + tipo : '');
+  msg.style.display = 'block';
+}
+
+async function enviarLinkRecuperacao() {
+  const input = document.getElementById('recovery-email');
+  const email = ((input && input.value) || '').trim();
+  if (!email) {
+    mostrarMensagemRecuperacao('Informe seu e-mail para continuar.', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-recovery');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+
+  try {
+    await firebase.auth().sendPasswordResetEmail(email);
+    // Mensagem genérica de propósito: não revela se o e-mail está cadastrado.
+    mostrarMensagemRecuperacao(
+      'Se o e-mail estiver cadastrado, você receberá em instantes um link para definir uma nova senha.',
+      'success'
+    );
+  } catch (error) {
+    console.error('[Auth] Falha ao enviar link de recuperação:', error);
+    if (error && error.code === 'auth/invalid-email') {
+      mostrarMensagemRecuperacao('E-mail inválido. Confira o endereço digitado.', 'error');
+    } else {
+      mostrarMensagemRecuperacao('Não foi possível enviar o link agora. Tente novamente em alguns instantes.', 'error');
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Enviar link de recuperação'; }
+  }
+}
+
 function normalizeUserRecord(user) {
   return {
     uid: user.uid,

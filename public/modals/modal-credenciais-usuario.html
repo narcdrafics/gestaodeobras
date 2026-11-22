@@ -1,0 +1,29 @@
+<div class="modal-header">
+  <span class="modal-title"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;color:var(--green);">key</span>Credenciais de Acesso</span>
+  <button class="modal-close" onclick="closeModal('modal-credenciais-usuario')"><span class="material-symbols-outlined md-18">close</span></button>
+</div>
+
+<div class="credenciais-intro">
+  A conta de <b id="cred-usuario-nome"></b> foi criada com sucesso. Envie estas credenciais ao usuário e oriente a trocar a senha após o primeiro acesso.
+</div>
+
+<div class="credenciais-lista">
+  <div class="credenciais-linha">
+    <span>E-mail para login</span>
+    <code id="cred-usuario-email"></code>
+  </div>
+  <div class="credenciais-linha">
+    <span>Senha temporária</span>
+    <code id="cred-usuario-senha"></code>
+  </div>
+</div>
+
+<div class="credenciais-aviso">
+  <span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">info</span>
+  A senha temporária não fica gravada no sistema. Copie e envie agora — depois não será possível recuperá-la.
+</div>
+
+<div class="modal-footer">
+  <button class="btn btn-secondary" onclick="copiarCredenciaisUsuario()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">content_copy</span>Copiar credenciais</button>
+  <button class="btn btn-primary" onclick="closeModal('modal-credenciais-usuario')">Entendi</button>
+</div>

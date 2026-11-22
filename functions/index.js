@@ -15,6 +15,7 @@ const { detectarEtapas } = require('./whatsapp/obra-etapas');
 const { handleKiwifyWebhook } = require('./kiwify');
 const { atualizarBillingStatesJob } = require('./billing');
 const { hasFeature } = require('./plan_features');
+const { criarUsuarioTenant } = require('./usuarios');
 
 const OPENAI_KEY = defineSecret('OPENAI_KEY');
 const META_ACCESS_TOKEN = defineSecret('META_ACCESS_TOKEN');
@@ -828,6 +829,9 @@ exports.kiwifyWebhook = onRequest({
     db: admin.database()
   });
 });
+
+// ==================== CRIAÇÃO DE USUÁRIO PELO PAINEL ADMIN ====================
+exports.criarUsuarioTenant = criarUsuarioTenant;
 
 // ==================== JOB DIÁRIO: BILLING ENFORCEMENT ====================
 exports.dailyBillingStateJob = onSchedule({
