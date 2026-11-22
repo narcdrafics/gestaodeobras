@@ -17,6 +17,7 @@ const { atualizarBillingStatesJob } = require('./billing');
 const { hasFeature } = require('./plan_features');
 const { criarUsuarioTenant } = require('./usuarios');
 const { aoEscreverAprovacao, processarAprovacoesJob } = require('./aprovacoes');
+const { handleAdminRequest } = require('./super_admin');
 
 const OPENAI_KEY = defineSecret('OPENAI_KEY');
 const META_ACCESS_TOKEN = defineSecret('META_ACCESS_TOKEN');
@@ -25,9 +26,21 @@ const META_VERIFY_TOKEN = defineSecret('META_VERIFY_TOKEN');
 const META_APP_SECRET = defineSecret('META_APP_SECRET');
 const META_WABA_ID = defineSecret('META_WABA_ID');
 const KIWIFY_TOKEN = defineSecret('KIWIFY_TOKEN');
+// Credenciais de leitura da API pública da Kiwify (painel super admin).
+// O token do webhook (KIWIFY_TOKEN) NÃO serve para a API REST.
+const KIWIFY_CLIENT_ID = defineSecret('KIWIFY_CLIENT_ID');
+const KIWIFY_CLIENT_SECRET = defineSecret('KIWIFY_CLIENT_SECRET');
+const KIWIFY_ACCOUNT_ID = defineSecret('KIWIFY_ACCOUNT_ID');
+const KIWIFY_API_TOKEN = defineSecret('KIWIFY_API_TOKEN');
 
 admin.initializeApp();
 const db = admin.database();
+
+// defineSecret().value() pode falhar quando o segredo não foi provisionado.
+// No painel isso não pode derrubar a função: apenas desativa a integração.
+function valorSegredo(secret) {
+  try { return secret.value() || ''; } catch (_) { return ''; }
+}
 
 function getHojeBR() {
   return new Intl.DateTimeFormat('pt-BR', {
@@ -748,10 +761,12 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
   if (role === 'mestre') role = 'encarregado';
   const tenantId = after.tenantId || null;
 
-  // Perfil 'pendente' (limite de assentos): nunca recebe claims de acesso.
-  if (after.status === 'pendente') {
+  // Perfis 'pendente' (sem assento) e 'bloqueado' (painel master) nunca recebem
+  // claims de acesso. No bloqueio, revoga também os tokens já emitidos.
+  if (after.status === 'pendente' || after.status === 'bloqueado') {
     try {
-      await admin.auth().setCustomUserClaims(uid, { role: 'pendente', tenantId: null });
+      await admin.auth().setCustomUserClaims(uid, { role: after.status, tenantId: null });
+      if (after.status === 'bloqueado') await admin.auth().revokeRefreshTokens(uid);
     } catch (e) {
       console.warn(`[syncCustomClaims] Erro ao bloquear claims de ${uid}:`, e);
     }
@@ -835,6 +850,30 @@ exports.kiwifyWebhook = onRequest({
 
 // ==================== CRIAÇÃO DE USUÁRIO PELO PAINEL ADMIN ====================
 exports.criarUsuarioTenant = criarUsuarioTenant;
+
+// ==================== API DO PAINEL SUPER ADMIN ====================
+// Ações de conta (reset/bloqueio/exclusão/plano/limites) e leitura da Kiwify.
+// Token do Firebase é verificado dentro de handleAdminRequest (Admin SDK).
+const cacheTokenKiwify = {};
+exports.adminAccountApi = onRequest({
+  cors: false,
+  memory: '256MiB',
+  timeoutSeconds: 60,
+  secrets: [KIWIFY_CLIENT_ID, KIWIFY_CLIENT_SECRET, KIWIFY_ACCOUNT_ID, KIWIFY_API_TOKEN]
+}, async (req, res) => {
+  return handleAdminRequest(req, res, {
+    auth: admin.auth(),
+    db: admin.database(),
+    http: axios,
+    cache: cacheTokenKiwify,
+    credenciaisKiwify: {
+      clientId: valorSegredo(KIWIFY_CLIENT_ID),
+      clientSecret: valorSegredo(KIWIFY_CLIENT_SECRET),
+      accountId: valorSegredo(KIWIFY_ACCOUNT_ID),
+      apiToken: valorSegredo(KIWIFY_API_TOKEN)
+    }
+  });
+});
 
 // ==================== APROVAÇÕES (SERVIDOR) ====================
 // O cliente apenas cria/muda o status; a operação real é aplicada aqui.

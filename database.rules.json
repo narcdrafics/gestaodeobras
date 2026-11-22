@@ -182,6 +182,14 @@
         }
       }
     },
+    "admin_audit": {
+      ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (auth.token.email != null && root.child('users/' + auth.token.email.replace('.', ',') + '/role').val() === 'super_admin'))",
+      ".write": false,
+      ".indexOn": [
+        "timestamp",
+        "atorEmail"
+      ]
+    },
     "webhook_debug": {
       ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
       ".write": false

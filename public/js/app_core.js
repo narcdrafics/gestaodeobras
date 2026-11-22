@@ -4315,7 +4315,8 @@ async function renderSuperAdmin() {
       const config = t.config || {};
       // Busca o admin principal no nó Profilies
       const adminProfile = profileList.find(p => p.tenantId === tid && p.role === 'admin');
-      let displayEmail = adminProfile ? _escMaster(adminProfile.email) : 'N/A';
+      let adminEmail = adminProfile ? (adminProfile.email || '') : '';
+      let displayEmail = adminEmail ? _escMaster(adminEmail) : 'N/A';
 
       // Se o cliente ainda não se cadastrou (Perfil não existe), procura no nó Invites para exibir como "Pendente"
       const invitesData = window.globalInvitesDataCache || {}; // Necessita do fetch de convites acima
@@ -4344,15 +4345,19 @@ async function renderSuperAdmin() {
                     <div style="font-size:10px;opacity:0.75;">${_escMaster(statusPgto)}</div>`;
       }
 
-      // Status / Vencimento
+      // Status / Vencimento (billingState é a autoridade do ciclo de cobrança)
       let statusBadge = '';
-      if (t.status === 'bloqueado_pagamento') {
+      const estado = t.billingState || t.status || 'ativo';
+      if (estado === 'bloqueado' || t.status === 'bloqueado_pagamento' || t.status === 'bloqueado') {
         statusBadge = '<span class="badge" style="background:#ef4444;color:#fff;font-size:9px;">BLOQUEADO</span>';
-      } else if (t.status === 'carencia') {
+      } else if (estado === 'somente_leitura') {
+        statusBadge = '<span class="badge" style="background:#f97316;color:#fff;font-size:9px;">SOMENTE LEITURA</span>';
+      } else if (estado === 'carencia' || t.status === 'carencia') {
         statusBadge = '<span class="badge" style="background:#f59e0b;color:#fff;font-size:9px;">EM CARÊNCIA</span>';
       } else {
         statusBadge = '<span class="badge" style="background:#10b981;color:#fff;font-size:9px;">ATIVO</span>';
       }
+      const tenantBloqueado = estado === 'bloqueado' || t.status === 'bloqueado_pagamento' || t.status === 'bloqueado';
 
       let vencTxt = '';
       if (t.planoVencimento) {
@@ -4376,8 +4381,10 @@ async function renderSuperAdmin() {
                 <div style="font-size:11px;"><b>Usuários:</b> ${_escMaster(config.limiteUsuarios || 2)}</div>
             </td>
             <td>
-                <button class="btn btn-primary btn-sm" onclick="openMasterTenantModal(${_jsArgMaster(tid)})"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">settings</span> Ajustar</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteTenant(${_jsArgMaster(tid)})" style="margin-left: 5px;">Excluir</button>
+                <button class="btn btn-primary btn-sm" onclick="openMasterUpgradeModal(${_jsArgMaster(tid)}, ${_jsArgMaster(config.nomeEmpresa || tid)}, ${_jsArgMaster(adminEmail)})" title="Upgrade ou ajuste de plano"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">upgrade</span> Upgrade</button>
+                <button class="btn btn-secondary btn-sm" onclick="openMasterTenantModal(${_jsArgMaster(tid)})" style="margin-left: 4px;" title="Editar dados e limites"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">settings</span> Ajustar</button>
+                <button class="btn ${tenantBloqueado ? 'btn-primary' : 'btn-secondary'} btn-sm" onclick="masterToggleTenantBlock(${_jsArgMaster(tid)}, ${tenantBloqueado ? 'false' : 'true'})" style="margin-left: 4px;" title="${tenantBloqueado ? 'Liberar acesso da empresa' : 'Bloquear acesso da empresa'}">${tenantBloqueado ? 'Liberar' : 'Bloquear'}</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteTenant(${_jsArgMaster(tid)})" style="margin-left: 4px;">Excluir</button>
             </td>
         </tr>`;
     }).join('');
@@ -4398,6 +4405,14 @@ async function renderSuperAdmin() {
           extraInfo = `<div style="font-size:10px; opacity:0.6">ID: ${_escMaster(p.tenantId)} ${slugTxt}</div>`;
         }
 
+        const pBloqueado = p.status === 'bloqueado';
+        let pStatusBadge = '<span class="badge" style="background:#10b981;color:#fff;font-size:9px;">ATIVO</span>';
+        if (pBloqueado) {
+          pStatusBadge = '<span class="badge" style="background:#ef4444;color:#fff;font-size:9px;">BLOQUEADO</span>';
+        } else if (p.status === 'pendente') {
+          pStatusBadge = '<span class="badge" style="background:#f59e0b;color:#fff;font-size:9px;">PENDENTE</span>';
+        }
+
         return `<tr>
                 <td><div style="font-weight:600">${_escMaster(p.name || 'Sem Nome')}</div></td>
                 <td>${_escMaster(p.email || 'N/A')}</td>
@@ -4407,7 +4422,12 @@ async function renderSuperAdmin() {
                     ${extraInfo}
                 </td>
                 <td>
-                    <button class="btn btn-danger btn-sm" onclick="deleteGlobalUser(${_jsArgMaster(p.uid)}, ${_jsArgMaster(p.email || '')}, ${_jsArgMaster(p.tenantId || '')})"><span class="material-symbols-outlined md-16">delete</span> Excluir</button>
+                    ${pStatusBadge}
+                </td>
+                <td>
+                    <button class="btn btn-secondary btn-sm" onclick="masterResetUserPassword(${_jsArgMaster(p.uid)}, ${_jsArgMaster(p.email || '')})" title="Gerar link de redefinição de senha"><span class="material-symbols-outlined md-16">key</span> Senha</button>
+                    <button class="btn ${pBloqueado ? 'btn-primary' : 'btn-secondary'} btn-sm" onclick="masterToggleUserBlock(${_jsArgMaster(p.uid)}, ${_jsArgMaster(p.email || '')}, ${pBloqueado ? 'false' : 'true'})" style="margin-left:4px;" title="${pBloqueado ? 'Desbloquear usuário' : 'Bloquear usuário'}">${pBloqueado ? 'Desbloquear' : 'Bloquear'}</button>
+                    <button class="btn btn-danger btn-sm" onclick="masterDeleteUserApi(${_jsArgMaster(p.uid)}, ${_jsArgMaster(p.email || '')}, ${_jsArgMaster(p.tenantId || '')})" style="margin-left:4px;" title="Excluir conta e credenciais"><span class="material-symbols-outlined md-16">delete</span> Excluir</button>
                 </td>
             </tr>`;
       }).join('');
@@ -4419,12 +4439,13 @@ async function renderSuperAdmin() {
     // Chama a auditoria de Webhooks
     renderWebhookLogs();
 
-    // Chama a gestão de Super Admins
+    // Chama a gestão de Super Admins e a auditoria das ações do painel
     renderMasterUsers();
+    loadAdminAudit();
 
   } catch (err) {
     console.error('Erro Super Admin:', err);
-    tbody.innerHTML = '<tr><td colspan="5">Erro de permissão ou conexão.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6">Erro de permissão ou conexão.</td></tr>';
   }
 }
 
@@ -4527,6 +4548,352 @@ async function renderWebhookLogs() {
 }
 window.renderWebhookLogs = renderWebhookLogs;
 
+// ==================== API DO SUPER ADMIN (SERVER-SIDE) ====================
+// Operações sensíveis (Auth, planos, bloqueios e leitura da Kiwify) nunca são
+// feitas diretamente pelo navegador. O token é enviado ao endpoint e validado
+// no servidor com Admin SDK; o papel é reconfirmado no banco.
+const ADMIN_API_URL = '/api/admin/conta';
+const ADMIN_ERRO_SESSAO = 'Sua sessão expirou. Entre novamente para continuar.';
+
+async function _adminToken() {
+  const user = firebase.auth().currentUser;
+  if (!user) throw new Error(ADMIN_ERRO_SESSAO);
+  return user.getIdToken();
+}
+
+async function _adminResponse(resposta) {
+  let dados = null;
+  try { dados = await resposta.json(); } catch (e) { /* resposta sem JSON */ }
+  if (resposta.status === 401) throw new Error(ADMIN_ERRO_SESSAO);
+  if (resposta.status === 404) {
+    throw new Error('API do painel não encontrada (404). Implante a função adminAccountApi e o rewrite do Hosting.');
+  }
+  if (!resposta.ok || !dados || dados.ok === false) {
+    throw new Error((dados && (dados.mensagem || dados.erro)) || `Falha no servidor (HTTP ${resposta.status}).`);
+  }
+  return dados;
+}
+
+async function adminApiRequest(payload) {
+  const token = await _adminToken();
+  let resposta;
+  try {
+    resposta = await fetch(ADMIN_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(payload || {})
+    });
+  } catch (e) {
+    throw new Error('Não foi possível contatar o servidor. Verifique sua conexão.');
+  }
+  return _adminResponse(resposta);
+}
+
+async function adminKiwifyRequest(recurso, params) {
+  const token = await _adminToken();
+  const query = new URLSearchParams();
+  query.set('recurso', recurso);
+  query.set('tipo', recurso);
+  for (const [chave, valor] of Object.entries(params || {})) {
+    if (valor != null && String(valor).trim() !== '') query.set(chave, String(valor));
+  }
+  let resposta;
+  try {
+    resposta = await fetch(`${ADMIN_API_URL}?${query.toString()}`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}`, 'Cache-Control': 'no-store' }
+    });
+  } catch (e) {
+    throw new Error('Não foi possível contatar o servidor. Verifique sua conexão.');
+  }
+  return _adminResponse(resposta);
+}
+
+function _kiwifyLinhaVazia(colunas, mensagem) {
+  return `<tr><td colspan="${colunas}" style="text-align:center;padding:20px;opacity:0.7;">${_escMaster(mensagem)}</td></tr>`;
+}
+
+function _kiwifyTabela(cabecalhos, linhas) {
+  return '<div style="overflow-x:auto;"><table style="font-size:12px;min-width:640px;">' +
+    '<thead><tr>' + cabecalhos.map(h => `<th>${_escMaster(h)}</th>`).join('') + '</tr></thead>' +
+    '<tbody>' + linhas.join('') + '</tbody></table></div>';
+}
+
+function _renderKiwifyProducts(dados) {
+  const itens = Array.isArray(dados.data) ? dados.data : [];
+  if (itens.length) {
+    return _kiwifyTabela(
+      ['Produto Kiwify', 'Plano local', 'Preço', 'Recorrência', 'Limites', 'Checkout'],
+      itens.map(p => `<tr>
+        <td><b>${_escMaster(p.nome || p.id || '—')}</b><br><small style="opacity:0.6">${_escMaster(p.status || '')}</small></td>
+        <td><span class="badge badge-gray">${_escMaster(p.planoNome || p.planoLocal || '—')}</span></td>
+        <td>${_escMaster(p.precoExibicao || (p.preco != null ? 'R$ ' + Number(p.preco).toFixed(2) : '—'))}</td>
+        <td>${_escMaster(p.recorrencia || '—')}</td>
+        <td style="font-size:11px;">${_escMaster(p.limites ? `Obras ${p.limites.obras} · Usuários ${p.limites.usuarios}` : '—')}</td>
+        <td>${p.checkout ? `<a href="${_escMaster(p.checkout)}" target="_blank" rel="noopener noreferrer">Abrir checkout</a>` : '—'}</td>
+      </tr>`)
+    );
+  }
+
+  // API sem produtos cadastrados: mostra o catálogo local como referência.
+  const catalogo = (Array.isArray(dados.catalogoLocal) ? dados.catalogoLocal : [])
+    .filter(p => p.familia !== 'sistema');
+  if (!catalogo.length) return _kiwifyLinhaVazia(6, 'Nenhum produto encontrado na Kiwify.');
+  return '<p style="font-size:11px;opacity:0.7;">Nenhum produto na API; exibindo o catálogo local:</p>' +
+    _kiwifyTabela(
+      ['Plano', 'Preço', 'Validade', 'Limites (obras/usuários)', 'Checkout', ''],
+      catalogo.map(p => `<tr>
+        <td><b>${_escMaster(p.nome)}</b></td>
+        <td>${_escMaster(p.preco)}</td>
+        <td>${_escMaster(p.dias)} dias</td>
+        <td>${_escMaster(p.limites.obras)} / ${_escMaster(p.limites.usuarios)}</td>
+        <td>${p.checkout ? `<a href="${_escMaster(p.checkout)}" target="_blank" rel="noopener noreferrer">Abrir checkout</a>` : '—'}</td>
+        <td></td>
+      </tr>`)
+    );
+}
+
+function _renderKiwifySales(dados) {
+  const itens = Array.isArray(dados.data) ? dados.data : [];
+  if (!itens.length) return _kiwifyLinhaVazia(8, 'Nenhuma venda no período (últimos 30 dias).');
+  return _kiwifyTabela(
+    ['Venda', 'Data', 'Cliente', 'Produto', 'Plano', 'Valor', 'Status', 'Tenant (external_reference)'],
+    itens.map(v => `<tr>
+      <td>${_escMaster(v.id || '—')}</td>
+      <td>${_escMaster(v.criadoEm ? new Date(v.criadoEm).toLocaleString('pt-BR') : '—')}</td>
+      <td>${_escMaster(v.clienteNome || '—')}<br><small style="opacity:0.6">${_escMaster(v.clienteEmail || '')}</small></td>
+      <td>${_escMaster(v.produtoNome || '—')}</td>
+      <td><span class="badge badge-gray">${_escMaster(v.planoLocal || '—')}</span></td>
+      <td>${v.valor != null ? 'R$ ' + _escMaster(Number(v.valor).toFixed(2).replace('.', ',')) : '—'}</td>
+      <td>${_escMaster(v.status || '—')}</td>
+      <td><code>${_escMaster(v.tenantRef || '—')}</code></td>
+    </tr>`)
+  );
+}
+
+function _renderKiwifyAccount(dados) {
+  const conta = dados.data || {};
+  const entidades = Array.isArray(conta.entidades) ? conta.entidades : [];
+  let html = '<div style="display:flex;gap:24px;flex-wrap:wrap;">';
+  html += `<div><div style="opacity:0.6;font-size:11px;">ID da conta</div><b>${_escMaster(conta.id || '—')}</b></div>`;
+  html += `<div><div style="opacity:0.6;font-size:11px;">Nome</div><b>${_escMaster(conta.nomeEmpresa || '—')}</b></div>`;
+  html += '</div>';
+  if (entidades.length) {
+    html += '<div style="margin-top:14px;">' + _kiwifyTabela(
+      ['Entidade', 'Nome', 'Ativa'],
+      entidades.map(e => `<tr><td>${_escMaster(e.id || '—')}</td><td>${_escMaster(e.nomeEmpresa || '—')}</td><td>${e.ativa ? 'Sim' : 'Não'}</td></tr>`)
+    ) + '</div>';
+  }
+  return html;
+}
+
+async function loadKiwifyData(tipo) {
+  const statusEl = document.getElementById('master-kiwify-status');
+  const dataEl = document.getElementById('master-kiwify-data');
+  const recurso = String(tipo || 'products');
+  if (statusEl) statusEl.textContent = 'Consultando Kiwify...';
+  if (dataEl) dataEl.innerHTML = '<span style="opacity:0.6;">Carregando...</span>';
+
+  try {
+    const dados = await adminKiwifyRequest(recurso);
+    if (statusEl) {
+      statusEl.textContent = dados.configurado
+        ? `Conectado · ${recurso.toUpperCase()} · ${new Date().toLocaleTimeString('pt-BR')}`
+        : 'Integração não configurada no servidor';
+    }
+    if (!dataEl) return dados;
+
+    if (!dados.configurado) {
+      dataEl.innerHTML = `<div style="padding:12px;border:1px solid var(--orange,#f59e0b);border-radius:6px;font-size:12px;">${_escMaster(dados.mensagem || 'Credenciais não configuradas.')}</div>`;
+      return dados;
+    }
+
+    if (recurso === 'products') dataEl.innerHTML = _renderKiwifyProducts(dados);
+    else if (recurso === 'sales') dataEl.innerHTML = _renderKiwifySales(dados);
+    else if (recurso === 'account') dataEl.innerHTML = _renderKiwifyAccount(dados);
+    else dataEl.innerHTML = `<pre style="font-size:11px;overflow:auto;">${_escMaster(JSON.stringify(dados.data, null, 2))}</pre>`;
+    return dados;
+  } catch (err) {
+    if (statusEl) statusEl.textContent = 'Falha ao consultar a Kiwify';
+    if (dataEl) dataEl.innerHTML = `<div style="padding:12px;border:1px solid var(--red,#ef4444);border-radius:6px;font-size:12px;">${_escMaster(err.message || err)}</div>`;
+    toast('Erro ao consultar Kiwify: ' + (err.message || err), 'error');
+    return null;
+  }
+}
+
+async function loadAdminAudit() {
+  const tbody = document.getElementById('admin-audit-tbody');
+  if (!tbody) return;
+  try {
+    const snap = await firebase.database().ref('admin_audit').limitToLast(30).once('value');
+    const itens = Object.entries(snap.val() || {}).map(([k, v]) => ({ id: k, ...(v || {}) }));
+    itens.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    if (!itens.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;opacity:0.7;">Nenhuma ação registrada.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = itens.map(item => `<tr style="font-size:12px;">
+      <td style="white-space:nowrap;">${_escMaster(item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : '—')}</td>
+      <td>${_escMaster(item.atorEmail || item.atorUid || '—')}</td>
+      <td><code>${_escMaster(item.acao || '—')}</code></td>
+      <td>${_escMaster(item.alvo || '—')}</td>
+      <td style="color:${item.sucesso ? 'var(--green)' : 'var(--red, #ef4444)'};">
+        ${item.sucesso ? 'Sucesso' : 'Falha'}${item.detalhes ? ' · ' + _escMaster(item.detalhes) : ''}
+      </td>
+    </tr>`).join('');
+  } catch (err) {
+    console.error('Erro ao carregar auditoria:', err);
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--orange,#f59e0b);padding:16px;">Auditoria indisponível: ${_escMaster(err.message || err)}. Verifique se as regras do Realtime Database foram implantadas.</td></tr>`;
+  }
+}
+
+function openMasterModal(html) {
+  const container = document.getElementById('modal-content');
+  if (!container) return toast('Não foi possível abrir o painel.', 'error');
+  container.innerHTML = html;
+  document.getElementById('modal-container').classList.add('open');
+}
+
+function openMasterUpgradeModal(tid, nome, emailAdmin) {
+  const template = document.getElementById('modal-master-upgrade');
+  if (!template) return toast('Modal de upgrade indisponível.', 'error');
+  openMasterModal(template.innerHTML);
+  const modal = document.getElementById('modal-content');
+  modal.querySelector('#mu-tenant-id').value = tid || '';
+  const info = modal.querySelector('#mu-tenant-nome');
+  if (info) info.textContent = `${nome || tid || ''}${emailAdmin ? ' · ' + emailAdmin : ''}`;
+}
+
+async function masterApplyPlan() {
+  const modal = document.getElementById('modal-content');
+  const tenantId = modal.querySelector('#mu-tenant-id').value;
+  const plano = modal.querySelector('#mu-plano').value;
+  const diasRaw = modal.querySelector('#mu-dias').value;
+  const usuariosRaw = modal.querySelector('#mu-usuarios').value;
+  if (!tenantId || !plano) return toast('Informe a empresa e o plano.', 'error');
+
+  const payload = { acao: 'definir_plano', tenantId, plano };
+  if (diasRaw !== '') payload.dias = Number(diasRaw);
+  if (usuariosRaw !== '') payload.limites = { usuarios: Number(usuariosRaw) };
+
+  try {
+    const r = await adminApiRequest(payload);
+    toast(`Plano ${r.plano} aplicado até ${new Date(r.planoVencimento).toLocaleDateString('pt-BR')}.`);
+    closeModal();
+    renderSuperAdmin();
+  } catch (err) {
+    toast(err.message || 'Erro ao aplicar plano.', 'error');
+  }
+}
+
+function masterOpenCheckout() {
+  const modal = document.getElementById('modal-content');
+  const tenantId = modal.querySelector('#mu-tenant-id').value;
+  const plano = modal.querySelector('#mu-plano').value;
+  if (typeof window.startKiwifyCheckoutFor !== 'function') {
+    return toast('Checkout indisponível no momento.', 'error');
+  }
+  window.startKiwifyCheckoutFor(plano, tenantId);
+}
+
+async function masterResetUserPassword(uid, email) {
+  if (!email) return toast('Este usuário não tem e-mail cadastrado.', 'error');
+  if (!confirm(`Gerar um link de redefinição de senha para ${email}?`)) return;
+
+  try {
+    const r = await adminApiRequest({ acao: 'reset_password', uid, email });
+    window._masterResetLink = r.link || '';
+    window._masterResetEmail = r.email || email;
+
+    const template = document.getElementById('modal-master-reset');
+    if (!template) {
+      window.prompt('Copie o link de redefinição:', r.link || '');
+      return;
+    }
+    openMasterModal(template.innerHTML);
+    const info = document.querySelector('#modal-content #mr-email');
+    if (info) info.textContent = window._masterResetEmail;
+    const input = document.querySelector('#modal-content #mr-link');
+    if (input) input.value = r.link || '';
+  } catch (err) {
+    toast(err.message || 'Erro ao gerar link de senha.', 'error');
+  }
+}
+
+async function masterCopyResetLink() {
+  const input = document.querySelector('#modal-content #mr-link');
+  const link = (input && input.value) || window._masterResetLink || '';
+  if (!link) return toast('Link indisponível.', 'error');
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(link);
+    } else if (input) {
+      input.select();
+      document.execCommand('copy');
+    }
+    toast('Link copiado. Envie apenas ao titular da conta.');
+  } catch (err) {
+    toast('Não foi possível copiar. Selecione o link manualmente.', 'error');
+  }
+}
+
+function masterSendResetEmail() {
+  const email = window._masterResetEmail || (document.querySelector('#modal-content #mr-email')?.textContent || '');
+  if (!email) return toast('E-mail indisponível.', 'error');
+  return sendMasterPasswordReset(email);
+}
+
+async function masterToggleUserBlock(uid, email, bloquear) {
+  const alvo = email || uid;
+  const verbo = bloquear ? 'Bloquear' : 'Desbloquear';
+  if (!confirm(`${verbo} o usuário ${alvo}?`)) return;
+  try {
+    await adminApiRequest({ acao: 'bloquear_usuario', uid, email, bloqueado: bloquear === true });
+    toast(bloquear ? 'Usuário bloqueado e sessões revogadas.' : 'Usuário desbloqueado.');
+    renderSuperAdmin();
+  } catch (err) {
+    toast(err.message || 'Erro ao alterar bloqueio.', 'error');
+  }
+}
+
+async function masterDeleteUserApi(uid, email, tenantId) {
+  const alvo = email || uid;
+  if (!confirm(`EXCLUIR totalmente a conta de ${alvo}?\nPerfil, credenciais e vínculos serão removidos.`)) return;
+  try {
+    await adminApiRequest({ acao: 'excluir_usuario', uid, email, tenantId });
+    toast('Conta excluída com sucesso.');
+    renderSuperAdmin();
+  } catch (err) {
+    toast(err.message || 'Erro ao excluir conta.', 'error');
+  }
+}
+
+async function masterToggleTenantBlock(tenantId, bloquear) {
+  const verbo = bloquear ? 'Bloquear' : 'Liberar';
+  if (!confirm(`${verbo} o acesso da empresa ${tenantId}?`)) return;
+  try {
+    await adminApiRequest({ acao: 'bloquear_tenant', tenantId, bloqueado: bloquear === true });
+    toast(bloquear ? 'Empresa bloqueada.' : 'Empresa liberada.');
+    renderSuperAdmin();
+  } catch (err) {
+    toast(err.message || 'Erro ao alterar status da empresa.', 'error');
+  }
+}
+
+window.adminApiRequest = adminApiRequest;
+window.adminKiwifyRequest = adminKiwifyRequest;
+window.loadKiwifyData = loadKiwifyData;
+window.loadAdminAudit = loadAdminAudit;
+window.openMasterUpgradeModal = openMasterUpgradeModal;
+window.masterApplyPlan = masterApplyPlan;
+window.masterOpenCheckout = masterOpenCheckout;
+window.masterResetUserPassword = masterResetUserPassword;
+window.masterCopyResetLink = masterCopyResetLink;
+window.masterSendResetEmail = masterSendResetEmail;
+window.masterToggleUserBlock = masterToggleUserBlock;
+window.masterDeleteUserApi = masterDeleteUserApi;
+window.masterToggleTenantBlock = masterToggleTenantBlock;
+
 async function renderMasterUsers() {
   const tbody = document.getElementById('master-admins-tbody');
   if (!tbody) return;
@@ -4541,13 +4908,13 @@ async function renderMasterUsers() {
     tbody.innerHTML = masters.map(m => `
     <tr>
       <td>
-         <b>${m.nome || 'Sem Nome'}</b><br>
-         <small style="opacity:0.6">${m.email}</small>
+         <b>${_escMaster(m.nome || 'Sem Nome')}</b><br>
+         <small style="opacity:0.6">${_escMaster(m.email)}</small>
       </td>
-      <td><span class="badge badge-gray">${m.origem || 'N/A'}</span></td>
+      <td><span class="badge badge-gray">${_escMaster(m.origem || 'N/A')}</span></td>
       <td>
-         <button class="btn btn-secondary btn-sm" onclick="sendMasterPasswordReset('${m.email}')" title="Enviar link de criação/redefinição de senha por e-mail"><span class="material-symbols-outlined md-16">key</span> Senha</button>
-         <button class="btn btn-danger btn-sm" onclick="deleteMasterUser('${m.email}')" style="margin-left:4px;" title="Remover acesso master" aria-label="Remover acesso master"><span class="material-symbols-outlined md-16">delete</span> Excluir</button>
+         <button class="btn btn-secondary btn-sm" onclick="sendMasterPasswordReset(${_jsArgMaster(m.email)})" title="Enviar link de criação/redefinição de senha por e-mail"><span class="material-symbols-outlined md-16">key</span> Senha</button>
+         <button class="btn btn-danger btn-sm" onclick="deleteMasterUser(${_jsArgMaster(m.email)})" style="margin-left:4px;" title="Remover acesso master" aria-label="Remover acesso master"><span class="material-symbols-outlined md-16">delete</span> Excluir</button>
       </td>
     </tr>
   `).join('');
@@ -4697,7 +5064,15 @@ function openMasterTenantModal(tid) {
 
   // Novos campos de controle de Plano
   if (container.querySelector('#mt-plano')) container.querySelector('#mt-plano').value = tData.plano || 'free_trial';
-  if (container.querySelector('#mt-status')) container.querySelector('#mt-status').value = tData.status || 'ativo';
+  const bloqueado = tData.billingState === 'bloqueado' ||
+    tData.status === 'bloqueado_pagamento' || tData.status === 'bloqueado';
+  if (container.querySelector('#mt-status')) {
+    container.querySelector('#mt-status').value = bloqueado ? 'bloqueado_pagamento' : 'ativo';
+  }
+  if (container.querySelector('#mt-dias')) container.querySelector('#mt-dias').value = '';
+  if (container.querySelector('#mt-limite-trab')) {
+    container.querySelector('#mt-limite-trab').value = config.limiteTrabalhadores || 9999;
+  }
 
   document.getElementById('modal-container').classList.add('open');
 }
@@ -4711,15 +5086,40 @@ async function saveMasterTenant() {
   const emailOwner = modal.querySelector('#mt-email').value.trim().toLowerCase();
   const lobras = parseInt(modal.querySelector('#mt-limite-obras').value);
   const lusr = parseInt(modal.querySelector('#mt-limite-usr').value);
+  const ltrabRaw = modal.querySelector('#mt-limite-trab')?.value;
+  const ltrab = ltrabRaw === '' || ltrabRaw == null ? 9999 : parseInt(ltrabRaw);
+  const diasRaw = modal.querySelector('#mt-dias')?.value;
   const plano = modal.querySelector('#mt-plano')?.value || 'free_trial';
   const status = modal.querySelector('#mt-status')?.value || 'ativo';
 
-  if (isNaN(lobras) || isNaN(lusr)) return toast('Preencha os limites com números válidos.', 'error');
+  if (isNaN(lobras) || isNaN(lusr) || isNaN(ltrab)) return toast('Preencha os limites com números válidos.', 'error');
   if (!nome) return toast('Preencha o nome da empresa.', 'error');
   if (!slugVal) return toast('Preencha o subdomínio (slug).', 'error');
+  if (diasRaw !== '' && diasRaw != null && (isNaN(Number(diasRaw)) || Number(diasRaw) <= 0)) {
+    return toast('Informe uma quantidade válida de dias.', 'error');
+  }
 
   slugVal = slugVal.replace(/[^a-z0-9]/g, '');
   if (!slugVal) return toast('Subdomínio inválido.', 'error');
+
+  const tData = (window.globalTenantsDataCache && window.globalTenantsDataCache[tid]) || {};
+  const tConfig = tData.config || {};
+  const planoAtual = tData.plano || 'free_trial';
+  const limitesAtuais = {
+    obras: Number(tConfig.limiteObras || 0),
+    usuarios: Number(tConfig.limiteUsuarios || 0),
+    trabalhadores: Number(tConfig.limiteTrabalhadores || 9999)
+  };
+  const limites = { obras: lobras, usuarios: lusr, trabalhadores: ltrab };
+  const planoAlterado = plano !== planoAtual;
+  const limitesAlterados =
+    limites.obras !== limitesAtuais.obras ||
+    limites.usuarios !== limitesAtuais.usuarios ||
+    limites.trabalhadores !== limitesAtuais.trabalhadores;
+  const bloqueado = status !== 'ativo';
+  const bloqueadoAtual = tData.billingState === 'bloqueado' ||
+    tData.status === 'bloqueado_pagamento' || tData.status === 'bloqueado';
+  const statusAlterado = bloqueado !== bloqueadoAtual;
 
   try {
     if (slugVal !== oldSlug) {
@@ -4732,24 +5132,28 @@ async function saveMasterTenant() {
       }
     }
 
+    // Plano e limites são autoridade do servidor: nunca gravar direto do cliente.
+    if (planoAlterado) {
+      const payload = { acao: 'definir_plano', tenantId: tid, plano };
+      if (diasRaw !== '' && diasRaw != null) payload.dias = Number(diasRaw);
+      if (limitesAlterados) payload.limites = limites;
+      await adminApiRequest(payload);
+    } else if (limitesAlterados) {
+      await adminApiRequest({ acao: 'definir_limites', tenantId: tid, plano, limites });
+    }
+    if (statusAlterado) {
+      await adminApiRequest({ acao: 'bloquear_tenant', tenantId: tid, bloqueado });
+    }
+
+    // Dados cadastrais e slug continuam no caminho antigo; validade do plano
+    // é preservada quando só nome/slug foram editados.
     const updates = {};
     updates[`tenants/${tid}/config/nomeEmpresa`] = nome;
     updates[`tenants/${tid}/config/slug`] = slugVal;
     updates[`tenants/${tid}/subdominioSlug`] = slugVal;
-    updates[`tenants/${tid}/config/limiteObras`] = lobras;
-    updates[`tenants/${tid}/config/limiteUsuarios`] = lusr;
-    updates[`tenants/${tid}/plano`] = plano;
-    updates[`tenants/${tid}/status`] = status;
-
-    // Se mudou para Premium agora, garante validade de 30 dias se não tiver
-    if (plano === 'premium') {
-      updates[`tenants/${tid}/planoVencimento`] = Date.now() + (31 * 24 * 60 * 60 * 1000);
-    }
 
     // Move o nó público para a chave do novo slug (modelo atual: chave = slug).
     // Também remove a chave legada (ID do tenant) quando ela difere do slug.
-    const tData = (window.globalTenantsDataCache && window.globalTenantsDataCache[tid]) || {};
-    const tConfig = tData.config || {};
     const publicRef = firebase.database().ref('tenants_public');
     let publicData = null;
     for (const key of [oldSlug, tData.subdominioSlug, tData.slug, tid]) {

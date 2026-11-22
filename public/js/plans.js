@@ -1,14 +1,28 @@
 /**
  * public/js/plans.js
- * Catálogo único de planos e ponto de checkout (landing + app).
+ * Catálogo único de planos e ponto de checkout (landing + app + painel master).
  *
  * Usado por index.html (landing), app.html e páginas internas. Manter aqui os
  * preços, limites e links evita que a landing anuncie um plano que o checkout
- * não sabe vender. O webhook (functions/kiwify.js) reconhece start, pro e
- * ilimitado/full.
+ * não sabe vender. O espelho server-side é functions/plan_catalog.js
+ * (tests/super-admin.test.js valida os limites e links).
  */
 (function () {
   'use strict';
+
+  // Planos anuais/legados usam o mesmo checkout da família mensal.
+  // O painel master trabalha com os IDs canônicos do catálogo do servidor;
+  // o checkout, porém, só conhece estes três links.
+  var ALIASES = {
+    start_anual: 'start',
+    pro_anual: 'pro',
+    premium: 'pro',
+    ilimitado_anual: 'ilimitado',
+    full_anual: 'ilimitado',
+    full: 'ilimitado',
+    master: 'ilimitado',
+    MASTER_SYSTEM: 'ilimitado'
+  };
 
   var PLANOS = {
     start: {
@@ -17,6 +31,8 @@
       periodo: '/mês',
       obras: '2 obras',
       usuarios: '2 usuários',
+      limites: { obras: 2, usuarios: 2, trabalhadores: 9999 },
+      dias: 31,
       link: 'https://pay.kiwify.com.br/hHQz2Zu'
     },
     pro: {
@@ -25,6 +41,8 @@
       periodo: '/mês',
       obras: '5 obras',
       usuarios: '5 usuários',
+      limites: { obras: 5, usuarios: 5, trabalhadores: 9999 },
+      dias: 31,
       link: 'https://pay.kiwify.com.br/d0Gfv34'
     },
     ilimitado: {
@@ -33,6 +51,8 @@
       periodo: '/mês',
       obras: 'obras ilimitadas',
       usuarios: 'usuários ilimitados',
+      limites: { obras: 9999, usuarios: 9999, trabalhadores: 9999 },
+      dias: 31,
       link: 'https://pay.kiwify.com.br/z2hLFKq'
     }
   };
@@ -60,26 +80,36 @@
   /**
    * Abre o checkout do plano escolhido, passando o tenantId como
    * external_reference para o webhook identificar a conta.
-   * Cobre os 3 planos; se o link não estiver configurado, cai no suporte.
+   *
+   * @param {string} plano - start | pro | ilimitado (aceita aliases anuais/legados)
+   * @param {string} [tenantId] - conta de destino (o painel master informa explicitamente)
+   * @param {string} [linkKiwify] - URL de checkout vinda da API da Kiwify (opcional)
    */
-  window.startKiwifyCheckout = function startKiwifyCheckout(plano) {
-    var dados = PLANOS[plano];
+  window.startKiwifyCheckoutFor = function startKiwifyCheckoutFor(plano, tenantId, linkKiwify) {
+    var planoOriginal = String(plano || '').trim();
+    var planoBase = ALIASES[planoOriginal] || planoOriginal;
+    var dados = PLANOS[planoBase];
     if (!dados) {
-      console.warn('[Checkout] Plano desconhecido:', plano);
+      console.warn('[Checkout] Plano desconhecido:', planoOriginal);
       return;
     }
 
-    var tenantId = tenantIdAtual();
+    var link = String(linkKiwify || dados.link || '').trim();
+    var destino = tenantId || tenantIdAtual();
+    var nome = planoBase === planoOriginal ? dados.nome : planoOriginal;
 
-    if (!dados.link || dados.link.indexOf('SEU_LINK') !== -1) {
-      abrirWhatsApp('Olá, quero assinar o plano ' + dados.nome + ' do Obra Real' +
-        (tenantId ? ' (conta ' + tenantId + ')' : '') + '. Pode me ajudar?');
+    if (!link || link.indexOf('SEU_LINK') !== -1) {
+      abrirWhatsApp('Olá, quero assinar o plano ' + nome + ' do Obra Real' +
+        (destino ? ' (conta ' + destino + ')' : '') + '. Pode me ajudar?');
       return;
     }
 
-    var separador = dados.link.indexOf('?') >= 0 ? '&' : '?';
-    var url = dados.link +
-      (tenantId ? separador + 'external_reference=' + encodeURIComponent(tenantId) : '');
+    var separador = link.indexOf('?') >= 0 ? '&' : '?';
+    var url = link + (destino ? separador + 'external_reference=' + encodeURIComponent(destino) : '');
     window.open(url, '_blank');
+  };
+
+  window.startKiwifyCheckout = function startKiwifyCheckout(plano) {
+    window.startKiwifyCheckoutFor(plano);
   };
 })();

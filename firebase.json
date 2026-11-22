@@ -19,6 +19,10 @@
         "function": "criarUsuarioTenant"
       },
       {
+        "source": "/api/admin/conta",
+        "function": "adminAccountApi"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

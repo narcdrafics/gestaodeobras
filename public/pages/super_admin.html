@@ -11,6 +11,11 @@
     <div class="kpi-value" id="master-total-users">0</div>
     <div class="kpi-label">Usuários Totais</div>
   </div>
+  <div class="kpi-card" style="border: 1px solid var(--border);">
+    <div class="kpi-label" style="font-weight: bold; margin-bottom: 8px;"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">storefront</span> Kiwify</div>
+    <div id="master-kiwify-status" style="font-size:12px; opacity:0.8; min-height:18px; margin-bottom:8px;">Integração não consultada</div>
+    <button class="btn btn-secondary btn-sm" onclick="loadKiwifyData('account')"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">cloud_sync</span> Testar conexão</button>
+  </div>
   <div class="kpi-card" style="border: 1px solid var(--accent);">
     <div class="kpi-label" style="font-weight: bold; margin-bottom: 8px;"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">shield_person</span> Master: Segurança</div>
     <div style="display:flex; gap:8px;">
@@ -59,7 +64,7 @@
         <th>Origem / Ativação</th>
         <th>Último Pagamento</th>
         <th>Limites (Obras/Usr)</th>
-        <th style="width: 150px;">Ações</th>
+        <th style="width: 380px;">Ações</th>
       </tr>
     </thead>
     <tbody id="master-tenants-tbody">
@@ -81,12 +86,13 @@
         <th>E-mail</th>
         <th>Cargo (Role)</th>
         <th>Empresa (Slug) / Tenant ID</th>
-        <th style="width: 100px;">Ações</th>
+        <th>Status</th>
+        <th style="width: 300px;">Ações</th>
       </tr>
     </thead>
     <tbody id="master-users-tbody">
       <tr>
-        <td colspan="5">Carregando usuários...</td>
+        <td colspan="6">Carregando usuários...</td>
       </tr>
     </tbody>
   </table>
@@ -123,9 +129,24 @@
       <label>Plano</label>
       <select id="mt-plano" class="form-control">
         <option value="free_trial">Free Trial (Teste)</option>
-        <option value="premium">Premium Pro (Ativo)</option>
-        <option value="pro_anual">Pro Anual</option>
+        <option value="start">Start mensal</option>
+        <option value="start_anual">Start anual</option>
+        <option value="pro">Pro mensal</option>
+        <option value="pro_anual">Pro anual</option>
+        <option value="premium">Premium Pro (legado)</option>
+        <option value="ilimitado">Ilimitado mensal</option>
+        <option value="ilimitado_anual">Ilimitado anual</option>
+        <option value="full_anual">Full anual</option>
+        <option value="master">Master</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label>Dias de validade</label>
+      <input type="number" id="mt-dias" class="form-control" min="1" max="3650" placeholder="Padrão do plano">
+    </div>
+    <div class="form-group">
+      <label>Limite Trabalhadores</label>
+      <input type="number" id="mt-limite-trab" class="form-control">
     </div>
     <div class="form-group">
       <label>Status</label>
@@ -197,4 +218,104 @@
       </tr>
     </tbody>
   </table>
+</div>
+
+<!-- ==================== PLANOS E DADOS DA KIWIFY ==================== -->
+<div class="table-wrap" style="margin-top: 24px; border-top: 2px solid var(--accent); padding-top: 20px;">
+  <div class="table-toolbar">
+    <h3><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">payments</span> Planos disponíveis na Kiwify</h3>
+    <div class="toolbar-right" style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm" onclick="loadKiwifyData('products')"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">inventory_2</span> Produtos / Planos</button>
+      <button class="btn btn-secondary btn-sm" onclick="loadKiwifyData('sales')"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">receipt_long</span> Vendas (30 dias)</button>
+      <button class="btn btn-secondary btn-sm" onclick="loadKiwifyData('account')"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">apartment</span> Dados da conta</button>
+    </div>
+  </div>
+  <p style="font-size: 12px; color: var(--text3); margin-bottom: 12px;">
+    Leitura direta da <b>API pública da Kiwify</b> (somente servidor). Produtos são casados automaticamente com os planos Start / Pro / Ilimitado.
+    A integração exige os segredos <code>KIWIFY_CLIENT_ID</code>, <code>KIWIFY_CLIENT_SECRET</code> e <code>KIWIFY_ACCOUNT_ID</code> (obtidos em <b>Apps → API</b> na Kiwify). O <code>KIWIFY_API_TOKEN</code> é opcional e serve apenas para testar com um bearer token já gerado, que expira em 24h.
+  </p>
+  <div id="master-kiwify-data" style="font-size:13px; color:var(--text2);">
+    Clique em <b>Produtos / Planos</b> para carregar os dados da Kiwify.
+  </div>
+</div>
+
+<!-- ==================== AUDITORIA DAS AÇÕES MASTER ==================== -->
+<div class="table-wrap" style="margin-top: 24px;">
+  <div class="table-toolbar">
+    <h3><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">history</span> Auditoria do Painel Master</h3>
+    <div class="toolbar-right">
+      <button class="btn btn-secondary btn-sm" onclick="loadAdminAudit()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">sync</span> Atualizar</button>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Data/Hora</th>
+        <th>Mestre</th>
+        <th>Ação</th>
+        <th>Alvo</th>
+        <th>Resultado</th>
+      </tr>
+    </thead>
+    <tbody id="admin-audit-tbody">
+      <tr><td colspan="5">Clique em "Atualizar" para carregar o histórico.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal: upgrade / ajuste de plano -->
+<div id="modal-master-upgrade" class="modal-content-wrapper" style="display:none">
+  <h3>Upgrade / Ajuste de plano</h3>
+  <input type="hidden" id="mu-tenant-id">
+  <div id="mu-tenant-nome" style="font-size:12px; color:var(--text3); margin-bottom:12px;"></div>
+  <div class="form-group">
+    <label>Plano de destino</label>
+    <select id="mu-plano" class="form-control">
+      <option value="start">Start mensal — 2 obras / 2 usuários</option>
+      <option value="start_anual">Start anual — 2 obras / 2 usuários</option>
+      <option value="pro">Pro mensal — 5 obras / 5 usuários</option>
+      <option value="pro_anual">Pro anual — 5 obras / 5 usuários</option>
+      <option value="ilimitado">Ilimitado mensal — sem limites</option>
+      <option value="ilimitado_anual">Ilimitado anual — sem limites</option>
+      <option value="full_anual">Full anual — sem limites</option>
+      <option value="free_trial">Free Trial (teste)</option>
+    </select>
+  </div>
+  <div class="form-grid" style="grid-template-columns: repeat(2, 1fr); gap: 10px;">
+    <div class="form-group">
+      <label>Dias de validade</label>
+      <input type="number" id="mu-dias" class="form-control" min="1" max="3650" placeholder="Padrão do plano">
+    </div>
+    <div class="form-group">
+      <label>Limite de usuários (0 = padrão)</label>
+      <input type="number" id="mu-usuarios" class="form-control" min="0" max="9999" placeholder="Padrão do plano">
+    </div>
+  </div>
+  <p style="font-size:11px; color:var(--text3); margin:10px 0;">
+    <b>Aplicar agora</b> concede o plano diretamente no banco (útil em ajustes e cortesias).
+    <b>Abrir checkout</b> gera a cobrança na Kiwify com o tenant como <code>external_reference</code>.
+  </p>
+  <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+    <button class="btn btn-primary" onclick="masterApplyPlan()">Aplicar agora</button>
+    <button class="btn btn-secondary" onclick="masterOpenCheckout()">Abrir checkout Kiwify</button>
+    <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+  </div>
+</div>
+
+<!-- Modal: link de redefinição de senha -->
+<div id="modal-master-reset" class="modal-content-wrapper" style="display:none">
+  <h3>Redefinir senha</h3>
+  <div id="mr-email" style="font-size:12px; color:var(--text3); margin-bottom:10px;"></div>
+  <div class="form-group">
+    <label>Link de redefinição (válido por tempo limitado)</label>
+    <input type="text" id="mr-link" class="form-control" readonly style="font-size:11px;">
+  </div>
+  <p style="font-size:11px; color:var(--red, #ef4444);">
+    Este link dá acesso à conta. Trate como confidencial e entregue apenas ao titular.
+  </p>
+  <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+    <button class="btn btn-secondary" onclick="masterCopyResetLink()">Copiar link</button>
+    <button class="btn btn-secondary" onclick="masterSendResetEmail()">Enviar por e-mail</button>
+    <button class="btn btn-primary" onclick="closeModal()">Fechar</button>
+  </div>
 </div>

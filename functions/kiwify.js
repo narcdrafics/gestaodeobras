@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { planoPorProduto, MS_DIA } = require('./plan_catalog');
 
 /**
  * Valida a assinatura HMAC-SHA1 enviada pela Kiwify.
@@ -121,31 +122,17 @@ function mapProductToPlan(body) {
     body.Subscription?.plan?.frequency === 'yearly' ||
     body.Subscription?.charging_frequency === 'yearly';
 
-  const durationDays = isYearly ? 365 : 31;
-  const planoVencimento = Date.now() + (durationDays * 24 * 60 * 60 * 1000);
+  // Catálogo único com o painel master (functions/plan_catalog.js).
+  const escolhido = planoPorProduto(prodName, isYearly);
+  const planoVencimento = Date.now() + (escolhido.dias * MS_DIA);
 
-  if (prodName.includes('start')) {
-    return {
-      plano: isYearly ? 'start_anual' : 'start',
-      limites: { limiteObras: 2, limiteUsuarios: 2, limiteTrabalhadores: 9999 },
-      planoVencimento,
-      isYearly
-    };
-  }
-
-  if (prodName.includes('ilimitado') || prodName.includes('master')) {
-    return {
-      plano: isYearly ? 'full_anual' : 'ilimitado',
-      limites: { limiteObras: 9999, limiteUsuarios: 9999, limiteTrabalhadores: 9999 },
-      planoVencimento,
-      isYearly
-    };
-  }
-
-  // Padrão: Pro / Premium
   return {
-    plano: isYearly ? 'pro_anual' : 'pro',
-    limites: { limiteObras: 5, limiteUsuarios: 5, limiteTrabalhadores: 9999 },
+    plano: escolhido.id,
+    limites: {
+      limiteObras: escolhido.limites.obras,
+      limiteUsuarios: escolhido.limites.usuarios,
+      limiteTrabalhadores: escolhido.limites.trabalhadores
+    },
     planoVencimento,
     isYearly
   };

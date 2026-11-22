@@ -12,6 +12,16 @@ function hideLoginError() {
   errorEl.style.display = 'none';
 }
 
+// Encerra a sessão quando o Super Admin bloqueou a conta (perfil 'bloqueado'
+// ou passaporte global marcado). Usado no login e em sessões já abertas.
+async function encerrarSessaoBloqueada(mensagem) {
+  await firebase.auth().signOut().catch(() => { });
+  sessionStorage.removeItem('gestaoUser');
+  if (typeof showLoginError === 'function') showLoginError(mensagem);
+  else console.warn('[Auth] Sessão bloqueada:', mensagem);
+}
+window.encerrarSessaoBloqueada = encerrarSessaoBloqueada;
+
 // ================== RECUPERAÇÃO DE SENHA (LOGIN) ==================
 function abrirRecuperacaoSenha() {
   hideLoginError();
@@ -313,6 +323,17 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       return;
     }
 
+    // 2.6 Bloqueio determinado pelo Super Admin (também vale para o passaporte
+    // global quando a conta ainda não tem UID no Auth).
+    if (globalData && globalData.bloqueado) {
+      await encerrarSessaoBloqueada('Esta conta foi bloqueada pelo administrador da plataforma.');
+      return;
+    }
+    if (perfilAtual.status === 'bloqueado') {
+      await encerrarSessaoBloqueada('Esta conta foi bloqueada pelo administrador da plataforma.');
+      return;
+    }
+
     // 3. Validação Cross-Tenant (Segurança SaaS)
     if (CURRENT_TENANT_ID && userProfile.tenantId !== CURRENT_TENANT_ID && userProfile.role !== 'super_admin') {
       await firebase.auth().signOut();
@@ -394,6 +415,32 @@ function doLogout() {
 }
 
 let _isAuthListenerActive = false;
+let _profileStatusWatchUid = null;
+let _profileStatusRef = null;
+
+// Observa o status do perfil enquanto a sessão está aberta: um bloqueio feito
+// pelo Super Admin derruba a sessão imediatamente, sem depender de recarregar.
+function observarStatusPerfil(user) {
+  if (_profileStatusRef && (!user || _profileStatusWatchUid !== user.uid)) {
+    _profileStatusRef.off('value');
+    _profileStatusRef = null;
+    _profileStatusWatchUid = null;
+  }
+  if (!user || _profileStatusWatchUid === user.uid) return;
+
+  _profileStatusWatchUid = user.uid;
+  _profileStatusRef = firebase.database().ref(`profiles/${user.uid}/status`);
+  _profileStatusRef.on('value', (snap) => {
+    if (snap.val() !== 'bloqueado') return;
+    firebase.auth().signOut().catch(() => { });
+    sessionStorage.removeItem('gestaoUser');
+    if (!isLoginPage && !isAdminLoginPage) {
+      alert('Sua conta foi bloqueada pelo administrador da plataforma.');
+      window.location.href = 'login.html';
+    }
+  }, (err) => console.warn('[Auth] Não foi possível observar status do perfil:', err));
+}
+
 function checkAuth() {
   if (_isAuthListenerActive) return;
   _isAuthListenerActive = true;
@@ -405,10 +452,17 @@ function checkAuth() {
       await subdomainContextPromise;
     }
 
+    observarStatusPerfil(user);
+
     if (user) {
       const userStr = sessionStorage.getItem('gestaoUser');
       if (userStr && userStr !== 'undefined') {
         let sessionUser = JSON.parse(userStr);
+
+        if (sessionUser.status === 'bloqueado') {
+          await encerrarSessaoBloqueada('Esta conta foi bloqueada pelo administrador da plataforma.');
+          return;
+        }
 
         if (CURRENT_TENANT_ID && sessionUser.tenantId !== CURRENT_TENANT_ID && sessionUser.role !== 'super_admin') {
           const msg = `[Auth] Sessão inválida. Empresa da Sessão (${sessionUser.tenantId}) diferente da Empresa da URL (${CURRENT_TENANT_ID}).`;
@@ -434,6 +488,10 @@ function checkAuth() {
         const profileSnap = await firebase.database().ref(`profiles/${user.uid}`).once('value');
         const userProfile = profileSnap.val();
         if (userProfile) {
+          if (userProfile.status === 'bloqueado') {
+            await encerrarSessaoBloqueada('Esta conta foi bloqueada pelo administrador da plataforma.');
+            return;
+          }
           if (CURRENT_TENANT_ID && userProfile.tenantId !== CURRENT_TENANT_ID && userProfile.role !== 'super_admin') {
             alert(`[Auth] Reidratação falhou: Empresa incompatível.\nPerfil: ${userProfile.tenantId}\nDetectado URL: ${CURRENT_TENANT_ID}`);
             await firebase.auth().signOut();
