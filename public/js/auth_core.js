@@ -93,13 +93,24 @@ async function enviarLinkRecuperacao() {
   }
 }
 
+// Papel canônico do canteiro. `mestre` fica apenas como alias legado por um
+// release, para não quebrar sessões/claims antigos; registros novos usam
+// sempre `encarregado`.
+const ROLE_ENCARREGADO = 'encarregado';
+const ROLE_MESTRE_LEGADO = 'mestre';
+
+function normalizeRole(role) {
+  return role === ROLE_MESTRE_LEGADO ? ROLE_ENCARREGADO : (role || 'admin');
+}
+window.normalizeRole = normalizeRole;
+
 function normalizeUserRecord(user) {
   return {
     uid: user.uid,
     tenantId: user.tenantId,
     email: user.email,
     name: user.name || user.email,
-    role: user.role || 'admin'
+    role: normalizeRole(user.role)
   };
 }
 
@@ -527,7 +538,14 @@ function setRestrictions(user) {
     headerRight.appendChild(logoutBtn);
   }
 
-  const role = user.role || 'admin';
+  const role = normalizeRole(user.role);
+
+  // Aprovações: admin decide tudo; engenheiro acompanha/decide movimentações.
+  const navAprovacoes = document.getElementById('nav-aprovacoes');
+  if (navAprovacoes) {
+    navAprovacoes.style.display = (role === 'admin' || role === 'super_admin' || role === 'engenheiro') ? '' : 'none';
+  }
+
   if (role === 'admin' || role === 'super_admin') {
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
   }
@@ -549,7 +567,7 @@ function setRestrictions(user) {
   }
 
   let hidePages = [];
-  if (role === 'mestre') {
+  if (role === ROLE_ENCARREGADO) {
     hidePages = ['obras', 'estoque', 'compras', 'financeiro', 'orcamento'];
     const impBtn = document.getElementById('import-file');
     if (impBtn?.parentElement) impBtn.parentElement.style.display = 'none';
@@ -576,7 +594,7 @@ function setRestrictions(user) {
 
     if (activeUser.role === 'super_admin') {
       showPage('super_admin');
-    } else if (activeUser.role === 'mestre') {
+    } else if (normalizeRole(activeUser.role) === ROLE_ENCARREGADO) {
       showPage('hoje');
     } else {
       showPage('dashboard');
@@ -622,7 +640,7 @@ window.addEventListener('firebaseSync', (e) => {
     return;
   }
 
-  if ((stillExists.role || 'admin') !== (activeUser.role || 'admin')) {
+  if (normalizeRole(stillExists.role) !== normalizeRole(activeUser.role)) {
     alert(`[Sentinel] Alteração de cargo detectada no banco de dados.\nLocal: ${activeUser.role} -> DB: ${stillExists.role}.\nEfetuando logout para atualizar permissões.`);
     doLogout();
     return;

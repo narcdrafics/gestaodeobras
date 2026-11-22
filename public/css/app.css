@@ -386,6 +386,39 @@ tbody td { padding: 14px 20px; font-size: 14px; vertical-align: middle; }
 .badge-blue { background: rgba(59,130,246,.15); color: #38bdf8; }
 .badge-gray { background: rgba(100,116,139,.15); color: var(--text2); }
 
+/* APROVAÇÕES — badge do cabeçalho, tabela e modal de decisão */
+.header-badge-btn {
+  display: inline-flex; align-items: center; gap: 4px; margin-right: 8px;
+  cursor: pointer; border-color: var(--border);
+}
+.header-badge-btn .badge-count {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--orange); color: #fff; font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.ap-prazo-urgente { color: var(--red); font-weight: 700; }
+.aprovacao-detalhes {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 20px; padding: 4px 0 16px;
+}
+.aprovacao-linha { display: flex; flex-direction: column; gap: 3px; }
+.ap-label { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--text3); font-weight: 600; }
+.ap-valor { font-size: 14px; color: var(--text); word-break: break-word; }
+.aprovacao-payload-wrap { margin-top: 4px; }
+.ap-subtitle { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+.ap-payload {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; max-height: 220px; overflow: auto; margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px; line-height: 1.5; color: var(--text2); white-space: pre-wrap; word-break: break-word;
+}
+.ap-aviso {
+  margin-top: 14px; padding: 10px 12px; border-radius: 8px;
+  background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.3);
+  color: var(--text); font-size: 12px; line-height: 1.6;
+}
+.ap-checkbox { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-weight: 600; }
+
 /* FILTERS & TABS */
 .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
 .tab {
@@ -1190,4 +1223,56 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   box-shadow: 0 2px 8px rgba(0,0,0,.35);
 }
 [data-feature-locked="1"]:hover::after { transform: scale(1.08); }
+
+/* ==================== TAREFAS / DASHBOARD ==================== */
+
+/* Painel de tarefas atrasadas / do dia no dashboard */
+.dash-tarefas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; padding: 4px 0 8px; }
+.dash-tarefa-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--bg2); border: 1px solid var(--border); border-left: 3px solid var(--orange);
+  border-radius: 10px; padding: 12px 14px;
+}
+.dash-tarefa-item.atrasada { border-left-color: var(--red); }
+.dash-tarefa-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dash-tarefa-info b { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.dash-tarefa-info small { font-size: 11px; color: var(--text3); }
+
+/* Destaque de prazo nas tabelas e no kanban */
+tr.tarefa-atrasada { background: rgba(239,68,68,.06); }
+tr.tarefa-atrasada td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+tr.tarefa-hoje td:first-child { box-shadow: inset 3px 0 0 var(--orange); }
+.tarefa-atrasada-tag {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; color: var(--red);
+  background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.25);
+}
+.kanban-card.tarefa-atrasada { border-color: rgba(239,68,68,.5); }
+.kanban-card.tarefa-hoje { border-color: rgba(245,158,11,.5); }
+.kanban-card.dragging { opacity: .45; transform: rotate(-1deg); }
+.kanban-cards.drag-over { background: rgba(255,107,53,.06); outline: 2px dashed var(--accent); outline-offset: -6px; border-radius: 10px; }
+.kanban-card-actions { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+.tarefa-acoes { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.tarefas-check { font-size: 12px; color: var(--text2); display: inline-flex; align-items: center; gap: 5px; cursor: pointer; white-space: nowrap; }
+.tarefas-filtros .form-control { height: 34px; font-size: 12px; }
+
+/* Botão de texto (ex.: célula de tarefas do dashboard) */
+.link-btn {
+  background: none; border: none; padding: 0; margin: 0; cursor: pointer;
+  color: var(--accent); font: inherit; text-align: left; display: inline-flex; align-items: center; gap: 6px;
+}
+.link-btn:hover { text-decoration: underline; }
+
+/* Toast com ação de desfazer */
+.toast-undo { gap: 12px; }
+.toast-undo-btn {
+  margin-left: auto; background: none; border: 1px solid var(--border); color: var(--accent);
+  border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.toast-undo-btn:hover { background: rgba(255,107,53,.1); }
+
+@media (max-width: 768px) {
+  .dash-tarefas-grid { grid-template-columns: 1fr; }
+  .tarefas-filtros { justify-content: flex-start !important; }
+}
 

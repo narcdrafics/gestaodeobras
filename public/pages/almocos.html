@@ -1,31 +1,56 @@
 <div class="page-header" style="flex-wrap:wrap;gap:8px;">
   <div class="page-title">Gestão de Almoços <small>Refeições Custeadas</small></div>
+  <button class="btn btn-primary" onclick="openModal('modal-almoco')">+ Novo</button>
 </div>
 
-<!-- Resumo do Dia/Semana -->
+<!-- Resumo da semana navegada -->
 <div class="kpi-grid" id="almocos-kpi" style="margin-bottom: 24px;"></div>
+
+<!-- Quadro semanal (mesma usabilidade de Presença) -->
+<div class="table-wrap" style="margin-bottom: 24px;">
+  <div class="table-toolbar">
+    <h3 style="margin:0"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">calendar_today</span> Quadro Semanal de Almoços</h3>
+    <div class="toolbar-right" style="display:flex;flex-wrap:wrap;gap:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="changeAlmocoWeek(-1)"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">arrow_back_ios</span> Semana Anterior</button>
+      <button class="btn btn-secondary btn-sm" onclick="changeAlmocoWeek(1)">Próxima Semana <span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">arrow_forward_ios</span></button>
+      <button class="btn btn-primary btn-sm" onclick="fecharSemanaAlmocos()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">payments</span> Fechamento Semana</button>
+    </div>
+  </div>
+  <div id="almoco-quadro-semanal" style="overflow-x: auto; padding: 10px;">
+    <!-- Renderizado via renderQuadroAlmocos() -->
+  </div>
+</div>
 
 <!-- Lançamento e Listagem Geral -->
 <div class="table-wrap">
   <div class="table-toolbar" style="flex-wrap:wrap;gap:8px;">
     <h3 style="margin:0">Lançamentos de Almoço</h3>
     <div class="toolbar-right" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-      <button class="btn btn-primary" onclick="openModal('modal-almoco')">+ Novo</button>
-      <input class="search-input" id="almoco-busca" placeholder="Buscar por data, obra ou empreiteiro..." style="min-width:180px"
-        oninput="renderAlmocos()">
+      <input class="search-input" id="almoco-busca" placeholder="Nome, obra ou data..." style="min-width:180px"
+        oninput="filterAlmoco(this.value)">
+      <select id="almoco-group-select" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px" onchange="renderAlmocos()">
+        <option value="empreiteiro" selected>Por Empreiteiro</option>
+        <option value="obra">Por Obra</option>
+        <option value="">Lista Plana</option>
+      </select>
+      <select id="almoco-sort-select" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px" onchange="renderAlmocos()">
+        <option value="data_desc">Mais Recentes</option>
+        <option value="data_asc">Mais Antigas</option>
+      </select>
     </div>
   </div>
-  
+
   <div class="table-responsive">
     <table>
       <thead>
         <tr>
-          <th>Data</th>
-          <th>Obra</th>
+          <th>Data / Obra</th>
           <th>Colaborador / Empreiteiro</th>
           <th>Quantidade</th>
           <th>Valor Unit.</th>
           <th>Total</th>
+          <th>Status Pgto</th>
+          <th>Pago</th>
           <th>Ações</th>
         </tr>
       </thead>
@@ -44,6 +69,54 @@
   <div id="almocos-resumo" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
 </div>
 
+<div class="table-wrap" style="margin-top:12px">
+  <div class="table-toolbar">
+    <h3 style="margin:0"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">handyman</span> Fechamento — Por Empreiteiro/Trabalhador (qtd + custo)</h3>
+  </div>
+  <div id="almocos-empreiteiro" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+</div>
+
+<div class="table-wrap" style="margin-top:12px">
+  <div class="table-toolbar">
+    <h3 style="margin:0"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">warning</span> Pagamentos Pendentes (Semana por Obra)</h3>
+  </div>
+  <div id="almocos-pgto-pendentes" style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+</div>
+
 <style>
-/* CSS adicional para cards de almoço, se necessário */
+/* Quadro de Almoços — espelha .presence-board (sticky + responsividade) */
+.almoco-board { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 600px; }
+.almoco-board th, .almoco-board td { border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); padding: 8px 4px; text-align: center; vertical-align: middle; }
+.almoco-board th { border-top: 1px solid var(--border); background: var(--bg2); }
+.almoco-board th:first-child, .almoco-board td:first-child { border-left: 1px solid var(--border); }
+.almoco-board th.worker-info, .almoco-board td.worker-info {
+  text-align: left; position: sticky; left: 0; background: var(--bg); z-index: 2;
+  min-width: 140px; max-width: 200px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; border-right: 2px solid var(--accent);
+}
+.almoco-board th.worker-info { background: var(--bg2); z-index: 3; }
+.almoco-cell {
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+  width: 100%; height: 100%; min-height: 44px; cursor: pointer;
+  border-radius: 6px; transition: background 0.2s;
+}
+.almoco-cell:hover { background: var(--bg2); box-shadow: inset 0 0 0 1px var(--accent); }
+.almoco-icon { font-size: 20px; line-height: 1; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1)); }
+.almoco-icon.none { opacity: 0.2; font-size: 12px; }
+.almoco-cell small { font-size: 10px; color: var(--text3); line-height: 1.2; }
+.group-header td { background: var(--bg2); font-weight: 600; font-size: 12px; color: var(--text2); letter-spacing: .3px; }
+
+@media (max-width: 767px) {
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .toolbar-right { width: 100%; }
+  .toolbar-right .search-input { width: 100% !important; }
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #almocos-resumo, #almocos-empreiteiro, #almocos-pgto-pendentes { grid-template-columns: 1fr 1fr; }
+  .almoco-board th, .almoco-board td { padding: 8px 2px; }
+  .almoco-board th.worker-info, .almoco-board td.worker-info { min-width: 110px; font-size: 13px; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+@media (max-width: 480px) {
+  #almocos-resumo, #almocos-empreiteiro, #almocos-pgto-pendentes { grid-template-columns: 1fr; }
+}
 </style>

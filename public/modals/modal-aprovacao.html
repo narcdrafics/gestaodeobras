@@ -1,0 +1,40 @@
+<div class="modal-header">
+  <span class="modal-title"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">approval</span>Analisar Solicitação</span>
+  <button class="modal-close" onclick="closeModal('modal-aprovacao')"><span class="material-symbols-outlined md-18">close</span></button>
+</div>
+
+<div class="aprovacao-detalhes">
+  <div class="aprovacao-linha"><span class="ap-label">ID</span><span class="ap-valor" id="ap-id">—</span></div>
+  <div class="aprovacao-linha"><span class="ap-label">Tipo</span><span class="ap-valor" id="ap-tipo">—</span></div>
+  <div class="aprovacao-linha"><span class="ap-label">Descrição</span><span class="ap-valor" id="ap-desc">—</span></div>
+  <div class="aprovacao-linha"><span class="ap-label">Solicitado por</span><span class="ap-valor" id="ap-solicitante">—</span></div>
+  <div class="aprovacao-linha"><span class="ap-label">Solicitado em</span><span class="ap-valor" id="ap-criado">—</span></div>
+  <div class="aprovacao-linha"><span class="ap-label">Prazo</span><span class="ap-valor" id="ap-prazo">—</span></div>
+  <div class="aprovacao-linha"><span class="ap-label">Status</span><span class="ap-valor" id="ap-status">—</span></div>
+  <div class="aprovacao-linha" id="ap-motivo-linha"><span class="ap-label">Motivo / decisão</span><span class="ap-valor" id="ap-motivo-decisao">—</span></div>
+</div>
+
+<div class="aprovacao-payload-wrap">
+  <div class="ap-subtitle">Dados da solicitação</div>
+  <pre class="ap-payload" id="ap-payload">{}</pre>
+</div>
+
+<div class="ap-aviso" id="ap-aviso-engenheiro" style="display:none">
+  <span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">info</span>
+  Como Engenheiro você pode aceitar solicitações de material/ferramenta. O administrador será avisado automaticamente.
+  <label class="ap-checkbox"><input type="checkbox" id="ap-notificar" checked> Confirmar aviso ao administrador</label>
+</div>
+
+<div class="form-group form-full" id="ap-motivo-grp" style="display:none">
+  <label class="form-label">Motivo da rejeição *</label>
+  <textarea class="form-control" id="ap-motivo" rows="2" placeholder="Explique por que a solicitação foi rejeitada"></textarea>
+</div>
+
+<div class="modal-footer" id="ap-acoes" style="display:none">
+  <button class="btn btn-secondary" onclick="closeModal('modal-aprovacao')">Fechar</button>
+  <button class="btn btn-danger" onclick="decidirAprovacao(document.getElementById('ap-id').textContent, 'rejeitado')">Rejeitar</button>
+  <button class="btn btn-primary" onclick="decidirAprovacao(document.getElementById('ap-id').textContent, 'aprovado')">Aprovar</button>
+</div>
+<div class="modal-footer" id="ap-acoes-leitura">
+  <button class="btn btn-secondary" onclick="closeModal('modal-aprovacao')">Fechar</button>
+</div>

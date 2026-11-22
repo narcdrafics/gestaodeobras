@@ -1,7 +1,18 @@
 # TODO — Perfis de Acesso: Encarregado de Obra e Engenheiro (com aprovação do administrador)
 
-**Status:** planejado — não implementado
+**Status:** em implementação — Fases 1, 2 e 3a/3b/3c (regras, backend e UI de aprovações) concluídas
 **Atualizado em:** 2026-11-22
+
+## Progresso da implementação
+
+- [x] **Fase 1 — papel `encarregado`:** modal de usuário, normalização de sessão/claims, restrições de navegação, alertas e dashboard; `mestre` permanece apenas como alias legado. Cobertura em `tests/roles-encarregado.test.js`.
+- [x] **Fase 2 — tarefas e dashboard:** filtros (obra/status/prioridade/responsável/vencidas/minhas/ordem), busca com debounce, KPI de atrasadas, ações rápidas com desfazer, kanban arrastável, alertas agrupados e painel dedicado no dashboard; `renderHoje()` também mostra atrasadas. Cobertura em `tests/tarefas-dashboard.test.js`.
+- [x] **Fase 3a — regras de segurança e gravação role-aware:** `database.rules.json` cobre a matriz de papéis, criação/decisão de `aprovacoes` e nós sensíveis; `buildCloudUpdate()`/`persistDB()` usam allow-list por papel e o backup local remove campos comerciais de compras. Cobertura em `tests/security/rules.test.js` e `tests/persistDB-roles.test.js`.
+- [x] **Fase 3b — backend de aprovações (sem deploy):** `functions/aprovacoes.js` aplica os 8 tipos com reserva idempotente + update atômico, auditoria, notificações e separação de `comprasPrivadas`; `functions/index.js` expõe o trigger e o job diário de 7/12/15 dias. Cobertura em `tests/aprovacoes.test.js` e `tests/aprovacoes-expiracao.test.js`.
+- [x] **Fase 3c — UI de aprovações (sem deploy):** página e modal de decisão, badge de pendências/notificações, filtros por status/tipo, e desvio dos fluxos sensíveis (`movimentacao_estoque`, trabalhadores, financeiro, compras, orçamento e medição com valor) para `window.solicitarAprovacao()`. Cache-bust `v=20261122005`. Cobertura em `tests/aprovacoes-ui.test.js`.
+- [x] **Fase 3d — segregação de compras (sem deploy):** módulo `public/js/compras_ui.js` com `comprasPrivadas/{tenantId}/{id}`; engenheiro/encarregado não veem fornecedor, PIX, unitário, total, orçado nem prazo — só quantidade, material, recebimento, conferência, status e evidência. `saveCompra()` grava o público via `persistDB()` e o sensível no nó privado; `editCompra()` hidrata pelo dado privado. Cache-bust `v=20261122005`. Cobertura em `tests/compras-segregacao.test.js`.
+- [x] **Fase 3e — usabilidade dos almoços (sem deploy):** quadro semanal navegável (`changeAlmocoWeek`), clique na célula com pré-preenchimento (`openAlmocoModal`), busca/grupo/ordenação (`filterAlmoco`), KPIs pela semana navegada e três fechamentos (obra, empreiteiro, pendências) + fechamento em lote. CSS responsivo espelhando Presença. Cache-bust `v=20261122006`. Cobertura em `tests/almocos-usabilidade.test.js`.
+- [ ] **Deploy (bloqueado):** aguardar autorização explícita antes de publicar functions/hosting/rules.
 
 ## Objetivo
 
@@ -42,7 +53,11 @@ Criar dois perfis com atuação no canteiro, sem poder alterar dados sensíveis 
 
 ### 1.2 Pendências
 
-- [ ] **Nome do papel do setor de compras:** `comprador` ou `almoxarife`? Recomendação: `comprador` para o setor de compras e, se necessário depois, `almoxarife` para conferência/recebimento no almoxarifado.
+- [x] **Nome do papel do setor de compras:** confirmado **`comprador`**. `almoxarife` poderá ser adicionado depois apenas para conferência/recebimento, se houver necessidade. Implementação de claims/UI na fatia de compras.
+
+### 1.3 Topologia dos dados sensíveis (decisão técnica)
+
+- [x] **`comprasPrivadas`, `auditoria` e `notificacoes` ficam FORA de `tenants/{tenantId}`.** No Realtime Database, `.read`/`.write` de um nó pai **não podem ser revogados por filho**: como o app precisa ler o tenant inteiro, manter esses dados dentro dele os exporia a qualquer membro. Eles ficam em nós raiz `comprasPrivadas/{tenantId}`, `auditoria/{tenantId}` e `notificacoes/{tenantId}`, com regras próprias. `aprovacoes` permanece em `tenants/{tenantId}/aprovacoes/{id}` porque precisa ser gravada diretamente pelo solicitante/decisor e lida pelo painel do tenant.
 
 ---
 
@@ -190,12 +205,12 @@ tenants/{tenantId}/auditoria/{id}
 
 ### 3.4 UX
 
-- [ ] `public/js/app_core.js`: nos fluxos de material/ferramenta (**Encarregado e Engenheiro**), trabalhador (`encarregado`) e empreitadas/aditivos/financeiro/compras/medição (`engenheiro`), montar a solicitação em vez de chamar `persistDB()`/escrever direto.
-- [ ] Registro de obra (ponto, fotos, tarefas): manter escrita direta dos dois papéis, **sem** botão de aprovação — apenas auditoria.
-- [ ] Toast de confirmação: "Solicitação enviada para aprovação." e bloquear reenvio duplicado.
+- [x] `public/js/app_core.js`: nos fluxos de material/ferramenta (**Encarregado e Engenheiro**), trabalhador (`encarregado`) e empreitadas/aditivos/financeiro/compras/medição (`engenheiro`), montar a solicitação em vez de chamar `persistDB()`/escrever direto.
+- [x] Registro de obra (ponto, fotos, tarefas): manter escrita direta dos dois papéis, **sem** botão de aprovação — apenas auditoria.
+- [x] Toast de confirmação: "Solicitação enviada para aprovação!" e bloqueio de reenvio duplicado (mesma solicitação pendente em até 60s).
 - [ ] Badge de aprovações pendentes no cabeçalho (`setRestrictions()` em `auth_core.js`): admin vê todas; Encarregado e Engenheiro veem o status das próprias solicitações; **Engenheiro também vê solicitações de material/ferramenta aguardando decisão**. Mostrar "Expira em X dias", destaque nos últimos 3 dias e "Expirada — recriar" quando `status === 'expirado'`.
 - [ ] `public/pages/admin.html`: painel "Aprovações pendentes" com resumo, solicitante, data e botões Aprovar/Rejeitar; aviso destacado quando a decisão foi do Engenheiro ("Aprovado/Rejeitado por Engenheiro — admin informado").
-- [ ] `public/modals/modal-aprovacao.html`: detalhes da operação (o que muda, antes/depois), data de expiração e campo de motivo para rejeição; para `engenheiro`, habilitar Aprovar/Rejeitar somente em `movimentacao_estoque`; expirada: botões desabilitados e opção de recriar.
+- [x] `public/modals/modal-aprovacao.html`: detalhes da operação (payload), data de expiração e campo de motivo para rejeição; para `engenheiro`, habilitar Aprovar/Rejeitar somente em `movimentacao_estoque`, com aviso obrigatório ao admin.
 - [ ] `public/modals/modal-financeiro.html` e `saveFinanceiro()` (`app_core.js`): para `engenheiro`, travar `fn-status` em `Pendente`, `fn-valpago = 0`, desabilitar edição de `fn-real`/`fn-pgto` após envio e transformar "Salvar" em "Enviar para aprovação".
 - [ ] `public/pages/financeiro.html`: para `engenheiro`, mostrar coluna "Aprovação" (Aguardando/Aprovado/Rejeitado), esconder dados de PIX/banco e desabilitar ações de editar/excluir lançamentos já aprovados.
 - [ ] `setRestrictions()` (`auth_core.js`): liberar `financeiro`, `orcamento` (empreitadas), `medicao`, `relatorios`, `estoque`/`movEstoque` e `compras` para `engenheiro` no modo de leitura/solicitação/aceite de materiais, mantendo `usuarios` e Administração ocultos. Separar visualmente "Empreitadas/Aditivos" de "Compras" na navegação.
@@ -211,14 +226,14 @@ tenants/{tenantId}/auditoria/{id}
 
 **Situação atual:** `public/pages/almocos.html` já tem KPIs, busca simples (`almoco-busca` → `renderAlmocos()` com `JSON.stringify(a).includes(q)`), tabela plana e "Resumo Semanal por Obra". Falta o que `presenca.html` já oferece: quadro semanal navegável, lançamento por clique na célula, agrupamento/ordenação e fechamentos por trabalhador/pagamento pendente.
 
-- [ ] **Quadro semanal de almoços:** novo `almoco-quadro-semanal` com botões "Semana Anterior"/"Próxima Semana" (`changeAlmocoWeek`, análogo a `changeWeek`), colunas Seg–Dom e primeira coluna fixa (sticky) com trabalhador/equipe.
-- [ ] Célula clicável com ícone de status (sem registro / lançado / pago) abrindo `modal-almoco` já com data + empreiteiro preenchidos (`openAlmocoModal(cod, data, idx)`, análogo a `openPresenceModal`).
-- [ ] **Filtros da lista:** `filterAlmoco()` (como `filterPresenca()`), selects `almoco-group-select` (Por Empreiteiro / Por Obra / Lista Plana) e `almoco-sort-select` (Mais Recentes / Mais Antigas), substituindo a busca por `JSON.stringify` — mesma toolbar de `presenca.html`.
-- [ ] **Fechamentos:** manter "Resumo Semanal por Obra" e adicionar "Fechamento — Por Empreiteiro/Trabalhador (qtd + custo)" e "Pagamentos Pendentes (semana por obra)", espelhando `pres-totais`, `pres-empreitada` e `pres-pgto-pendentes`.
-- [ ] **Fechamento Semana:** se fizer sentido, ação em lote análoga a `prepareLotePgto('semana')` usando `al-status`/`al-valpago` dos almoços.
+- [x] **Quadro semanal de almoços:** novo `almoco-quadro-semanal` com botões "Semana Anterior"/"Próxima Semana" (`changeAlmocoWeek`, análogo a `changeWeek`), colunas Seg–Dom e primeira coluna fixa (sticky) com trabalhador/equipe.
+- [x] Célula clicável com ícone de status (sem registro / lançado / pago) abrindo `modal-almoco` já com data + empreiteiro preenchidos (`openAlmocoModal(cod, data, idx)`, análogo a `openPresenceModal`).
+- [x] **Filtros da lista:** `filterAlmoco()` (como `filterPresenca()`), selects `almoco-group-select` (Por Empreiteiro / Por Obra / Lista Plana) e `almoco-sort-select` (Mais Recentes / Mais Antigas), substituindo a busca por `JSON.stringify` — mesma toolbar de `presenca.html`.
+- [x] **Fechamentos:** manter "Resumo Semanal por Obra" e adicionar "Fechamento — Por Empreiteiro/Trabalhador (qtd + custo)" e "Pagamentos Pendentes (semana por obra)", espelhando `pres-totais`, `pres-empreitada` e `pres-pgto-pendentes`.
+- [x] **Fechamento Semana:** ação em lote `fecharSemanaAlmocos()` análoga a `prepareLotePgto('semana')`, marcando `pgtoStatus = 'Pago'` e `valpago = vtotal` dos pendentes da semana navegada, com confirmação.
 - [ ] **Modal/fluxo:** preservar modos Individual/Em Lote, "Marcar Todos", "Salvar e Próximo" e o **cabeçalho padrão** do modal; o clique no quadro abre em modo individual e a validação de duplicidade (data + empreiteiro + obra) continua em `saveAlmoco()`.
-- [ ] **Responsividade:** reaproveitar o CSS de `presenca.html` (`.presence-board`, coluna sticky, media queries 767px/480px) com classes `almoco-*` ou compartilhadas; KPIs do dia/semana devem acompanhar a semana navegada.
-- [ ] Permissões: quadro e lançamento disponíveis para `encarregado` e `engenheiro` (registro de obra/ponto), sem alterar as regras de papel já definidas para valores/pagamento.
+- [x] **Responsividade:** CSS `.almoco-board` espelhando `.presence-board` (coluna sticky, media queries 767px/480px); KPIs da semana acompanham a navegação.
+- [x] Permissões: quadro e lançamento disponíveis para `encarregado` e `engenheiro` (registro de obra/ponto), sem alterar as regras de papel já definidas para valores/pagamento.
 
 ### 3.6 Tarefas — eficiência e presença no Dashboard
 
@@ -231,14 +246,14 @@ tenants/{tenantId}/auditoria/{id}
 
 **Alvo:**
 
-- [ ] Filtros na toolbar: obra, **status**, prioridade, responsável, "Só vencidas", "Minhas tarefas" e botão "Limpar filtros"; manter filtros ao alternar Tabela/Quadro.
-- [ ] Ordenação por prazo/prioridade/status e agrupamento opcional por obra ou responsável.
-- [ ] Ações rápidas: checkbox "Concluir" e botão "Iniciar" na linha; no kanban, **drag-and-drop** entre colunas e "+ Nova" por coluna; toast com desfazer. Evitar re-render completo a cada tecla (debounce na busca).
-- [ ] Destaque visual: vermelho para `prazo < hoje && status !== 'Concluída'` e laranja para "vence hoje". Calcular `Atrasada` em tempo de leitura, sem depender de gravação manual do status.
-- [ ] **Dashboard:** adicionar KPI "Tarefas pendentes/atrasadas" e painel "Tarefas do dia e atrasadas" (até 5 itens: descrição, obra, responsável, prazo, botão "Concluir" e link "Ver todas" → `showPage('tarefas')` com filtro aplicado).
-- [ ] Coluna "Tarefas" do resumo por obra passa a ser clicável e abre `tarefas.html` já filtrada por aquela obra.
-- [ ] Alertas de tarefa no `calcAlertas()`: prioridade alta, agrupados ("N tarefas atrasadas") e com reserva de slots para não serem engolidos pelo limite de 8 alertas.
-- [ ] `renderHoje()`: incluir também tarefas **atrasadas**, não só as de hoje.
+- [x] Filtros na toolbar: obra, **status**, prioridade, responsável, "Só vencidas", "Minhas tarefas" e botão "Limpar filtros"; manter filtros ao alternar Tabela/Quadro.
+- [x] Ordenação por prazo/prioridade/status/recentes (agrupamento opcional por obra ou responsável fica para uma fatia posterior).
+- [x] Ações rápidas: "Concluir/Reabrir" e "Iniciar" na linha; no kanban, **drag-and-drop** entre colunas e "+ Nova" por coluna; toast com desfazer. Busca com debounce (220 ms).
+- [x] Destaque visual: vermelho para `prazo < hoje && status !== 'Concluída'` e laranja para "vence hoje". `Atrasada` calculada em tempo de leitura (`tarefaTaAtrasada` / `tarefaStatusEfetivo`), sem depender de gravação manual do status.
+- [x] **Dashboard:** KPIs "Tarefas Abertas"/"Tarefas Atrasadas" e painel "Tarefas Atrasadas / Para Hoje" (até 5 itens: descrição, obra, responsável, prazo, botão "Concluir" e link "Ver todas" → `showPage('tarefas')` com filtro aplicado).
+- [x] Coluna "Tarefas" do resumo por obra passa a ser clicável e abre `tarefas.html` já filtrada por aquela obra.
+- [x] Alertas de tarefa no `calcAlertas()`: prioridade alta, agrupados ("N tarefa(s) atrasada(s)") e com reserva de slots para não serem engolidos pelo limite de 8 alertas.
+- [x] `renderHoje()`: incluir também tarefas **atrasadas**, não só as de hoje.
 - [ ] Garantir que tarefas sem `obra` ou sem `prazo` apareçam no painel como "Geral"/"Sem prazo" (ou serem exigidas no `saveTarefa()`), para não desaparecerem do dashboard.
 - [ ] Permissões: `encarregado` vê/conclui tarefas do dia (registro de obra, sem aprovação); `engenheiro` cria/edita. Atualizar os checks de role em `calcAlertas()`/`renderDashboard()` que hoje usam apenas `mestre`/`engenheiro`.
 
@@ -253,37 +268,37 @@ tenants/{tenantId}/auditoria/{id}
 - [ ] `public/modals/modal-financeiro.html` — modo "Enviar para aprovação" para `engenheiro`.
 - [ ] `public/pages/financeiro.html` — status de aprovação e ocultação de dados sensíveis.
 - [ ] `public/pages/admin.html` — tabela de aprovações pendentes + badge de notificações de decisões tomadas pelo Engenheiro.
-- [ ] `public/modals/modal-aprovacao.html` (novo) — revisão da solicitação, com restrição de `tipo` para `engenheiro`.
+- [x] `public/modals/modal-aprovacao.html` (novo) — revisão da solicitação, com restrição de `tipo` para `engenheiro`.
 - [ ] `public/pages/orcamento.html`, `public/pages/financeiro.html` e `public/pages/compras.html` — separar claramente Empreitadas/Aditivos de Compras (títulos, filtros e na navegação).
-- [ ] `public/modals/modal-compra.html` — esconder campos sensíveis por papel, manter cabeçalho padrão e botão "Ver evidência".
-- [ ] `public/js/app_core.js` — `saveCompra()`/`editCompra()`/`renderCompras()` role-aware; corrigir total de colunas e vincular `evidenciaId`/`fotoIds`.
-- [ ] `public/pages/compras.html` — alinhar `<th>` com `<td>`, coluna "Recebido?" (`receb` + `conf`), sem valores/fornecedor/prazo para `engenheiro`/`encarregado`.
+- [x] `public/modals/modal-compra.html` — campos sensíveis escondidos por papel (`prepareModalCompra`), cabeçalho padrão mantido; evidência acessível pela tabela (`verEvidenciaCompra`).
+- [x] `public/js/app_core.js` — `saveCompra()`/`editCompra()`/`renderCompras()` role-aware, colunas alinhadas pela mesma lista e ação de evidência na linha.
+- [x] `public/pages/compras.html` — `<thead id="compras-head">` dinâmico, colunas "Recebido?" / "Conferido?" / "Evidência", sem valores/fornecedor/prazo para `engenheiro`/`encarregado`.
 - [ ] `public/pages/fotos.html` — filtro/parâmetro por obra/etapa para abrir a evidência vinculada à compra (ou `public/pages/evidencias.html` novo, se criado).
-- [ ] `public/pages/almocos.html` — quadro semanal navegável, toolbar com busca/grupo/ordenação iguais a `presenca.html`, fechamentos por empreiteiro e pagamentos pendentes, CSS responsivo.
-- [ ] `public/js/app_core.js` — `changeAlmocoWeek()`, `renderQuadroAlmocos()`, `openAlmocoModal()`, `filterAlmoco()` e KPIs por semana; `renderAlmocos()` passa a respeitar grupo/ordenação.
-- [ ] `public/pages/tarefas.html` — toolbar com filtros (status, prioridade, responsável, vencidas, minhas), botão limpar e opções de ordenação/agrupamento; ações rápidas e "+ Nova" por coluna no kanban.
-- [ ] `public/js/app_core.js` — `renderTarefas()` com filtros/ordenação/agrupamento e ações rápidas; `renderDashboard()` com KPI e painel de tarefas, coluna clicável; `renderHoje()` inclui atrasadas; `setTaskView()` preserva filtros.
-- [ ] `public/js/utils.module.js` — `calcAlertas()`: tarefas atrasadas agrupadas, prioridade alta e slots reservados; expor dados para o painel do dashboard.
-- [ ] `public/css/app.css` — estilos do badge e da tabela de aprovações, do painel de tarefas do dashboard, dos destaques de atraso/vence hoje e do drag-and-drop do kanban.
-- [ ] `public/app.html` — bump de cache-busting dos JS/CSS alterados.
+- [x] `public/pages/almocos.html` — quadro semanal navegável, toolbar com busca/grupo/ordenação iguais a `presenca.html`, fechamentos por empreiteiro e pagamentos pendentes, CSS responsivo.
+- [x] `public/js/app_core.js` — `changeAlmocoWeek()`, `renderQuadroAlmocos()`, `openAlmocoModal()`, `filterAlmoco()` e KPIs por semana; `renderAlmocos()` passa a respeitar grupo/ordenação.
+- [x] `public/pages/tarefas.html` — toolbar com filtros (status, prioridade, responsável, vencidas, minhas), botão limpar e ordenação; ações rápidas e "+ Nova" por coluna no kanban.
+- [x] `public/js/app_core.js` — `renderTarefas()` com filtros/ordenação e ações rápidas; `renderDashboard()` com KPI e painel de tarefas, coluna clicável; `renderHoje()` inclui atrasadas; `setTaskView()` preserva filtros.
+- [x] `public/js/utils.module.js` — `calcAlertas()`: tarefas atrasadas agrupadas, prioridade alta e slots reservados; `calcTarefasResumo()` exposto para o painel do dashboard.
+- [x] `public/css/app.css` — estilos do painel de tarefas do dashboard, dos destaques de atraso/vence hoje, do toast com desfazer e do drag-and-drop do kanban (badge/tabela de aprovações ficam para a fatia de aprovações).
+- [x] `public/app.html` — bump de cache-busting dos JS/CSS alterados (`v=20261122006`) e `HTML_CACHE_VERSION` atualizado para `20261122006` (páginas/modais carregados via fetch).
 
 ### Backend
-- [ ] `database.rules.json` — nós `aprovacoes`, `auditoria`, `notificacoes`, `comprasPrivadas` e checagem de `role` nos nós bloqueados (incluir `financeiro`, `orcamento`, `compras`, `medicao` para `engenheiro`; permitir `engenheiro` decidir apenas `movimentacao_estoque`; negar leitura de campos comerciais a `engenheiro`/`encarregado`).
-- [ ] `functions/aprovacoes.js` (novo) — aplicação das aprovações (todos os `tipo` listados), auditoria e notificação in-app ao admin quando o Engenheiro decide.
-- [ ] `functions/index.js` — export da function de aplicação e do job diário de alertas/expiração.
-- [ ] `functions/index.js` (`syncCustomClaims`) — papel canônico `encarregado`, `mestre` como alias legado por um release, `engenheiro` e (quando criado) `comprador`/`almoxarife`; impedir escalada para admin.
-- [ ] `firebase.json` — rewrite somente se a decisão for via HTTPS chamável (com trigger não é necessário).
+- [x] `database.rules.json` — nós `aprovacoes`, `auditoria`, `notificacoes`, `comprasPrivadas` e checagem de `role` nos nós bloqueados (incluir `financeiro`, `orcamento`, `compras`, `medicao` para `engenheiro`; permitir `engenheiro` decidir apenas `movimentacao_estoque`; negar leitura de campos comerciais a `engenheiro`/`encarregado`). Nota: os três últimos são nós-raiz, não filhos do tenant (§1.3).
+- [x] `functions/aprovacoes.js` (novo) — aplicação das aprovações (todos os `tipo` listados), auditoria e notificação in-app ao admin quando o Engenheiro decide.
+- [x] `functions/index.js` — export da function de aplicação (`aplicarAprovacao`) e do job diário de alertas/expiração (`aprovacoesPrazosJob`).
+- [x] `functions/index.js` (`syncCustomClaims`) — papel canônico `encarregado`, `mestre` como alias legado por um release e `engenheiro`; impedir escalada para admin. `comprador`/`almoxarife` ficam para quando o nome for decidido.
+- [x] `firebase.json` — nenhum rewrite necessário: criação e decisão usam escrita direta no RTDB e o trigger `onValueWritten` faz a aplicação no servidor.
 
 ### Testes e documentação
-- [ ] `tests/security/rules.test.js` — negar escrita direta de `encarregado` em estoque/trabalhadores e de `engenheiro` em financeiro/orçamento/compras; permitir ambos criarem `aprovacoes` pendentes; admin decide qualquer `tipo`; `engenheiro` decide apenas `movimentacao_estoque` e é obrigado a sinalizar `notificarAdmin`.
-- [ ] `tests/aprovacoes.test.js` (novo) — transição de status, idempotência, aplicação e auditoria para todos os tipos, inclusive `financeiro_status` e aceite de `movimentacao_estoque` pelo Engenheiro com notificação ao admin.
-- [ ] `tests/aprovacoes-expiracao.test.js` (novo) — alertas em 7/12 dias, expiração em 15 dias, idempotência dos alertas, bloqueio de aplicação após expiração e não escalada de cargo via `mestre`/`encarregado`.
+- [x] `tests/security/rules.test.js` — negar escrita direta de `encarregado` em estoque/trabalhadores e de `engenheiro` em financeiro/orçamento/compras; permitir ambos criarem `aprovacoes` pendentes; admin decide qualquer `tipo`; `engenheiro` decide apenas `movimentacao_estoque` e é obrigado a sinalizar `notificarAdmin`. Cobertura também em `tests/persistDB-roles.test.js`.
+- [x] `tests/aprovacoes.test.js` (novo) — transição de status, idempotência, aplicação e auditoria para todos os tipos, inclusive `financeiro_status` e aceite de `movimentacao_estoque` pelo Engenheiro com notificação ao admin.
+- [x] `tests/aprovacoes-expiracao.test.js` (novo) — alertas em 7/12 dias, expiração em 15 dias, idempotência dos alertas, bloqueio de aplicação após expiração e não escalada de cargo via `mestre`/`encarregado`.
 - [ ] `tests/dominios-separados.test.js` (novo) — empreitadas/aditivos (`orcamento` + `financeiro`) não aparecem como compras e vice-versa; solicitação de material/ferramenta aceita pelos dois papéis e decidida pelo Engenheiro.
 - [ ] `tests/financeiro-aprovacao.test.js` (novo) — Engenheiro não grava em `financeiro`; status enviado é sempre `Pendente`; `valpago` só muda após aprovação; revalidação das regras de integridade na Function.
-- [ ] `tests/compras-segregacao.test.js` (novo) — formulário/tabela sem campos sensíveis para `engenheiro`/`encarregado`; `saveCompra()` não persiste valores/fornecedor/PIX/prazo vindos desses papéis; `comprasPrivadas` ilegível para eles; colunas alinhadas; link de evidência presente.
-- [ ] `tests/almocos-usabilidade.test.js` (novo) — quadro semanal com navegação, clique pré-preenchido, filtros/grupo/ordenação, fechamentos e responsividade equivalentes a `presenca.html`.
-- [ ] `tests/tarefas-dashboard.test.js` (novo) — filtros/ordenação/agrupamento, ações rápidas, drag-and-drop, KPI e painel de tarefas no dashboard, coluna clicável por obra, alertas agrupados e `renderHoje()` com atrasadas.
-- [ ] `tests/auth-credentials.test.js` ou novo teste de papel — opções `encarregado` e `engenheiro` no modal e nav correta para cada um.
+- [x] `tests/compras-segregacao.test.js` (novo) — formulário/tabela sem campos sensíveis para `engenheiro`/`encarregado`; `saveCompra()` não persiste valores/fornecedor/PIX/prazo vindos desses papéis; `comprasPrivadas` ilegível para eles; colunas alinhadas; link de evidência presente.
+- [x] `tests/almocos-usabilidade.test.js` (novo) — quadro semanal com navegação, clique pré-preenchido, filtros/grupo/ordenação, fechamentos e responsividade equivalentes a `presenca.html`.
+- [x] `tests/tarefas-dashboard.test.js` (novo) — filtros/ordenação, ações rápidas, drag-and-drop, KPI e painel de tarefas no dashboard, coluna clicável por obra, alertas agrupados e `renderHoje()` com atrasadas.
+- [x] `tests/roles-encarregado.test.js` (novo) — opções `encarregado` e `engenheiro` no modal, normalização do alias `mestre` e nav correta; `tests/auth-credentials.test.js` cobre credenciais/recuperação de senha.
 - [ ] `CHANGELOG.md` — entrada na próxima versão.
 
 ---
@@ -309,17 +324,17 @@ tenants/{tenantId}/auditoria/{id}
 17. [ ] Papel canônico `encarregado`: usuários novos são criados como `encarregado`; `mestre` funciona apenas como alias legado por um release e não escala para admin.
 18. [ ] Solicitação pendente recebe alerta in-app aos 7 e 12 dias e expira automaticamente aos 15 dias, com `status = 'expirado'`, `expiradoEm` e aviso final ao solicitante e ao admin.
 19. [ ] Solicitação expirada não é aplicada pela Cloud Function, não pode ser aprovada via console/rules e pode ser recriada pelo solicitante.
-20. [ ] Compras: `engenheiro` e `encarregado` não veem valores (`vunit`/`vtotal`/`vorc`), prazo de entrega, chave PIX/forma de pagamento nem fornecedor — nem no formulário, nem na tabela, nem via Rules/console. Veem apenas nome, quantidade/unidade, data de recebimento, "conferido?", status e evidência.
-21. [ ] Aprovação de compra continua exclusiva do admin; Engenheiro não aprova compra e Encarregado não cria pedido de compra.
-22. [ ] Formulário de compras corrigido: colunas do `<thead>` batem com as células renderizadas, "Recebido?" mostra `receb` + `conf`, e o cabeçalho padrão `modal-header`/`modal-title` foi mantido.
+20. [x] Compras: `engenheiro` e `encarregado` não veem valores (`vunit`/`vtotal`/`vorc`), prazo de entrega, chave PIX/forma de pagamento nem fornecedor — nem no formulário, nem na tabela, nem via Rules/console. Veem apenas nome, quantidade/unidade, data de recebimento, "conferido?", status e evidência.
+21. [x] Aprovação de compra continua exclusiva do admin/comprador; Engenheiro e Encarregado apenas preparam `compra_criacao`, sem gravar em `compras` nem em `comprasPrivadas`.
+22. [x] Formulário de compras corrigido: colunas do `<thead>` batem com as células renderizadas, "Recebido?" e "Conferido?" aparecem na tabela, e o cabeçalho padrão `modal-header`/`modal-title` foi mantido.
 23. [ ] Compra possui evidência vinculada (`evidenciaId`/`fotoIds`) e ação "Ver evidência" abre o registro em `fotos.html` filtrado por obra/etapa.
-24. [ ] Almoços têm quadro semanal com navegação entre semanas; clicar numa célula abre `modal-almoco` com data e empreiteiro pré-preenchidos.
-25. [ ] Lista de almoços tem busca por nome/obra/data, agrupamento (Por Empreiteiro / Por Obra / Lista Plana) e ordenação, equivalentes aos de Presença.
-26. [ ] Almoços exibem fechamento por empreiteiro/trabalhador e pagamentos pendentes da semana, com KPIs acompanhando a semana selecionada.
-27. [ ] Modal de almoço mantém modos Individual/Em Lote, "Marcar Todos", "Salvar e Próximo", cabeçalho padrão e layout responsivo igual ao de Presença.
-28. [ ] Tarefas: filtros por status/prioridade/responsável/vencidas, ordenação, ações rápidas e drag-and-drop no kanban; atrasadas ficam destacadas em vermelho e "vence hoje" em laranja.
-29. [ ] Dashboard mostra KPI de tarefas pendentes/atrasadas e painel "Tarefas do dia e atrasadas" com conclusão rápida e link "Ver todas"; a coluna "Tarefas" por obra abre a lista filtrada.
-30. [ ] `renderHoje()` inclui tarefas atrasadas e os alertas de tarefa são agrupados/prioritários, sem serem engolidos pelo limite de 8 alertas.
+24. [x] Almoços têm quadro semanal com navegação entre semanas; clicar numa célula abre `modal-almoco` com data e empreiteiro pré-preenchidos.
+25. [x] Lista de almoços tem busca por nome/obra/data, agrupamento (Por Empreiteiro / Por Obra / Lista Plana) e ordenação, equivalentes aos de Presença.
+26. [x] Almoços exibem fechamento por empreiteiro/trabalhador e pagamentos pendentes da semana, com KPIs acompanhando a semana selecionada.
+27. [x] Modal de almoço mantém modos Individual/Em Lote, "Marcar Todos", "Salvar e Próximo", cabeçalho padrão e layout responsivo igual ao de Presença.
+28. [x] Tarefas: filtros por status/prioridade/responsável/vencidas, ordenação, ações rápidas e drag-and-drop no kanban; atrasadas ficam destacadas em vermelho e "vence hoje" em laranja.
+29. [x] Dashboard mostra KPI de tarefas pendentes/atrasadas e painel "Tarefas do dia e atrasadas" com conclusão rápida e link "Ver todas"; a coluna "Tarefas" por obra abre a lista filtrada.
+30. [x] `renderHoje()` inclui tarefas atrasadas e os alertas de tarefa são agrupados/prioritários, sem serem engolidos pelo limite de 8 alertas.
 31. [ ] `npm test -- --run` passa, incluindo os novos testes de regras, aprovação, expiração, compras, almoços, tarefas/dashboard, domínios separados e financeiro.
 
 ---

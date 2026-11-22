@@ -284,6 +284,43 @@ async function confirmarMovimentacao() {
     const editIdxEl = document.getElementById('mov-edit-idx');
     const editIdx = editIdxEl ? parseInt(editIdxEl.value) : -1;
 
+    // Movimentação de estoque é sensível: o canteiro solicita e o servidor
+    // aplica o saldo após a decisão (admin — ou engenheiro para material).
+    if (typeof window.desviarParaAprovacao === 'function') {
+      if (editIdx >= 0) {
+        setBotaoCarregando(false);
+        mostrarToast('Edição de movimentação exige aprovação. Solicite ao administrador.', 'warning');
+        return;
+      }
+      const diff = quantidade - saldo;
+      const tipoAprovacao = {
+        saida_canteiro: 'Saída',
+        retorno: 'Retorno',
+        transferencia: 'Transferência',
+        ajuste: diff > 0 ? 'Entrada' : 'Saída'
+      }[tipo];
+      const movimentacao = {
+        data: dataHoje, codMat: itemId, mat: item.mat,
+        obra: tipo === 'transferencia'
+          ? (obraOrigemId || item.obra || '')
+          : (obraDestinoId || obraOrigemId || item.obra || ''),
+        tipo: tipoAprovacao,
+        qtd: tipo === 'ajuste' ? Math.abs(diff) : quantidade,
+        obs: motivo || '',
+        frente: '', retirado: '', autor: ''
+      };
+      if (tipo === 'transferencia') movimentacao.obraDestino = obraDestinoId;
+      const desviado = await window.desviarParaAprovacao(
+        'movimentacao_estoque', { movimentacao },
+        `${tipoAprovacao} de ${movimentacao.qtd} — ${item.mat}`
+      );
+      if (desviado) {
+        fecharModalMovimentacao();
+        setBotaoCarregando(false);
+        return;
+      }
+    }
+
     if (editIdx >= 0) {
       // MODO EDIÇÃO: apenas atualiza o registro sem mexer nos saldos
       const movAntigo = DB.movEstoque[editIdx];

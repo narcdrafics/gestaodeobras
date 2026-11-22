@@ -16,6 +16,7 @@ const { handleKiwifyWebhook } = require('./kiwify');
 const { atualizarBillingStatesJob } = require('./billing');
 const { hasFeature } = require('./plan_features');
 const { criarUsuarioTenant } = require('./usuarios');
+const { aoEscreverAprovacao, processarAprovacoesJob } = require('./aprovacoes');
 
 const OPENAI_KEY = defineSecret('OPENAI_KEY');
 const META_ACCESS_TOKEN = defineSecret('META_ACCESS_TOKEN');
@@ -743,6 +744,8 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
   }
 
   let role = after.role || 'admin';
+  // `mestre` é alias legado: as claims passam a usar sempre `encarregado`.
+  if (role === 'mestre') role = 'encarregado';
   const tenantId = after.tenantId || null;
 
   // Perfil 'pendente' (limite de assentos): nunca recebe claims de acesso.
@@ -832,6 +835,28 @@ exports.kiwifyWebhook = onRequest({
 
 // ==================== CRIAÇÃO DE USUÁRIO PELO PAINEL ADMIN ====================
 exports.criarUsuarioTenant = criarUsuarioTenant;
+
+// ==================== APROVAÇÕES (SERVIDOR) ====================
+// O cliente apenas cria/muda o status; a operação real é aplicada aqui.
+exports.aplicarAprovacao = onValueWritten(
+  "tenants/{tenantId}/aprovacoes/{aprovacaoId}",
+  async (event) => aoEscreverAprovacao(
+    admin.database(),
+    event.params.tenantId,
+    event.params.aprovacaoId,
+    event.data.after.val(),
+    event.data.before.val(),
+    Date.now()
+  )
+);
+
+// Alertas em 7/12 dias, expiração em 15 e retomada de aplicações órfãs.
+exports.aprovacoesPrazosJob = onSchedule({
+  schedule: "every day 06:00",
+  timeZone: "America/Sao_Paulo",
+  memory: "256MiB",
+  timeoutSeconds: 120
+}, async () => processarAprovacoesJob(admin.database(), Date.now()));
 
 // ==================== JOB DIÁRIO: BILLING ENFORCEMENT ====================
 exports.dailyBillingStateJob = onSchedule({

@@ -414,7 +414,8 @@ function _onFirebaseValue(snapshot) {
       return;
     }
 
-    DB = ensureSchema(data);
+    // Dados comerciais de compras não entram no DB do canteiro (nem no localStorage).
+    DB = ensureSchema(sanitizeComprasForRole(data, _sessionRole(_getBillingSessionUser())));
 
     // Calculado depois do ensureSchema: gravar em DB antes substituir o objeto perdia o valor.
     if (data.plano === 'free_trial' && data.trialExpiracao) {
@@ -539,11 +540,63 @@ const PROTECTED_CONFIG_FIELDS = new Set([
   'limiteObras', 'limiteUsuarios', 'limiteTrabalhadores'
 ]);
 
-function buildCloudUpdate(db) {
+// Nós gerenciados por escrita direta (Cloud Function) ou por trigger de servidor.
+// Nunca entram no update em lote do persistDB(), mesmo para o admin.
+const SERVER_OR_TARGETED_NODES = new Set([
+  'aprovacoes', 'auditoria', 'notificacoes', 'comprasPrivadas'
+]);
+
+// Escrita em lote: allow-list explícita por papel (mais segura que block-list —
+// nó novo não entra por acidente). O cliente é apenas UX: as Firebase Rules
+// repetem estas regras no servidor. `mestre` é alias legado de `encarregado`.
+const ROLE_WRITE_ALLOW = {
+  encarregado: new Set(['presenca', 'tarefas', 'almocos']),
+  engenheiro: new Set(['presenca', 'tarefas', 'almocos', 'obras', 'medicao']),
+  comprador: new Set(['compras', 'estoque'])
+};
+ROLE_WRITE_ALLOW.mestre = ROLE_WRITE_ALLOW.encarregado;
+
+// Dados comerciais das compras: separados em comprasPrivadas no servidor.
+// Enquanto a migração não acontece, pelo menos não ficam no DB/localStorage
+// dos papéis que não podem vê-los.
+const COMPRAS_SENSITIVE_FIELDS = ['forn', 'pixkey', 'vunit', 'vtotal', 'vorc', 'prazo'];
+const COMPRAS_RESTRICTED_ROLES = new Set(['encarregado', 'mestre', 'engenheiro']);
+
+function _sessionRole(user) {
+  const role = (user && user.role) || 'admin';
+  return role === 'mestre' ? 'encarregado' : role;
+}
+
+function _nodeBloqueadoParaRole(role, key) {
+  if (SERVER_OR_TARGETED_NODES.has(key)) return true;
+  if (role === 'admin' || role === 'super_admin') return false;
+  const permitidos = ROLE_WRITE_ALLOW[role];
+  // Papel desconhecido/pendente não ganha escrita irrestrita.
+  return !permitidos || !permitidos.has(key);
+}
+
+// Remove campos comerciais das compras para papéis sem acesso. Não altera o DB
+// original: devolve uma cópia rasa dos objetos quando há algo a remover.
+function sanitizeComprasForRole(db, role) {
+  if (!COMPRAS_RESTRICTED_ROLES.has(role) || !Array.isArray(db.compras)) return db;
+  return {
+    ...db,
+    compras: db.compras.map(c => {
+      if (!c || typeof c !== 'object') return c;
+      const limpa = { ...c };
+      COMPRAS_SENSITIVE_FIELDS.forEach(f => { delete limpa[f]; });
+      return limpa;
+    })
+  };
+}
+
+function buildCloudUpdate(db, role) {
   // Usa caminhos explícitos para não sobrescrever/apagar campos protegidos.
+  const papel = role || _sessionRole(_getBillingSessionUser());
   const update = {};
   Object.entries(db).forEach(([key, value]) => {
     if (PROTECTED_TENANT_FIELDS.has(key)) return;
+    if (_nodeBloqueadoParaRole(papel, key)) return;
     if (key === 'config' && value && typeof value === 'object') {
       Object.entries(value).forEach(([cfgKey, cfgValue]) => {
         if (PROTECTED_CONFIG_FIELDS.has(cfgKey)) return;
@@ -564,6 +617,7 @@ function persistDB(force = false) {
   // Salvaguarda client-side de experiência de uso (as regras do servidor barram no backend)
   const sessionUser = _getBillingSessionUser();
   const isSuperAdmin = sessionUser.role === 'super_admin' || sessionUser.email === 'tonycampelo@gmail.com';
+  const papel = _sessionRole(sessionUser);
   if ((window.IS_READONLY_MODE || window.__billingState === 'bloqueado') && !isSuperAdmin) {
     if (typeof toast === 'function') {
       toast('Modo Somente Leitura: Plano vencido. Não é permitido gravar alterações.', 'warning');
@@ -573,7 +627,8 @@ function persistDB(force = false) {
 
   // 1. BACKUP LOCAL (Sanitizado — sem base64 para respeitar limite de 5MB do iOS Safari)
   try {
-    const toCache = JSON.parse(JSON.stringify(DB));
+    // Papéis sem acesso comercial não guardam fornecedor/valores/PIX no dispositivo.
+    const toCache = JSON.parse(JSON.stringify(sanitizeComprasForRole(DB, papel)));
     toCache._tenantId = _currentTenantId;
 
     // Remove base64 do backup principal (economiza espaço no localStorage do mobile)
@@ -691,8 +746,10 @@ function persistDB(force = false) {
 
       // Timeout de 20s (mobile pode ser mais lento que desktop)
       // .update() com caminhos explícitos: não apaga nem reescreve metadados
-      // de plano/limites (que só o super_admin pode alterar).
-      const cloudUpdate = buildCloudUpdate(dbForCloud);
+      // de plano/limites (que só o super_admin pode alterar) e não envia nós
+      // que o papel não tem permissão de gravar (registro de obra é direto;
+      // estoque/trabalhadores/financeiro/compras passam por aprovacoes).
+      const cloudUpdate = buildCloudUpdate(dbForCloud, papel);
       await Promise.race([
         targetRef.update(cloudUpdate),
         new Promise((_, rej) => setTimeout(() => rej({ code: 'TIMEOUT', message: 'Conexão lenta ou sem internet.' }), 20000))

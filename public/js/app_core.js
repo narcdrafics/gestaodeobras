@@ -8,17 +8,19 @@ window.renderDashboard = window.renderDashboard || function () {
   // Os números vêm prontos de calcDashboardResumo (utils.module.js); aqui só desenhamos.
   let role = 'admin';
   try { role = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}').role || 'admin'; } catch (e) { }
+  // Sessões antigas podem ainda carregar o alias `mestre`.
+  if (role === 'mestre') role = 'encarregado';
 
-  const { kpis, linhas, alertas } = window.calcDashboardResumo(DB, null, role);
+  const { kpis, linhas, alertas, tarefas: resumoTarefas } = window.calcDashboardResumo(DB, null, role);
   const esc = window.escHtml;
 
-  // Ações rápidas, respeitando o que cada papel acessa (mestre não vê compras; engenheiro não vê presença)
+  // Ações rápidas, respeitando o que cada papel acessa (encarregado não vê compras; engenheiro não vê presença)
   const actionsEl = document.getElementById('dash-actions');
   if (actionsEl) {
     const acoes = [];
     if (role !== 'engenheiro') acoes.push(['modal-presenca', '+ Lançar Presença']);
     acoes.push(['modal-tarefa', '+ Nova Tarefa']);
-    if (role !== 'mestre') acoes.push(['modal-compra', '+ Nova Compra']);
+    if (role !== 'encarregado' && role !== 'mestre') acoes.push(['modal-compra', '+ Nova Compra']);
     actionsEl.innerHTML = acoes
       .map(([modal, label]) => `<button class="btn btn-primary btn-sm" onclick="openModal('${modal}')">${label}</button>`)
       .join('');
@@ -32,17 +34,41 @@ window.renderDashboard = window.renderDashboard || function () {
       <div class="kpi-card"><div class="kpi-label">Faltas</div><div class="kpi-val ${kpis.faltas > 0 ? 'red' : 'green'}">${kpis.faltas}</div></div>
       <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${kpis.obrasAtivas}</div></div>
       <div class="kpi-card"><div class="kpi-label">Diárias Hoje</div><div class="kpi-val blue">${fmt(kpis.diariasHoje)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Tarefas Abertas</div><div class="kpi-val blue">${resumoTarefas.abertas}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Tarefas Atrasadas</div><div class="kpi-val ${resumoTarefas.atrasadas > 0 ? 'red' : 'green'}">${resumoTarefas.atrasadas}</div></div>
     `;
   }
 
-  // Alertas (do mais grave ao menos grave; os demais viram "+ N alertas")
+  // Alertas (do mais grave ao menos grave; os demais viram "+ N alertas").
+  // Tarefas têm slots reservados: custo/compra não podem empurrá-las para fora.
   const MAX_ALERTAS = 8;
   const alertsGrid = document.getElementById('alerts-grid');
   if (alertsGrid) {
-    alertsGrid.innerHTML = alertas.length
-      ? alertas.slice(0, MAX_ALERTAS).map(a => `<div class="alert-card ${a.prior}"><div class="alert-body"><h4>${a.tipo}</h4><p><b>${esc(a.obra)}</b> — ${esc(a.desc)}</p></div></div>`).join('')
-      + (alertas.length > MAX_ALERTAS ? `<div style="color:var(--text3);font-size:12px;padding:8px">+ ${alertas.length - MAX_ALERTAS} alertas</div>` : '')
+    const alertasTarefa = alertas.filter(a => a.tipo.startsWith('TAREFA'));
+    const demais = alertas.filter(a => !a.tipo.startsWith('TAREFA'));
+    const visiveis = [...alertasTarefa, ...demais].slice(0, MAX_ALERTAS);
+    alertsGrid.innerHTML = visiveis.length
+      ? visiveis.map(a => `<div class="alert-card ${a.prior}"><div class="alert-body"><h4>${a.tipo}</h4><p><b>${esc(a.obra)}</b> — ${esc(a.desc)}</p></div></div>`).join('')
+      + (alertas.length > visiveis.length ? `<div style="color:var(--text3);font-size:12px;padding:8px">+ ${alertas.length - visiveis.length} alertas</div>` : '')
       : '<div style="color:var(--text3);font-size:13px;padding:8px">Nenhuma pendência hoje.</div>';
+  }
+
+  // Painel de tarefas do dia/atrasadas — antes só existiam os alertas, que
+  // competiam por espaço e faziam as tarefas "desaparecerem" do dashboard.
+  const tarefasPanel = document.getElementById('dash-tarefas-grid');
+  if (tarefasPanel) {
+    const itens = resumoTarefas.itens.slice(0, 5);
+    tarefasPanel.innerHTML = itens.length
+      ? itens.map(t => `
+        <div class="dash-tarefa-item ${t.atrasada ? 'atrasada' : 'hoje'}">
+          <div class="dash-tarefa-info">
+            <b>${esc(t.desc)}</b>
+            <small>${esc(t.obraNome)} · ${esc(t.resp || 'Sem responsável')} · ${fmtDate(t.prazo)}${t.atrasada ? ' · Atrasada' : ' · Vence hoje'}</small>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="concluirTarefaRapida(${t._idx})" title="Concluir tarefa">Concluir</button>
+        </div>`).join('')
+        + (resumoTarefas.itens.length > 5 ? `<div style="color:var(--text3);font-size:12px;padding:8px">+ ${resumoTarefas.itens.length - 5} tarefa(s)</div>` : '')
+      : '<div style="color:var(--text3);font-size:13px;padding:8px">Nenhuma tarefa atrasada ou com prazo para hoje.</div>';
   }
 
   // Resumo por Obra (concluídas ficam recolhidas, a menos que o usuário peça)
@@ -63,10 +89,11 @@ window.renderDashboard = window.renderDashboard || function () {
         : `<span style="color:${pct > 100 ? 'var(--red)' : pct >= 80 ? 'var(--orange)' : 'var(--green)'}">${pct.toFixed(1)}%</span>`;
       const mestreCell = o.mestre
         ? esc(o.mestre)
-        : (role !== 'mestre' && idx >= 0 ? `<button class="btn btn-secondary btn-sm" onclick="editObra(${idx})">Atribuir</button>` : '-');
+        : (role !== 'encarregado' && role !== 'mestre' && idx >= 0 ? `<button class="btn btn-secondary btn-sm" onclick="editObra(${idx})">Atribuir</button>` : '-');
       const pctTarefas = l.tarefasTotal ? Math.round((l.tarefasFeitas / l.tarefasTotal) * 100) : 0;
+      const codSeguro = String(o.cod || '').replace(/'/g, "\\'");
       const tarefasCell = l.tarefasTotal
-        ? `${l.tarefasFeitas}/${l.tarefasTotal} <div class="progress-bar" style="width:60px;margin-left:6px"><div class="progress-fill" style="width:${pctTarefas}%"></div></div>`
+        ? `<button type="button" class="link-btn" onclick="verTarefasDaObra('${codSeguro}')" title="Ver tarefas desta obra">${l.tarefasFeitas}/${l.tarefasTotal} <div class="progress-bar" style="width:60px;margin-left:6px"><div class="progress-fill" style="width:${pctTarefas}%"></div></div></button>`
         : '<span style="color:var(--text3)">—</span>';
 
       return `<tr>
@@ -135,7 +162,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261115003';
+const HTML_CACHE_VERSION = '20261122006';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -305,10 +332,19 @@ function renderPage(id) {
   const r = {
     dashboard: renderDashboard, hoje: renderHoje, obras: renderObras, trabalhadores: renderTrabalhadores,
     presenca: renderPresenca, tarefas: renderTarefas, estoque: renderEstoque,
-    movEstoque: renderMovEstoque, compras: renderCompras, financeiro: renderFinanceiro,
+    movEstoque: renderMovEstoque,
+    compras: () => {
+      if (typeof window.iniciarCompras === 'function') window.iniciarCompras();
+      renderCompras();
+    },
+    financeiro: renderFinanceiro,
     orcamento: renderOrcamento, medicao: renderMedicao, admin: renderAdmin,
     fotos: renderFotos, super_admin: renderSuperAdmin, relatorios: renderRelatorios,
-    almocos: renderAlmocos
+    almocos: renderAlmocos,
+    aprovacoes: (...args) => {
+      if (typeof window.iniciarAprovacoes === 'function') window.iniciarAprovacoes();
+      if (typeof window.renderAprovacoes === 'function') window.renderAprovacoes(...args);
+    }
   };
   if (r[id]) r[id]();
 }
@@ -382,6 +418,10 @@ function renderHoje(targetDate) {
   const presentes = allPresencaHoje.filter(p => p.presenca === 'Presente').length;
   const faltas = allPresencaHoje.filter(p => p.presenca === 'Falta').length;
 
+  const tarefasPendentes = (DB.tarefas || []).filter(t => t && t.status !== 'Concluída');
+  const tarefasAtrasadas = tarefasPendentes.filter(t => t.prazo && t.prazo < getTodayBR());
+  const tarefasHoje = tarefasPendentes.filter(t => t.prazo === hoje);
+
   const kpiGrid = document.getElementById('kpi-grid');
   if (kpiGrid) {
     kpiGrid.innerHTML = `
@@ -389,11 +429,22 @@ function renderHoje(targetDate) {
       <div class="kpi-card"><div class="kpi-label">Faltas</div><div class="kpi-val ${faltas > 0 ? 'red' : 'green'}">${faltas}</div></div>
       <div class="kpi-card"><div class="kpi-label">Obras Ativas</div><div class="kpi-val yellow">${obras.filter(o => o.status === 'Em andamento').length}</div></div>
       <div class="kpi-card"><div class="kpi-label">Diárias Hoje</div><div class="kpi-val blue">${fmt(custosDiariasHoje.custoTotal)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Tarefas Hoje</div><div class="kpi-val blue">${tarefasHoje.length}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Tarefas Atrasadas</div><div class="kpi-val ${tarefasAtrasadas.length > 0 ? 'red' : 'green'}">${tarefasAtrasadas.length}</div></div>
     `;
   }
 
   const alerts = [];
-  (DB.tarefas || []).filter(t => t.prazo === hoje && t.status !== 'Concluída').forEach(t => {
+  if (tarefasAtrasadas.length) {
+    const exemplos = tarefasAtrasadas.slice(0, 2).map(t => t.desc).join(', ');
+    alerts.push({
+      tipo: 'TAREFA ATRASADA',
+      obra: 'Geral',
+      desc: `${tarefasAtrasadas.length} tarefa(s) atrasada(s)${exemplos ? ': ' + exemplos : ''}`,
+      prior: 'alto'
+    });
+  }
+  tarefasHoje.forEach(t => {
     alerts.push({ tipo: 'TAREFA HOJE', obra: window.obName(t.obra), desc: t.desc, prior: 'alto' });
   });
   (DB.compras || []).filter(c => c.status === 'Aguardando').forEach(c => {
@@ -878,103 +929,286 @@ function renderTrabalhadores() {
     : uiEmptyState('Sem Trabalhadores', 'Cadastre o primeiro pedreiro, mestre ou servente para começar.', 'engineering', 'Adicionar Trabalhador', 'openModal(\'modal-trabalhador\')'));
 }
 
+// ==================== ALMOÇOS ====================
+// Espelha a usabilidade de Presença: quadro semanal navegável, clique na célula,
+// busca/agrupamento/ordenação e fechamentos por empreiteiro/pagamento.
+let currentAlmocoWeekOffset = 0;
+
+function getAlmocoWeekDates() {
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  const dia = base.getDay();
+  const diff = dia === 0 ? 6 : dia - 1; // segunda = 0
+  const inicio = new Date(base);
+  inicio.setDate(base.getDate() - diff + (currentAlmocoWeekOffset * 7));
+  const nomes = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  const dias = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(inicio);
+    d.setDate(inicio.getDate() + i);
+    dias.push({
+      date: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'),
+      name: nomes[i],
+      display: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    });
+  }
+  return dias;
+}
+window.getAlmocoWeekDates = getAlmocoWeekDates;
+
+function changeAlmocoWeek(offset) {
+  currentAlmocoWeekOffset += offset;
+  renderQuadroAlmocos();
+  const lista = DB.almocos || [];
+  renderAlmocosKPI(lista);
+  renderFechamentosAlmocos(lista);
+}
+window.changeAlmocoWeek = changeAlmocoWeek;
+
+/** String literal JS segura para dentro de um atributo onclick entre aspas duplas. */
+function almocoJsString(valor) {
+  return "'" + String(valor == null ? '' : valor)
+    .replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/</g, '\\u003c') + "'";
+}
+
+function almocoDevido(a) {
+  const total = Number(a.vtotal) || 0;
+  if (a.pgtoStatus === 'Pago') return 0;
+  const pago = a.pgtoStatus === 'Parcial' ? (Number(a.valpago) || 0) : 0;
+  return Math.max(0, total - pago);
+}
+
+function renderQuadroAlmocos() {
+  const container = document.getElementById('almoco-quadro-semanal');
+  if (!container) return;
+
+  const dias = getAlmocoWeekDates();
+  const trabalhadores = (DB.trabalhadores || []).filter(t => t.status === 'Ativo');
+  if (!trabalhadores.length) {
+    container.innerHTML = '<p style="text-align:center; padding:20px; color:var(--text3)">Nenhum trabalhador ativo para exibir no quadro.</p>';
+    return;
+  }
+
+  let html = `<table class="almoco-board">
+    <thead><tr><th class="worker-info">Empreiteiro / Trabalhador</th>
+      ${dias.map(d => `<th><div class="day-header"><span class="day-name">${d.name}</span><span class="day-date">${d.display}</span></div></th>`).join('')}
+    </tr></thead><tbody>`;
+
+  trabalhadores.forEach(w => {
+    html += `<tr><td class="worker-info"><b>${escHtml(w.nome)}</b><br><small style="color:var(--text3)">${escHtml(w.equipe || w.funcao || '—')}</small></td>`;
+    dias.forEach(d => {
+      const idx = (DB.almocos || []).findIndex(a => a && a.data === d.date && (
+        a.empreiteiro === w.nome || a.empreiteiro === w.cod || (w.equipe && a.empreiteiro === w.equipe)
+      ));
+      const a = idx >= 0 ? DB.almocos[idx] : null;
+      let icone = '<span class="material-symbols-outlined md-16">more_horiz</span>';
+      let titulo = 'Sem registro';
+      let classe = 'none';
+      if (a) {
+        if (a.pgtoStatus === 'Pago') {
+          icone = '<span class="material-symbols-outlined md-16" style="color:var(--green)">check_circle</span>';
+          titulo = `Lançado e pago — ${a.qtd} ref.`;
+          classe = 'pago';
+        } else {
+          icone = '<span class="material-symbols-outlined md-16" style="color:var(--orange)">restaurant</span>';
+          titulo = `Lançado — ${a.qtd} ref. (${a.pgtoStatus || 'Pendente'})`;
+          classe = 'lancado';
+        }
+      }
+      html += `<td><div class="almoco-cell" title="${titulo}" onclick="openAlmocoModal(${almocoJsString(w.cod)}, '${d.date}', ${idx})">
+        <div class="almoco-icon ${classe}">${icone}</div>
+        ${a ? `<small>${escHtml(a.qtd)} ref.</small>` : ''}
+      </div></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+window.renderQuadroAlmocos = renderQuadroAlmocos;
+
+/** Clique na célula: edita o lançamento do dia ou abre o modal pré-preenchido. */
+async function openAlmocoModal(cod, data, existingIdx = -1) {
+  if (existingIdx >= 0) { editAlmoco(existingIdx); return; }
+  await openModal('modal-almoco');
+  setTimeout(() => {
+    const t = (DB.trabalhadores || []).find(x => x.cod === cod);
+    const dataEl = document.getElementById('al-data');
+    if (dataEl) dataEl.value = data;
+    const empEl = document.getElementById('al-empreiteiro');
+    if (empEl) empEl.value = t ? t.nome : cod;
+    const obraEl = document.getElementById('al-obra');
+    if (obraEl && t && t.obras) {
+      const primeira = String(t.obras).split(/[,;]/).map(s => s.trim()).find(Boolean);
+      if (primeira && [...obraEl.options].some(o => o.value === primeira)) obraEl.value = primeira;
+    }
+    if (typeof toggleAlmocoModo === 'function') toggleAlmocoModo();
+  }, 300);
+}
+window.openAlmocoModal = openAlmocoModal;
+
 function renderAlmocos() {
   const tbody = document.getElementById('almocos-tbody');
   if (!tbody) return;
 
-  const list = DB.almocos || [];
-  const qStr = (document.getElementById('almoco-busca')?.value || '').toLowerCase();
+  const lista = DB.almocos || [];
+  const qStr = (document.getElementById('almoco-busca')?.value || '').toLowerCase().trim();
+  const grupo = document.getElementById('almoco-group-select')?.value || '';
+  const ordem = document.getElementById('almoco-sort-select')?.value || 'data_desc';
 
-  const filtered = list.map((a, i) => ({ ...a, _idx: i }))
-    .filter(a => JSON.stringify(a).toLowerCase().includes(qStr))
-    .sort((a, b) => new Date(b.data) - new Date(a.data));
-
-  if (!filtered.length) {
-    safeSetInner('almocos-tbody', '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text3)">Nenhum almoço registrado.</td></tr>');
-  } else {
-    const html = filtered.map(a => `
-      <tr>
-        <td>${fmtDate(a.data)}</td>
-        <td>${obName(a.obra)}</td>
-        <td><b>${a.empreiteiro}</b></td>
-        <td>${a.qtd}</td>
-        <td>${fmt(a.vunit)}</td>
-        <td><b style="color:var(--accent)">${fmt(a.vtotal)}</b></td>
-        <td>
-          <button class="btn btn-secondary btn-sm" onclick="editAlmoco(${a._idx})" title="Editar almoço" aria-label="Editar almoço" style="margin-right:8px"><span class="material-symbols-outlined md-16">edit</span> Editar</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${a._idx})">Excluir</button>
-        </td>
-      </tr>
-    `).join('');
-    safeSetInner('almocos-tbody', html);
+  let itens = lista.map((a, i) => ({ ...a, _idx: i }));
+  if (qStr) {
+    itens = itens.filter(a => [fmtDate(a.data), a.data, obName(a.obra), a.empreiteiro, a.obs]
+      .join(' ').toLowerCase().includes(qStr));
   }
+  itens.sort((a, b) => ordem === 'data_asc'
+    ? String(a.data).localeCompare(String(b.data))
+    : String(b.data).localeCompare(String(a.data)));
 
-  renderAlmocosKPI(list);
+  const chaveGrupo = (a) => grupo === 'empreiteiro'
+    ? (a.empreiteiro || '—')
+    : (grupo === 'obra' ? obName(a.obra) : '');
+  const contagens = {};
+  if (grupo) itens.forEach(a => { const k = chaveGrupo(a); contagens[k] = (contagens[k] || 0) + 1; });
+
+  let ultimoGrupo = null;
+  const html = itens.map(a => {
+    const chave = chaveGrupo(a);
+    let cabecalho = '';
+    if (chave && chave !== ultimoGrupo) {
+      cabecalho = `<tr class="group-header"><td colspan="8">${escHtml(chave)} <small style="font-weight:normal;color:var(--text3)">(${contagens[chave]})</small></td></tr>`;
+      ultimoGrupo = chave;
+    }
+    return `${cabecalho}<tr>
+      <td data-label="Data / Obra">${fmtDate(a.data)}<br><small style="color:var(--text3)">${obName(a.obra)}</small></td>
+      <td data-label="Colaborador"><b>${escHtml(a.empreiteiro)}</b></td>
+      <td data-label="Quantidade">${escHtml(a.qtd)}</td>
+      <td data-label="Valor Unit.">${fmt(a.vunit)}</td>
+      <td data-label="Total"><b style="color:var(--accent)">${fmt(a.vtotal)}</b></td>
+      <td data-label="Status Pgto">${statusBadge(a.pgtoStatus)}</td>
+      <td data-label="Pago">${fmt(a.valpago)}</td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick="editAlmoco(${a._idx})" title="Editar almoço" aria-label="Editar almoço" style="margin-right:8px"><span class="material-symbols-outlined md-16">edit</span> Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteItem('almocos',${a._idx})">Excluir</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  tbody.innerHTML = html || '<tr><td colspan="8" style="text-align:center; padding:20px; color:var(--text3)">Nenhum almoço registrado.</td></tr>';
+  filterAlmoco(document.getElementById('almoco-busca')?.value || '');
+  renderQuadroAlmocos();
+  renderAlmocosKPI(lista);
+  renderFechamentosAlmocos(lista);
 }
+window.renderAlmocos = renderAlmocos;
 
 function renderAlmocosKPI(list) {
   const container = document.getElementById('almocos-kpi');
   if (!container) return;
-  const hoje = today;
-  const almoHoje = list.filter(a => a.data === hoje).reduce((acc, a) => acc + (parseFloat(a.qtd) || 0), 0);
-  const custoHoje = list.filter(a => a.data === hoje).reduce((acc, a) => acc + (parseFloat(a.vtotal) || 0), 0);
-
-  const todayDate = new Date();
-  const fSemana = new Date(todayDate);
-  const dayOfWeek = todayDate.getDay();
-  const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Domingo vira 6, segunda vira 0, etc.
-  fSemana.setDate(todayDate.getDate() - diff);
-  const strSemana = fSemana.toISOString().split('T')[0];
-  const qtdSemana = list.filter(a => a.data >= strSemana && a.data <= hoje).reduce((acc, a) => acc + (parseFloat(a.qtd) || 0), 0);
-  const custoSemana = list.filter(a => a.data >= strSemana && a.data <= hoje).reduce((acc, a) => acc + (parseFloat(a.vtotal) || 0), 0);
+  const dias = getAlmocoWeekDates();
+  const ini = dias[0].date;
+  const fim = dias[6].date;
+  const semana = list.filter(a => a.data >= ini && a.data <= fim);
+  const qtdSemana = semana.reduce((s, a) => s + (parseFloat(a.qtd) || 0), 0);
+  const custoSemana = semana.reduce((s, a) => s + (parseFloat(a.vtotal) || 0), 0);
+  const pendente = semana.reduce((s, a) => s + almocoDevido(a), 0);
+  const periodo = `${dias[0].display} – ${dias[6].display}`;
 
   container.innerHTML = `
-    <div class="kpi-card">
-      <div>
-        <div class="kpi-label">Refeições Hoje</div>
-        <div class="kpi-value">${almoHoje} un</div>
-      </div>
-    </div>
-    <div class="kpi-card">
-      <div>
-        <div class="kpi-label">Custo Dia (Hj)</div>
-        <div class="kpi-value">${fmt(custoHoje)}</div>
-      </div>
-    </div>
-    <div class="kpi-card">
-      <div>
-        <div class="kpi-label">Refeições Semana</div>
-        <div class="kpi-value">${qtdSemana} un</div>
-      </div>
-    </div>
-    <div class="kpi-card">
-      <div>
-        <div class="kpi-label">Custo Semana</div>
-        <div class="kpi-value">${fmt(custoSemana)}</div>
-      </div>
-    </div>
+    <div class="kpi-card"><div><div class="kpi-label">Refeições Semana <small style="font-weight:normal">${periodo}</small></div><div class="kpi-value">${qtdSemana} un</div></div></div>
+    <div class="kpi-card"><div><div class="kpi-label">Custo Semana <small style="font-weight:normal">${periodo}</small></div><div class="kpi-value">${fmt(custoSemana)}</div></div></div>
+    <div class="kpi-card"><div><div class="kpi-label">Lançamentos na Semana</div><div class="kpi-value">${semana.length}</div></div></div>
+    <div class="kpi-card"><div><div class="kpi-label">Pagamentos Pendentes</div><div class="kpi-value" style="color:var(--orange)">${fmt(pendente)}</div></div></div>
   `;
+}
 
-  // Resumo Semanal por Obra
-  const resumoContainer = document.getElementById('almocos-resumo');
-  if (resumoContainer) {
-    const weeklyList = list.filter(a => a.data >= strSemana && a.data <= hoje);
-    const agrupadoSemanal = {};
-    weeklyList.forEach(a => {
-      if (!agrupadoSemanal[a.obra]) agrupadoSemanal[a.obra] = { qtd: 0, total: 0 };
-      agrupadoSemanal[a.obra].qtd += (parseFloat(a.qtd) || 0);
-      agrupadoSemanal[a.obra].total += (parseFloat(a.vtotal) || 0);
-    });
+function renderFechamentosAlmocos(list) {
+  const dias = getAlmocoWeekDates();
+  const semana = (list || []).filter(a => a.data >= dias[0].date && a.data <= dias[6].date);
 
-    resumoContainer.innerHTML = Object.keys(agrupadoSemanal).map(obra => `
-      <div class="kpi-card" style="padding:16px;">
-        <div style="font-size:12px;color:var(--text3)">${obName(obra)}</div>
-        <div style="font-weight:600;margin-top:6px">${agrupadoSemanal[obra].qtd} <small style="font-size:10px;font-weight:normal">ref. somadas</small></div>
-        <div style="font-size:14px;color:var(--red);margin-top:4px">${fmt(agrupadoSemanal[obra].total)}</div>
-      </div>
-    `).join('') || '<div style="color:var(--text3);">Sem consolidação semanal.</div>';
+  const porObra = {};
+  const porEmpreiteiro = {};
+  const pendentes = {};
+  semana.forEach(a => {
+    const obra = a.obra || '';
+    const emp = a.empreiteiro || '—';
+    if (!porObra[obra]) porObra[obra] = { qtd: 0, total: 0 };
+    if (!porEmpreiteiro[emp]) porEmpreiteiro[emp] = { qtd: 0, total: 0 };
+    if (!pendentes[obra]) pendentes[obra] = { lancamentos: 0, valor: 0 };
+    const qtd = parseFloat(a.qtd) || 0;
+    const total = parseFloat(a.vtotal) || 0;
+    porObra[obra].qtd += qtd; porObra[obra].total += total;
+    porEmpreiteiro[emp].qtd += qtd; porEmpreiteiro[emp].total += total;
+    const devido = almocoDevido(a);
+    if (devido > 0) { pendentes[obra].lancamentos++; pendentes[obra].valor += devido; }
+  });
+
+  const card = (titulo, qtd, total, extra) => `
+    <div class="kpi-card" style="padding:16px;">
+      <div style="font-size:12px;color:var(--text3)">${escHtml(titulo)}</div>
+      <div style="font-weight:600;margin-top:6px">${qtd} <small style="font-size:10px;font-weight:normal">${extra || 'ref. somadas'}</small></div>
+      <div style="font-size:14px;color:var(--red);margin-top:4px">${fmt(total)}</div>
+    </div>`;
+
+  const resumo = document.getElementById('almocos-resumo');
+  if (resumo) {
+    resumo.innerHTML = Object.keys(porObra).map(obra => card(obName(obra), porObra[obra].qtd, porObra[obra].total)).join('')
+      || '<div style="color:var(--text3);">Sem consolidação na semana selecionada.</div>';
+  }
+  const porEmpEl = document.getElementById('almocos-empreiteiro');
+  if (porEmpEl) {
+    porEmpEl.innerHTML = Object.keys(porEmpreiteiro).map(emp => card(emp, porEmpreiteiro[emp].qtd, porEmpreiteiro[emp].total)).join('')
+      || '<div style="color:var(--text3);">Sem lançamentos na semana selecionada.</div>';
+  }
+  const pendEl = document.getElementById('almocos-pgto-pendentes');
+  if (pendEl) {
+    pendEl.innerHTML = Object.keys(pendentes)
+      .filter(obra => pendentes[obra].valor > 0)
+      .map(obra => card(obName(obra), pendentes[obra].lancamentos, pendentes[obra].valor, 'lançamentos pendentes')).join('')
+      || '<div style="color:var(--text3);">Nenhum pagamento pendente na semana.</div>';
   }
 }
+window.renderFechamentosAlmocos = renderFechamentosAlmocos;
+
+/** Busca da lista, preservando os cabeçalhos de grupo (como filterPresenca). */
+function filterAlmoco(query) {
+  const q = (query || '').toLowerCase().trim();
+  const tbody = document.getElementById('almocos-tbody');
+  if (!tbody) return;
+  tbody.querySelectorAll('tr').forEach(row => {
+    if (row.classList.contains('group-header')) { row.style.display = ''; return; }
+    row.style.display = (!q || (row.innerText || '').toLowerCase().includes(q)) ? '' : 'none';
+  });
+  tbody.querySelectorAll('tr.group-header').forEach(header => {
+    let row = header.nextElementSibling;
+    let visivel = false;
+    while (row && !row.classList.contains('group-header')) {
+      if (row.style.display !== 'none') visivel = true;
+      row = row.nextElementSibling;
+    }
+    header.style.display = visivel ? '' : 'none';
+  });
+}
+window.filterAlmoco = filterAlmoco;
+
+/** Fechamento em lote da semana navegada (análogo a prepareLotePgto). */
+async function fecharSemanaAlmocos() {
+  const dias = getAlmocoWeekDates();
+  const pendentes = (DB.almocos || []).filter(a =>
+    a.data >= dias[0].date && a.data <= dias[6].date && almocoDevido(a) > 0);
+  if (!pendentes.length) {
+    toast('Não há almoços pendentes nesta semana.', 'warning');
+    return;
+  }
+  const valor = pendentes.reduce((s, a) => s + almocoDevido(a), 0);
+  if (!confirm(`Marcar ${pendentes.length} lançamento(s) como pago(s) (${fmt(valor)})?`)) return;
+  pendentes.forEach(a => { a.pgtoStatus = 'Pago'; a.valpago = Number(a.vtotal) || 0; });
+  await persistDB();
+  renderAlmocos();
+  toast('Fechamento da semana registrado!');
+}
+window.fecharSemanaAlmocos = fecharSemanaAlmocos;
 
 function calcAlmocoTotal() {
   const q = parseFloat(document.getElementById('al-qtd').value) || 0;
@@ -1464,32 +1698,127 @@ function setTaskView(mode) {
 }
 window.setTaskView = setTaskView;
 
-function renderTarefas() {
-  const obraFilter = document.getElementById('tar-obra-filter')?.value || '';
-  const busca = (document.getElementById('tar-busca')?.value || '').toLowerCase();
+// Busca com debounce: evita re-renderizar a tabela a cada tecla digitada.
+function onTaskSearch() {
+  clearTimeout(window._taskSearchTimer);
+  window._taskSearchTimer = setTimeout(renderTarefas, 220);
+}
+window.onTaskSearch = onTaskSearch;
 
-  const tasks = DB.tarefas.map((t, i) => ({ ...t, _idx: i }))
-    .filter(t => (!obraFilter || t.obra === obraFilter) && (!busca || (t.desc || '').toLowerCase().includes(busca) || (t.resp || '').toLowerCase().includes(busca)))
-    .sort((a, b) => {
-      // Ordenação decrescente por prazo (vencendo antes no topo)
-      // Mas se um não tem prazo, manda pro final
-      if (!a.prazo && !b.prazo) return 0;
-      if (!a.prazo) return 1;
-      if (!b.prazo) return -1;
-      return a.prazo.localeCompare(b.prazo);
+function limparFiltrosTarefas() {
+  ['tar-obra-filter', 'tar-status-filter', 'tar-prio-filter', 'tar-resp-filter', 'tar-ordem'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.selectedIndex = 0;
+  });
+  ['tar-vencidas', 'tar-minhas'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.checked = false;
+  });
+  const busca = document.getElementById('tar-busca');
+  if (busca) busca.value = '';
+  renderTarefas();
+}
+window.limparFiltrosTarefas = limparFiltrosTarefas;
+
+function renderTarefas() {
+  // A página é reinjetada a cada navegação; reaplica o modo Tabela/Quadro escolhido.
+  const tableCont = document.getElementById('tar-table-container');
+  const kanbanCont = document.getElementById('tar-kanban-container');
+  if (tableCont && kanbanCont) {
+    const modo = window._taskViewMode === 'kanban' ? 'kanban' : 'table';
+    tableCont.style.display = modo === 'table' ? 'block' : 'none';
+    kanbanCont.style.display = modo === 'kanban' ? 'block' : 'none';
+    document.getElementById('btn-view-table')?.classList.toggle('active', modo === 'table');
+    document.getElementById('id-view-kanban')?.classList.toggle('active', modo === 'kanban');
+  }
+
+  const obraFilter = document.getElementById('tar-obra-filter')?.value || '';
+  const statusFilter = document.getElementById('tar-status-filter')?.value || '';
+  const prioFilter = document.getElementById('tar-prio-filter')?.value || '';
+  const respFilter = document.getElementById('tar-resp-filter')?.value || '';
+  const soVencidas = !!document.getElementById('tar-vencidas')?.checked;
+  const soMinhas = !!document.getElementById('tar-minhas')?.checked;
+  const ordem = document.getElementById('tar-ordem')?.value || 'prazo';
+  const busca = (document.getElementById('tar-busca')?.value || '').toLowerCase().trim();
+
+  // Repovoa os responsáveis a partir dos dados, preservando a seleção atual.
+  const respSel = document.getElementById('tar-resp-filter');
+  if (respSel) {
+    const atual = respSel.value;
+    const responsaveis = [...new Set((DB.tarefas || []).map(t => t && t.resp).filter(Boolean))].sort();
+    respSel.innerHTML = '<option value="">Todos responsáveis</option>'
+      + responsaveis.map(r => `<option value="${String(r).replace(/"/g, '&quot;')}">${r}</option>`).join('');
+    if (responsaveis.includes(atual)) respSel.value = atual;
+  }
+
+  let meuNome = '', meuEmail = '';
+  try {
+    const sessao = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
+    meuNome = String(sessao.name || '').toLowerCase();
+    meuEmail = String(sessao.email || '').toLowerCase();
+  } catch (e) { }
+
+  const tasks = (DB.tarefas || []).map((t, i) => ({ ...t, _idx: i }))
+    .map(t => ({
+      ...t,
+      _atrasada: tarefaTaAtrasada(t),
+      _status: tarefaStatusEfetivo(t),
+      _venceHoje: !tarefaTaAtrasada(t) && t.prazo === getTodayBR()
+    }))
+    .filter(t => {
+      if (obraFilter && t.obra !== obraFilter) return false;
+      if (prioFilter && t.prior !== prioFilter) return false;
+      if (respFilter && t.resp !== respFilter) return false;
+      if (soVencidas && !t._atrasada) return false;
+      if (soMinhas) {
+        const r = String(t.resp || '').toLowerCase();
+        if (!r || (!meuNome && !meuEmail) || (!r.includes(meuNome) && (!meuEmail || !r.includes(meuEmail)))) return false;
+      }
+      if (statusFilter === 'abertas' && t._status === 'Concluída') return false;
+      if (statusFilter === 'atrasadas' && !t._atrasada) return false;
+      if (statusFilter && !['abertas', 'atrasadas'].includes(statusFilter)) {
+        // "Pendente" (legado) e "A fazer" são o mesmo balde; "Atrasada" também
+        // aparece quando o prazo venceu mesmo sem status gravado.
+        const alvo = statusFilter === 'A fazer' ? ['A fazer', 'Pendente'] : [statusFilter];
+        if (!alvo.includes(t._status)) return false;
+      }
+      if (busca && !((t.desc || '').toLowerCase().includes(busca)
+        || (t.resp || '').toLowerCase().includes(busca)
+        || (t.cod || '').toLowerCase().includes(busca))) return false;
+      return true;
     });
+
+  const prioridade = { Alta: 0, Média: 1, Baixa: 2 };
+  tasks.sort((a, b) => {
+    if (ordem === 'prioridade') {
+      return (prioridade[a.prior] ?? 9) - (prioridade[b.prior] ?? 9)
+        || (a.prazo || '9999').localeCompare(b.prazo || '9999');
+    }
+    if (ordem === 'status') {
+      return String(a.status || '').localeCompare(String(b.status || ''))
+        || (a.prazo || '9999').localeCompare(b.prazo || '9999');
+    }
+    if (ordem === 'recentes') return String(b.criacao || '').localeCompare(String(a.criacao || ''));
+    // Padrão: prazo mais próximo primeiro; sem prazo vai para o fim.
+    if (!a.prazo && !b.prazo) return 0;
+    if (!a.prazo) return 1;
+    if (!b.prazo) return -1;
+    return a.prazo.localeCompare(b.prazo);
+  });
 
   // KPIs dinâmicos filtrados
   const total = tasks.length;
-  const conc = tasks.filter(t => t.status === 'Concluída').length;
-  const andam = tasks.filter(t => t.status === 'Em andamento').length;
-  const pend = tasks.filter(t => t.status === 'Pendente' || t.status === 'A fazer' || !t.status).length;
+  const conc = tasks.filter(t => t._status === 'Concluída').length;
+  const andam = tasks.filter(t => t._status === 'Em andamento').length;
+  const pend = tasks.filter(t => ['Pendente', 'A fazer', 'Atrasada', 'Pausada'].includes(t._status)).length;
+  const atrasadas = tasks.filter(t => t._atrasada).length;
 
   safeSetInner('tar-kpi', `
     <div class="kpi-card"><div class="kpi-label">Total Filtrado</div><div class="kpi-val">${total}</div></div>
     <div class="kpi-card"><div class="kpi-label">Concluídas</div><div class="kpi-val green">${conc}</div></div>
     <div class="kpi-card"><div class="kpi-label">Em Andamento</div><div class="kpi-val blue">${andam}</div></div>
     <div class="kpi-card"><div class="kpi-label">Pendentes</div><div class="kpi-val orange">${pend}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Atrasadas</div><div class="kpi-val ${atrasadas > 0 ? 'red' : 'green'}">${atrasadas}</div></div>
   `);
 
   if (window._taskViewMode === 'kanban') {
@@ -1499,65 +1828,289 @@ function renderTarefas() {
   }
 }
 
+// ==================== TAREFAS — AÇÕES RÁPIDAS ====================
+
+// Prazo vencido é atrasado mesmo que o status gravado ainda diga "A fazer".
+function tarefaTaAtrasada(t) {
+  if (!t || t.status === 'Concluída' || !t.prazo) return false;
+  return t.prazo < getTodayBR();
+}
+window.tarefaTaAtrasada = tarefaTaAtrasada;
+
+function tarefaStatusEfetivo(t) {
+  return tarefaTaAtrasada(t) ? 'Atrasada' : (t.status || 'A fazer');
+}
+window.tarefaStatusEfetivo = tarefaStatusEfetivo;
+
+// Snapshot para desfazer a última ação rápida (concluir/iniciar/mover).
+let _undoSnapshotTarefas = null;
+
+function toastComDesfazer(msg) {
+  let c = document.getElementById('toast-container');
+  if (!c) {
+    c = document.createElement('div');
+    c.id = 'toast-container';
+    c.className = 'toast-container';
+    document.body.appendChild(c);
+  }
+  const el = document.createElement('div');
+  el.className = 'toast success toast-undo';
+  el.innerHTML = `<span class="material-symbols-outlined md-18">check_circle</span> ${msg}`
+    + '<button type="button" class="toast-undo-btn" onclick="desfazerAcao()">Desfazer</button>';
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 6000);
+}
+window.toastComDesfazer = toastComDesfazer;
+
+function desfazerAcao() {
+  if (!_undoSnapshotTarefas) {
+    toast('Nada para desfazer.', 'warning');
+    return;
+  }
+  const snap = _undoSnapshotTarefas;
+  _undoSnapshotTarefas = null;
+  DB.tarefas = snap;
+  persistDB();
+  renderTarefas();
+  if (document.getElementById('dash-tarefas-grid')) renderDashboard();
+  toast('Ação desfeita.');
+}
+window.desfazerAcao = desfazerAcao;
+
+function snapshotTarefas() {
+  _undoSnapshotTarefas = JSON.parse(JSON.stringify(DB.tarefas || []));
+}
+
+// Conclui ou reabre uma tarefa a partir de qualquer tela (tabela, kanban, dashboard).
+async function toggleTarefaConcluida(idx) {
+  const t = DB.tarefas[idx];
+  if (!t) return;
+  snapshotTarefas();
+  if (t.status === 'Concluída') {
+    t.status = 'A fazer';
+    t.conclusao = '';
+    t.perc = 0;
+  } else {
+    t.status = 'Concluída';
+    t.conclusao = getTodayBR();
+    t.perc = 100;
+  }
+  await persistDB();
+  renderTarefas();
+  if (document.getElementById('dash-tarefas-grid')) renderDashboard();
+  toastComDesfazer(t.status === 'Concluída' ? 'Tarefa concluída.' : 'Tarefa reaberta.');
+}
+window.toggleTarefaConcluida = toggleTarefaConcluida;
+
+function concluirTarefaRapida(idx) {
+  const t = DB.tarefas[idx];
+  if (!t || t.status === 'Concluída') return;
+  return toggleTarefaConcluida(idx);
+}
+window.concluirTarefaRapida = concluirTarefaRapida;
+
+function iniciarTarefa(idx) {
+  const t = DB.tarefas[idx];
+  if (!t || ['Em andamento', 'Concluída', 'Pausada'].includes(t.status)) return;
+  snapshotTarefas();
+  t.status = 'Em andamento';
+  if (!t.perc || t.perc < 10) t.perc = 10;
+  persistDB();
+  renderTarefas();
+  if (document.getElementById('dash-tarefas-grid')) renderDashboard();
+  toastComDesfazer('Tarefa iniciada.');
+}
+window.iniciarTarefa = iniciarTarefa;
+
+// Move a tarefa para outro status (arrastar no kanban ou ações rápidas).
+function moverTarefaStatus(idx, status, opts = {}) {
+  const t = DB.tarefas[idx];
+  if (!t || !status) return;
+  if (tarefaStatusEfetivo(t) === status) return;
+  if (!opts.semSnapshot) snapshotTarefas();
+  const percAnterior = Number(t.perc) || 0;
+  t.status = status;
+  if (status === 'Concluída') {
+    t.conclusao = getTodayBR();
+    t.perc = 100;
+  } else {
+    t.conclusao = '';
+    if (percAnterior >= 100) t.perc = 90;
+    if (status === 'Em andamento' && (!t.perc || t.perc < 10)) t.perc = 10;
+  }
+  persistDB();
+  renderTarefas();
+  if (document.getElementById('dash-tarefas-grid')) renderDashboard();
+  if (!opts.semToast) toastComDesfazer(`Tarefa movida para "${status}".`);
+}
+window.moverTarefaStatus = moverTarefaStatus;
+
+// Navegação a partir do dashboard: aplica filtros já na chegada à página de tarefas.
+function irParaTarefas(filtros = {}) {
+  if (typeof showPage !== 'function') return;
+  showPage('tarefas').then(() => {
+    Object.entries(filtros).forEach(([id, valor]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === 'checkbox') el.checked = !!valor;
+      else el.value = valor;
+    });
+    renderTarefas();
+  });
+}
+window.irParaTarefas = irParaTarefas;
+
+function verTarefasDashboard() {
+  irParaTarefas({ 'tar-status-filter': 'abertas', 'tar-ordem': 'prazo' });
+}
+window.verTarefasDashboard = verTarefasDashboard;
+
+function verTarefasDaObra(cod) {
+  irParaTarefas({ 'tar-obra-filter': cod, 'tar-status-filter': 'abertas' });
+}
+window.verTarefasDaObra = verTarefasDaObra;
+
+function abrirNovaTarefaNoStatus(status) {
+  if (typeof openModal !== 'function') return;
+  openModal('modal-tarefa').then(() => {
+    const sel = document.getElementById('tf-status');
+    if (sel) sel.value = status;
+  });
+}
+window.abrirNovaTarefaNoStatus = abrirNovaTarefaNoStatus;
+
+// Kanban: arrastar cartões entre colunas altera o status da tarefa.
+function onTaskDragStart(e, idx) {
+  window._tarefaArrastada = Number(idx);
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(idx));
+  }
+  e.currentTarget?.classList.add('dragging');
+}
+window.onTaskDragStart = onTaskDragStart;
+
+function onTaskDragOver(e) {
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  e.currentTarget?.classList.add('drag-over');
+}
+window.onTaskDragOver = onTaskDragOver;
+
+function onTaskDragLeave(e) {
+  e.currentTarget?.classList.remove('drag-over');
+}
+window.onTaskDragLeave = onTaskDragLeave;
+
+function onTaskDrop(e, status) {
+  e.preventDefault();
+  e.currentTarget?.classList.remove('drag-over');
+  let idx = window._tarefaArrastada;
+  if (idx === undefined || idx === null || Number.isNaN(idx)) {
+    idx = parseInt(e.dataTransfer?.getData('text/plain'));
+  }
+  window._tarefaArrastada = null;
+  document.querySelectorAll('.kanban-card.dragging').forEach(c => c.classList.remove('dragging'));
+  if (!Number.isInteger(idx) || idx < 0) return;
+  moverTarefaStatus(idx, status);
+}
+window.onTaskDrop = onTaskDrop;
+
 function renderTaskTable(tasks) {
   safeSetInner('tar-tbody', tasks.length
-    ? tasks.map(t => `<tr>
-        <td data-label="Cód."><span class="cod">${t.cod}</span></td>
-        <td data-label="Obra">${obName(t.obra)}</td>
-        <td data-label="Etapa / Frente"><small>${t.etapa}<br>${t.frente || '—'}</small></td>
-        <td data-label="Descrição"><b>${t.desc}</b></td>
-        <td data-label="Responsável">${t.resp}</td>
-        <td data-label="Prior.">${statusBadge(t.prior)}</td>
-        <td data-label="Status">${statusBadge(t.status)}</td>
-        <td data-label="Prazo">${fmtDate(t.prazo)}</td>
-        <td data-label="% Conc.">
-          <div style="display:flex;align-items:center;gap:6px">
-            <div class="progress-bar" style="width:60px;height:6px"><div class="progress-fill" style="width:${t.perc || 0}%;background:${t.perc >= 100 ? 'var(--green)' : t.status === 'Atrasada' ? 'var(--red)' : 'var(--accent2)'}"></div></div>
-            <span style="font-size:11px">${t.perc || 0}%</span>
-          </div>
-        </td>
-        <td>
-           <div style="display:flex; gap:8px; align-items:center">
-             ${t.photoUrl ? `<button type="button" class="btn btn-secondary btn-sm" onclick="openLightbox('${t.photoUrl}')" title="Ver evidência" aria-label="Ver evidência"><span class="material-symbols-outlined md-16">photo_camera</span> Foto</button>` : ''}
-             <button class="btn btn-secondary btn-sm" onclick="editTarefa(${t._idx})" title="Editar tarefa" aria-label="Editar tarefa"><span class="material-symbols-outlined md-16">edit</span> Editar</button>
-             <button class="btn btn-danger btn-sm" onclick="deleteItem('tarefas',${t._idx})">Excluir</button>
-           </div>
-        </td>
-      </tr>`).join('')
-    : uiEmptyState('Nenhuma Tarefa', 'O cronograma está limpo.', 'checklist', 'Nova Tarefa', 'openModal(\'modal-tarefa\')'));
+    ? tasks.map(t => {
+        const atrasada = t._atrasada || tarefaTaAtrasada(t);
+        const venceHoje = !atrasada && t.prazo === getTodayBR();
+        const linhaCls = atrasada ? 'tarefa-atrasada' : (venceHoje ? 'tarefa-hoje' : '');
+        const acaoConcluir = t.status === 'Concluída'
+          ? `<button class="btn btn-secondary btn-sm" onclick="toggleTarefaConcluida(${t._idx})" title="Reabrir tarefa"><span class="material-symbols-outlined md-16">restart_alt</span> Reabrir</button>`
+          : `<button class="btn btn-primary btn-sm" onclick="concluirTarefaRapida(${t._idx})" title="Concluir tarefa"><span class="material-symbols-outlined md-16">check</span> Concluir</button>`;
+        const acaoIniciar = (!t.status || t.status === 'A fazer' || t.status === 'Pendente')
+          ? `<button class="btn btn-secondary btn-sm" onclick="iniciarTarefa(${t._idx})" title="Iniciar tarefa"><span class="material-symbols-outlined md-16">play_arrow</span> Iniciar</button>`
+          : '';
+        return `<tr class="${linhaCls}">
+          <td data-label="Cód."><span class="cod">${t.cod}</span></td>
+          <td data-label="Obra">${obName(t.obra)}</td>
+          <td data-label="Etapa / Frente"><small>${t.etapa || '—'}<br>${t.frente || '—'}</small></td>
+          <td data-label="Descrição"><b>${t.desc}</b></td>
+          <td data-label="Responsável">${t.resp || '—'}</td>
+          <td data-label="Prior.">${statusBadge(t.prior)}</td>
+          <td data-label="Status">${statusBadge(tarefaStatusEfetivo(t))}</td>
+          <td data-label="Prazo">${fmtDate(t.prazo)}${atrasada ? ' <span class="tarefa-atrasada-tag">Atrasada</span>' : ''}</td>
+          <td data-label="% Conc.">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div class="progress-bar" style="width:60px;height:6px"><div class="progress-fill" style="width:${t.perc || 0}%;background:${t.perc >= 100 ? 'var(--green)' : atrasada ? 'var(--red)' : 'var(--accent2)'}"></div></div>
+              <span style="font-size:11px">${t.perc || 0}%</span>
+            </div>
+          </td>
+          <td>
+            <div class="tarefa-acoes">
+              ${acaoIniciar}
+              ${acaoConcluir}
+              ${t.photoUrl ? `<button type="button" class="btn btn-secondary btn-sm" onclick="openLightbox('${t.photoUrl}')" title="Ver evidência" aria-label="Ver evidência"><span class="material-symbols-outlined md-16">photo_camera</span> Foto</button>` : ''}
+              <button class="btn btn-secondary btn-sm" onclick="editTarefa(${t._idx})" title="Editar tarefa" aria-label="Editar tarefa"><span class="material-symbols-outlined md-16">edit</span> Editar</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteItem('tarefas',${t._idx})">Excluir</button>
+            </div>
+          </td>
+       </tr>`;
+      }).join('')
+    : uiEmptyState('Nenhuma Tarefa', 'Ajuste os filtros ou crie uma nova tarefa.', 'checklist', 'Nova Tarefa', 'openModal(\'modal-tarefa\')'));
 }
 
 function renderKanban(tasks) {
   const colOrder = ['Pendente', 'Em andamento', 'Concluída'];
-  const colTitles = { 'Pendente': '<span class="material-symbols-outlined md-18" style="vertical-align:middle;">checklist</span> Para Fazer', 'Em andamento': '<span class="material-symbols-outlined md-18" style="vertical-align:middle;">construction</span> Em Andamento', 'Concluída': '<span class="material-symbols-outlined md-18" style="vertical-align:middle;">check_circle</span> Concluída' };
+  const colTitles = {
+    'Pendente': '<span class="material-symbols-outlined md-18" style="vertical-align:middle;">checklist</span> Para Fazer',
+    'Em andamento': '<span class="material-symbols-outlined md-18" style="vertical-align:middle;">construction</span> Em Andamento',
+    'Concluída': '<span class="material-symbols-outlined md-18" style="vertical-align:middle;">check_circle</span> Concluída'
+  };
+
+  // "A fazer" (modal) e "Pendente" (legado) compartilham a primeira coluna.
+  const bucket = (t) => {
+    if (t.status === 'Concluída') return 'Concluída';
+    if (t.status === 'Em andamento') return 'Em andamento';
+    return 'Pendente';
+  };
 
   let html = '';
   colOrder.forEach(cId => {
-    const cItems = tasks.filter(t => (t.status || 'Pendente') === cId);
+    const cItems = tasks.filter(t => bucket(t) === cId);
     html += `
       <div class="kanban-col">
         <div class="kanban-header">
           <h4>${colTitles[cId]}</h4>
-          <span class="badge badge-gray">${cItems.length}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="btn btn-secondary btn-sm" onclick="abrirNovaTarefaNoStatus('${cId === 'Pendente' ? 'A fazer' : cId}')" title="Nova tarefa nesta coluna">+ Nova</button>
+            <span class="badge badge-gray">${cItems.length}</span>
+          </div>
         </div>
-        <div class="kanban-cards">
-          ${cItems.length ? cItems.map(t => `
-            <div class="kanban-card" onclick="editTarefa(${t._idx})">
+        <div class="kanban-cards" ondragover="onTaskDragOver(event)" ondragleave="onTaskDragLeave(event)" ondrop="onTaskDrop(event, '${cId}')">
+          ${cItems.length ? cItems.map(t => {
+            const atrasada = t._atrasada || tarefaTaAtrasada(t);
+            return `
+            <div class="kanban-card ${atrasada ? 'tarefa-atrasada' : (t.prazo === getTodayBR() ? 'tarefa-hoje' : '')}"
+                 draggable="true" ondragstart="onTaskDragStart(event, ${t._idx})" ondragend="this.classList.remove('dragging')"
+                 onclick="editTarefa(${t._idx})" title="Arraste para mudar o status">
               <div class="kanban-card-title">${t.desc}</div>
               <div class="kanban-card-meta">
-                <span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">person</span> ${t.resp}</span>
+                <span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">person</span> ${t.resp || 'Sem responsável'}</span>
                 <span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">construction</span> ${obName(t.obra)}</span>
-                <span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">calendar_today</span> Prazo: ${fmtDate(t.prazo)}</span>
+                <span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">calendar_today</span> Prazo: ${fmtDate(t.prazo)}${atrasada ? ' · Atrasada' : ''}</span>
               </div>
               <div class="kanban-card-footer">
                 ${statusBadge(t.prior)}
                 <div style="display:flex;align-items:center;gap:8px">
-                  <div class="progress-bar" style="width:50px;height:4px"><div class="progress-fill" style="width:${t.perc || 0}%;background:var(--accent2)"></div></div>
+                  <div class="progress-bar" style="width:50px;height:4px"><div class="progress-fill" style="width:${t.perc || 0}%;background:${atrasada ? 'var(--red)' : 'var(--accent2)'}"></div></div>
                   <span style="font-size:10px;font-weight:600">${t.perc || 0}%</span>
                 </div>
               </div>
-            </div>
-          `).join('') : '<div style="text-align:center; padding:30px; color:var(--text3); font-size:12px; font-style:italic">Vazio</div>'}
+              <div class="kanban-card-actions" onclick="event.stopPropagation()">
+                ${t.status === 'Concluída'
+                  ? `<button class="btn btn-secondary btn-sm" onclick="toggleTarefaConcluida(${t._idx})">Reabrir</button>`
+                  : `<button class="btn btn-primary btn-sm" onclick="concluirTarefaRapida(${t._idx})">Concluir</button>`}
+              </div>
+            </div>`;
+          }).join('') : '<div style="text-align:center; padding:30px; color:var(--text3); font-size:12px; font-style:italic">Vazio — arraste uma tarefa para cá</div>'}
         </div>
       </div>`;
   });
@@ -1594,6 +2147,20 @@ async function confirmarEntrada() {
   if (!qtd || qtd <= 0) { toast('Quantidade inválida.', 'error'); return; }
   if (!motivo) { toast('Informe o motivo/NF.', 'error'); return; }
   const e = DB.estoque.find(x => x.cod === codMat);
+
+  // Canteiro não mexe no saldo diretamente: prepara a entrada e pede decisão.
+  if (typeof window.desviarParaAprovacao === 'function') {
+    const obs = document.getElementById('ent-obs')?.value || '';
+    const desviado = await window.desviarParaAprovacao('movimentacao_estoque', {
+      movimentacao: {
+        data: new Date().toISOString().slice(0, 10), codMat,
+        mat: e?.mat || codMat, obra: e?.obra || '', tipo: 'Entrada', qtd,
+        obs: obs ? `${motivo} — ${obs}` : motivo
+      }
+    }, `Entrada de ${qtd} — ${e?.mat || codMat}`);
+    if (desviado) { closeModalEntrada(); return; }
+  }
+
   if (e) e.entrada = (parseFloat(e.entrada) || 0) + qtd;
   DB.movEstoque.push({
     data: today, codMat, mat: e?.mat || codMat, obra: e?.obra || '',
@@ -1647,20 +2214,66 @@ function renderMovEstoque() {
 
 // ==================== COMPRAS ====================
 function renderCompras() {
-  safeSetInner('compras-tbody', DB.compras.length
-    ? DB.compras.map((c, i) => `<tr>
-        <td><b>${c.num}</b></td><td>${fmtDate(c.data)}</td>
-        <td>${obName(c.obra)}</td><td><span class="cod">${c.mat}</span></td><td>${c.qtd} ${c.unid}</td>
-        <td>${statusBadge(c.status)}</td><td>${c.forn}</td>
-        <td>${fmt(c.vtotal)}</td><td>${fmtDate(c.prazo)}</td>
-        <td>${c.conf || '—'}</td>
-        <td>
-          <button class="btn btn-secondary btn-sm" onclick="editCompra(${i})" title="Editar compra" aria-label="Editar compra" style="margin-right:8px"><span class="material-symbols-outlined md-16">edit</span> Editar</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteItem('compras',${i})">Excluir</button>
-        </td>
-      </tr>`).join('')
-    : uiEmptyState('Nenhuma Compra', 'Crie um pedido de material novo para acompanhar as entregas dos fornecedores.', 'shopping_cart', 'Novo Pedido', 'openModal(\'modal-compra\')'));
+  const tbody = document.getElementById('compras-tbody');
+  if (!tbody) return;
+
+  const comercial = typeof window.podeVerDadosComerciais === 'function'
+    && window.podeVerDadosComerciais();
+  const restrito = typeof window.requerAprovacao === 'function'
+    && window.requerAprovacao();
+
+  // Cabeçalho e linhas saem da mesma lista: acaba o desalinhamento de colunas.
+  const colunas = [
+    { titulo: 'Nº Ped.', celula: (c) => `<b>${escHtml(c.num || '')}</b>` },
+    { titulo: 'Data Solic.', celula: (c) => fmtDate(c.data) },
+    { titulo: 'Obra', celula: (c) => obName(c.obra) },
+    { titulo: 'Material/Serviço', celula: (c) => `<span class="cod">${escHtml(c.mat || '')}</span>` },
+    { titulo: 'Qtd.', celula: (c) => escHtml(c.qtd) },
+    { titulo: 'Unid.', celula: (c) => escHtml(c.unid || '') },
+    { titulo: 'Status', celula: (c) => statusBadge(c.status) }
+  ];
+  if (comercial) {
+    colunas.push(
+      { titulo: 'Fornecedor', celula: (c) => escHtml(window.dadoComercial(c, 'forn') || '—') },
+      { titulo: 'Vl. Total', celula: (c) => fmt(window.dadoComercial(c, 'vtotal') || 0) },
+      { titulo: 'Prazo Entrega', celula: (c) => fmtDate(window.dadoComercial(c, 'prazo')) }
+    );
+  }
+  colunas.push(
+    { titulo: 'Recebido?', celula: (c) => escHtml(c.receb ? fmtDate(c.receb) : '—') },
+    { titulo: 'Conferido?', celula: (c) => escHtml(c.conf || '—') },
+    { titulo: 'Evidência', celula: (c, i) => `<button class="btn btn-secondary btn-sm" onclick="verEvidenciaCompra(${i})" title="Ver fotos da obra"><span class="material-symbols-outlined md-16">photo_camera</span> Ver</button>` }
+  );
+  if (!restrito) {
+    colunas.push({
+      titulo: 'Ações',
+      celula: (c, i) => `
+        <button class="btn btn-secondary btn-sm" onclick="editCompra(${i})" title="Editar compra" aria-label="Editar compra" style="margin-right:8px"><span class="material-symbols-outlined md-16">edit</span> Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteItem('compras',${i})">Excluir</button>`
+    });
+  }
+
+  const head = document.getElementById('compras-head');
+  if (head) head.innerHTML = colunas.map(col => `<th>${col.titulo}</th>`).join('');
+
+  tbody.innerHTML = DB.compras.length
+    ? DB.compras.map((c, i) => `<tr>${colunas.map(col => `<td>${col.celula(c, i)}</td>`).join('')}</tr>`).join('')
+    : `<tr><td colspan="${colunas.length}">${uiEmptyState('Nenhuma Compra', 'Crie um pedido de material novo para acompanhar as entregas.', 'shopping_cart', 'Nova Compra', "openModal('modal-compra')")}</td></tr>`;
 }
+
+/** Abre a galeria já filtrada pela obra da compra (evidência de recebimento). */
+async function verEvidenciaCompra(idx) {
+  const c = DB.compras[idx];
+  if (!c) return;
+  await showPage('fotos');
+  const filtro = document.getElementById('fotos-obra-filter');
+  if (filtro && c.obra) {
+    filtro.value = c.obra;
+    renderFotos();
+  }
+  toast(`Evidência: obra ${obName(c.obra)}${c.etapa ? ' · ' + c.etapa : ''}.`, 'success');
+}
+window.verEvidenciaCompra = verEvidenciaCompra;
 
 
 // ==================== FINANCEIRO ====================
@@ -4352,7 +4965,8 @@ async function editUsuario(idx) {
   document.getElementById('usr-edit-idx').value = idx;
   document.getElementById('usr-email').value = u.email || u.username || '';
   document.getElementById('usr-name').value = u.name;
-  document.getElementById('usr-role').value = u.role || 'pendente';
+  // Usuários legados podem estar gravados como `mestre`; o select usa o papel canônico.
+  document.getElementById('usr-role').value = u.role === 'mestre' ? 'encarregado' : (u.role || 'pendente');
   document.getElementById('usr-email').disabled = true; // Impede alteração do e-mail de acesso
 }
 
@@ -4465,6 +5079,10 @@ async function openModal(id) {
 
   const html = await carregarHTML(`modals/${id}.html`);
   modalContent.innerHTML = html;
+
+  if (id === 'modal-compra' && typeof window.prepareModalCompra === 'function') {
+    window.prepareModalCompra(modalContent);
+  }
 
   if (id === 'modal-upgrade') populateUpgradeModal(modalContent);
 
@@ -4876,6 +5494,18 @@ async function saveTrabalhador() {
     cidade: document.getElementById('tr-cidade').value,
     foto: document.getElementById('tr-foto-url')?.value || (editIdx >= 0 ? DB.trabalhadores[editIdx].foto : null)
   };
+
+  // Cadastro de pessoas é sensível: canteiro solicita, admin decide e aplica.
+  if (typeof window.desviarParaAprovacao === 'function') {
+    if (editIdx >= 0) {
+      toast('Alteração de cadastro exige aprovação. Solicite ao administrador.', 'warning');
+      return;
+    }
+    const desviado = await window.desviarParaAprovacao('trabalhador_add', { trabalhador: data },
+      `Incluir trabalhador ${data.nome || cod} (${cod})`);
+    if (desviado) { closeModal('modal-trabalhador'); return; }
+  }
+
   if (editIdx >= 0 && DB.trabalhadores[editIdx]) {
     // 1. Captura Segura dos Dados Antigos ANTES de atualizar
     const oldWorker = { ...DB.trabalhadores[editIdx] };
@@ -5800,14 +6430,40 @@ async function saveCompra() {
     obs: document.getElementById('cp-obs').value
   };
   const editIdx = parseEditIdx(document.getElementById('cp-edit-idx').value);
+
+  // Engenheiro/encarregado preparam a compra; dados comerciais não entram na
+  // solicitação porque qualquer membro do tenant pode ler `aprovacoes`.
+  if (typeof window.desviarParaAprovacao === 'function') {
+    if (editIdx >= 0) {
+      toast('Alteração comercial exige aprovação. Solicite ao administrador ou comprador.', 'warning');
+      return;
+    }
+    const { forn, pixkey, vunit, vtotal, vorc, prazo, ...publicas } = data;
+    const desviado = await window.desviarParaAprovacao('compra_criacao', {
+      compra: { ...publicas, id: data.num || undefined }
+    }, `Compra ${data.mat} (${data.qtd} ${data.unid || ''})`);
+    if (desviado) { closeModal('modal-compra'); return; }
+  }
+
+  // Admin/comprador: registro público sem dados comerciais; os campos
+  // sensíveis ficam no nó separado `comprasPrivadas`.
+  const id = data.num || (editIdx >= 0 && DB.compras[editIdx] && DB.compras[editIdx].id) || `CP-${Date.now()}`;
+  const publica = typeof window.compraPublica === 'function'
+    ? window.compraPublica({ ...data, id })
+    : data;
   if (editIdx >= 0) {
-    DB.compras[editIdx] = data;
+    DB.compras[editIdx] = publica;
     toast('Compra atualizada!');
   } else {
-    DB.compras.push(data);
+    DB.compras.push(publica);
     toast('Compra registrada!');
   }
-  closeModal('modal-compra'); await persistDB(); renderCompras();
+  closeModal('modal-compra');
+  await persistDB();
+  if (typeof window.salvarDadosComerciais === 'function') {
+    await window.salvarDadosComerciais(id, data);
+  }
+  renderCompras();
 }
 
 async function editCompra(idx) {
@@ -5822,12 +6478,15 @@ async function editCompra(idx) {
   document.getElementById('cp-qtd').value = c.qtd;
   document.getElementById('cp-unid').value = c.unid;
   document.getElementById('cp-status').value = c.status;
-  document.getElementById('cp-forn').value = c.forn;
-  document.getElementById('cp-vunit').value = c.vunit;
-  document.getElementById('cp-vtotal').value = c.vtotal;
-  document.getElementById('cp-pixkey').value = c.pixkey || '';
-  document.getElementById('cp-vorc').value = c.vorc;
-  document.getElementById('cp-prazo').value = c.prazo;
+  const comercial = (campo, fallback) => typeof window.dadoComercial === 'function'
+    ? (window.dadoComercial(c, campo) ?? fallback)
+    : (c[campo] ?? fallback);
+  document.getElementById('cp-forn').value = comercial('forn', '') || '';
+  document.getElementById('cp-vunit').value = comercial('vunit', 0) || 0;
+  document.getElementById('cp-vtotal').value = comercial('vtotal', 0) || 0;
+  document.getElementById('cp-pixkey').value = comercial('pixkey', '') || '';
+  document.getElementById('cp-vorc').value = comercial('vorc', 0) || 0;
+  document.getElementById('cp-prazo').value = comercial('prazo', '') || '';
   document.getElementById('cp-receb').value = c.receb;
   document.getElementById('cp-conf').value = c.conf;
   document.getElementById('cp-obs').value = c.obs || '';
@@ -5875,6 +6534,26 @@ async function saveFinanceiro() {
   };
 
   const editIdx = parseEditIdx(document.getElementById('fn-edit-idx').value);
+
+  // Engenheiro só prepara: o servidor aplica a alteração após decisão do admin.
+  if (typeof window.desviarParaAprovacao === 'function') {
+    const anterior = editIdx >= 0 ? DB.financeiro[editIdx] : null;
+    let desviado;
+    if (anterior && anterior.status !== status) {
+      desviado = await window.desviarParaAprovacao('financeiro_status', {
+        indice: editIdx, status, valpago
+      }, `${anterior.desc || 'Lançamento'}: ${anterior.status} → ${status}`);
+    } else {
+      const lancamento = { ...data };
+      delete lancamento.forn; // dado comercial não vai para a solicitação
+      desviado = await window.desviarParaAprovacao('financeiro_lancamento', {
+        lancamento,
+        ...(editIdx >= 0 ? { indice: editIdx } : {})
+      }, `${data.desc || 'Lançamento'} — ${data.obra}`);
+    }
+    if (desviado) { closeModal('modal-financeiro'); return; }
+  }
+
   if (editIdx >= 0) {
     DB.financeiro[editIdx] = data;
     let tmsg = 'Lançamento financeiro atualizado!';
@@ -5962,6 +6641,15 @@ async function saveOrcamento() {
     && nrm(o.unid) && nrm(data.unid) && nrm(o.unid) !== nrm(data.unid));
   if (outraUnidade) {
     toast(`Atenção: "${escHtml(data.desc)}" já existe em outro item com a unidade "${escHtml(outraUnidade.unid)}" (aqui: "${escHtml(data.unid)}"). Confira.`, 'warning');
+  }
+
+  // Empreitadas/aditivos: o engenheiro prepara, o administrador aprova.
+  if (typeof window.desviarParaAprovacao === 'function') {
+    const desviado = await window.desviarParaAprovacao('orcamento_fechamento', {
+      ...(editIdx >= 0 ? { indice: editIdx } : { criar: true }),
+      item: data
+    }, `Orçamento — ${data.desc || data.id || ''} (${data.obra})`);
+    if (desviado) { closeModal('modal-orcamento'); return; }
   }
 
   if (editIdx >= 0) {
@@ -6053,6 +6741,26 @@ async function saveMedicao() {
   if (!data.serviceId) delete data.serviceId;
   // O usuário decidiu o vínculo neste formulário (trocou o serviço ou deixou avulso): sai da lista de revisão.
   if (!data.serviceId || data.serviceId !== anterior.serviceId) delete data.serviceIdReview;
+
+  // Medição com valor só entra no DB após aprovação. Fotos base64 ficam de fora
+  // da solicitação (o envio para o Storage é feito pelo fluxo normal da página).
+  if (typeof window.desviarParaAprovacao === 'function' && (Number(data.vtotal) > 0 || Number(data.vunit) > 0)) {
+    const fotos = (data.photos || []).filter(u => !String(u).startsWith('data:'));
+    const item = {
+      ...data,
+      photos: fotos,
+      photoUrl: fotos[0] || (String(data.photoUrl || '').startsWith('data:') ? '' : data.photoUrl || '')
+    };
+    const desviado = await window.desviarParaAprovacao('medicao_fechamento', {
+      ...(editIdx >= 0 ? { indice: editIdx } : { criar: true }),
+      item
+    }, `Medição — ${data.servico || data.obra} (${data.semana})`);
+    if (desviado) {
+      closeModal('modal-medicao');
+      window._medicaoPhotos = [];
+      return;
+    }
+  }
 
   if (editIdx >= 0) {
     DB.medicao[editIdx] = data;
@@ -6278,7 +6986,7 @@ async function saveUsuario() {
 }
 
 // ==================== DELETE ====================
-function deleteItem(table, idx) {
+async function deleteItem(table, idx) {
   if (idx < 0 || idx >= DB[table].length) {
     toast('Erro: Índice inválido. Recarregue a página.', 'error');
     return;
@@ -6334,6 +7042,20 @@ function deleteItem(table, idx) {
     }
   } else {
     if (!confirm('Remover este registro?')) return;
+  }
+
+  // Remoções sensíveis também passam por aprovação (ponto/tarefas/almocos
+  // continuam com exclusão direta, como registro de obra).
+  if (typeof window.requerAprovacao === 'function' && window.requerAprovacao()) {
+    if (table === 'trabalhadores') {
+      const registro = DB.trabalhadores[idx] || {};
+      const desviado = await window.desviarParaAprovacao('trabalhador_remove',
+        { cod: registro.cod }, `Remover trabalhador ${registro.nome || registro.cod || ''} (${registro.cod || ''})`);
+      if (desviado) return;
+    } else if (['estoque', 'movEstoque', 'financeiro', 'orcamento', 'compras', 'medicao', 'usuarios'].includes(table)) {
+      toast('Remoção exige aprovação do administrador.', 'warning');
+      return;
+    }
   }
 
   DB[table].splice(idx, 1);

@@ -979,6 +979,38 @@ const calcCustoObra = (db, obraCod, options = {}) => {
   };
 };
 
+/**
+ * Tarefas que o dashboard precisa destacar: atrasadas e as que vencem hoje.
+ * `atrasada` é calculada em tempo de leitura — não depende de ninguém ter
+ * gravado manualmente o status "Atrasada".
+ */
+const calcTarefasResumo = (db, hoje) => {
+  const hojeRef = hoje || hojeLocal();
+  const tarefas = db.tarefas || [];
+  const obras = db.obras || [];
+  const nomeObra = (cod) => (obras.find(o => o.cod === cod) || {}).nome || cod || 'Geral';
+
+  const itens = tarefas.map((t, idx) => ({ ...t, _idx: idx }))
+    .filter(t => t && t.status !== 'Concluída' && t.prazo)
+    .map(t => ({
+      ...t,
+      obraNome: nomeObra(t.obra),
+      atrasada: t.prazo < hojeRef,
+      venceHoje: t.prazo === hojeRef
+    }))
+    .filter(t => t.atrasada || t.venceHoje)
+    .sort((a, b) => a.prazo.localeCompare(b.prazo) || Number(b.atrasada) - Number(a.atrasada));
+
+  return {
+    hoje: hojeRef,
+    abertas: tarefas.filter(t => t && t.status !== 'Concluída').length,
+    atrasadas: itens.filter(t => t.atrasada).length,
+    vencemHoje: itens.filter(t => t.venceHoje).length,
+    itens
+  };
+};
+window.calcTarefasResumo = calcTarefasResumo;
+
 const PRIORIDADE_ALERTA = { alto: 0, medio: 1, baixo: 2 };
 
 /**
@@ -993,13 +1025,20 @@ const calcAlertas = (db, hoje, linhas, role) => {
   const ativas = obras.filter(o => o.status === 'Em andamento');
   const add = (tipo, obra, desc, prior) => alertas.push({ tipo, obra, desc, prior });
 
-  (db.tarefas || []).forEach(t => {
-    if (!t || !t.prazo || t.status === 'Concluída') return;
-    if (t.prazo < hoje) add('TAREFA ATRASADA', nomeObra(t.obra), `${t.desc} (prazo ${fmtDate(t.prazo)})`, 'alto');
-    else if (t.prazo === hoje) add('TAREFA HOJE', nomeObra(t.obra), t.desc, 'medio');
-  });
+  // Atrasadas são agrupadas num único alerta de prioridade alta: com muitas
+  // tarefas, uma entrada por tarefa empurrava o alerta para fora do topo.
+  const tarefasResumo = calcTarefasResumo(db, hoje);
+  if (tarefasResumo.atrasadas) {
+    const atrasadas = tarefasResumo.itens.filter(t => t.atrasada);
+    const exemplos = atrasadas.slice(0, 2).map(t => t.desc).join(', ');
+    add('TAREFA ATRASADA', 'Geral',
+      `${atrasadas.length} tarefa(s) atrasada(s)${exemplos ? ': ' + exemplos : ''}`, 'alto');
+  }
+  tarefasResumo.itens.filter(t => t.venceHoje)
+    .forEach(t => add('TAREFA HOJE', t.obraNome, t.desc, 'medio'));
 
-  if (role !== 'mestre') {
+  // Encarregado (e o alias legado `mestre`) não acessa custos/compras neste alerta.
+  if (role !== 'mestre' && role !== 'encarregado') {
     (linhas || []).forEach(l => {
       if (l.obra.status !== 'Em andamento' || l.pctCusto === null) return;
       if (l.pctCusto > 100) add('CUSTO ACIMA DO ORÇAMENTO', l.obra.nome, `${l.pctCusto.toFixed(0)}% do orçamento já foi gasto`, 'alto');
@@ -1057,7 +1096,13 @@ const calcDashboardResumo = (db, hoje, role) => {
     };
   });
 
-  return { hoje, kpis, linhas, alertas: calcAlertas(db, hoje, linhas, role) };
+  return {
+    hoje,
+    kpis,
+    linhas,
+    tarefas: calcTarefasResumo(db, hoje),
+    alertas: calcAlertas(db, hoje, linhas, role)
+  };
 };
 
 /**

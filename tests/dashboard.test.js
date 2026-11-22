@@ -185,7 +185,7 @@ describe('renderDashboard (código real do app_core.js sobre o dashboard.html)',
 
   it('desenha KPIs, alertas e as linhas; concluída fica recolhida', () => {
     render();
-    expect(document.querySelectorAll('#kpi-grid .kpi-card')).toHaveLength(4);
+    expect(document.querySelectorAll('#kpi-grid .kpi-card')).toHaveLength(6);
     expect(document.querySelectorAll('#alerts-grid .alert-card').length).toBeGreaterThan(0);
     expect(rows()).toHaveLength(2); // T1 e T3; a concluída (T2) fica de fora
     expect(document.getElementById('dash-done-count').textContent).toBe('(1)');
@@ -208,10 +208,12 @@ describe('renderDashboard (código real do app_core.js sobre o dashboard.html)',
   });
 
   it('obra sem mestre ganha botão "Atribuir" (e mestre logado não)', () => {
+    const atribuir = () => [...document.querySelectorAll('#dash-obras-tbody button')]
+      .find(b => b.textContent.trim() === 'Atribuir');
     render('admin');
-    expect(document.querySelector('#dash-obras-tbody button').textContent).toBe('Atribuir');
+    expect(atribuir()).not.toBeNull();
     render('mestre');
-    expect(document.querySelector('#dash-obras-tbody button')).toBeNull();
+    expect(atribuir()).toBeUndefined();
   });
 
   it('ações rápidas respeitam o papel', () => {

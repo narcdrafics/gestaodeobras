@@ -254,3 +254,158 @@ describe('bloqueio no servidor — integração front-end', () => {
     expect(dataSrc).toContain('as regras do servidor barram no backend');
   });
 });
+
+// ==================== FASE 3 — PAPÉIS ====================
+const TOK = {
+  admin: "auth.token.role === 'admin'",
+  superAdmin: "auth.token.role === 'super_admin'",
+  encarregado: "auth.token.role === 'encarregado'",
+  mestre: "auth.token.role === 'mestre'",
+  engenheiro: "auth.token.role === 'engenheiro'",
+  comprador: "auth.token.role === 'comprador'"
+};
+const naoContem = (rule, ...papeis) => papeis.forEach(p => expect(rule).not.toContain(TOK[p]));
+const contem = (rule, ...papeis) => papeis.forEach(p => expect(rule).toContain(TOK[p]));
+
+describe('database.rules.json — matriz de papéis no tenant', () => {
+  it('a escrita no tenant deixa de ser放行 para qualquer membro', () => {
+    const write = tenantRules['.write'];
+    contem(write, 'admin', 'superAdmin');
+    expect(write).toContain("root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId");
+    // Não basta checar tenantId/billing: o papel precisa aparecer na decisão.
+    expect(write).toContain("root.child('profiles/' + auth.uid + '/role').val() === 'admin'");
+    expect(write).toContain("root.child('tenants/' + $tenantId + '/emailAdmin').val() === auth.token.email");
+  });
+
+  it('registro de obra (ponto, fotos/tarefas e almoços) é escrita direta dos dois papéis', () => {
+    ['presenca', 'tarefas', 'almocos'].forEach(no => {
+      const write = tenantRules[no]?.['.write'];
+      expect(write, `no ${no}`).toBeDefined();
+      contem(write, 'encarregado', 'mestre', 'engenheiro');
+    });
+    // Fotos vivem em medicao.photos/photoUrl e podem ser anexadas pelo encarregado
+    // sem dar a ele acesso aos valores financeiros da medição.
+    contem(tenantRules.medicao.$itemId.photos['.write'], 'encarregado', 'mestre');
+    contem(tenantRules.medicao.$itemId.photoUrl['.write'], 'encarregado', 'mestre');
+  });
+
+  it('encarregado não escreve em estoque, trabalhadores, usuários, financeiro, orçamento, compras, medição ou config', () => {
+    ['estoque', 'movEstoque', 'trabalhadores', 'usuarios', 'financeiro',
+      'orcamento', 'compras', 'medicao', 'config'].forEach(no => {
+      const write = tenantRules[no]?.['.write'];
+      expect(write, `no ${no}`).toBeDefined();
+      naoContem(write, 'encarregado', 'mestre');
+    });
+  });
+
+  it('engenheiro não escreve em estoque, movimentação, trabalhadores, usuários, financeiro, orçamento ou config', () => {
+    ['estoque', 'movEstoque', 'trabalhadores', 'usuarios', 'financeiro', 'orcamento', 'config']
+      .forEach(no => naoContem(tenantRules[no]['.write'], 'engenheiro'));
+  });
+
+  it('engenheiro escreve obras/rascunho de medição, mas não compras', () => {
+    contem(tenantRules.obras['.write'], 'engenheiro');
+    contem(tenantRules.medicao['.write'], 'engenheiro');
+    naoContem(tenantRules.compras['.write'], 'engenheiro', 'encarregado', 'mestre');
+    contem(tenantRules.compras['.write'], 'comprador');
+  });
+
+  it('canteiro e estoque continuam respeitando cobrança e agora exigem papel', () => {
+    const estoqueWrite = tenantRules.estoque['.write'];
+    expect(estoqueWrite).toContain("data.parent().child('billingState').val() !== 'somente_leitura'");
+    naoContem(estoqueWrite, 'encarregado', 'mestre', 'engenheiro');
+    contem(estoqueWrite, 'comprador');
+    const canteiroWrite = tenantRules.estoque.canteiro.$obraId['.write'];
+    expect(canteiroWrite).toContain("data.parent().parent().child('billingState').val() !== 'somente_leitura'");
+    naoContem(canteiroWrite, 'encarregado', 'mestre', 'engenheiro');
+  });
+});
+
+describe('database.rules.json — aprovacoes', () => {
+  const aprov = tenantRules.aprovacoes;
+  const write = aprov.$id['.write'];
+
+  it('criação só com status pendente, solicitante autenticado e payload íntegro', () => {
+    expect(write).toContain("newData.child('status').val() === 'pendente'");
+    expect(write).toContain("newData.child('solicitadoPor').val() === auth.uid");
+    expect(write).toContain("newData.child('payload').exists()");
+    expect(write).toContain('+ 1296000000'); // 15 dias
+    expect(write).toContain("!newData.child('alertas').exists()");
+    expect(write).toContain("!newData.child('expiradoEm').exists()");
+    expect(write).toContain("!newData.child('aplicadoEm').exists()");
+  });
+
+  it('cada papel só cria os tipos da sua matriz', () => {
+    expect(write).toContain("newData.child('tipo').val() === 'trabalhador_add'");
+    expect(write).toContain("newData.child('tipo').val() === 'financeiro_lancamento'");
+    expect(write).toContain("newData.child('tipo').val() === 'compra_criacao'");
+    expect(write).toContain("newData.child('tipo').val() === 'medicao_fechamento'");
+    // O bloco do encarregado vem antes do bloco do engenheiro. Isolando-o,
+    // ele só pode criar os 3 tipos de material/trabalhador.
+    const inicioEng = write.indexOf("(auth.token.role === 'engenheiro' ||");
+    expect(inicioEng).toBeGreaterThan(0);
+    const criacaoEnc = write.slice(0, inicioEng);
+    expect(criacaoEnc).toContain("newData.child('tipo').val() === 'trabalhador_remove'");
+    expect(criacaoEnc).not.toContain("newData.child('tipo').val() === 'financeiro_status'");
+  });
+
+  it('admin decide qualquer tipo; engenheiro só movimentacao_estoque e avisa o admin', () => {
+    expect(write).toContain("newData.child('decididoPorPapel').val() === 'admin'");
+    expect(write).toContain("newData.child('decididoPorPapel').val() === 'engenheiro'");
+    expect(write).toContain("data.child('tipo').val() === 'movimentacao_estoque'");
+    expect(write).toContain("newData.child('notificarAdmin').val() === true");
+    expect(write).toContain("newData.child('decididoPor').val() === auth.uid");
+    expect(write).toContain("data.child('status').val() === 'pendente'");
+    expect(write).toContain('now < data.child(\'expiraEm\').val()');
+  });
+
+  it('payload e metadados são imutáveis; expiração/alertas pertencem ao servidor', () => {
+    expect(write).toContain("newData.child('payload').val() === data.child('payload').val()");
+    expect(write).toContain("newData.child('alertas').val() === data.child('alertas').val()");
+    expect(write).toContain("!newData.child('expiradoEm').exists()");
+    expect(write).toContain("!newData.child('aplicadoEm').exists()");
+    expect(write).toContain("newData.child('status').val() !== 'rejeitado' || newData.child('motivo').isString()");
+    expect(aprov['.write']).toBe(false);
+    expect(aprov['.indexOn']).toEqual(expect.arrayContaining(['status', 'solicitadoPor', 'tipo']));
+  });
+
+  it('o nó vira somente leitura para cliente após a decisão', () => {
+    // A transição só sai de 'pendente'; status 'expirado'/'erro' são escritos pelo Admin SDK.
+    expect(write).toContain("data.child('status').val() === 'pendente'");
+    expect(write).toContain("newData.child('status').val() === 'aprovado' || newData.child('status').val() === 'rejeitado'");
+  });
+});
+
+describe('database.rules.json — nós sensíveis fora do tenant', () => {
+  it('não ficam dentro do tenant (onde o .read do pai daria acesso a todos)', () => {
+    expect(tenantRules.comprasPrivadas).toBeUndefined();
+    expect(tenantRules.auditoria).toBeUndefined();
+    expect(tenantRules.notificacoes).toBeUndefined();
+  });
+
+  it('comprasPrivadas só para admin/comprador do próprio tenant', () => {
+    const no = rules.rules.comprasPrivadas.$tenantId;
+    contem(no['.read'], 'admin', 'comprador');
+    naoContem(no['.read'], 'encarregado', 'mestre', 'engenheiro');
+    contem(no['.write'], 'admin', 'comprador');
+    expect(no['.write']).toContain("'/billingState').val() !== 'somente_leitura'");
+  });
+
+  it('auditoria é append-only e legível só por admin', () => {
+    const no = rules.rules.auditoria.$tenantId;
+    expect(no['.write']).toBe(false);
+    contem(no['.read'], 'admin');
+    naoContem(no['.read'], 'encarregado', 'mestre', 'engenheiro', 'comprador');
+  });
+
+  it('notificações são append-only e indexadas por destinatário', () => {
+    // Se ficassem em notificacoes/{tenantId}/{id} com um mapa destinatarios,
+    // a rules do pai precisaria liberar leitura para todos do tenant.
+    const no = rules.rules.notificacoes.$tenantId.$uid;
+    expect(rules.rules.notificacoes.$tenantId['.read']).toBeUndefined();
+    expect(no['.write']).toBe(false);
+    expect(no['.read']).toContain('auth.uid === $uid');
+    expect(no['.read']).toContain("root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId");
+    expect(no['.indexOn']).toContain('criadoEm');
+  });
+});

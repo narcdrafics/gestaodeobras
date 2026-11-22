@@ -1,0 +1,62 @@
+<div class="page-header">
+  <div class="page-title">Aprovações <small>Solicitações do canteiro — decisões com auditoria</small></div>
+</div>
+
+<div class="kpi-card" style="margin-bottom:20px;">
+  <div class="section-title"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">fact_check</span> Regras de prazo</div>
+  <div style="font-size:13px;color:var(--text2);line-height:1.7">
+    Toda solicitação expira em <b>15 dias</b>, com avisos no aplicativo aos <b>7</b> e <b>12</b> dias e alerta final na expiração.
+    Nada é aplicado no estoque, financeiro ou cadastros antes da decisão; a aplicação é feita pelo servidor e registrada em auditoria.
+    O Engenheiro pode decidir somente solicitações de <b>material/ferramenta</b>, avisando o administrador.
+  </div>
+</div>
+
+<div class="table-wrap">
+  <div class="table-toolbar" style="flex-wrap:wrap;gap:16px;">
+    <div style="display:flex;align-items:center;gap:12px">
+      <h3 style="margin:0">Solicitações</h3>
+      <span class="badge badge-blue" id="aprov-total">0</span>
+    </div>
+    <div class="toolbar-right" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <select id="aprov-status-filter" class="form-control" style="width:150px" onchange="filtrarAprovacoes()">
+        <option value="pendente">Pendentes</option>
+        <option value="">Todos os status</option>
+        <option value="aprovado">Aprovadas</option>
+        <option value="rejeitado">Rejeitadas</option>
+        <option value="expirado">Expiradas</option>
+        <option value="erro">Com erro</option>
+      </select>
+      <select id="aprov-tipo-filter" class="form-control" style="width:205px" onchange="filtrarAprovacoes()">
+        <option value="">Todos os tipos</option>
+        <option value="movimentacao_estoque">Material / ferramenta</option>
+        <option value="trabalhador_add">Incluir trabalhador</option>
+        <option value="trabalhador_remove">Remover trabalhador</option>
+        <option value="financeiro_lancamento">Lançamento financeiro</option>
+        <option value="financeiro_status">Status de pagamento</option>
+        <option value="orcamento_fechamento">Fechamento de orçamento</option>
+        <option value="compra_criacao">Compra</option>
+        <option value="medicao_fechamento">Fechamento de medição</option>
+      </select>
+      <button class="btn btn-secondary btn-sm" onclick="filtrarAprovacoes()">Atualizar</button>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Tipo</th>
+          <th>Descrição</th>
+          <th>Solicitante</th>
+          <th>Solicitado em</th>
+          <th>Prazo</th>
+          <th>Status</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="aprov-tbody">
+        <tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Carregando solicitações…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
