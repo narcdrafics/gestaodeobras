@@ -40,6 +40,9 @@
         "webhookCriacao": {
           ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (!data.exists() && newData.isNumber()) || (data.exists() && newData.val() === data.val()))"
         },
+        "subdominioSlug": {
+          ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || newData.val() == null || newData.val() === $tenantId || data.parent().child('plano').val() === 'free_trial' || data.parent().child('plano').val() === 'pro' || data.parent().child('plano').val() === 'pro_anual' || data.parent().child('plano').val() === 'premium' || data.parent().child('plano').val() === 'ilimitado' || data.parent().child('plano').val() === 'ilimitado_anual' || data.parent().child('plano').val() === 'full_anual' || data.parent().child('plano').val() === 'master' || data.parent().child('plano').val() === 'MASTER_SYSTEM')"
+        },
 
         "config": {
           "limiteObras": {
@@ -50,6 +53,9 @@
           },
           "limiteTrabalhadores": {
             ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() ? newData.val() === data.val() : (newData.isNumber() && newData.val() === 9999)))"
+          },
+          "slug": {
+            ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || newData.val() == null || newData.val() === $tenantId || data.parent().parent().child('plano').val() === 'free_trial' || data.parent().parent().child('plano').val() === 'pro' || data.parent().parent().child('plano').val() === 'pro_anual' || data.parent().parent().child('plano').val() === 'premium' || data.parent().parent().child('plano').val() === 'ilimitado' || data.parent().parent().child('plano').val() === 'ilimitado_anual' || data.parent().parent().child('plano').val() === 'full_anual' || data.parent().parent().child('plano').val() === 'master' || data.parent().parent().child('plano').val() === 'MASTER_SYSTEM')"
           }
         },
 

@@ -161,6 +161,64 @@ async function carregarHTML(caminho) {
   }
 }
 
+// ==================== FEATURE GATES (CADEADO + UPGRADE) ====================
+// Qualquer elemento com data-feature="nome" passa a exibir cadeado quando o
+// plano atual não tem a capacidade. O clique é interceptado em fase de captura para
+// que onclick legados não executem a ação bloqueada (fase de captura).
+function applyFeatureGates(root) {
+  const escopo = root || document;
+  if (!escopo || typeof escopo.querySelectorAll !== 'function') return;
+
+  escopo.querySelectorAll('[data-feature]').forEach(el => {
+    const nome = el.getAttribute('data-feature');
+    const liberado = typeof window.hasFeature === 'function' && window.hasFeature(nome);
+
+    el.classList.toggle('feature-locked', !liberado);
+    if (liberado) {
+      el.removeAttribute('data-feature-locked');
+      el.removeAttribute('aria-disabled');
+      return;
+    }
+
+    const info = typeof window.featureInfo === 'function' ? window.featureInfo(nome) : null;
+    const rotulo = (info && info.nome) || nome;
+    const plano = (info && info.plano) || 'superior';
+    el.setAttribute('data-feature-locked', '1');
+    el.setAttribute('aria-disabled', 'true');
+    el.setAttribute('title', `${rotulo} — disponível no plano ${plano}.`);
+  });
+}
+window.applyFeatureGates = applyFeatureGates;
+
+document.addEventListener('click', (e) => {
+  const alvo = e.target && e.target.closest ? e.target.closest('[data-feature-locked="1"]') : null;
+  if (!alvo) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const nome = alvo.getAttribute('data-feature');
+  if (typeof window.showUpgradeModal === 'function') window.showUpgradeModal(nome);
+}, true);
+
+window.showUpgradeModal = async function showUpgradeModal(nome) {
+  window._upgradeFeature = nome;
+  await openModal('modal-upgrade');
+};
+
+function populateUpgradeModal(container) {
+  const nome = window._upgradeFeature;
+  const info = typeof window.featureInfo === 'function' ? window.featureInfo(nome) : null;
+  const rotulo = (info && info.nome) || nome || 'Este recurso';
+  const plano = (info && info.plano) || 'superior';
+  const descricao = (info && info.descricao) || 'Faça upgrade para liberar este módulo.';
+
+  const titulo = container.querySelector('#upgrade-feature-name');
+  if (titulo) titulo.textContent = rotulo;
+  const desc = container.querySelector('#upgrade-feature-description');
+  if (desc) desc.textContent = descricao;
+  const req = container.querySelector('#upgrade-required-plan');
+  if (req) req.textContent = plano;
+}
+
 const NAV_GROUPS = { 'grp-op': 'ic-op', 'grp-prod': 'ic-prod', 'grp-sup': 'ic-sup', 'grp-fin': 'ic-fin' };
 const NAV_GROUP_STORAGE_KEY = 'obra_real_nav_groups';
 
@@ -200,6 +258,7 @@ window.toggleGroup = function (cls, icn) {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  applyFeatureGates(document);
   const state = readNavGroupState();
   Object.keys(NAV_GROUPS).forEach(cls => {
     const icon = document.getElementById(NAV_GROUPS[cls]);
@@ -237,8 +296,9 @@ window.showPage = async function (id) {
     renderBillingEnforcement(window.__lastBillingData);
   }
 
-  // Chama a lógica de renderização
+  // Chama a lógica de renderização e reaplica cadeados no HTML recém-injetado
   renderPage(id);
+  applyFeatureGates(document);
 }
 
 function renderPage(id) {
@@ -287,6 +347,7 @@ window.addEventListener('firebaseSync', e => {
     const id = activePage.id.replace('page-', '');
     console.log(`[Sync] Atualizando interface da página: ${id}`);
     renderPage(id);
+    applyFeatureGates(document);
   }
 });
 
@@ -481,6 +542,7 @@ function setHojeToday() {
 }
 
 window.exportHoje = function exportHoje() {
+  if (typeof window.requireFeature === 'function' && !window.requireFeature('exportacao')) return;
   // Create a print-friendly version with ONLY data (no selectors/buttons)
   const hojeData = document.getElementById('hoje-data')?.textContent || '';
   const kpiGrid = document.getElementById('kpi-grid')?.innerHTML || '';
@@ -1810,7 +1872,7 @@ function renderFinBulkBar() {
     <span class="fin-bulk-total">A pagar: ${fmt(totalPendente)}</span>
     <div style="flex:1"></div>
     <button class="btn btn-secondary btn-sm" onclick="bulkMarcarPago()" ${pendentes.length ? '' : 'disabled'}><span class="material-symbols-outlined md-16">check_circle</span> Marcar como pago</button>
-    <button class="btn btn-primary btn-sm" onclick="bulkPagarPix()" ${pendentes.length ? '' : 'disabled'}><span class="material-symbols-outlined md-16">payments</span> Pagar por PIX (${pendentes.length})</button>
+    <button class="btn btn-primary btn-sm" data-feature="pix.folha" onclick="bulkPagarPix()" ${pendentes.length ? '' : 'disabled'}><span class="material-symbols-outlined md-16">payments</span> Pagar por PIX (${pendentes.length})</button>
     <button class="btn btn-secondary btn-sm" onclick="clearFinSelection()">Limpar</button>
   `;
 }
@@ -1829,7 +1891,7 @@ function finEntryActions(entry) {
   if (editMap[source]) items += `<button onclick="${editMap[source]}"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">edit</span>Editar</button>`;
 
   if (entry.status !== 'Pago' && entry.pendente > 0) {
-    items += `<button onclick="initiatePixPayment('${source}', ${idx})"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">payments</span>Pagar via PIX</button>`;
+    items += `<button data-feature="pix.folha" onclick="initiatePixPayment('${source}', ${idx})"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">payments</span>Pagar via PIX</button>`;
     items += `<button onclick="markFinEntryPaid('${key}')"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">check_circle</span>Marcar como pago</button>`;
   }
   items += `<button class="danger" onclick="deleteFinEntry('${source}', ${idx})"><span class="material-symbols-outlined md-16" style="vertical-align:middle;">delete</span> Excluir</button>`;
@@ -2316,6 +2378,7 @@ window.bulkMarcarPago = async function () {
 };
 
 window.bulkPagarPix = function () {
+  if (typeof window.requireFeature === 'function' && !window.requireFeature('pix.folha')) return;
   const entries = finSelectedEntries().filter(e => e.status !== 'Pago' && e.pendente > 0);
   if (!entries.length) { toast('Nenhum lançamento pendente selecionado.', 'info'); return; }
   window._finPixQueue = entries.map(e => ({ source: e.source, idx: e.idx, amount: e.pendente }));
@@ -2379,6 +2442,7 @@ window.filtrarSemanaFinanceiro = function (semana) {
 
 // ==================== EXPORT FUNCTIONS ====================
 function exportarImagemDashboard() {
+  if (typeof window.requireFeature === 'function' && !window.requireFeature('exportacao')) return;
   toast('Gerando imagem... Aguarde', 'info');
   const btnDiv = document.querySelector('.page-header div[style*="align-items: center"]');
   if (btnDiv) btnDiv.style.display = 'none'; // Esconde barra de botões
@@ -2562,6 +2626,7 @@ function auditBarWidth(valor, previsto) {
 }
 
 function generateAuditReport() {
+  if (typeof window.requireFeature === 'function' && !window.requireFeature('relatorio.marca')) return;
   const obraCod = document.getElementById('rel-obra')?.value;
   if (!obraCod) { toast('Selecione uma obra primeiro!', 'error'); return; }
   if (typeof window.buildObraReport !== 'function') {
@@ -3567,7 +3632,7 @@ function renderBilling() {
   if (typeof renderBillingSection === 'function') renderBillingSection();
 }
 
-// startKiwifyCheckout é fornecida por data_core.js (window.startKiwifyCheckout)
+// startKiwifyCheckout é fornecida por js/plans.js (window.startKiwifyCheckout)
 // Removida duplicata local para evitar sobrescrita
 
 // ==================== SUPER ADMIN (MASTER) ====================
@@ -4259,6 +4324,7 @@ async function deleteGlobalUser(uid, email, tid) {
 }
 
 function saveConfig() {
+  if (typeof window.requireFeature === 'function' && !window.requireFeature('relatorio.marca')) return;
   const emp = document.getElementById('cfg-empresa').value;
   const esquemaCores = document.getElementById('cfg-esquema').value;
   const tema = document.getElementById('cfg-tema').value;
@@ -4400,9 +4466,11 @@ async function openModal(id) {
   const html = await carregarHTML(`modals/${id}.html`);
   modalContent.innerHTML = html;
 
+  if (id === 'modal-upgrade') populateUpgradeModal(modalContent);
+
   // Super Admin: injeta banner de seleção de empresa no topo do modal
   const sessionUser = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
-  if (sessionUser.role === 'super_admin') {
+  if (id !== 'modal-upgrade' && sessionUser.role === 'super_admin') {
     await injectSuperAdminTenantBanner(modalContent);
   }
 
@@ -5261,6 +5329,7 @@ window.getMesRange = function () {
 };
 
 window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) {
+  if (typeof window.requireFeature === 'function' && !window.requireFeature('pix.folha')) return;
   // Evita reabrir e recriar o modal se ele já estiver aberto na tela
   const modalContainer = document.getElementById('modal-container');
   const isAlreadyOpen = modalContainer && modalContainer.classList.contains('open') && document.getElementById('lote-periodo') !== null;
@@ -5376,7 +5445,7 @@ window.renderLoteTbody = function () {
     <td style="text-align:right">Dinheiro/Pix</td>
     <td style="text-align:right; font-weight:bold; color:var(--red)">${fmt(item.valor)}</td>
     <td style="text-align:center">
-      <button class="btn btn-success btn-sm" onclick="initiatePixPayment('lote', ${i})" title="Pagar via PIX" aria-label="Pagar via PIX" style="background:var(--green); border-color:var(--green);"><span class="material-symbols-outlined md-16">payments</span> Pagar</button>
+      <button class="btn btn-success btn-sm" data-feature="pix.folha" onclick="initiatePixPayment('lote', ${i})" title="Pagar via PIX" aria-label="Pagar via PIX" style="background:var(--green); border-color:var(--green);"><span class="material-symbols-outlined md-16">payments</span> Pagar</button>
     </td>
   </tr>`;
   }).join('');

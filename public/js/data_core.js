@@ -235,6 +235,31 @@ function getPlanLimits() {
 }
 window.getPlanLimits = getPlanLimits;
 
+/**
+ * Capacidades do plano atual. A matriz vive em js/plan_features.js e é espelhada
+ * nas Cloud Functions; aqui só adaptamos ao estado carregado em DB.
+ */
+function currentPlan() {
+  return (DB && DB.plano) || 'free_trial';
+}
+window.currentPlan = currentPlan;
+
+window.hasFeature = function hasFeature(nome) {
+  if (!window.OBRA_FEATURES) return false;
+  return window.OBRA_FEATURES.hasFeature(nome, currentPlan(), {
+    billingState: window.__billingState
+  });
+};
+window.featureInfo = function featureInfo(nome) {
+  return window.OBRA_FEATURES ? window.OBRA_FEATURES.descrever(nome) : null;
+};
+/** Barreira para ações chamadas diretamente (atalhos, console, código legado). */
+window.requireFeature = function requireFeature(nome) {
+  if (typeof window.hasFeature === 'function' && window.hasFeature(nome)) return true;
+  if (typeof window.showUpgradeModal === 'function') window.showUpgradeModal(nome);
+  return false;
+};
+
 // ==================== SUBDOMAIN & SAAS CONTEXT ====================
 function detectSubdomain() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -340,6 +365,7 @@ function initDB(tenantId) {
   window.__billingState = null;
 
   _currentTenantId = tenantId;
+  window.OBRA_CHECKOUT_TENANT_ID = tenantId; // checkout compartilhado (js/plans.js)
   dbRef = firebase.database().ref('tenants/' + tenantId);
   dbRef.on('value', _onFirebaseValue, (error) => {
     // Quando bloqueado, o PERMISSION_DENIED é esperado: a tela de bloqueio já explica.
@@ -728,6 +754,7 @@ async function loadTenantAsSuperAdmin(tenantId, tenantNome) {
 }
 
 function exportarBackup() {
+  if (typeof window.requireFeature === 'function' && !window.requireFeature('exportacao')) return;
   const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(DB, null, 2));
   const a = document.createElement('a');
   a.href = dataStr;
@@ -776,11 +803,7 @@ window.toggleMenu = function() {
 // initDB();
 
 // ==================== BILLING / PLANOS ====================
-
-const KIWIFY_LINKS = {
-  start: 'https://pay.kiwify.com.br/hHQz2Zu',
-  pro: 'https://pay.kiwify.com.br/d0Gfv34',
-};
+// Catálogo e checkout centralizados em js/plans.js (usado também pela landing).
 
 /**
  * Popula a seção de billing na aba Admin usando DB (já carregado).
@@ -819,18 +842,23 @@ function renderBillingSection() {
   }
 
   const isFree   = plano === 'free_trial';
-  const isStart  = (plano === 'start');
-  const isPro    = (plano === 'pro' || plano === 'premium');
-  const isMaster = (plano === 'master' || plano === 'ilimitado' || plano === 'full_anual');
+  const isStart  = (plano === 'start' || plano === 'start_anual');
+  const isPro    = (plano === 'pro' || plano === 'premium' || plano === 'pro_anual');
+  // Subdomínio é Pro+ (Start não tem). O teste grátis também pode configurar.
+  const podeSubdominio = typeof window.hasFeature === 'function'
+    ? window.hasFeature('subdominio')
+    : (plano === 'master' || plano === 'ilimitado' || plano === 'full_anual');
 
   // Exibe apenas o painel correspondente ao plano de expansão
-  if (el('billing-free'))   el('billing-free').style.display   = isFree   ? 'block' : 'none';
-  if (el('billing-start'))  el('billing-start').style.display  = isStart  ? 'block' : 'none';
-  if (el('billing-pro'))    el('billing-pro').style.display    = isPro    ? 'block' : 'none';
-  if (el('billing-master')) el('billing-master').style.display = isMaster ? 'block' : 'none';
+  if (el('billing-free'))        el('billing-free').style.display        = isFree   ? 'block' : 'none';
+  if (el('billing-start'))       el('billing-start').style.display       = isStart  ? 'block' : 'none';
+  if (el('billing-pro'))         el('billing-pro').style.display         = isPro    ? 'block' : 'none';
+  // O cartão permanece visível para todos: applyFeatureGates() desenha o cadeado
+  // e o modal de upgrade quando o plano não tem a feature.
+  if (el('billing-subdomain')) el('billing-subdomain').style.display = 'block';
 
-  // Preenche subdomínio para Master
-  if (isMaster && el('master-subdomain-url')) {
+  // Preenche subdomínio com o valor atual (para Pro+ é editável)
+  if (el('master-subdomain-url')) {
     const slugExibicao = slugSubdom || '...';
     el('master-subdomain-url').textContent = `${slugExibicao}.obrareal.com`;
     if (el('subdomain-slug-input')) {
@@ -844,29 +872,16 @@ function renderBillingSection() {
 
 
 /**
- * Abre o checkout da Kiwify para o plano escolhido,
- * passando o tenantId como external_reference para o webhook identificar o cliente.
- */
-function startKiwifyCheckout(plano) {
-  const sessionUser = _getBillingSessionUser();
-  const tenantId = sessionUser.tenantId || _currentTenantId || '';
-  const link = KIWIFY_LINKS[plano];
-
-  if (!link || link.includes('SEU_LINK')) {
-    alert('Link de checkout ainda não configurado. Edite KIWIFY_LINKS em data_core.js.');
-    return;
-  }
-
-  // Passa o tenantId como referência externa para o webhook
-  const url = `${link}${tenantId ? '?external_reference=' + encodeURIComponent(tenantId) : ''}`;
-  window.open(url, '_blank');
-}
-
-/**
- * Atualiza o subdomínio (slug) do tenant no plano Master.
+ * Atualiza o subdomínio (slug) do tenant. Requer Pro ou superior.
  * Verifica duplicidade e atualiza nós privado e público.
  */
 async function updateSubdomainSlug() {
+  if (typeof window.hasFeature === 'function' && !window.hasFeature('subdominio')) {
+    if (typeof window.showUpgradeModal === 'function') window.showUpgradeModal('subdominio');
+    else alert('Subdomínio personalizado disponível a partir do plano Pro.');
+    return;
+  }
+
   const input = document.getElementById('subdomain-slug-input');
   if (!input) return;
 
@@ -935,7 +950,7 @@ async function updateSubdomainSlug() {
 }
 
 // Expõe para chamada global no renderAdmin
+// startKiwifyCheckout é fornecido por js/plans.js (mesmo catálogo da landing).
 window.renderBillingSection = renderBillingSection;
-window.startKiwifyCheckout = startKiwifyCheckout;
 window.updateSubdomainSlug = updateSubdomainSlug;
 

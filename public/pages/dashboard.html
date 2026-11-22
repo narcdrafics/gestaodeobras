@@ -3,13 +3,13 @@
   <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
     <div id="dash-updated" style="font-size:12px;color:var(--text3); margin-right: 8px;"></div>
     <div id="dash-actions" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
-    <button class="btn btn-secondary btn-sm" onclick="exportarImagemDashboard()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">photo_camera</span> WhatsApp (Img)</button>
+    <button class="btn btn-secondary btn-sm" data-feature="exportacao" onclick="exportarImagemDashboard()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">photo_camera</span> WhatsApp (Img)</button>
     <button class="btn btn-secondary btn-sm" onclick="window.print()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">print</span> PDF / Imprimir</button>
     <details class="dash-more">
       <summary class="btn btn-secondary btn-sm">⋯ Mais</summary>
       <div class="dash-more-menu">
         <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-file').click()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">download</span> Importar</button>
-        <button class="btn btn-secondary btn-sm" onclick="exportarBackup()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">save</span> Exportar Banco</button>
+        <button class="btn btn-secondary btn-sm" data-feature="exportacao" onclick="exportarBackup()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">save</span> Exportar Banco</button>
       </div>
       <input type="file" id="import-file" style="display:none" accept=".json" onchange="importarBackup(event)">
     </details>

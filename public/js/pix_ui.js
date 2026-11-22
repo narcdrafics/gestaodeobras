@@ -6,6 +6,7 @@
 let activePixTransaction = null;
 
 async function initiatePixPayment(source, idx, opts = {}) {
+    if (typeof window.requireFeature === 'function' && !window.requireFeature('pix.folha')) return;
     let amount = 0;
     let receiver = '';
     let pixKey = '';

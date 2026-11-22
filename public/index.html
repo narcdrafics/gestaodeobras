@@ -179,6 +179,41 @@ h1 em{font-style:italic;color:var(--accent)}
 .pt{background:#161616;border-radius:6px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px;color:#383838;border:1px solid #1E1E1E}
 .pt span{font-size:18px}
 
+/* PLANOS E PREÇOS */
+.pricing{padding:clamp(56px,7vw,88px) var(--pad);border-top:1px solid var(--border)}
+.pricing-head{text-align:center;max-width:620px;margin:0 auto clamp(32px,4vw,48px)}
+.pricing-head .sec-title{margin:0 auto 12px}
+.pricing-sub{color:var(--muted);font-size:15px;font-weight:300}
+.plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:1100px;margin:0 auto;align-items:stretch}
+.plan{background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:30px 24px 24px;display:flex;flex-direction:column;gap:16px;position:relative}
+.plan.destaque{border-color:rgba(255,107,53,.55);background:linear-gradient(180deg,rgba(255,107,53,.07),var(--card) 45%);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.plan-tag{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 12px;border-radius:100px;white-space:nowrap}
+.plan-name{font-family:'DM Serif Display',serif;font-size:25px;color:var(--text);font-weight:400;line-height:1.1}
+.plan-desc{font-size:13px;color:var(--muted);line-height:1.55;min-height:42px;font-weight:300}
+.plan-price{display:flex;align-items:baseline;gap:5px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.plan-price b{font-family:'DM Serif Display',serif;font-size:38px;color:var(--text);font-weight:400;letter-spacing:-1.5px}
+.plan-price span{font-size:13px;color:var(--muted)}
+.plan-list{list-style:none;display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--text2);flex:1}
+.plan-list li{display:flex;gap:8px;align-items:flex-start;line-height:1.45}
+.plan-list li .material-symbols-outlined{color:var(--accent);font-size:16px;flex-shrink:0}
+.plan-cta{display:block;text-align:center;padding:12px 16px;border-radius:8px;font-size:14px;font-weight:500;text-decoration:none;border:1px solid var(--border2);color:var(--text);background:var(--bg3);cursor:pointer;transition:background .2s,transform .2s;font-family:inherit}
+.plan-cta:hover{background:var(--border);transform:translateY(-1px)}
+.plan-cta.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.plan-cta.primary:hover{background:var(--accent2)}
+.pricing-note{text-align:center;margin-top:28px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.pricing-note p{color:var(--muted2);font-size:12px}
+
+/* FAQ */
+.faq{padding:0 var(--pad) clamp(56px,7vw,88px)}
+.faq-grid{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.faq-item{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.faq-item summary{padding:16px 18px;cursor:pointer;font-size:15px;color:var(--text);font-weight:500;list-style:none;display:flex;justify-content:space-between;gap:12px;align-items:center}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item summary::after{content:'add';font-family:'Material Symbols Outlined';color:var(--accent);font-size:18px}
+.faq-item[open] summary::after{content:'remove'}
+.faq-item p{padding:0 18px 18px;color:var(--muted);font-size:14px;line-height:1.7;font-weight:300}
+.faq-item p a{color:var(--accent)}
+
 /* DEPOIMENTOS */
 .proof{padding:clamp(56px,7vw,88px) var(--pad);border-top:1px solid var(--border)}
 .proof-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border-radius:14px;overflow:hidden;margin-top:clamp(28px,4vw,40px)}
@@ -219,6 +254,8 @@ footer{padding:clamp(28px,4vw,40px) var(--pad);border-top:1px solid var(--border
   .mc{width:100%!important;max-width:340px}
   .proof-grid{grid-template-columns:1fr}
   .proof-card{padding:24px 22px}
+  .plan-grid{grid-template-columns:1fr;max-width:460px}
+  .plan-desc{min-height:0}
   .cta-final{gap:24px}
   footer{flex-direction:column;align-items:flex-start;gap:16px}
 }
@@ -254,6 +291,7 @@ footer{padding:clamp(28px,4vw,40px) var(--pad);border-top:1px solid var(--border
   <div class="nav-links" id="nav-menu">
     <a href="#modulos">Módulos</a>
     <a href="#features">Recursos</a>
+    <a href="#precos">Planos e preços</a>
     <a href="#depoimentos">Depoimentos</a>
     <a href="login.html">Entrar</a>
     <a href="login.html#signup" class="nav-cta">Testar grátis</a>
@@ -487,6 +525,97 @@ footer{padding:clamp(28px,4vw,40px) var(--pad);border-top:1px solid var(--border
   </div>
 </section>
 
+<!-- PLANOS E PREÇOS -->
+<section class="pricing" id="precos">
+  <div class="pricing-head">
+    <div class="eyebrow">Planos e preços</div>
+    <h2 class="sec-title">Escolha o ritmo da sua obra.</h2>
+    <p class="pricing-sub">Todos os planos incluem 30 dias grátis, sem cartão de crédito. Cancele quando quiser.</p>
+  </div>
+
+  <div class="plan-grid">
+    <article class="plan">
+      <h3 class="plan-name">Start</h3>
+      <p class="plan-desc">Para começar a organizar a primeira obra com controle total.</p>
+      <div class="plan-price"><b>R$ 69,90</b><span>/mês</span></div>
+      <ul class="plan-list">
+        <li><span class="material-symbols-outlined">check</span>Até 2 obras ativas e 2 usuários</li>
+        <li><span class="material-symbols-outlined">check</span>Presença, tarefas e estoque</li>
+        <li><span class="material-symbols-outlined">check</span>Controle por empreiteiro e subetapa</li>
+        <li><span class="material-symbols-outlined">check</span>Perfis de usuário</li>
+        <li><span class="material-symbols-outlined">check</span>Diário de obra com fotos e suporte via WhatsApp</li>
+      </ul>
+      <button type="button" class="plan-cta" onclick="startKiwifyCheckout('start')">Assinar Start</button>
+    </article>
+
+    <article class="plan destaque">
+      <span class="plan-tag">Mais escolhido</span>
+      <h3 class="plan-name">Pro</h3>
+      <p class="plan-desc">Para quem tem várias obras rodando ao mesmo tempo.</p>
+      <div class="plan-price"><b>R$ 105,90</b><span>/mês</span></div>
+      <ul class="plan-list">
+        <li><span class="material-symbols-outlined">check</span>Até 5 obras ativas e 5 usuários</li>
+        <li><span class="material-symbols-outlined">check</span>Todos os recursos do Start</li>
+        <li><span class="material-symbols-outlined">check</span>Relatório com a marca da sua empresa</li>
+        <li><span class="material-symbols-outlined">check</span>Exportação de relatórios e imagens</li>
+        <li><span class="material-symbols-outlined">check</span>Relatório diário no WhatsApp e subdomínio próprio</li>
+      </ul>
+      <button type="button" class="plan-cta primary" onclick="startKiwifyCheckout('pro')">Assinar Pro</button>
+    </article>
+
+    <article class="plan">
+      <h3 class="plan-name">Ilimitado</h3>
+      <p class="plan-desc">Para construtoras que precisam de escala e identidade própria.</p>
+      <div class="plan-price"><b>R$ 299,00</b><span>/mês</span></div>
+      <ul class="plan-list">
+        <li><span class="material-symbols-outlined">check</span>Obras e usuários ilimitados</li>
+        <li><span class="material-symbols-outlined">check</span>Todos os recursos do Pro</li>
+        <li><span class="material-symbols-outlined">check</span>PIX e folha de pagamento</li>
+        <li><span class="material-symbols-outlined">check</span>Fechamento de folha direto pelo sistema</li>
+        <li><span class="material-symbols-outlined">check</span>Prioridade no suporte</li>
+      </ul>
+      <button type="button" class="plan-cta" onclick="startKiwifyCheckout('ilimitado')">Assinar Ilimitado</button>
+    </article>
+  </div>
+
+  <div class="pricing-note">
+    <a href="login.html#signup" class="btn-primary">Testar grátis por 30 dias <span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">arrow_forward</span></a>
+    <p>Sem cartão · Sem contrato de fidelidade · Seus dados permanecem seus</p>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq" id="faq">
+  <div class="eyebrow">Perguntas frequentes</div>
+  <h2 class="sec-title" style="margin-bottom:clamp(28px,4vw,40px)">Antes de começar.</h2>
+  <div class="faq-grid">
+    <details class="faq-item">
+      <summary>Posso testar antes de pagar?</summary>
+      <p>Sim. Todos os planos começam com 30 dias grátis e não pedimos cartão de crédito para o teste. <a href="login.html#signup">Crie sua conta</a> e comece a usar agora.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Como funciona o cancelamento?</summary>
+      <p>Você pode cancelar a qualquer momento pela Administração da conta ou pelo suporte. O acesso permanece até o fim do ciclo já pago. Depois disso há 3 a 5 dias de carência, 7 dias em modo somente leitura e, por fim, o bloqueio. Veja a <a href="legal.html#reembolso">regra de reembolso</a>.</p>
+    </details>
+    <details class="faq-item">
+      <summary>O que acontece com meus dados se eu não renovar?</summary>
+      <p>Nada é apagado. Suas obras, medições, fotos e históricos ficam preservados no servidor. Durante a carência você continua usando normalmente; depois entra no modo somente leitura e, esgotado o prazo, o acesso é bloqueado até a reativação. Detalhes na <a href="legal.html#privacidade">política de privacidade</a>.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Quais recursos entram em cada plano?</summary>
+      <p>Start: controle por empreiteiro/subetapa, perfis de usuário, presença, tarefas e estoque. Pro: relatório com marca, exportação, relatório diário no WhatsApp e subdomínio próprio. Ilimitado: tudo do Pro mais PIX, folha de pagamento e limites livres. A matriz completa é a que você vê nos cartões acima.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Como recebo suporte?</summary>
+      <p>Atendimento direto pelo <a href="https://wa.me/5598985262006" target="_blank" rel="noopener">WhatsApp</a>. Também há um botão de suporte dentro do sistema.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Posso pedir reembolso?</summary>
+      <p>Pode, dentro das condições descritas na <a href="legal.html#reembolso">regra de reembolso</a>. O pedido é analisado caso a caso pelo time de suporte.</p>
+    </details>
+  </div>
+</section>
+
 <!-- CTA FINAL -->
 <div class="cta-final">
   <div style="position:relative">
@@ -504,13 +633,16 @@ footer{padding:clamp(28px,4vw,40px) var(--pad);border-top:1px solid var(--border
   <div class="f-logo">Obra<span>Real</span></div>
   <div class="f-links">
     <a href="login.html">Login</a>
-    <a href="#">Termos</a>
-    <a href="#">Privacidade</a>
-    <a href="#">Suporte</a>
+    <a href="legal.html#termos">Termos de uso</a>
+    <a href="legal.html#privacidade">Privacidade</a>
+    <a href="legal.html#reembolso">Reembolso</a>
+    <a href="legal.html#suporte">Suporte</a>
   </div>
   <div class="f-copy">© 2026 Obra Real. Todos os direitos reservados.</div>
 </footer>
 
+<script src="js/plan_features.js?v=20261121002"></script>
+<script src="js/plans.js?v=20261121001"></script>
 <script>
 (function(){
   var nav = document.querySelector('nav');

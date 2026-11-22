@@ -44,7 +44,7 @@
   </div>
   
   <div class="header-right">
-    <button id="btn-header-share" class="header-btn-share" onclick="shareScreen()" title="Compartilhar visual">
+    <button id="btn-header-share" class="header-btn-share" data-feature="exportacao" onclick="shareScreen()" title="Compartilhar visual">
       <span class="material-symbols-outlined share-icon md-18">share</span>
       <span class="share-text">Compartilhar</span>
     </button>
@@ -90,7 +90,7 @@
   </div>
   <div class="nav-item grp-fin" style="display:none" onclick="showPage('orcamento')"><span class="material-symbols-outlined ico">payments</span> <span>Orçamento</span></div>
   <div class="nav-item grp-fin" style="display:none" onclick="showPage('financeiro')"><span class="material-symbols-outlined ico">account_balance</span> <span>Financeiro</span></div>
-  <div class="nav-item grp-fin" style="display:none" onclick="showPage('relatorios')"><span class="material-symbols-outlined ico">description</span> <span>Relatórios</span></div>
+  <div class="nav-item grp-fin" data-feature="relatorio.marca" style="display:none" onclick="showPage('relatorios')"><span class="material-symbols-outlined ico">description</span> <span>Relatórios</span></div>
 
   <div class="nav-section admin-only" style="display:none">Sistema</div>
   <div class="nav-item admin-only" style="display:none" onclick="showPage('admin')"><span class="material-symbols-outlined ico">settings</span> <span>Administração</span></div>
@@ -129,6 +129,9 @@
       <button class="btn btn-primary" onclick="startKiwifyCheckout('pro')" style="padding:12px; font-size:14px; justify-content:center; background:#10b981; border-color:#10b981;">
         <span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">star</span> Reativar Plano Pro (5 Obras)
       </button>
+      <button class="btn btn-primary" onclick="startKiwifyCheckout('ilimitado')" style="padding:12px; font-size:14px; justify-content:center; background:#0ea5e9; border-color:#0ea5e9;">
+        <span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">workspace_premium</span> Reativar Plano Ilimitado
+      </button>
       <a href="javascript:void(0)" onclick="openWhatsApp('Olá, preciso de suporte para reativar minha assinatura do Obra Real.')" class="btn btn-secondary" style="padding:12px; font-size:13px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
         <span class="material-symbols-outlined md-18">chat</span> Falar com Suporte (WhatsApp)
       </a>
@@ -153,6 +156,7 @@
 
 <script>
 window.shareScreen = async function() {
+  if (typeof window.requireFeature === 'function' && !window.requireFeature('exportacao')) return;
   const el = document.getElementById('conteudo-principal');
   if (!el) return;
   if(typeof toast === 'function') toast('Gerando extrato visual...', 'info');
@@ -214,6 +218,8 @@ window.shareScreen = async function() {
 <script src="js/utils.module.js?v=20261115003"></script>
 <script src="js/estoque.module.js?v=20261112001"></script>
 
+<script defer src="js/plan_features.js?v=20261121002"></script>
+<script defer src="js/plans.js?v=20261121001"></script>
 <script defer src="js/pix_logic.js?v=20260428001"></script>
 <script defer src="js/pix_ui.js?v=20261114002"></script>
 <script defer src="js/data_core.js?v=20261112002"></script>

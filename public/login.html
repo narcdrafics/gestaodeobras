@@ -200,9 +200,26 @@
   </div>
 
   <script src="js/utils.module.js"></script>
+  <script src="js/plan_features.js?v=20261121002"></script>
   <script src="js/slug.js"></script>
   <script defer src="js/data_core.js"></script>
   <script defer src="js/auth_core.js"></script>
   <script defer src="js/slug_onboarding.js"></script>
+  <script>
+    // CTAs "Testar grátis" da landing usam login.html#signup: abre o cadastro direto.
+    (function () {
+      function abrirSignupSeSolicitado() {
+        var modo = new URLSearchParams(window.location.search).get('mode');
+        if (window.location.hash === '#signup' || modo === 'signup') {
+          switchTab('signup');
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', abrirSignupSeSolicitado);
+      } else {
+        abrirSignupSeSolicitado();
+      }
+    })();
+  </script>
 </body>
 </html>

@@ -46,6 +46,15 @@ describe('database.rules.json — proteção do paywall', () => {
     expect(statusRule).toContain("data.parent().child('emailAdmin').val() === auth.token.email");
   });
 
+  it('subdomínio personalizado só pode ser alterado por Pro+ (slug inicial permitido)', () => {
+    const validate = tenantRules.subdominioSlug?.['.validate'];
+    expect(validate).toContain("newData.val() === $tenantId");
+    expect(validate).toContain("data.parent().child('plano').val() === 'pro'");
+    expect(validate).toContain("data.parent().child('plano').val() === 'ilimitado'");
+    expect(tenantRules.config.slug['.validate']).toContain("newData.val() === $tenantId");
+    expect(functionsSrc).toContain("hasFeature('subdominio', tenant.plano, tenant)");
+  });
+
   it('billingState só pode ser escrito pelo servidor (admin SDK)', () => {
     const validate = tenantRules.billingState['.validate'];
     expect(validate).toContain("auth.token.role === 'super_admin'");

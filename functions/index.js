@@ -14,6 +14,7 @@ const crypto = require('crypto');
 const { detectarEtapas } = require('./whatsapp/obra-etapas');
 const { handleKiwifyWebhook } = require('./kiwify');
 const { atualizarBillingStatesJob } = require('./billing');
+const { hasFeature } = require('./plan_features');
 
 const OPENAI_KEY = defineSecret('OPENAI_KEY');
 const META_ACCESS_TOKEN = defineSecret('META_ACCESS_TOKEN');
@@ -509,6 +510,11 @@ exports.dailyReport = onSchedule({
 
     for (const tenantId in tenants) {
       const tenant = tenants[tenantId];
+      // Mesma matriz de features do front: apenas quem tem o módulo recebe o relatório.
+      if (!hasFeature('relatorio.whatsapp.diario', tenant.plano, tenant)) {
+        console.log(`⏭️  Tenant ${tenantId} sem módulo de relatório diário (${tenant.plano || 'sem plano'}).`);
+        continue;
+      }
       // Verifica se o tenant está ativo e possui telefone de admin configurado
       if (!tenant.adminPhone || tenant.status === 'inativo') continue;
 
@@ -687,6 +693,34 @@ exports.enforceObrasLimit = onValueWritten("tenants/{tenantId}/obras", async (ev
 exports.enforceUsuariosLimit = onValueWritten("tenants/{tenantId}/usuarios", async (event) => {
   return enforceGrowthLimit(event, 'limiteUsuarios', 'usuarios');
 });
+
+// Subdomínio personalizado é Pro+. O slug inicial do cadastro é sempre igual ao
+// tenantId (necessário para criar a conta) e por isso é permitido a todos.
+async function enforceSubdomainPlan(event) {
+  const tenantId = event.params.tenantId;
+  const depois = event.data.after.val();
+  const antes = event.data.before.val();
+
+  if (!depois || depois === tenantId) return null;
+
+  const tenantSnap = await db.ref(`tenants/${tenantId}`).once('value');
+  const tenant = tenantSnap.val() || {};
+
+  if (hasFeature('subdominio', tenant.plano, tenant)) return null;
+
+  console.warn(`[enforce] tenant=${tenantId} (${tenant.plano || 'sem plano'}) tentou definir subdomínio "${depois}". Revertendo.`);
+  const valorSeguro = antes && antes !== depois ? antes : tenantId;
+  await event.data.after.ref.set(valorSeguro);
+
+  // Remove o nó público criado para um slug que o plano não pode usar.
+  await db.ref(`tenants_public/${depois}`).transaction((atual) => {
+    return atual && atual.tenantId === tenantId ? null : atual;
+  });
+  return null;
+}
+
+exports.enforceSubdomainPlan = onValueWritten("tenants/{tenantId}/subdominioSlug", enforceSubdomainPlan);
+exports.enforceConfigSlugPlan = onValueWritten("tenants/{tenantId}/config/slug", enforceSubdomainPlan);
 
 exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
   const uid = event.params.uid;

@@ -1158,3 +1158,28 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   color: var(--text);
 }
 
+/* FEATURE GATES — cadeado nos recursos do plano */
+[data-feature-locked="1"] {
+  position: relative;
+  opacity: .55;
+  cursor: not-allowed !important;
+  filter: grayscale(.6);
+}
+[data-feature-locked="1"]::after {
+  content: 'lock';
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-size: 14px;
+  line-height: 1;
+  color: #fff;
+  background: var(--accent, #ff6b35);
+  border-radius: 50%;
+  padding: 4px;
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 3;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+[data-feature-locked="1"]:hover::after { transform: scale(1.08); }
+
