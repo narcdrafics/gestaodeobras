@@ -10,6 +10,10 @@ Todas as mudanças notáveis para o projeto **Obra Real** serão documentadas ne
 
 ### Segurança
 - A criação de credenciais exige ID token válido, cargo `admin`/`super_admin`, convite prévio do mesmo tenant e bloqueia redefinição de senha de e-mails vinculados a outra empresa. A senha temporária nunca é gravada no Realtime Database; `role`/`tenantId` continuam sendo definidos pelo perfil e propagados por `syncCustomClaims`.
+- **Fase 1 — escalação de privilégios:** `profiles/$uid`, `users/$email` e `invites/$email` não aceitam mais escrita de `role`/`tenantId` pelo cliente, e nenhum cliente pode gravar `super_admin`. A fonte canônica passa a ser `super_admins/<uid>` (allowlist gravada só com Admin SDK, `.write: false` nas rules).
+- Novo endpoint `POST /api/admin/cargo` (`gerenciarCargo`): toda alteração de cargo/tenant passa por verificação de ID token e papel no servidor, com auditoria, revogação de tokens e remoção da allowlist quando o cargo master é retirado. Admin de tenant não promove a master, não cruza tenant e não se altera.
+- `syncCustomClaims` não promove mais com base em `users/<email>/role`: usa `avaliarSuperAdmin()`. O passaporte legado apenas migra contas que já tinham a claim `super_admin`; escalações bloqueadas têm os tokens revogados e o perfil corrigido.
+- Removido o bootstrap de Super Admin pelo navegador; o primeiro master é criado via `functions/set_super_admin.js`. Documentação atualizada em `docs/security/super-admin.md` e cobertura com 22 novos testes em `tests/security/privilege-escalation.test.js`.
 
 ---
 

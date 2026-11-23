@@ -23,6 +23,10 @@
         "function": "adminAccountApi"
       },
       {
+        "source": "/api/admin/cargo",
+        "function": "gerenciarCargo"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

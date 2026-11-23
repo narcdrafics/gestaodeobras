@@ -4553,6 +4553,8 @@ window.renderWebhookLogs = renderWebhookLogs;
 // feitas diretamente pelo navegador. O token é enviado ao endpoint e validado
 // no servidor com Admin SDK; o papel é reconfirmado no banco.
 const ADMIN_API_URL = '/api/admin/conta';
+// Cargos/tenant nunca são escritos pelo navegador: essa API usa Admin SDK.
+const CARGO_API_URL = '/api/admin/cargo';
 const ADMIN_ERRO_SESSAO = 'Sua sessão expirou. Entre novamente para continuar.';
 
 async function _adminToken() {
@@ -4566,7 +4568,7 @@ async function _adminResponse(resposta) {
   try { dados = await resposta.json(); } catch (e) { /* resposta sem JSON */ }
   if (resposta.status === 401) throw new Error(ADMIN_ERRO_SESSAO);
   if (resposta.status === 404) {
-    throw new Error('API do painel não encontrada (404). Implante a função adminAccountApi e o rewrite do Hosting.');
+    throw new Error('API do painel não encontrada (404). Implante as funções de administração e o rewrite do Hosting.');
   }
   if (!resposta.ok || !dados || dados.ok === false) {
     const codigo = dados && dados.erro;
@@ -4588,6 +4590,21 @@ async function adminApiRequest(payload) {
     resposta = await fetch(ADMIN_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(payload || {})
+    });
+  } catch (e) {
+    throw new Error('Não foi possível contatar o servidor. Verifique sua conexão.');
+  }
+  return _adminResponse(resposta);
+}
+
+async function cargoApiRequest(payload) {
+  const token = await _adminToken();
+  let resposta;
+  try {
+    resposta = await fetch(CARGO_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify(payload || {})
     });
   } catch (e) {
@@ -4962,68 +4979,37 @@ async function addMasterUser() {
   if (!confirm(`Deseja realmente dar acesso TOTAL e GLOBAL para ${email}?`)) return;
 
   try {
-    const sanitized = email.replace(/\./g, ',');
-    await firebase.database().ref(`users/${sanitized}`).update({
-      email: email,
-      role: 'super_admin',
-      tenantId: 'MASTER_SYSTEM',
-      nome: 'Administrador Mestre',
-      origem: 'painel_master'
-    });
-
-    // Se informou senha, cria a conta no Firebase Auth com a senha via app secundário isolado
+    // 1. Credencial (quando informada) via app secundário isolado.
     if (pass) {
       try {
         const secAppName = 'SecAuth_' + Date.now();
         const secApp = firebase.initializeApp(firebase.app().options, secAppName);
-        const cred = await secApp.auth().createUserWithEmailAndPassword(email, pass);
-        const newUid = cred.user.uid;
+        await secApp.auth().createUserWithEmailAndPassword(email, pass);
         await secApp.auth().signOut();
         await secApp.delete();
-
-        // Como o admin logado é Super Admin, já cria o perfil completo no banco de dados
-        await firebase.database().ref(`profiles/${newUid}`).set({
-          uid: newUid,
-          email: email,
-          name: 'Administrador Mestre',
-          role: 'super_admin',
-          tenantId: 'MASTER_SYSTEM',
-          status: 'ativo',
-          criadoEm: Date.now()
-        });
-
         toast(`Conta criada com sucesso com a senha inicial para ${email}!`);
       } catch (authErr) {
         if (authErr.code === 'auth/email-already-in-use') {
-          // Já existe no Auth: envia e-mail para definir a nova senha
           await firebase.auth().sendPasswordResetEmail(email).catch(() => { });
           toast(`Conta já existia no Auth. Um link para definir a senha foi enviado para ${email}.`, 'warning');
         } else {
           console.warn('Aviso ao criar usuário no Auth:', authErr);
-          toast(`Autorizado! Mas ao criar credencial: ${authErr.message || authErr}`, 'warning');
+          toast(`Aviso ao criar credencial: ${authErr.message || authErr}`, 'warning');
         }
       }
-    } else {
-      // Sem senha digitada: tenta enviar link para o e-mail criar sua senha
-      await firebase.auth().sendPasswordResetEmail(email).catch(() => { });
     }
 
-    // Se o usuário já tiver perfil criado no banco, sincroniza imediatamente
-    try {
-      const pSnap = await firebase.database().ref('profiles').orderByChild('email').equalTo(email).once('value');
-      const foundProfiles = pSnap.val();
-      if (foundProfiles) {
-        const updates = {};
-        Object.keys(foundProfiles).forEach(uid => {
-          updates[`profiles/${uid}/role`] = 'super_admin';
-          updates[`profiles/${uid}/tenantId`] = 'MASTER_SYSTEM';
-          updates[`profiles/${uid}/status`] = 'ativo';
-        });
-        await firebase.database().ref().update(updates);
-      }
-    } catch (errP) {
-      console.warn('Aviso ao sincronizar perfil do novo mestre:', errP);
-    }
+    // 2. O cargo é concedido SOMENTE pelo servidor (Admin SDK).
+    await cargoApiRequest({
+      acao: 'definir_cargo',
+      email,
+      role: 'super_admin',
+      tenantId: 'MASTER_SYSTEM',
+      nome: 'Administrador Mestre'
+    });
+
+    // Sem senha digitada: o e-mail cria a própria senha pelo primeiro acesso.
+    if (!pass) await firebase.auth().sendPasswordResetEmail(email).catch(() => { });
 
     toast(`Sucesso! ${email} agora é Super Admin.`);
     emailInput.value = '';
@@ -5031,7 +5017,7 @@ async function addMasterUser() {
     renderMasterUsers();
   } catch (e) {
     console.error('Erro ao adicionar mestre:', e);
-    toast('Erro ao autorizar novo mestre.', 'error');
+    toast('Erro ao autorizar novo mestre: ' + (e.message || e), 'error');
   }
 }
 
@@ -5042,13 +5028,12 @@ async function deleteMasterUser(email) {
   if (!confirm(`Deseja REMOVER o acesso global de ${email}?`)) return;
 
   try {
-    const sanitized = email.replace(/\./g, ',');
-    await firebase.database().ref(`users/${sanitized}/role`).set('admin');
+    await cargoApiRequest({ acao: 'definir_cargo', email, role: 'admin' });
     toast(`Acesso master removido de ${email}.`);
     renderMasterUsers();
   } catch (e) {
     console.error('Erro ao remover mestre:', e);
-    toast('Erro ao remover acesso master.', 'error');
+    toast('Erro ao remover acesso master: ' + (e.message || e), 'error');
   }
 }
 
@@ -5391,33 +5376,19 @@ async function deleteUsuario(idx) {
   }
   if (confirm(`Remover usuário "${targetUser.name || targetUser.email}" desta empresa?`)) {
     const email = (targetUser.email || targetUser.username || '').trim().toLowerCase();
-    const sanitizedEmail = email.replace(/\./g, ',');
+    const sessao = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
 
-    // 1. Remove convite pendente se houver
-    if (sanitizedEmail) {
-      await firebase.database().ref(`invites/${sanitizedEmail}`).remove().catch(e => console.warn('Aviso ao remover convite:', e));
-    }
-
-    // 2. Desvincula o tenant do perfil caso já possua conta
-    if (targetUser.uid) {
-      await firebase.database().ref(`profiles/${targetUser.uid}`).update({
-        tenantId: null,
-        role: 'desativado'
-      }).catch(e => console.warn('Aviso ao revogar perfil:', e));
-    } else if (email) {
-      try {
-        const pSnap = await firebase.database().ref('profiles').orderByChild('email').equalTo(email).once('value');
-        const profiles = pSnap.val();
-        if (profiles) {
-          const uid = Object.keys(profiles)[0];
-          await firebase.database().ref(`profiles/${uid}`).update({
-            tenantId: null,
-            role: 'desativado'
-          });
-        }
-      } catch (e) {
-        console.warn('Aviso ao revogar perfil por email:', e);
-      }
+    // Revogação de cargo/passaporte/convite é feita no servidor, com Admin SDK.
+    try {
+      await cargoApiRequest({
+        acao: 'remover_usuario',
+        uid: targetUser.uid || undefined,
+        email,
+        tenantId: sessao.tenantId
+      });
+    } catch (e) {
+      toast('Erro ao remover usuário: ' + (e.message || e), 'error');
+      return;
     }
 
     DB.usuarios.splice(idx, 1);
@@ -7335,31 +7306,39 @@ async function saveUsuario() {
   }
 
   const userData = { email, name, role, tenantId };
-
-  // REGISTRO GLOBAL DE CONVITE (SaaS)
-  // Substitui pontos por vírgulas para chaves compatíveis com Firebase
-  const sanitizedEmail = email.replace(/\./g, ',');
-  const inviteRef = firebase.database().ref(`invites/${sanitizedEmail}`);
   const btnSalvar = document.querySelector('#modal-content .modal-footer .btn-primary');
   const textoBotao = btnSalvar ? btnSalvar.textContent : null;
   if (btnSalvar) { btnSalvar.disabled = true; btnSalvar.textContent = 'Salvando...'; }
 
+  // Edição: cargo/tenant são alterados apenas pelo servidor (Admin SDK).
+  if (editIdx >= 0) {
+    try {
+      await cargoApiRequest({ acao: 'definir_cargo', email, role, tenantId, nome: name });
+    } catch (err) {
+      console.error('Erro ao atualizar cargo:', err);
+      toast('Erro ao atualizar cargo: ' + (err.message || err), 'error');
+      if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.textContent = textoBotao; }
+      return;
+    }
+    if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.textContent = textoBotao; }
+    DB.usuarios[editIdx] = { email, name, role };
+    toast('Permissões de Usuário atualizadas!');
+    closeModal('modal-usuario');
+    renderAdmin();
+    persistDB();
+    return;
+  }
+
+  // REGISTRO GLOBAL DE CONVITE (SaaS) — somente para usuários novos.
+  // Substitui pontos por vírgulas para chaves compatíveis com Firebase
+  const sanitizedEmail = email.replace(/\./g, ',');
+  const inviteRef = firebase.database().ref(`invites/${sanitizedEmail}`);
   try {
     await inviteRef.set(userData);
   } catch (err) {
     console.error('Erro ao gerar convite global:', err);
     toast('Erro ao sincronizar convite global.', 'error');
     if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.textContent = textoBotao; }
-    return;
-  }
-
-  // Edição: apenas permissões. Credencial nova só para usuários recém-criados.
-  if (editIdx >= 0) {
-    DB.usuarios[editIdx] = { email, name, role };
-    toast('Permissões de Usuário atualizadas!');
-    closeModal('modal-usuario');
-    renderAdmin();
-    persistDB();
     return;
   }
 

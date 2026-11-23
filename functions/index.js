@@ -18,6 +18,8 @@ const { hasFeature } = require('./plan_features');
 const { criarUsuarioTenant } = require('./usuarios');
 const { aoEscreverAprovacao, processarAprovacoesJob } = require('./aprovacoes');
 const { handleAdminRequest } = require('./super_admin');
+const { handleCargoRequest } = require('./cargos');
+const { avaliarSuperAdmin, normalizarRole } = require('./claims');
 
 const OPENAI_KEY = defineSecret('OPENAI_KEY');
 const META_ACCESS_TOKEN = defineSecret('META_ACCESS_TOKEN');
@@ -759,7 +761,7 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
   let role = after.role || 'admin';
   // `mestre` é alias legado: as claims passam a usar sempre `encarregado`.
   if (role === 'mestre') role = 'encarregado';
-  const tenantId = after.tenantId || null;
+  let tenantId = after.tenantId || null;
 
   // Perfis 'pendente' (sem assento) e 'bloqueado' (painel master) nunca recebem
   // claims de acesso. No bloqueio, revoga também os tokens já emitidos.
@@ -783,37 +785,38 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
     const userRecord = await admin.auth().getUser(uid);
     const currentClaims = userRecord.customClaims || {};
     const email = (userRecord.email || '').toLowerCase();
-    const sanitizedEmail = email.replace(/\./g, ',');
 
-    // Se o usuário está cadastrado no nó users como super_admin, ele é automaticamente super_admin
-    if (email) {
-      const masterSnap = await admin.database().ref(`users/${sanitizedEmail}`).once('value');
-      const masterData = masterSnap.val();
-      if (masterData && masterData.role === 'super_admin') {
+    // Nunca confie em users/<email>/role para PROMOVER: esse nó é um espelho
+    // legado. A autoridade é super_admins/<uid>, gravada só pelo servidor.
+    const decisao = await avaliarSuperAdmin({ uid, email, currentClaims, db });
+
+    if (decisao.autorizado) {
+      if (role !== 'super_admin') {
         role = 'super_admin';
-        // Garante que o profile no RTDB esteja com super_admin e MASTER_SYSTEM
-        if (after.role !== 'super_admin' || after.tenantId !== 'MASTER_SYSTEM' || after.status !== 'ativo') {
-          await admin.database().ref(`profiles/${uid}`).update({
-            role: 'super_admin',
-            tenantId: 'MASTER_SYSTEM',
-            status: 'ativo'
-          });
-        }
+        tenantId = 'MASTER_SYSTEM';
+        await db.ref(`profiles/${uid}`).update({
+          role: 'super_admin',
+          tenantId: 'MASTER_SYSTEM',
+          status: 'ativo'
+        });
       }
+    } else if (role === 'super_admin') {
+      // Tentativa de escalação: derruba a claim e corrige o perfil, pois as
+      // rules do RTDB também leem profiles/<uid>/role para autorizar leituras.
+      console.warn(`[syncCustomClaims] Escalação bloqueada (${decisao.motivo}): uid=${uid}, email=${email}`);
+      const tenantSeguro = after.tenantId === 'MASTER_SYSTEM' ? null : after.tenantId;
+      role = 'admin';
+      tenantId = tenantSeguro || null;
+      await db.ref(`profiles/${uid}`).update({
+        role: 'admin',
+        tenantId: tenantId,
+        cargoAtualizadoPor: 'syncCustomClaims'
+      });
     }
 
-    // Salvaguarda: super_admin só pode ser concedido se já possuía a claim, se for e-mail mestre autorizado ou se constar no nó users
-    if (role === 'super_admin') {
-      let isMasterAuthorized = currentClaims.role === 'super_admin' || email === 'tonycampelo@gmail.com';
-      if (!isMasterAuthorized && email) {
-        const checkMaster = await admin.database().ref(`users/${sanitizedEmail}/role`).once('value');
-        if (checkMaster.val() === 'super_admin') isMasterAuthorized = true;
-      }
-
-      if (!isMasterAuthorized) {
-        console.warn(`[syncCustomClaims] Tentativa não autorizada de escalação para super_admin: uid=${uid}, email=${email}`);
-        role = 'admin';
-      }
+    // Revoke imediato ao perder o papel master: tokens antigos deixam de valer.
+    if (currentClaims.role === 'super_admin' && role !== 'super_admin') {
+      await admin.auth().revokeRefreshTokens(uid);
     }
 
     // Evitar updates desnecessários (otimização de cota e performance)
@@ -872,6 +875,20 @@ exports.adminAccountApi = onRequest({
       accountId: valorSegredo(KIWIFY_ACCOUNT_ID),
       apiToken: valorSegredo(KIWIFY_API_TOKEN)
     }
+  });
+});
+
+// ==================== CARGOS (SERVIDOR) ====================
+// Toda alteração de cargo/tenant passa por aqui. O navegador nunca escreve
+// role/tenantId/status diretamente no banco.
+exports.gerenciarCargo = onRequest({
+  cors: false,
+  memory: '256MiB',
+  timeoutSeconds: 60
+}, async (req, res) => {
+  return handleCargoRequest(req, res, {
+    auth: admin.auth(),
+    db: admin.database()
   });
 });
 

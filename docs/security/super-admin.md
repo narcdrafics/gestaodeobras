@@ -17,13 +17,57 @@ O rewrite está em `firebase.json` e a função é `adminAccountApi`
 1. O navegador envia o **Firebase ID token** no header `Authorization: Bearer <token>`.
 2. `verificarSuperAdmin()` verifica o token com `auth.verifyIdToken()` — não
    confia em papel/claims vindos do cliente.
-3. O papel é reconfirmado no banco: `profiles/<uid>/role === 'super_admin'` **e**
-   `users/<email com '.' → ','>/role === 'super_admin'`. O e-mail legado
-   `tonycampelo@gmail.com` continua autorizado.
+3. O papel é reconfirmado no banco pela allowlist `super_admins/<uid>` — gravada
+   **somente pelo Admin SDK** (`.write: false` nas rules). Como exceção histórica,
+   o e-mail `tonycampelo@gmail.com` continua autorizado. O nó
+   `users/<email com '.' → ','>` é apenas um passaporte legado: **não concede**
+   privilégio novo, só preserva contas que já tinham a claim `super_admin`.
 4. Contas desabilitadas no Firebase Auth recebem `403 conta_bloqueada`.
 
 Toda ação grava um registro em `admin_audit` (sucesso ou falha). As regras do
 RTDB permitem **leitura apenas para Super Admin** e proíbem escrita pelo cliente.
+
+## Alteração de cargos — endpoint único
+
+Todo cargo/tenant é alterado no servidor. O navegador **nunca** escreve
+`role`, `tenantId` ou `status` em `profiles/<uid>` nem em `users/<email>`:
+
+```
+POST /api/admin/cargo   -> { acao: 'definir_cargo' | 'remover_usuario', uid/email, role, tenantId }
+```
+
+A função `gerenciarCargo` (`functions/index.js` → `functions/cargos.js`) valida o
+ID token, reconfirma o papel do chamador e:
+
+- só Super Admin pode conceder/remover `super_admin` (admin de tenant recebe
+  `403 sem_permissao`, mesmo que tente gravar o passaporte legado);
+- admin não altera próprio cargo, não cruza tenant e não conhece a allowlist;
+- ao conceder `super_admin`, grava `super_admins/<uid>` e define
+  `tenantId: 'MASTER_SYSTEM'`; ao remover, apaga a entrada — o
+  `syncCustomClaims` revoga as claims na hora;
+- espelha o resultado em `profiles`, `users` e `invites`, revoga os ID tokens
+  antigos e registra auditoria.
+
+### Bootstrap e migração
+
+Não existe mais bootstrap de Super Admin pelo navegador. Para o primeiro master
+(ou para repovoar a allowlist de contas antigas), use o script Admin SDK:
+
+```bash
+cd functions && node set_super_admin.js <uid> [email]
+```
+
+Contas legadas que já tinham a claim `super_admin` são migradas automaticamente
+para a allowlist em `avaliarSuperAdmin()` (`functions/claims.js`), sem promoter
+ninguém novo. Para publicar:
+
+```bash
+firebase deploy --only functions:gerenciarCargo,functions:adminAccountApi,database:rules,hosting
+```
+
+As regras de `profiles/$uid`, `users/$email` e `invites/$email` tornam
+`role`/`tenantId` imutáveis para o cliente, exigem `uid`/`email` do próprio
+usuário na criação do perfil e proíbem `role: 'super_admin'` vindo do cliente.
 
 ## Ações disponíveis
 
@@ -108,8 +152,8 @@ os planos Start / Pro / Ilimitado (incluindo variantes anuais e `Full`).
 ## Verificação local
 
 ```bash
-npm test              # 407 testes, incluindo tests/super-admin.test.js
-npx vitest run tests/super-admin.test.js
+npm test              # 429 testes, incluindo tests/security/privilege-escalation.test.js
+npx vitest run tests/security/privilege-escalation.test.js tests/super-admin.test.js
 ```
 
 Os testes usam fakes de Auth/RTDB/HTTP: não chamam a Kiwify nem o Firebase reais.

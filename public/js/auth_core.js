@@ -232,12 +232,10 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       if (!snapshot.exists()) {
         await profileRef.set({ ...userProfile, status: 'ativo' });
       } else {
-        const updates = { name: userProfile.name };
-        if (isSuper) {
-          updates.tenantId = 'MASTER_SYSTEM';
-          updates.status = 'ativo';
-        }
-        await profileRef.update(updates).catch((err) => console.warn('Aviso ao atualizar perfil:', err));
+        // Apenas campos pessoais: cargo/tenant/status são gravados pelo servidor.
+        // O syncCustomClaims promove perfis autorizados via super_admins/<uid>.
+        await profileRef.update({ name: userProfile.name })
+          .catch((err) => console.warn('Aviso ao atualizar perfil:', err));
       }
       console.log('[AuthTrace] Perfil restaurado via Master DB. Tenant:', userProfile.tenantId);
       
@@ -250,8 +248,9 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
         role: inviteData.role || userProfile?.role || 'engenheiro',
         tenantId: inviteData.tenantId
       };
-      // Update não-destrutivo: preserva role/status já gravados (a Cloud Function é a dona da autorização)
-      await profileRef.update(snapshot.exists() ? userProfile : { ...userProfile, status: 'ativo' });
+      // Update não-destrutivo: role/status só vêm do servidor. Na criação do
+      // perfil o cargo do convite é aceito; depois, alterações passam pela API.
+      await profileRef.update(snapshot.exists() ? { name: userProfile.name } : { ...userProfile, status: 'ativo' });
       // Remove convite após uso
       await firebase.database().ref(`invites/${sanitizedEmail}`).remove();
       console.log('[AuthTrace] Perfil processado via Convite. Tenant:', userProfile.tenantId);
@@ -714,23 +713,7 @@ window.safeCheckAuth = checkAuth;
 
 // checkAuth();
 
-/**
- * FUNÇÃO DE BOOTSTRAP (Executar no console do navegador se perder o acesso Master)
- * Uso: bootstrapSuperAdmin('seu@email.com')
- */
-window.bootstrapSuperAdmin = async function(email) {
-  if (!email) return console.error('Informe o e-mail');
-  const sanitized = email.trim().toLowerCase().replace(/\./g, ',');
-  try {
-    await firebase.database().ref(`users/${sanitized}`).update({
-      role: 'super_admin',
-      tenantId: 'MASTER_SYSTEM',
-      nome: 'Administrador Mestre',
-      origem: 'bootstrap_manual'
-    });
-    console.log(`%c ✅ SUCESSO! O e-mail ${email} agora é Super Admin.`, 'color: #22c55e; font-weight: bold; font-size: 14px;');
-    console.log('Faça logout e login novamente para aplicar.');
-  } catch (e) {
-    console.error('Falha no Bootstrap:', e);
-  }
-};
+// Bootstrap pelo navegador foi REMOVIDO: gravar users/<email> era uma
+// escalada de privilégio. O primeiro Super Admin é provisionado com
+// functions/set_super_admin.js (Admin SDK); os demais, pela API
+// POST /api/admin/cargo executada por um Super Admin autenticado.

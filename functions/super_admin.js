@@ -4,7 +4,9 @@
  * planos, limites, bloqueios e leitura da Kiwify) passam por aqui com Admin SDK.
  *
  * Nunca confie no papel vindo do navegador: o ID token é verificado no servidor
- * e o papel é confirmado em users/<email> + profiles/<uid>.
+ * e o papel é confirmado em super_admins/<uid> (allowlist do servidor) ou, em
+ * contas legadas, em users/<email> + profiles/<uid>. O cliente não grava mais
+ * nenhum desses nós — alterações de cargo passam por /api/admin/cargo.
  */
 
 const { PLANOS, normalizarPlanoAdmin, limitesDoPlano, diasDoPlano, MS_DIA } = require('./plan_catalog');
@@ -55,10 +57,11 @@ async function verificarSuperAdmin(req, { auth, db }) {
   const email = emailNormalizado(claims.email);
   if (!uid || !email) throw erro(401, 'token_invalido', 'Token sem identidade válida.');
 
-  const [userRecord, profileSnap, passportSnap] = await Promise.all([
+  const [userRecord, profileSnap, passportSnap, allowSnap] = await Promise.all([
     auth.getUser(uid).catch(() => null),
     db.ref(`profiles/${uid}`).once('value').catch(() => null),
-    db.ref(`users/${chaveEmail(email)}`).once('value').catch(() => null)
+    db.ref(`users/${chaveEmail(email)}`).once('value').catch(() => null),
+    db.ref(`super_admins/${uid}`).once('value').catch(() => null)
   ]);
 
   if (!userRecord || userRecord.disabled) {
@@ -67,10 +70,14 @@ async function verificarSuperAdmin(req, { auth, db }) {
 
   const perfil = (profileSnap && profileSnap.val()) || {};
   const passaporte = (passportSnap && passportSnap.val()) || {};
+  const allow = (allowSnap && allowSnap.val()) || null;
+  const masterAtivo = !!(allow && allow.ativo !== false);
   const masterLegado = email === EMAIL_MESTRA;
   const autorizado =
-    (perfil.role === 'super_admin' || masterLegado) &&
-    (passaporte.role === 'super_admin' || masterLegado);
+    masterLegado ||
+    masterAtivo ||
+    ((perfil.role === 'super_admin' || claims.role === 'super_admin') &&
+      passaporte.role === 'super_admin');
 
   if (!autorizado) {
     throw erro(403, 'sem_permissao', 'Acesso restrito ao Super Admin.');
@@ -192,7 +199,10 @@ async function acaoExcluirUsuario({ db, auth }, dados, ator) {
 
   const tid = String(dados.tenantId || (alvo.perfil && alvo.perfil.tenantId) || '').trim();
   const updates = {};
-  if (alvo.uid) updates[`profiles/${alvo.uid}`] = null;
+  if (alvo.uid) {
+    updates[`profiles/${alvo.uid}`] = null;
+    updates[`super_admins/${alvo.uid}`] = null;
+  }
   if (alvo.email) {
     updates[`users/${chaveEmail(alvo.email)}`] = null;
     updates[`invites/${chaveEmail(alvo.email)}`] = null;

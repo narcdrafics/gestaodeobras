@@ -1,3 +1,6 @@
+// Bootstrap ONE-TIME de Super Admin (execução local com service account).
+// É a única forma de criar a primeira conta master: o navegador não pode mais
+// gravar users/<email> nem profiles/<uid> com role super_admin.
 const admin = require('firebase-admin');
 const serviceAccount = require('./serviceAccountKey.json');
 
@@ -31,7 +34,16 @@ async function run() {
       origem: 'bootstrap_manual'
     });
     console.log(`Updated users/${emailKey} to role: super_admin`);
-    
+
+    // Fonte canônica usada por syncCustomClaims e pela API do painel.
+    await admin.database().ref(`super_admins/${uid}`).set({
+      uid,
+      email,
+      role: 'super_admin',
+      origem: 'bootstrap_manual'
+    });
+    console.log(`Updated super_admins/${uid}`);
+
     console.log('Done!');
   } catch (err) {
     console.error('Error:', err);
