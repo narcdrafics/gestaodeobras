@@ -96,6 +96,27 @@ describe('database.rules.json — proteção do paywall', () => {
   it('rules não usam numChildren() (método inexistente no RTDB)', () => {
     expect(JSON.stringify(rules)).not.toContain('numChildren');
   });
+
+  it('todas as expressões têm parênteses/colchetes balanceados', () => {
+    const erros = [];
+    const visitar = (no, caminho = '') => {
+      for (const [chave, valor] of Object.entries(no || {})) {
+        const atual = caminho ? `${caminho}/${chave}` : chave;
+        if (['.read', '.write', '.validate'].includes(chave) && typeof valor === 'string') {
+          let p = 0, b = 0, c = 0;
+          for (const ch of valor) {
+            if (ch === '(') p++; else if (ch === ')') p--;
+            else if (ch === '[') b++; else if (ch === ']') b--;
+            else if (ch === '{') c++; else if (ch === '}') c--;
+          }
+          if (p || b || c) erros.push(`${atual}: ${p}/${b}/${c}`);
+        }
+        if (valor && typeof valor === 'object') visitar(valor, atual);
+      }
+    };
+    visitar(rules.rules);
+    expect(erros).toEqual([]);
+  });
 });
 
 describe('database.rules.json — tenants_public sem enumeração', () => {
