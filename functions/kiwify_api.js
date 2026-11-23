@@ -34,13 +34,19 @@ function erroKiwify(status, message, code) {
   return e;
 }
 
+function temCredenciaisOAuth(credenciais = {}) {
+  return Boolean(String(credenciais.clientId || '').trim() && String(credenciais.clientSecret || '').trim());
+}
+
 function credenciaisKiwify({ clientId, clientSecret, accountId, apiToken } = {}) {
   const id = String(accountId || '').trim();
   const token = String(apiToken || '').trim();
-  const temOAuth = Boolean(String(clientId || '').trim() && String(clientSecret || '').trim());
+  const temOAuth = temCredenciaisOAuth({ clientId, clientSecret });
   return {
     configurado: Boolean(id && (token || temOAuth)),
-    modo: token ? 'token' : (temOAuth ? 'oauth' : 'nao_configurado'),
+    // OAuth tem precedência: um KIWIFY_API_TOKEN legado/expirado não pode
+    // substituir o Bearer recém-gerado e causar 401 na Kiwify.
+    modo: temOAuth ? 'oauth' : (token ? 'token' : 'nao_configurado'),
     clientId: String(clientId || '').trim(),
     clientSecret: String(clientSecret || '').trim(),
     accountId: id,
@@ -73,10 +79,13 @@ function intervaloVendas(params = {}, agora = Date.now()) {
 
 async function obterTokenKiwify({ credenciais, http, cache, agora = Date.now() }) {
   if (!credenciais.configurado) return null;
-  if (credenciais.apiToken) return credenciais.apiToken;
   if (cache && cache.token && cache.expiraEm && cache.expiraEm > agora + 5 * 60 * 1000) {
     return cache.token;
   }
+
+  // Com client_id/client_secret configurados, sempre renovamos via OAuth.
+  // O token estático só é usado como fallback quando OAuth não está disponível.
+  if (!temCredenciaisOAuth(credenciais)) return credenciais.apiToken || null;
 
   const corpo = new URLSearchParams({
     client_id: credenciais.clientId,

@@ -86,6 +86,11 @@ firebase deploy --only functions:adminAccountApi,database:rules,hosting
 
 - `KIWIFY_ACCOUNT_ID` é obrigatório nos dois casos (header `x-kiwify-account-id`).
 - `KIWIFY_API_TOKEN`, se usado, precisa ser renovado a cada 24h — prefira a Opção A.
+- **Precedência:** se `KIWIFY_CLIENT_ID`/`KIWIFY_CLIENT_SECRET` existem, a função
+  **sempre gera o Bearer via OAuth** e ignora um `KIWIFY_API_TOKEN` legado. Isso
+  evita que um token expirado gere `502 kiwify_nao_autorizado` (401 da Kiwify).
+  Se um token antigo estiver configurado, apenas remova o segredo
+  `KIWIFY_API_TOKEN` ou deixe OAuth configurado — não é necessário alterar código.
 - O token OAuth fica em cache em memória da função; segredos nunca são
   devolvidos ao navegador.
 - Sem credenciais, o GET responde `200 { ok: true, configurado: false }` e o
@@ -103,7 +108,7 @@ os planos Start / Pro / Ilimitado (incluindo variantes anuais e `Full`).
 ## Verificação local
 
 ```bash
-npm test              # 404 testes, incluindo tests/super-admin.test.js
+npm test              # 407 testes, incluindo tests/super-admin.test.js
 npx vitest run tests/super-admin.test.js
 ```
 
@@ -117,3 +122,5 @@ Os testes usam fakes de Auth/RTDB/HTTP: não chamam a Kiwify nem o Firebase reai
 | `permission_denied at /admin_audit` | regras antigas em produção — o nó `admin_audit` ainda não existe lá | `firebase deploy --only database:rules` |
 | `[Checkout] Plano desconhecido: full_anual` | versão antiga de `public/js/plans.js` em cache | publicar Hosting e invalidar cache (o alias já é tratado no checkout) |
 | `configurado: false` na Kiwify | segredos ausentes na função | ver a seção de segredos acima e redeploy da função |
+| `502 ... Código: kiwify_nao_autorizado` | Kiwify devolveu 401/403: token estático legado, `account_id` errado ou API Key sem escopo | conferir `KIWIFY_ACCOUNT_ID` e os escopos `stats`/`products`/`sales`; com OAuth configurado, remover `KIWIFY_API_TOKEN` |
+| `502 ... Código: kiwify_auth_falhou` | falha ao gerar o Bearer em `/v1/oauth/token` | conferir `KIWIFY_CLIENT_ID` e `KIWIFY_CLIENT_SECRET` (o `client_secret` expira em 96h) |

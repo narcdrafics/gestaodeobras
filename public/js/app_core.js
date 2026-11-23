@@ -4569,7 +4569,14 @@ async function _adminResponse(resposta) {
     throw new Error('API do painel não encontrada (404). Implante a função adminAccountApi e o rewrite do Hosting.');
   }
   if (!resposta.ok || !dados || dados.ok === false) {
-    throw new Error((dados && (dados.mensagem || dados.erro)) || `Falha no servidor (HTTP ${resposta.status}).`);
+    const codigo = dados && dados.erro;
+    let mensagem = (dados && (dados.mensagem || codigo)) || `Falha no servidor (HTTP ${resposta.status}).`;
+    // Em 5xx o backend mascara a mensagem para não vazar detalhes. O código é
+    // seguro e essencial para distinguir falha de OAuth, escopo, rate limit etc.
+    if (resposta.status >= 500 && codigo && codigo !== 'erro_interno' && !mensagem.includes(codigo)) {
+      mensagem += ` Código: ${codigo}.`;
+    }
+    throw new Error(mensagem);
   }
   return dados;
 }

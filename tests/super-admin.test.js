@@ -15,6 +15,7 @@ import {
 } from '../functions/plan_catalog.js';
 import {
   credenciaisKiwify,
+  obterTokenKiwify,
   intervaloVendas,
   normalizarProdutoKiwify,
   normalizarVendaKiwify,
@@ -169,6 +170,29 @@ describe('cliente de leitura da Kiwify', () => {
     expect(credenciaisKiwify({ accountId: 'abc' }).configurado).toBe(false);
     expect(credenciaisKiwify({ accountId: 'abc', apiToken: 'xyz' }).modo).toBe('token');
     expect(credenciaisKiwify({ accountId: 'abc', clientId: 'id', clientSecret: 'secret' }).modo).toBe('oauth');
+  });
+
+  it('prefere OAuth a um token legado para não causar 401 na Kiwify', async () => {
+    const credenciais = credenciaisKiwify({
+      clientId: 'id',
+      clientSecret: 'secret',
+      accountId: 'conta-1',
+      apiToken: 'STALE_TOKEN'
+    });
+    expect(credenciais.modo).toBe('oauth');
+
+    let chamadasPost = 0;
+    const token = await obterTokenKiwify({
+      credenciais,
+      http: {
+        post: async () => {
+          chamadasPost += 1;
+          return { data: { access_token: 'OAUTH_FRESCO', expires_in: 86400 } };
+        }
+      }
+    });
+    expect(chamadasPost).toBe(1);
+    expect(token).toBe('OAUTH_FRESCO');
   });
 
   it('limita o intervalo de vendas a 90 dias', () => {
@@ -393,6 +417,9 @@ describe('integração do painel no projeto', () => {
   it('front usa o endpoint autorizado e nunca grava plano/limites direto', () => {
     const app = read('public/js/app_core.js');
     expect(app).toContain("const ADMIN_API_URL = '/api/admin/conta'");
+    const trechoResposta = app.slice(app.indexOf('async function _adminResponse'), app.indexOf('async function adminApiRequest'));
+    expect(trechoResposta).toContain('resposta.status >= 500');
+    expect(trechoResposta).toContain('Código: ${codigo}');
     expect(app).toContain("acao: 'definir_plano'");
     expect(app).toContain("acao: 'definir_limites'");
     expect(app).toContain("acao: 'bloquear_usuario'");
