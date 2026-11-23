@@ -14,6 +14,8 @@ Todas as mudanças notáveis para o projeto **Obra Real** serão documentadas ne
 - Novo endpoint `POST /api/admin/cargo` (`gerenciarCargo`): toda alteração de cargo/tenant passa por verificação de ID token e papel no servidor, com auditoria, revogação de tokens e remoção da allowlist quando o cargo master é retirado. Admin de tenant não promove a master, não cruza tenant e não se altera.
 - `syncCustomClaims` não promove mais com base em `users/<email>/role`: usa `avaliarSuperAdmin()`. O passaporte legado apenas migra contas que já tinham a claim `super_admin`; escalações bloqueadas têm os tokens revogados e o perfil corrigido.
 - Removido o bootstrap de Super Admin pelo navegador; o primeiro master é criado via `functions/set_super_admin.js`. Documentação atualizada em `docs/security/super-admin.md` e cobertura com 22 novos testes em `tests/security/privilege-escalation.test.js`.
+- **Isolamento entre empresas:** `users/<email>` e `invites/<email>` deixaram de ser legíveis por qualquer usuário autenticado; convites só podem ser criados no próprio tenant (com `email` casando a chave) e só o dono ou o admin do tenant pode removê-los. `tenants_public/<slug>` teve o `tenantId` tornado imutável e a criação de tenant exige `emailAdmin` igual ao e-mail autenticado, fechando o sequestro de slug/empresa entre empresas. `admin_audit` passou a usar a allowlist `super_admins/<uid>` em vez do passaporte legado.
+- `storage.rules` agora exige claims de tenant **e** papel válido no caminho, limita tamanho/tipo de arquivo e nega qualquer caminho fora de `tenants/<tenantId>/`. O "Primeiro Acesso" do painel Master não lê mais `users/<email>` sem autenticação. Ver `docs/security/tenant-isolation.md` e `tests/security/tenant-isolation.test.js`.
 
 ---
 

@@ -254,7 +254,7 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       // Remove convite após uso
       await firebase.database().ref(`invites/${sanitizedEmail}`).remove();
       console.log('[AuthTrace] Perfil processado via Convite. Tenant:', userProfile.tenantId);
-    } else if (!userProfile && (typeof window.isSignupProcess !== 'undefined' || isLoginPage)) {
+    } else if (!userProfile && !window._adminLoginGuard && (typeof window.isSignupProcess !== 'undefined' || isLoginPage)) {
       // AUTO-ONBOARDING / FREE TRIAL (Self Serve): o próprio usuário escolhe o slug da empresa.
       // A criação (tenant + nó público + passaporte global) é uma única escrita atômica feita por
       // ObraSlug.createTenantAccount; é ela que faz a empresa aparecer no painel do Master.
@@ -385,11 +385,26 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       console.warn('[AuthTrace] Timeout aguardando claims. A primeira escrita no Storage pode falhar.');
     }
 
+    // O "Primeiro Acesso" do painel Master não pode consultar users/<email>
+    // sem autenticação. A decisão final é pelas claims já sincronizadas.
+    if (window._adminLoginGuard) {
+      window._adminLoginGuard = false;
+      if (userProfile.role !== 'super_admin') {
+        await firebase.auth().signOut();
+        sessionStorage.removeItem('gestaoUser');
+        const msg = 'Este e-mail não possui autorização de Super Admin. Solicite acesso ao proprietário do sistema.';
+        if (typeof showLoginError === 'function') showLoginError(msg);
+        else console.warn(msg);
+        return;
+      }
+    }
+
     window.location.href = newTenantSlug
       ? window.ObraSlug.buildTenantUrl(newTenantSlug, window.location, 'app.html')
       : 'app.html';
 
   } catch (error) {
+    window._adminLoginGuard = false;
     console.error('Erro SaaS Auth:', error);
     showLoginError('Erro Crítico: ' + (error.message || error) + ' | Tente novamente.');
   }

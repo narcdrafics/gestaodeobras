@@ -462,8 +462,8 @@ describe('integração do painel no projeto', () => {
   it('auditoria só é legível pelo master e nunca gravável pelo cliente', () => {
     const rules = JSON.parse(read('database.rules.json')).rules.admin_audit;
     expect(rules['.read']).toContain("=== 'super_admin'");
-    expect(rules['.read']).toContain("root.child('users/'");
-    expect(rules['.read']).toContain("replace('.', ',')");
+    expect(rules['.read']).toContain("root.child('super_admins/' + auth.uid).exists()");
+    expect(rules['.read']).not.toContain("root.child('users/'");
     expect(rules['.write']).toBe(false);
   });
 });

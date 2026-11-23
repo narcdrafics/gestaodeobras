@@ -31,7 +31,7 @@
       ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
       "$tenantId": {
         ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || ((data.child('emailAdmin').val() === auth.token.email || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId) && data.child('billingState').val() !== 'bloqueado'))",
-        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || ((!data.exists() || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId) && (auth.token.role === 'admin' || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || root.child('tenants/' + $tenantId + '/emailAdmin').val() === auth.token.email) && data.child('billingState').val() !== 'somente_leitura' && data.child('billingState').val() !== 'bloqueado'))",
+        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false) || ((!data.exists() || root.child('profiles/' + auth.uid + '/tenantId').val() === $tenantId) && (!data.exists() ? newData.child('emailAdmin').val() === auth.token.email : true) && (auth.token.role === 'admin' || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || root.child('tenants/' + $tenantId + '/emailAdmin').val() === auth.token.email) && data.child('billingState').val() !== 'somente_leitura' && data.child('billingState').val() !== 'bloqueado'))",
         "emailAdmin": {
           ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || (data.exists() ? newData.val() === data.val() : newData.isString()))"
         },
@@ -159,8 +159,11 @@
     "tenants_public": {
       "$slug": {
         ".read": true,
-        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || ((!data.exists() || data.child('tenantId').val() === root.child('profiles/' + auth.uid + '/tenantId').val() || $slug === root.child('profiles/' + auth.uid + '/tenantId').val() || newData.child('tenantId').val() === root.child('profiles/' + auth.uid + '/tenantId').val()) && root.child('tenants/' + (data.exists() ? data.child('tenantId').val() : newData.child('tenantId').val()) + '/billingState').val() !== 'somente_leitura' && root.child('tenants/' + (data.exists() ? data.child('tenantId').val() : newData.child('tenantId').val()) + '/billingState').val() !== 'bloqueado'))",
-        ".validate": "newData.val() == null || (newData.child('slug').val() === $slug && newData.child('tenantId').isString() && newData.child('tenantId').val() !== '')"
+        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false) || (((!data.exists() || data.child('tenantId').val() === root.child('profiles/' + auth.uid + '/tenantId').val()) && (newData.child('tenantId').val() === root.child('profiles/' + auth.uid + '/tenantId').val() || $slug === root.child('profiles/' + auth.uid + '/tenantId').val()) && (!data.exists() || newData.child('tenantId').val() === data.child('tenantId').val())) && root.child('tenants/' + (data.exists() ? data.child('tenantId').val() : newData.child('tenantId').val()) + '/billingState').val() !== 'somente_leitura' && root.child('tenants/' + (data.exists() ? data.child('tenantId').val() : newData.child('tenantId').val()) + '/billingState').val() !== 'bloqueado'))",
+        ".validate": "newData.val() == null || (newData.child('slug').val() === $slug && newData.child('tenantId').isString() && newData.child('tenantId').val() !== '')",
+        "tenantId": {
+          ".validate": "data.exists() ? newData.val() === data.val() : (newData.isString() && newData.val() !== '' && (newData.val() === root.child('profiles/' + auth.uid + '/tenantId').val() || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false)))"
+        }
       }
     },
     "comprasPrivadas": {
@@ -195,7 +198,7 @@
       }
     },
     "admin_audit": {
-      ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (auth.token.email != null && root.child('users/' + auth.token.email.replace('.', ',') + '/role').val() === 'super_admin'))",
+      ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false))",
       ".write": false,
       ".indexOn": [
         "timestamp",
@@ -223,8 +226,8 @@
         "telefone"
       ],
       "$email": {
-        ".read": "auth != null",
-        ".write": "auth != null && ((root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com') || (!data.exists() && newData.child('uid').val() === auth.uid) || (data.exists() && data.child('uid').val() === auth.uid && newData.child('uid').val() === data.child('uid').val() && newData.child('role').val() === data.child('role').val() && newData.child('tenantId').val() === data.child('tenantId').val()))",
+        ".read": "auth != null && (data.child('uid').val() === auth.uid || (auth.token.email != null && $email === auth.token.email.toLowerCase().replace('.', ',')) || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false))",
+        ".write": "auth != null && ((root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com') || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false) || (!data.exists() && newData.child('uid').val() === auth.uid) || (data.exists() && data.child('uid').val() === auth.uid && newData.child('uid').val() === data.child('uid').val() && newData.child('role').val() === data.child('role').val() && newData.child('tenantId').val() === data.child('tenantId').val()) || (auth.token.email != null && $email === auth.token.email.toLowerCase().replace('.', ',') && ((!data.exists() && newData.child('uid').val() === auth.uid) || (data.exists() && newData.child('uid').val() === data.child('uid').val() && newData.child('role').val() === data.child('role').val() && newData.child('tenantId').val() === data.child('tenantId').val()))))",
         "uid": {
           ".validate": "newData.isString() && (data.exists() ? newData.val() === data.val() : true)"
         },
@@ -242,13 +245,16 @@
     "invites": {
       ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
       "$email": {
-        ".read": "auth != null",
-        ".write": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || root.child('profiles/' + auth.uid + '/role').val() === 'admin' || !newData.exists())",
+        ".read": "auth != null && ((auth.token.email != null && $email === auth.token.email.toLowerCase().replace('.', ',')) || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false) || ((root.child('profiles/' + auth.uid + '/role').val() === 'admin' || auth.token.role === 'admin') && data.exists() && data.child('tenantId').val() === root.child('profiles/' + auth.uid + '/tenantId').val() && root.child('tenants/' + data.child('tenantId').val() + '/billingState').val() !== 'bloqueado'))",
+        ".write": "auth != null && ((root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false)) || (auth.token.email != null && $email === auth.token.email.toLowerCase().replace('.', ',') && !newData.exists()) || ((root.child('profiles/' + auth.uid + '/role').val() === 'admin' || auth.token.role === 'admin') && (data.exists() ? data.child('tenantId').val() === root.child('profiles/' + auth.uid + '/tenantId').val() : true) && (!newData.exists() || newData.child('tenantId').val() === root.child('profiles/' + auth.uid + '/tenantId').val()) && root.child('tenants/' + (data.exists() ? data.child('tenantId').val() : newData.child('tenantId').val()) + '/billingState').val() !== 'bloqueado' && root.child('tenants/' + (data.exists() ? data.child('tenantId').val() : newData.child('tenantId').val()) + '/billingState').val() !== 'somente_leitura'))",
+        "email": {
+          ".validate": "newData.isString() && (data.exists() ? newData.val() === data.val() : (auth.token.email != null && newData.val().toLowerCase().replace('.', ',') === $email))"
+        },
         "role": {
           ".validate": "newData.isString() && (newData.val() === 'admin' || newData.val() === 'engenheiro' || newData.val() === 'encarregado' || newData.val() === 'comprador' || newData.val() === 'pendente')"
         },
         "tenantId": {
-          ".validate": "newData.isString()"
+          ".validate": "data.exists() ? newData.val() === data.val() : (newData.isString() && newData.val() !== '' && (newData.val() === root.child('profiles/' + auth.uid + '/tenantId').val() || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false)))"
         }
       }
     },

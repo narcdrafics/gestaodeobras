@@ -273,37 +273,25 @@
 
       const btn = document.getElementById('btn-action');
       btn.disabled = true;
-      btn.textContent = 'Validando autorização...';
+      btn.textContent = 'Criando credencial...';
 
-      try {
-        const sanitized = email.toLowerCase().replace(/\./g, ',');
-        const snap = await firebase.database().ref(`users/${sanitized}`).once('value');
-        const userData = snap.val();
-
-        if (!userData || userData.role !== 'super_admin') {
-          btn.disabled = false;
-          btn.textContent = 'Criar Senha e Acessar';
-          return showLoginError('Este e-mail não possui autorização de Super Admin. Solicite acesso ao proprietário do sistema.');
-        }
-
-        btn.textContent = 'Criando credencial...';
-        firebase.auth().createUserWithEmailAndPassword(email, pass).then((userCredential) => {
-          handleAuthSuccess(userCredential.user);
-        }).catch(async (err) => {
-          btn.disabled = false;
-          btn.textContent = 'Criar Senha e Acessar';
-          if (err.code === 'auth/email-already-in-use') {
-            await firebase.auth().sendPasswordResetEmail(email).catch(() => {});
-            showLoginSuccess('Sua conta já existe no Firebase! Um link para redefinir sua senha foi enviado para seu e-mail.');
-          } else {
-            showLoginError(err.message || 'Falha ao criar credencial.');
-          }
-        });
-      } catch (err) {
+      // Não consultamos users/<email> antes de autenticar: esse nó é privado e
+      // a autoridade master é decidida pelo servidor (allowlist + claims).
+      // O guard no auth_core.js valida o papel final antes de redirecionar.
+      window._adminLoginGuard = true;
+      firebase.auth().createUserWithEmailAndPassword(email, pass).then((userCredential) => {
+        handleAuthSuccess(userCredential.user);
+      }).catch(async (err) => {
+        window._adminLoginGuard = false;
         btn.disabled = false;
         btn.textContent = 'Criar Senha e Acessar';
-        showLoginError('Erro ao consultar autorização: ' + (err.message || err));
-      }
+        if (err.code === 'auth/email-already-in-use') {
+          await firebase.auth().sendPasswordResetEmail(email).catch(() => {});
+          showLoginSuccess('Sua conta já existe no Firebase! Um link para redefinir sua senha foi enviado para seu e-mail.');
+        } else {
+          showLoginError(err.message || 'Falha ao criar credencial.');
+        }
+      });
     }
 
     async function doForgotAdminPass(e) {
