@@ -54,3 +54,6 @@ export const buildOrcamentoBoard = window.buildOrcamentoBoard;
 export const buildMedicaoResumo = window.buildMedicaoResumo;
 export const medicaoQuantidadeAnterior = window.medicaoQuantidadeAnterior;
 export const hojeLocal = window.hojeLocal;
+export const getObrasPermitidas = window.getObrasPermitidas;
+export const filterDbByObras = window.filterDbByObras;
+export const mergeScopedDb = window.mergeScopedDb;

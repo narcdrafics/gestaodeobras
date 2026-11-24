@@ -1489,5 +1489,58 @@ const safeSetStyle = function(id, prop, val) {
 
 window.safeSetStyle = safeSetStyle;
 
+// ==================== ACESSO POR OBRA (escopo de usuário) ====================
+// Usuário não-admin pode ser limitado a obras específicas (usuarios[].acessoObras
+// === 'especificas' + obrasPermitidas: [cod...]). Falha fechada: lista vazia = nada.
+// ATENÇÃO: isto é filtro de UX no cliente (o tenant ainda é um nó único no RTDB);
+// isolamento real exige regras/estrutura por obra no servidor.
+const OBRA_SCOPED_KEYS = ['presenca', 'tarefas', 'estoque', 'movEstoque', 'compras',
+  'financeiro', 'orcamento', 'medicao', 'almocos'];
+
+const _toArr = v => Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
+
+// null = acesso a todas as obras; array = somente esses códigos.
+const getObrasPermitidas = function(usuarios, email, role) {
+  if (role === 'admin' || role === 'super_admin') return null;
+  const mail = String(email || '').trim().toLowerCase();
+  const u = _toArr(usuarios).find(x => x && String(x.email || x.username || '').trim().toLowerCase() === mail);
+  if (!u || u.acessoObras !== 'especificas') return null;
+  return _toArr(u.obrasPermitidas).map(String);
+};
+
+const filterDbByObras = function(db, permitidas) {
+  if (!Array.isArray(permitidas) || !db) return db;
+  const set = new Set(permitidas);
+  const out = { ...db };
+  out.obras = _toArr(db.obras).filter(o => o && set.has(String(o.cod)));
+  OBRA_SCOPED_KEYS.forEach(k => {
+    if (db[k] !== undefined) out[k] = _toArr(db[k]).filter(r => r && set.has(String(r.obra)));
+  });
+  return out;
+};
+
+// Reconstrói os arrays completos para gravar: itens de obras fora do escopo vêm do
+// snapshot completo da nuvem (intocados); itens do escopo vêm do DB filtrado.
+// Retorna null se não houver snapshot completo (não grava para não apagar dados).
+const mergeScopedDb = function(full, scoped, permitidas) {
+  if (!Array.isArray(permitidas)) return scoped;
+  if (!full) return null;
+  const set = new Set(permitidas);
+  const out = { ...scoped };
+  const merge = (key, field) => {
+    const fora = _toArr(full[key]).filter(r => r && !set.has(String(r[field])));
+    const dentro = _toArr(scoped[key]).filter(r => r && set.has(String(r[field])));
+    out[key] = [...fora, ...dentro];
+  };
+  merge('obras', 'cod');
+  OBRA_SCOPED_KEYS.forEach(k => { if (full[k] !== undefined || scoped[k] !== undefined) merge(k, 'obra'); });
+  return out;
+};
+
+window.OBRA_SCOPED_KEYS = OBRA_SCOPED_KEYS;
+window.getObrasPermitidas = getObrasPermitidas;
+window.filterDbByObras = filterDbByObras;
+window.mergeScopedDb = mergeScopedDb;
+
 // Exports for testing (vitest roda como module, navegador roda como defer)
 // O try/catch evita SyntaxError quando carregado sem type="module"
