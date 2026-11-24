@@ -418,7 +418,13 @@ function _onFirebaseValue(snapshot) {
     }
 
     // Dados comerciais de compras não entram no DB do canteiro (nem no localStorage).
-    DB = ensureSchema(sanitizeComprasForRole(data, _sessionRole(_getBillingSessionUser())));
+    const _uSess = _getBillingSessionUser();
+    const _papelSess = _sessionRole(_uSess);
+    // Acesso por obra: usuário designado a obras específicas só recebe os registros delas.
+    // lastTenantData continua completo (usado para remontar os arrays na gravação).
+    const _obrasPerm = typeof window.getObrasPermitidas === 'function'
+      ? window.getObrasPermitidas(data.usuarios, _uSess.email, _papelSess) : null;
+    DB = ensureSchema(window.filterDbByObras(sanitizeComprasForRole(data, _papelSess), _obrasPerm));
 
     // Calculado depois do ensureSchema: gravar em DB antes substituir o objeto perdia o valor.
     if (data.plano === 'free_trial' && data.trialExpiracao) {
@@ -754,13 +760,32 @@ function persistDB(force = false) {
       // de plano/limites (que só o super_admin pode alterar) e não envia nós
       // que o papel não tem permissão de gravar (registro de obra é direto;
       // estoque/trabalhadores/financeiro/compras passam por aprovacoes).
-      const cloudUpdate = buildCloudUpdate(dbForCloud, papel);
+      // Acesso por obra: devolve ao payload os itens de obras fora do escopo do usuário,
+      // senão gravar o DB filtrado apagaria esses dados na nuvem.
+      const _obrasPermSave = typeof window.getObrasPermitidas === 'function'
+        ? window.getObrasPermitidas(dbForCloud.usuarios, sessionUser.email, papel) : null;
+      let dbParaNuvem = dbForCloud;
+      if (Array.isArray(_obrasPermSave)) {
+        dbParaNuvem = window.mergeScopedDb(lastTenantData, dbForCloud, _obrasPermSave);
+        if (!dbParaNuvem) {
+          _ignoreNextEcho = false;
+          if (typeof toast === 'function') toast('Aguarde a sincronização dos dados antes de salvar.', 'warning');
+          if (resolve) resolve();
+          return;
+        }
+      }
+      const cloudUpdate = buildCloudUpdate(dbParaNuvem, papel);
       await Promise.race([
         targetRef.update(cloudUpdate),
         new Promise((_, rej) => setTimeout(() => rej({ code: 'TIMEOUT', message: 'Conexão lenta ou sem internet.' }), 20000))
       ]);
 
       console.log('[Persist] Sincronizado com a nuvem com sucesso.');
+      if (Array.isArray(_obrasPermSave) && lastTenantData) {
+        window.OBRA_SCOPED_KEYS.concat(['obras']).forEach(k => {
+          if (dbParaNuvem[k] !== undefined) lastTenantData[k] = dbParaNuvem[k];
+        });
+      }
       window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'synced' } }));
       if (resolve) resolve();
     } catch (err) {

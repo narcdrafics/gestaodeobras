@@ -4158,7 +4158,7 @@ function renderAdmin() {
 
   safeSetInner('usuarios-tbody', (DB.usuarios && DB.usuarios.length)
     ? DB.usuarios.map((u, i) => `<tr>
-        <td><b>${u.email || u.username}</b></td><td>${u.name}</td>
+        <td><b>${u.email || u.username}</b></td><td>${u.name}${u.acessoObras === 'especificas' ? ` <span class="badge badge-orange" title="Acesso restrito às obras designadas">${(u.obrasPermitidas || []).length} obra(s)</span>` : ''}</td>
         <td><span class="badge ${u.role === 'admin' ? 'badge-red' : u.role === 'engenheiro' ? 'badge-blue' : u.role === 'pendente' ? 'badge-orange' : 'badge-green'}">${u.role.toUpperCase()}</span></td>
         <td>
            <button class="btn btn-secondary btn-sm" onclick="editUsuario(${i})" title="Editar usuário" aria-label="Editar usuário" style="margin-right:8px"><span class="material-symbols-outlined md-16">edit</span> Editar</button>
@@ -5355,6 +5355,38 @@ function saveConfig() {
   toast('Identidade Visual salva e aplicada com sucesso!');
 }
 
+// ---- Acesso por obra (modal de usuário) ----
+function renderUsrObrasLista(selecionadas) {
+  const box = document.getElementById('usr-obras-lista');
+  if (!box) return;
+  const sel = new Set((selecionadas || []).map(String));
+  const obras = DB.obras || [];
+  box.innerHTML = obras.length
+    ? obras.map(o => `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;">
+        <input type="checkbox" class="usr-obra-chk" value="${esc(o.cod)}" ${sel.has(String(o.cod)) ? 'checked' : ''}>
+        <span>${esc(o.cod)} — ${esc(o.nome)}</span></label>`).join('')
+    : '<div style="color:var(--text3);font-size:12px">Nenhuma obra cadastrada ainda.</div>';
+}
+
+function toggleUsrObras() {
+  const role = document.getElementById('usr-role')?.value;
+  const wrap = document.getElementById('usr-obras-wrap');
+  const modo = document.getElementById('usr-obras-modo');
+  const lista = document.getElementById('usr-obras-lista');
+  if (!wrap || !modo || !lista) return;
+  // Administrador sempre enxerga tudo.
+  wrap.style.display = role === 'admin' ? 'none' : '';
+  lista.style.display = (role !== 'admin' && modo.value === 'especificas') ? '' : 'none';
+}
+
+function lerEscopoObrasDoModal() {
+  const role = document.getElementById('usr-role').value;
+  const modo = document.getElementById('usr-obras-modo')?.value;
+  if (role === 'admin' || modo !== 'especificas') return { acessoObras: 'todas', obrasPermitidas: [] };
+  const obrasPermitidas = Array.from(document.querySelectorAll('.usr-obra-chk:checked')).map(c => c.value);
+  return { acessoObras: 'especificas', obrasPermitidas };
+}
+
 async function editUsuario(idx) {
   await openModal('modal-usuario');
   const u = DB.usuarios[idx];
@@ -5364,6 +5396,10 @@ async function editUsuario(idx) {
   // Usuários legados podem estar gravados como `mestre`; o select usa o papel canônico.
   document.getElementById('usr-role').value = u.role === 'mestre' ? 'encarregado' : (u.role || 'pendente');
   document.getElementById('usr-email').disabled = true; // Impede alteração do e-mail de acesso
+  const modoEl = document.getElementById('usr-obras-modo');
+  if (modoEl) modoEl.value = u.acessoObras === 'especificas' ? 'especificas' : 'todas';
+  renderUsrObrasLista(u.obrasPermitidas);
+  toggleUsrObras();
 }
 
 async function deleteUsuario(idx) {
@@ -5601,6 +5637,10 @@ async function openModal(id) {
       document.getElementById('usr-email').disabled = false;
       document.getElementById('usr-name').value = '';
       document.getElementById('usr-role').value = 'engenheiro';
+      const modoNovo = document.getElementById('usr-obras-modo');
+      if (modoNovo) modoNovo.value = 'todas';
+      renderUsrObrasLista([]);
+      toggleUsrObras();
     }
   }
 }
@@ -7280,6 +7320,12 @@ async function saveUsuario() {
     return;
   }
 
+  const escopoObras = lerEscopoObrasDoModal();
+  if (escopoObras.acessoObras === 'especificas' && escopoObras.obrasPermitidas.length === 0) {
+    toast('Selecione ao menos uma obra para este usuário (ou escolha "Todas as obras").', 'error');
+    return;
+  }
+
   const userSession = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}');
   // Super Admin opera dentro de um tenant selecionado; a sessão dele continua
   // com MASTER_SYSTEM, então o destino real é o tenant ativo.
@@ -7321,7 +7367,7 @@ async function saveUsuario() {
       return;
     }
     if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.textContent = textoBotao; }
-    DB.usuarios[editIdx] = { email, name, role };
+    DB.usuarios[editIdx] = { email, name, role, ...escopoObras };
     toast('Permissões de Usuário atualizadas!');
     closeModal('modal-usuario');
     renderAdmin();
@@ -7359,7 +7405,7 @@ async function saveUsuario() {
     return;
   }
 
-  DB.usuarios.push({ email, name, role });
+  DB.usuarios.push({ email, name, role, ...escopoObras });
   persistDB();
   renderAdmin();
 
