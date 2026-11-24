@@ -5356,6 +5356,11 @@ function saveConfig() {
 }
 
 // ---- Acesso por obra (modal de usuário) ----
+function _escUsrObra(v) {
+  const f = window.escHtml || window.escapeHTML;
+  if (f) return f(v);
+  return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 function renderUsrObrasLista(selecionadas) {
   const box = document.getElementById('usr-obras-lista');
   if (!box) return;
@@ -5363,8 +5368,8 @@ function renderUsrObrasLista(selecionadas) {
   const obras = DB.obras || [];
   box.innerHTML = obras.length
     ? obras.map(o => `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;">
-        <input type="checkbox" class="usr-obra-chk" value="${esc(o.cod)}" ${sel.has(String(o.cod)) ? 'checked' : ''}>
-        <span>${esc(o.cod)} — ${esc(o.nome)}</span></label>`).join('')
+        <input type="checkbox" class="usr-obra-chk" value="${_escUsrObra(o.cod)}" ${sel.has(String(o.cod)) ? 'checked' : ''}>
+        <span>${_escUsrObra(o.cod)} — ${_escUsrObra(o.nome)}</span></label>`).join('')
     : '<div style="color:var(--text3);font-size:12px">Nenhuma obra cadastrada ainda.</div>';
 }
 
