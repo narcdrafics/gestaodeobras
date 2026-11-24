@@ -1,0 +1,9 @@
+{
+  "name": "gestaodeobras-worker",
+  "main": "cloudflare-worker/worker.js",
+  "compatibility_date": "2024-01-01",
+  "routes": [
+    { "pattern": "obrareal.com/*", "zone_name": "obrareal.com" },
+    { "pattern": "*.obrareal.com/*", "zone_name": "obrareal.com" }
+  ]
+}

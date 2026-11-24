@@ -64,5 +64,8 @@ serviceAccountKey.json
 # Backups e temporários
 *.bak
 *.bak2
+*.bak-auth
+*.backup
 *.tmp
 /scratch/
+.wrangler/

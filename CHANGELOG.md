@@ -3,6 +3,11 @@
 Todas as mudanças notáveis para o projeto **Obra Real** serão documentadas neste arquivo seguindo o padrão [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) e [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Corrigido
+- Auto-cadastro por slug voltou a funcionar depois do hardening: as rules aceitam a criação `self_signup` apenas com `emailAdmin`/UID do próprio usuário, plano gratuito fixo e limites imutáveis, casando tenant, `tenants_public` e passaporte na mesma escrita atômica.
+- Login não entra mais no tenant errado quando o subdomínio ainda está sendo resolvido; falha/timeout na identificação encerra a sessão. O guard de Super Admin também cobre o login com Google e contas sem perfil não ficam autenticadas.
+- CSP volta a liberar hosts usados pelo Google Auth e pelo Firebase Storage; COOP continua `same-origin-allow-popups`. Rotas do Worker/restauração da raiz e cache-busting dos scripts de login/app alinhados.
+
 ### Segurança
 - **WhatsApp:** verify token, App Secret, WABA e Phone Number ID passaram a vir do Secret Manager; assinatura validada no corpo bruto, matching normalizado/exato com rejeição de ambiguidade, dedup por `msg.id`, ACK após processamento, remoção do ramo `page` e allowlist de host para áudio (`functions/whatsapp_auth.js`).
 - **Kiwify:** idempotência atômica por `orderId + eventType` (sem status), reserva `processing` com lease, `payloadHash` sem status, conflito só ignorado contra `success`, efeitos e marca final na mesma escrita e `tenant_not_found` reprocessável como `pending_tenant` (`functions/kiwify.js`).
