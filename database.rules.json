@@ -70,6 +70,9 @@
           },
           "slug": {
             ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || newData.val() == null || newData.val() === $tenantId || data.parent().parent().child('plano').val() === 'free_trial' || data.parent().parent().child('plano').val() === 'pro' || data.parent().parent().child('plano').val() === 'pro_anual' || data.parent().parent().child('plano').val() === 'premium' || data.parent().parent().child('plano').val() === 'ilimitado' || data.parent().parent().child('plano').val() === 'ilimitado_anual' || data.parent().parent().child('plano').val() === 'full_anual' || data.parent().parent().child('plano').val() === 'master' || data.parent().parent().child('plano').val() === 'MASTER_SYSTEM')"
+          },
+          "telefonesPermitidos": {
+            ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false))"
           }
         },
         "presenca": {
@@ -209,6 +212,21 @@
       ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
       ".write": false
     },
+    "rate_limits": {
+      ".read": false,
+      ".write": false
+    },
+    "whatsapp_messages": {
+      ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
+      ".write": false
+    },
+    "admin_ops": {
+      ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false))",
+      ".write": false,
+      ".indexOn": [
+        "reservadoEm"
+      ]
+    },
     "billing_events": {
       ".read": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com')",
       ".write": false
@@ -239,6 +257,12 @@
         },
         "tenantId": {
           ".validate": "data.exists() ? newData.val() === data.val() : (newData.isString() && (root.child('tenants/' + newData.val() + '/emailAdmin').val() === auth.token.email || root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com'))"
+        },
+        "telefone": {
+          ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false))"
+        },
+        "whatsappId": {
+          ".validate": "auth != null && (root.child('profiles/' + auth.uid + '/role').val() === 'super_admin' || auth.token.role === 'super_admin' || auth.token.email === 'tonycampelo@gmail.com' || (root.child('super_admins/' + auth.uid).exists() && root.child('super_admins/' + auth.uid + '/ativo').val() !== false))"
         }
       }
     },

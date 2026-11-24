@@ -205,10 +205,11 @@ async function consultarKiwify({ recurso, params = {}, credenciais, http, cache,
     };
   }
 
-  const definition = RECURSOS[recurso];
-  if (!definition) {
+  // hasOwnProperty impede que __proto__/constructor sejam aceitos como recurso.
+  if (!Object.prototype.hasOwnProperty.call(RECURSOS, recurso)) {
     throw erroKiwify(400, `Recurso Kiwify desconhecido: ${recurso}`, 'kiwify_recurso_invalido');
   }
+  const definition = RECURSOS[recurso];
 
   const token = await obterTokenKiwify({ credenciais: config, http, cache, agora });
   const headers = {
@@ -266,6 +267,7 @@ async function consultarKiwify({ recurso, params = {}, credenciais, http, cache,
 
 module.exports = {
   BASE_URL,
+  RECURSOS,
   credenciaisKiwify,
   intervaloVendas,
   obterTokenKiwify,

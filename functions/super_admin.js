@@ -10,7 +10,9 @@
  */
 
 const { PLANOS, normalizarPlanoAdmin, limitesDoPlano, diasDoPlano, MS_DIA } = require('./plan_catalog');
-const { credenciaisKiwify, consultarKiwify } = require('./kiwify_api');
+const { credenciaisKiwify, consultarKiwify, RECURSOS } = require('./kiwify_api');
+const { validarCorpo, hashIp, consumirCota } = require('./abuso');
+const { ACOES_DESTRUTIVAS, contextoRequisicao, registrar, reservarOperacao, liberarOperacao } = require('./auditoria');
 
 const EMAIL_MESTRA = 'tonycampelo@gmail.com';
 const MAX_LIMITE = 9999;
@@ -48,7 +50,9 @@ async function verificarSuperAdmin(req, { auth, db }) {
 
   let claims;
   try {
-    claims = await auth.verifyIdToken(match[1].trim());
+    // checkRevoked: um token emitido antes de um bloqueio/rebaixamento deixa
+    // de autorizar na hora, em vez de valer até o próximo refresh (~1h).
+    claims = await auth.verifyIdToken(match[1].trim(), true);
   } catch (e) {
     throw erro(401, 'token_invalido', 'Sua sessão expirou. Entre novamente.');
   }
@@ -86,21 +90,9 @@ async function verificarSuperAdmin(req, { auth, db }) {
   return { uid, email, claims };
 }
 
-async function registrarAuditoria(db, ator, acao, alvo, sucesso, detalhes) {
-  if (!db || !ator) return;
-  try {
-    await db.ref('admin_audit').push({
-      timestamp: Date.now(),
-      atorUid: ator.uid,
-      atorEmail: ator.email,
-      acao,
-      alvo: String(alvo || '').slice(0, 300),
-      sucesso: sucesso !== false,
-      detalhes: String(detalhes || '').slice(0, 300)
-    });
-  } catch (e) {
-    console.warn('[SuperAdmin] Falha ao gravar auditoria:', e.message || e);
-  }
+async function registrarAuditoria(db, ator, acao, alvo, sucesso, detalhes, contexto, obrigatoria = false) {
+  // ator null: tentativas de token inválido também deixam rastro.
+  return registrar(db, { ator, acao, alvo, sucesso, detalhes, contexto, obrigatoria });
 }
 
 async function resolverUsuario(db, { uid, email }) {
@@ -130,15 +122,21 @@ async function resolverUsuario(db, { uid, email }) {
   return { uid: alvoUid, email: alvoEmail, perfil };
 }
 
-async function acaoResetSenha({ db, auth }, dados) {
+async function acaoResetSenha({ db, auth }, dados, ator) {
   const email = emailNormalizado(dados.email);
   if (!email) throw erro(400, 'email_obrigatorio', 'Informe o e-mail do usuário.');
+  if (ator && email === emailNormalizado(ator.email)) {
+    throw erro(400, 'auto_reset', 'Você não pode redefinir sua própria senha por aqui.');
+  }
 
   let userRecord;
   try {
     userRecord = await auth.getUserByEmail(email);
   } catch (e) {
     throw erro(404, 'usuario_nao_encontrado', 'Não existe conta do Firebase para este e-mail.');
+  }
+  if (ator && userRecord.uid === ator.uid) {
+    throw erro(400, 'auto_reset', 'Você não pode redefinir sua própria senha por aqui.');
   }
   if (userRecord.disabled) {
     throw erro(409, 'usuario_bloqueado', 'Desbloqueie o usuário antes de redefinir a senha.');
@@ -197,7 +195,9 @@ async function acaoExcluirUsuario({ db, auth }, dados, ator) {
     throw erro(400, 'auto_exclusao', 'Você não pode excluir sua própria conta.');
   }
 
-  const tid = String(dados.tenantId || (alvo.perfil && alvo.perfil.tenantId) || '').trim();
+  // O tenant vem do perfil gravado no servidor: um token vazado não pode
+  // apagar a lista de usuários de uma empresa arbitrária.
+  const tid = String((alvo.perfil && alvo.perfil.tenantId) || '').trim();
   const updates = {};
   if (alvo.uid) {
     updates[`profiles/${alvo.uid}`] = null;
@@ -347,59 +347,124 @@ function responder(res, status, payload) {
  */
 async function handleAdminRequest(req, res, options) {
   const { auth, db } = options;
+  const inicio = Date.now();
+  const contexto = contextoRequisicao(req, inicio, 'admin:conta');
   let ator = null;
   let acaoAudit = 'desconhecida';
   let alvoAudit = '';
+  let reserva = null;
+  let efeitoAplicado = false;
 
   try {
+    // Validação barata primeiro: método, tamanho e cota antes de tocar no Auth
+    // ou no banco, para que flood não amplifique em várias leituras RTDB.
+    if (req.method !== 'POST' && req.method !== 'GET') {
+      throw erro(405, 'metodo_nao_permitido', 'Método não permitido.');
+    }
+    validarCorpo(req);
+    await consumirCota(db, `admin:ip:${hashIp(req)}`, 60, 60 * 1000);
+
     ator = await verificarSuperAdmin(req, { auth, db });
+    await consumirCota(db, `admin:uid:${ator.uid}`, 120, 60 * 1000);
 
     if (req.method === 'POST') {
       const body = req.body || {};
-      acaoAudit = String(body.acao || 'desconhecida');
-      alvoAudit = String(body.tenantId || body.email || body.uid || '');
-      const executar = ACOES[acaoAudit];
-      if (!executar) throw erro(400, 'acao_invalida', 'Ação não reconhecida.');
+      acaoAudit = String(body.acao || 'desconhecida').slice(0, 64);
+      alvoAudit = String(body.tenantId || body.email || body.uid || '').slice(0, 300);
+      if (!Object.prototype.hasOwnProperty.call(ACOES, acaoAudit)) {
+        throw erro(400, 'acao_invalida', 'Ação não reconhecida.');
+      }
+      await consumirCota(db, `admin:acao:${ator.uid}`, 30, 60 * 1000);
 
-      const resultado = await executar({ db, auth }, body, ator);
-      await registrarAuditoria(db, ator, acaoAudit, alvoAudit, true);
-      return responder(res, 200, { ok: true, ...resultado });
-    }
-
-    if (req.method === 'GET') {
-      const tipo = String(req.query && req.query.tipo || 'products');
-      acaoAudit = `kiwify_${tipo}`;
-      alvoAudit = tipo;
-
-      const credenciais = credenciaisKiwify(
-        options.credenciaisKiwify || {
-          clientId: options.clientId,
-          clientSecret: options.clientSecret,
-          accountId: options.accountId,
-          apiToken: options.apiToken
+      const obrigatoria = ACOES_DESTRUTIVAS.has(acaoAudit);
+      if (obrigatoria) {
+        reserva = await reservarOperacao(db, contexto.requestId, {
+          acao: acaoAudit, alvo: alvoAudit, atorUid: ator.uid
+        });
+        // Mesmo requestId = reentrega: não reaplica a ação destrutiva.
+        if (!reserva.committed) {
+          return responder(res, 200, { ok: true, idempotente: true, requestId: contexto.requestId });
         }
-      );
-      const resultado = await consultarKiwify({
-        recurso: tipo,
-        params: req.query || {},
-        credenciais,
-        http: options.http,
-        cache: options.cache,
-        agora: Date.now()
-      });
-      await registrarAuditoria(db, ator, acaoAudit, alvoAudit, true);
-      return responder(res, 200, { ok: true, ...resultado, catalogoLocal: Object.values(PLANOS) });
+      }
+
+      const resultado = await ACOES[acaoAudit]({ db, auth }, body, ator);
+      efeitoAplicado = true;
+      contexto.duracaoMs = Math.max(0, Date.now() - inicio);
+      // Em ação destrutiva a auditoria é parte da transação: se não gravar,
+      // a operação não pode ser considerada concluída (fail-closed).
+      await registrarAuditoria(db, ator, acaoAudit, alvoAudit, true, '', contexto, obrigatoria);
+      return responder(res, 200, { ok: true, ...resultado, requestId: contexto.requestId });
     }
 
-    throw erro(405, 'metodo_nao_permitido', 'Método não permitido.');
+    const tipo = String((req.query && req.query.tipo) || 'products').slice(0, 32);
+    if (!Object.prototype.hasOwnProperty.call(RECURSOS, tipo)) {
+      throw erro(400, 'tipo_invalido', 'Recurso Kiwify desconhecido.');
+    }
+    acaoAudit = `kiwify_${tipo}`;
+    alvoAudit = tipo;
+    await consumirCota(db, `admin:kiwify:${ator.uid}`, 30, 60 * 1000);
+
+    // Parâmetros são construídos explicitamente: req.query inteiro nunca é
+    // repassado ao upstream, e page_size/page_number têm teto.
+    const params = {};
+    for (const nome of ['page_size', 'page_number', 'status', 'product_id']) {
+      if (req.query && req.query[nome] != null) params[nome] = req.query[nome];
+    }
+    const pageSize = Number(params.page_size);
+    if (Number.isFinite(pageSize) && pageSize > 0) params.page_size = Math.min(Math.floor(pageSize), 100);
+    else delete params.page_size;
+    const pageNumber = Number(params.page_number);
+    if (Number.isFinite(pageNumber) && pageNumber > 0) params.page_number = Math.min(Math.floor(pageNumber), 1000);
+    else delete params.page_number;
+
+    const credenciais = credenciaisKiwify(
+      options.credenciaisKiwify || {
+        clientId: options.clientId,
+        clientSecret: options.clientSecret,
+        accountId: options.accountId,
+        apiToken: options.apiToken
+      }
+    );
+    const resultado = await consultarKiwify({
+      recurso: tipo,
+      params,
+      credenciais,
+      http: options.http,
+      cache: options.cache,
+      agora: Date.now()
+    });
+    contexto.duracaoMs = Math.max(0, Date.now() - inicio);
+    await registrarAuditoria(db, ator, acaoAudit, alvoAudit, true, '', contexto);
+    return responder(res, 200, { ok: true, ...resultado, catalogoLocal: Object.values(PLANOS) });
   } catch (err) {
     const status = Number(err.status) || 500;
     if (status >= 500) console.error('[SuperAdmin] Erro na API:', err);
-    await registrarAuditoria(db, ator, acaoAudit, alvoAudit, false, err.code || err.message);
-    return responder(res, status, {
+    if (err.retryAfter && res && typeof res.set === 'function') {
+      res.set('Retry-After', String(err.retryAfter));
+    }
+
+    // Só libera a reserva se o efeito NÃO foi aplicado. Se a auditoria falhou
+    // depois da escrita, manter a reserva evita reaplicar a ação na reentrega.
+    if (reserva && reserva.committed && !efeitoAplicado) {
+      await liberarOperacao(db, contexto.requestId);
+    }
+
+    contexto.duracaoMs = Math.max(0, Date.now() - inicio);
+    // Tentativas falhas de autenticação/autorização também entram na auditoria.
+    let auditoriaFalhou = false;
+    try {
+      await registrarAuditoria(db, ator, acaoAudit, alvoAudit, false, err.code || err.message, contexto);
+    } catch (e) {
+      auditoriaFalhou = true;
+      console.error('[SuperAdmin] Falha na auditoria obrigatória:', e && e.message);
+    }
+    const statusFinal = auditoriaFalhou ? 503 : status;
+    return responder(res, statusFinal, {
       ok: false,
-      erro: err.code || 'erro_interno',
-      mensagem: status >= 500 ? 'Erro interno no servidor.' : (err.message || 'Falha na operação.')
+      erro: auditoriaFalhou ? 'auditoria_falhou' : (err.code || 'erro_interno'),
+      mensagem: statusFinal >= 500 ? 'Erro interno no servidor.' : (err.message || 'Falha na operação.'),
+      requestId: contexto.requestId,
+      idempotente: efeitoAplicado
     });
   }
 }

@@ -6,8 +6,11 @@
 // A senha NUNCA é gravada no Realtime Database; role/tenantId continuam sendo
 // definidos pelo perfil e propagados por `syncCustomClaims`.
 const { onRequest } = require('firebase-functions/v2/https');
-const admin = require('firebase-admin');
+const { getAuth } = require('firebase-admin/auth');
+const { getDatabase } = require('firebase-admin/database');
 const crypto = require('crypto');
+const { validarCorpo, hashIp, consumirCota } = require('./abuso');
+const { EMAIL_MESTRA, chaveEmail } = require('./claims');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLES_ADMIN = ['admin', 'super_admin'];
@@ -39,21 +42,37 @@ function responder(res, status, payload) {
 }
 
 async function papelDoChamador(uid, claims) {
-  if (claims && ROLES_ADMIN.includes(claims.role)) {
-    return { role: claims.role, tenantId: claims.tenantId || null };
-  }
-  // Claims podem estar desatualizadas logo após uma promoção; o perfil no RTDB
-  // é a segunda fonte de autoridade.
-  const snap = await admin.database().ref(`profiles/${uid}`).once('value');
-  const perfil = snap.val() || {};
+  // O perfil no RTDB é a autoridade; claims sozinhas não bastam (token antigo
+  // poderia manter cargo revogado até expirar).
+  const [registro, perfilSnap, allowSnap] = await Promise.all([
+    getAuth().getUser(uid).catch(() => null),
+    getDatabase().ref(`profiles/${uid}`).once('value'),
+    getDatabase().ref(`super_admins/${uid}`).once('value')
+  ]);
+  if (!registro || registro.disabled) return { role: null, tenantId: null };
+
+  const perfil = perfilSnap.val() || {};
+  const allow = allowSnap.val() || null;
+  const ehMaster = String((claims && claims.email) || registro.email || '').toLowerCase() === EMAIL_MESTRA ||
+    !!(allow && allow.ativo !== false) ||
+    (perfil.role === 'super_admin' && (claims && claims.role) === 'super_admin');
+  if (ehMaster) return { role: 'super_admin', tenantId: perfil.tenantId || null };
   return { role: perfil.role || null, tenantId: perfil.tenantId || null };
 }
 
 exports.criarUsuarioTenant = onRequest(
-  { cors: true, memory: '256MiB', timeoutSeconds: 60 },
+  { cors: false, memory: '256MiB', timeoutSeconds: 60, maxInstances: 3 },
   async (req, res) => {
     if (req.method !== 'POST') {
       return responder(res, 405, { error: 'metodo_nao_permitido' });
+    }
+
+    try {
+      validarCorpo(req);
+      await consumirCota(getDatabase(), `criar:ip:${hashIp(req)}`, 20, 60 * 1000);
+    } catch (e) {
+      if (e.retryAfter && typeof res.set === 'function') res.set('Retry-After', String(e.retryAfter));
+      return responder(res, e.status || 429, { error: e.code || 'muitas_tentativas' });
     }
 
     const header = req.headers.authorization || '';
@@ -62,7 +81,8 @@ exports.criarUsuarioTenant = onRequest(
 
     let chamador;
     try {
-      chamador = await admin.auth().verifyIdToken(match[1]);
+      // Tokens revogados por bloqueio/rebaixamento deixam de valer na hora.
+      chamador = await getAuth().verifyIdToken(match[1], true);
     } catch (e) {
       return responder(res, 401, { error: 'token_invalido' });
     }
@@ -72,14 +92,19 @@ exports.criarUsuarioTenant = onRequest(
       if (!ROLES_ADMIN.includes(chamadorInfo.role)) {
         return responder(res, 403, { error: 'sem_permissao' });
       }
+      await consumirCota(getDatabase(), `criar:uid:${chamador.uid}`, 60, 60 * 1000);
 
       const body = req.body || {};
       const email = String(body.email || '').trim().toLowerCase();
       const name = String(body.name || '').trim();
       const tenantId = String(body.tenantId || '').trim();
 
-      if (!EMAIL_RE.test(email) || !name || !tenantId) {
+      if (!EMAIL_RE.test(email) || email.length > 254 || !name || name.length > 120 ||
+          !tenantId || tenantId.length > 128) {
         return responder(res, 400, { error: 'dados_invalidos' });
+      }
+      if (email === String(chamador.email || '').toLowerCase() || chamador.uid === body.uid) {
+        return responder(res, 400, { error: 'auto_alteracao' });
       }
       if (chamadorInfo.role !== 'super_admin' && tenantId !== chamadorInfo.tenantId) {
         return responder(res, 403, { error: 'tenant_invalido' });
@@ -87,57 +112,77 @@ exports.criarUsuarioTenant = onRequest(
 
       // O convite é gravado pelo painel antes desta chamada: ele prova que o
       // e-mail foi autorizado para este tenant e define o cargo do novo usuário.
-      const emailKey = email.replace(/\./g, ',');
-      const inviteSnap = await admin.database().ref(`invites/${emailKey}`).once('value');
+      const emailKey = chaveEmail(email);
+      const inviteRef = getDatabase().ref(`invites/${emailKey}`);
+      const inviteSnap = await inviteRef.once('value');
       const invite = inviteSnap.val();
       if (!invite || invite.tenantId !== tenantId) {
         return responder(res, 409, { error: 'convite_inexistente' });
       }
 
-      const senha = gerarSenhaTemporaria();
-      let existente = null;
-      try {
-        existente = await admin.auth().getUserByEmail(email);
-      } catch (e) {
-        if (e.code !== 'auth/user-not-found') throw e;
+      // Consumo atômico: a mesma credencial não pode ser gerada duas vezes.
+      // Se a criação falhar, a reserva é devolvida para não travar o admin.
+      const reserva = await inviteRef.child('usos').transaction((atual) => {
+        const usos = Number(atual) || 0;
+        return usos >= 1 ? undefined : usos + 1;
+      });
+      if (!reserva.committed) {
+        return responder(res, 409, { error: 'convite_ja_usado' });
       }
 
+      const senha = gerarSenhaTemporaria();
+      let existente = null;
       let uid;
       let criado = false;
 
-      if (existente) {
-        // Nunca permita que um admin de outra empresa redefina a senha de uma
-        // conta já vinculada a um tenant diferente.
-        let perfil = {};
+      try {
         try {
-          const perfilSnap = await admin.database().ref(`profiles/${existente.uid}`).once('value');
-          perfil = perfilSnap.val() || {};
+          existente = await getAuth().getUserByEmail(email);
         } catch (e) {
-          // Perfil pode ainda não existir; as claims abaixo bastam nesse caso.
-        }
-        const tenantVinculado =
-          (existente.customClaims && existente.customClaims.tenantId) || perfil.tenantId;
-        if (tenantVinculado && tenantVinculado !== tenantId && chamadorInfo.role !== 'super_admin') {
-          return responder(res, 409, { error: 'email_vinculado_outro_tenant' });
+          if (e.code !== 'auth/user-not-found') throw e;
         }
 
-        await admin.auth().updateUser(existente.uid, { password: senha, displayName: name });
-        uid = existente.uid;
-      } else {
-        const novo = await admin.auth().createUser({
-          email,
-          password: senha,
-          displayName: name
-        });
-        uid = novo.uid;
-        criado = true;
+        if (existente) {
+          // Nunca permita que um admin de outra empresa redefina a senha de uma
+          // conta já vinculada a um tenant diferente. Vínculo vazio também bloqueia.
+          let perfil = {};
+          try {
+            const perfilSnap = await getDatabase().ref(`profiles/${existente.uid}`).once('value');
+            perfil = perfilSnap.val() || {};
+          } catch (e) {
+            // Perfil pode ainda não existir; as claims abaixo bastam nesse caso.
+          }
+          const tenantVinculado =
+            (existente.customClaims && existente.customClaims.tenantId) || perfil.tenantId;
+          if (chamadorInfo.role !== 'super_admin' && (!tenantVinculado || tenantVinculado !== tenantId)) {
+            throw Object.assign(new Error('email_vinculado_outro_tenant'), { code: 'email_vinculado_outro_tenant', status: 409 });
+          }
+
+          await getAuth().updateUser(existente.uid, { password: senha, displayName: name });
+          // Senha nova: tokens antigos devem deixar de valer imediatamente.
+          await getAuth().revokeRefreshTokens(existente.uid).catch(() => {});
+          uid = existente.uid;
+        } else {
+          const novo = await getAuth().createUser({
+            email,
+            password: senha,
+            displayName: name
+          });
+          uid = novo.uid;
+          criado = true;
+        }
+      } catch (e) {
+        await inviteRef.child('usos').transaction((atual) => Math.max(0, (Number(atual) || 1) - 1)).catch(() => {});
+        throw e;
       }
 
       // Não gravar senha no RTDB: o fluxo de primeiro login consome o convite,
       // cria o perfil e o syncCustomClaims continua dono de role/tenantId.
       return responder(res, 200, { uid, email, password: senha, criado });
     } catch (e) {
-      console.error('[criarUsuarioTenant] Falha:', e);
+      console.warn('[criarUsuarioTenant] Falha:', e && (e.code || e.message || e));
+      const status = Number(e && e.status) || 500;
+      if (status === 409 && e.code) return responder(res, 409, { error: e.code });
       if (e && e.code === 'auth/email-already-exists') {
         return responder(res, 409, { error: 'email_ja_existe' });
       }

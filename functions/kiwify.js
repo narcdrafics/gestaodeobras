@@ -109,7 +109,7 @@ async function identifyTenant(body, query, db) {
  * @param {Object} body - Payload do webhook
  * @returns {Object} { plano, limites, planoVencimento, isYearly }
  */
-function mapProductToPlan(body) {
+function mapProductToPlan(body, agora = Date.now()) {
   const prodName = (
     body.Product?.product_name ||
     body.product_name ||
@@ -123,8 +123,9 @@ function mapProductToPlan(body) {
     body.Subscription?.charging_frequency === 'yearly';
 
   // Catálogo único com o painel master (functions/plan_catalog.js).
+  // O carimbo vem da reserva persistida: retries não podem presentear dias extras.
   const escolhido = planoPorProduto(prodName, isYearly);
-  const planoVencimento = Date.now() + (escolhido.dias * MS_DIA);
+  const planoVencimento = agora + (escolhido.dias * MS_DIA);
 
   return {
     plano: escolhido.id,
@@ -141,16 +142,22 @@ function mapProductToPlan(body) {
 /**
  * Registra o log detalhado no nó webhook_debug para auditoria em tempo real no painel master.
  */
-async function recordWebhookDebug(db, { payload, result, signatureValid, orderId, eventType, orderStatus }) {
+async function recordWebhookDebug(db, { payload, result, signatureValid, orderId, eventType, orderStatus, incluirPayload = true }) {
   try {
     const agora = Date.now();
     const p = payload || {};
-    const email = p.email || (p.Customer && p.Customer.email) || 'N/A';
-    const tenantId = p.external_id || p.external_reference || (p.order && p.order.external_reference) || 'N/A';
+    const email = incluirPayload ? (p.email || (p.Customer && p.Customer.email) || 'N/A') : 'N/A';
+    const tenantId = incluirPayload ? (p.external_id || p.external_reference || (p.order && p.order.external_reference) || 'N/A') : 'N/A';
+    // Requisições rejeitadas não podem virar depósito de PII arbitrário.
+    const registro = incluirPayload ? p : {
+      order_id: p.order_id || null,
+      webhook_event_type: p.webhook_event_type || null,
+      order_status: p.order_status || null
+    };
 
     await db.ref('webhook_debug').push({
       timestamp: agora,
-      payload: p,
+      payload: registro,
       result: result || 'Processado',
       signatureValid: !!signatureValid,
       orderId: orderId || p.order_id || 'N/A',
@@ -165,6 +172,52 @@ async function recordWebhookDebug(db, { payload, result, signatureValid, orderId
 }
 
 /**
+ * Reserva o evento de forma atômica ANTES de qualquer efeito no tenant.
+ * - transaction() é usada em produção (Admin SDK); o fallback once+set atende
+ *   apenas mocks de teste.
+ * - Um lease 'processing' com mais de 2 minutos é considerado abandonado e
+ *   pode ser retomado, evitando que uma falha parcial trave o evento forever.
+ */
+async function reservarEvento(eventRef, { agora, payloadHash, tenantId, orderId, eventType, orderStatus }) {
+  const info = {
+    status: 'processing',
+    claimedAt: agora,
+    payloadHash,
+    tenantId,
+    orderId,
+    eventType,
+    orderStatus
+  };
+
+  if (typeof eventRef.transaction === 'function') {
+    const tx = await eventRef.transaction((atual) => {
+      if (!atual) return info;
+      if (atual.status === 'success') return undefined;
+      // pending_tenant/failed não são terminais: podem ser retomados quando o
+      // comprador cria a conta ou quando uma entrega anterior falhou.
+      if (atual.status === 'pending_tenant' || atual.status === 'failed') return info;
+      const expirado = agora - (Number(atual.claimedAt) || 0) > 2 * 60 * 1000;
+      if (atual.status === 'processing' && expirado) return info;
+      return undefined;
+    });
+    if (!tx.committed) {
+      return { jaProcessado: true, existente: (tx.snapshot && tx.snapshot.val && tx.snapshot.val()) || null };
+    }
+    return { claimedAt: agora };
+  }
+
+  const snap = await eventRef.once('value');
+  if (snap.exists()) return { jaProcessado: true, existente: snap.val() };
+  await eventRef.set(info);
+  return { claimedAt: agora };
+}
+
+/** Chave de nó segura para o Realtime Database. */
+function chaveSegura(valor) {
+  return String(valor || 'unknown').replace(/[.#$[\]/]/g, '_').slice(0, 128);
+}
+
+/**
  * Processador principal do webhook da Kiwify.
  * Executa autenticação, idempotência, roteamento de eventos e gravação com Admin SDK.
  * @param {Object} req - Request Express
@@ -173,9 +226,9 @@ async function recordWebhookDebug(db, { payload, result, signatureValid, orderId
  */
 async function handleKiwifyWebhook(req, res, { secret, db }) {
   const body = req.body || {};
-  const orderId = body.order_id || body.id || (body.order && body.order.id) || 'SEM_ORDER_ID';
-  const eventType = body.webhook_event_type || body.event || 'unknown';
-  const orderStatus = (body.order_status || body.status || '').toLowerCase();
+  const orderId = String(body.order_id || body.id || (body.order && body.order.id) || 'SEM_ORDER_ID').trim();
+  const eventType = String(body.webhook_event_type || body.event || 'unknown').trim();
+  const orderStatus = String(body.order_status || body.status || '').toLowerCase().trim();
 
   // 1. Validar método POST
   if (req.method !== 'POST') {
@@ -183,19 +236,24 @@ async function handleKiwifyWebhook(req, res, { secret, db }) {
       payload: body,
       result: `Método ${req.method} rejeitado (Requer POST)`,
       signatureValid: false,
-      orderId, eventType, orderStatus
+      orderId, eventType, orderStatus,
+      incluirPayload: false
     });
     return res.status(401).send('Unauthorized: POST required');
   }
 
-  // 2. Validar Assinatura
-  const signature = req.query.signature || req.headers['x-kiwify-signature'];
-  const isValid = validateKiwifySignature(req.rawBody, signature, secret);
+  // 2. Validar Assinatura: aceita query OU header, mas exige rawBody íntegro.
+  const assinaturas = [
+    req.query && req.query.signature,
+    req.headers && req.headers['x-kiwify-signature']
+  ].filter(Boolean);
+  const isValid = Buffer.isBuffer(req.rawBody) && req.rawBody.length > 0 &&
+    assinaturas.some((s) => validateKiwifySignature(req.rawBody, s, secret));
 
   if (!isValid) {
     const motivoAssinatura = !secret
       ? 'KIWIFY_TOKEN ausente/não configurado no Cloud Functions'
-      : (!signature ? 'Parâmetro ?signature ausente na URL' : 'Assinatura HMAC-SHA1 inválida (token divergente)');
+      : (!assinaturas.length ? 'Assinatura ausente (?signature= ou x-kiwify-signature)' : 'Assinatura HMAC-SHA1 inválida (token divergente)');
 
     console.warn(`[Kiwify] Assinatura inválida: ${motivoAssinatura}`);
 
@@ -203,7 +261,8 @@ async function handleKiwifyWebhook(req, res, { secret, db }) {
       payload: body,
       result: `Rejeitado 401: ${motivoAssinatura}`,
       signatureValid: false,
-      orderId, eventType, orderStatus
+      orderId, eventType, orderStatus,
+      incluirPayload: false
     });
 
     return res.status(401).send(`Unauthorized: Invalid signature (${motivoAssinatura})`);
@@ -215,60 +274,91 @@ async function handleKiwifyWebhook(req, res, { secret, db }) {
         payload: body,
         result: 'Rejeitado 400: order_id ausente no payload',
         signatureValid: true,
-        orderId, eventType, orderStatus
+        orderId, eventType, orderStatus,
+        incluirPayload: false
       });
       return res.status(400).json({ error: 'Missing order_id' });
     }
 
     console.log(`[Kiwify] Recebido evento: orderId=${orderId}, type=${eventType}, status=${orderStatus}`);
 
-    // 3. Idempotência: grava billing_events/{orderId}/{eventType}
-    const eventKey = `${eventType}_${orderStatus}`.replace(/[.#$[\]/]/g, '_');
-    const eventRef = db.ref(`billing_events/${orderId}/${eventKey}`);
-    const eventSnap = await eventRef.once('value');
+    // 3. Identificar o tenant antes da reserva, para gravá-lo na marca.
+    const tenantId = await identifyTenant(body, req.query, db);
 
-    if (eventSnap.exists()) {
+    // 4. Reserva atômica ANTES dos efeitos. A chave canônica é orderId+eventType:
+    //    a Kiwify documenta order_status como variável entre entregas do mesmo
+    //    evento, incluí-lo na chave criava eventos paralelos e duplicava efeitos.
+    const eventKey = chaveSegura(eventType);
+    const eventRef = db.ref(`billing_events/${chaveSegura(orderId)}/${eventKey}`);
+    const agora = Date.now();
+    // order_status é volátil entre entregas do MESMO evento (documentação
+    // Kiwify), então não entra no hash de conflito — só os dados de negócio.
+    const canonico = { ...body };
+    delete canonico.order_status;
+    delete canonico.status;
+    const payloadHash = crypto.createHash('sha256')
+      .update(JSON.stringify(canonico))
+      .digest('hex');
+
+    const reserva = await reservarEvento(eventRef, {
+      agora, payloadHash, tenantId, orderId, eventType, orderStatus
+    });
+
+    if (reserva.jaProcessado) {
+      const anterior = reserva.existente || {};
+      // Conflito só faz sentido contra um evento JÁ concluído. Um evento
+      // pendente/falho está sendo reavaliado e pode mudar de tenant.
+      const divergente = anterior.status === 'success' && (
+        (!!anterior.payloadHash && anterior.payloadHash !== payloadHash) ||
+        (!!anterior.tenantId && !!tenantId && anterior.tenantId !== tenantId)
+      );
+      if (divergente) {
+        console.warn(`[Kiwify] Conflito em orderId=${orderId}, event=${eventKey}: tenant/payload divergentes`);
+        await recordWebhookDebug(db, {
+          payload: body,
+          result: 'Ignorado: conflito de tenant/payload na reentrega',
+          signatureValid: true,
+          orderId, eventType, orderStatus,
+          incluirPayload: false
+        });
+        return res.status(409).json({ status: 'conflict_ignored', orderId, eventKey });
+      }
       console.log(`[Kiwify] Evento duplicado ignorado: orderId=${orderId}, event=${eventKey}`);
       await recordWebhookDebug(db, {
         payload: body,
         result: `Ignorado: Evento já processado anteriormente (${eventKey})`,
         signatureValid: true,
-        orderId, eventType, orderStatus
+        orderId, eventType, orderStatus,
+        incluirPayload: false
       });
       return res.status(200).json({ status: 'already_processed', orderId, eventKey });
     }
 
-    // 4. Identificar o Tenant
-    const tenantId = await identifyTenant(body, req.query, db);
+    // 5. Sem tenant: a marca NÃO é terminal. Quando o comprador criar a conta,
+    //    uma nova entrega (ou o job) pode ativar normalmente a assinatura.
     if (!tenantId) {
       console.warn(`[Kiwify] Tenant não identificado para orderId: ${orderId}, email: ${body.Customer?.email}`);
-      // Registra o evento para auditoria mesmo sem tenant localizado
-      await eventRef.set({
-        orderId,
-        eventType,
-        orderStatus,
+      await eventRef.update({
+        status: 'pending_tenant',
         tenantId: null,
         customerEmail: body.Customer?.email || body.email || null,
-        receivedAt: Date.now(),
-        status: 'tenant_not_found',
-        payload: body
+        updatedAt: Date.now()
       });
-
       await recordWebhookDebug(db, {
         payload: body,
         result: 'Aviso: Tenant não encontrado (Comprador sem conta ativa)',
         signatureValid: true,
-        orderId, eventType, orderStatus
+        orderId, eventType, orderStatus,
+        incluirPayload: false
       });
-
-      return res.status(200).json({ warning: 'Tenant not found', orderId });
+      return res.status(202).json({ warning: 'Tenant not found', orderId });
     }
 
-    // 5. Tratar eventos
+    // 6. Tratar eventos. `agora` é o carimbo persistido na reserva: retries e
+    //    instâncias concorrentes produzem exatamente os mesmos relativos.
     const updates = {};
     const chargeAmount = body.Commissions?.charge_amount ? (body.Commissions.charge_amount / 100) : (body.order_value || 0);
     const paymentMethod = body.payment_method || 'kiwify';
-    const agora = Date.now();
     let resultadoLog = 'Success: Evento processado';
 
     const ultimoPagamento = {
@@ -283,7 +373,7 @@ async function handleKiwifyWebhook(req, res, { secret, db }) {
 
     // A. Pagamento Aprovado / Assinatura Renovada
     if (orderStatus === 'paid' || eventType === 'order_approved' || eventType === 'subscription_renewed') {
-      const { plano, limites, planoVencimento } = mapProductToPlan(body);
+      const { plano, limites, planoVencimento } = mapProductToPlan(body, agora);
 
       updates[`tenants/${tenantId}/plano`] = plano;
       updates[`tenants/${tenantId}/status`] = 'ativo';
@@ -325,7 +415,11 @@ async function handleKiwifyWebhook(req, res, { secret, db }) {
       if (vencimentoAtual > agora) {
         updates[`tenants/${tenantId}/cancelamentoAgendado`] = true;
         updates[`tenants/${tenantId}/dataCancelamento`] = agora;
-        updates[`tenants/${tenantId}/billingState`] = 'ativo';
+        // Um chargeback/reembolso anterior não pode ser "desbloqueado" por um
+        // cancelamento agendado (evento fora de ordem).
+        if (tenantData.status !== 'bloqueado_pagamento' && tenantData.billingState !== 'bloqueado') {
+          updates[`tenants/${tenantId}/billingState`] = 'ativo';
+        }
         resultadoLog = `Success: Cancelamento agendado para o fim do ciclo (Tenant ${tenantId})`;
       } else {
         updates[`tenants/${tenantId}/status`] = 'carencia';
@@ -352,22 +446,35 @@ async function handleKiwifyWebhook(req, res, { secret, db }) {
     }
 
     // 6. Grava atualizações do Tenant
-    if (Object.keys(updates).length > 0) {
-      await db.ref().update(updates);
-    }
-
-    // 7. Registra evento de auditoria e idempotência
-    await eventRef.set({
+    // 7. Efeitos no tenant + marca final na MESMA escrita multi-path. Se ela
+    //    falhar, a reserva permanece 'processing' e expira em 2 min para retry.
+    updates[`billing_events/${chaveSegura(orderId)}/${eventKey}`] = {
       orderId,
       eventType,
       orderStatus,
       tenantId,
+      payloadHash,
+      claimedAt: agora,
       processedAt: agora,
       status: 'success',
       chargeAmount,
       paymentMethod,
       customerEmail: body.Customer?.email || body.email || null
-    });
+    };
+    try {
+      await db.ref().update(updates);
+    } catch (err) {
+      // A escrita multi-path é atômica: se falhou, nenhum efeito foi aplicado.
+      // Libera a reserva para que o retry da Kiwify não caia em already_processed.
+      console.error('[Kiwify] Falha ao gravar efeitos; liberando reserva:', err && err.message);
+      try {
+        if (typeof eventRef.remove === 'function') await eventRef.remove();
+        else await eventRef.set(null);
+      } catch (_) {
+        // Se nem a liberação der certo, o lease expira em 2 minutos.
+      }
+      throw err;
+    }
 
     // 8. Registra no webhook_debug para exibição imediata no painel master
     await recordWebhookDebug(db, {

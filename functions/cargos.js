@@ -5,6 +5,8 @@
 // Aqui o token é verificado e o papel do chamador é reconfirmado no banco.
 
 const { EMAIL_MESTRA, chaveEmail, emailNormalizado, normalizarRole } = require('./claims');
+const { validarCorpo, hashIp, consumirCota } = require('./abuso');
+const { ACOES_DESTRUTIVAS, contextoRequisicao, registrar, reservarOperacao, liberarOperacao } = require('./auditoria');
 
 const ROLES_TENANT = new Set(['admin', 'engenheiro', 'encarregado', 'comprador', 'pendente']);
 const ROLES_MASTER = new Set([...ROLES_TENANT, 'super_admin', 'desativado', 'bloqueado']);
@@ -20,9 +22,8 @@ function responder(res, status, payload) {
   return res.status(status).json(payload);
 }
 
-function inteiroOuNull(valor) {
-  const n = Number(valor);
-  return Number.isFinite(n) && n > 0 ? n : null;
+function uidValido(valor) {
+  return /^[A-Za-z0-9_-]{1,128}$/.test(String(valor || ''));
 }
 
 /** Verifica o ID token e resolve o papel do chamador sem confiar no cliente. */
@@ -33,7 +34,7 @@ async function verificarChamador(req, { auth, db }) {
 
   let claims;
   try {
-    claims = await auth.verifyIdToken(match[1].trim());
+    claims = await auth.verifyIdToken(match[1].trim(), true);
   } catch (e) {
     throw erro(401, 'token_invalido', 'Sua sessão expirou. Entre novamente.');
   }
@@ -78,6 +79,8 @@ async function verificarChamador(req, { auth, db }) {
 async function resolverAlvo(db, auth, dados) {
   let uid = String(dados.uid || '').trim();
   let email = emailNormalizado(dados.email);
+  if (uid && !uidValido(uid)) throw erro(400, 'uid_invalido', 'UID inválido.');
+  if (email.length > 254) throw erro(400, 'email_invalido', 'E-mail inválido.');
 
   if (!uid && email) {
     const snap = await db.ref('profiles').orderByChild('email').equalTo(email).once('value');
@@ -122,21 +125,9 @@ async function lerPassaporte(db, email) {
   return (snap && snap.val()) || null;
 }
 
-async function registrarAuditoria(db, ator, acao, alvo, detalhes) {
-  if (!db || !ator) return;
-  try {
-    await db.ref('admin_audit').push({
-      timestamp: Date.now(),
-      atorUid: ator.uid,
-      atorEmail: ator.email,
-      acao,
-      alvo: String(alvo || '').slice(0, 300),
-      sucesso: true,
-      detalhes: String(detalhes || '').slice(0, 300)
-    });
-  } catch (e) {
-    console.warn('[Cargos] Falha ao auditar:', e.message || e);
-  }
+async function registrarAuditoria(db, ator, acao, alvo, sucesso, detalhes, contexto, obrigatoria = false) {
+  // ator null: token inválido/escalada negada também deixam rastro.
+  return registrar(db, { ator, acao, alvo, sucesso, detalhes, contexto, obrigatoria });
 }
 
 /** CMD: define o cargo de outro usuário. Nunca permite autoalteração. */
@@ -146,7 +137,11 @@ async function acaoDefinirCargo({ db, auth }, dados, chamador) {
     throw erro(400, 'auto_alteracao', 'Você não pode alterar seu próprio cargo por aqui.');
   }
 
-  const cargo = normalizarRole(String(dados.role || '').trim());
+  // role ausente NÃO pode virar 'admin' por padrão: isso promoveria o alvo
+  // silenciosamente quando o campo é omitido por engano ou por ataque.
+  const cargoBruto = String(dados.role == null ? '' : dados.role).trim();
+  if (!cargoBruto) throw erro(400, 'cargo_obrigatorio', 'Informe o cargo desejado.');
+  const cargo = normalizarRole(cargoBruto);
   // A negativa de privilégio vem antes da whitelist: promover a super_admin
   // é sempre 403 para não-master, nunca um mero "cargo inválido".
   if (cargo === 'super_admin' && !chamador.ehMaster) {
@@ -168,7 +163,14 @@ async function acaoDefinirCargo({ db, auth }, dados, chamador) {
     if (tenantId === 'MASTER_SYSTEM') tenantId = '';
   } else {
     if (!chamador.tenantId) throw erro(403, 'sem_tenant', 'Chamador sem tenant válido.');
-    if (perfil.tenantId && perfil.tenantId !== chamador.tenantId) {
+    const passaporteTenant = passaporte && passaporte.tenantId;
+    // Perfil sem tenant NÃO é "livre para adoção": um admin não pode mirar
+    // uma conta Auth qualquer e incorporá-la à sua empresa.
+    if (!perfil.tenantId && !passaporteTenant) {
+      throw erro(403, 'sem_tenant', 'Este usuário ainda não pertence a uma empresa.');
+    }
+    if ((perfil.tenantId && perfil.tenantId !== chamador.tenantId) ||
+        (passaporteTenant && passaporteTenant !== chamador.tenantId)) {
       throw erro(403, 'tenant_invalido', 'Este usuário pertence a outra empresa.');
     }
     if (dados.tenantId && dados.tenantId !== chamador.tenantId) {
@@ -178,7 +180,8 @@ async function acaoDefinirCargo({ db, auth }, dados, chamador) {
   }
 
   const status = cargo === 'desativado' || cargo === 'bloqueado' ? 'bloqueado' : 'ativo';
-  const agora = inteiroOuNull(dados.agora) || Date.now();
+  // Carimbo sempre do servidor: o cliente não pode forjar cargoAtualizadoEm.
+  const agora = Date.now();
   const perfilUpdates = {
     role: cargo,
     tenantId: tenantId || null,
@@ -221,7 +224,6 @@ async function acaoDefinirCargo({ db, auth }, dados, chamador) {
     console.warn('[Cargos] Falha ao revogar tokens:', e.message || e);
   }
 
-  await registrarAuditoria(db, chamador, 'definir_cargo', `${alvo.email} (${alvo.uid})`, `${cargo} @ ${tenantId || 'sem tenant'}`);
   return { uid: alvo.uid, email: alvo.email, role: cargo, tenantId: tenantId || null, status };
 }
 
@@ -241,7 +243,8 @@ async function acaoRemoverUsuario({ db, auth }, dados, chamador) {
     }
   }
 
-  const agora = inteiroOuNull(dados.agora) || Date.now();
+  // Carimbo sempre do servidor: o cliente não pode forjar cargoAtualizadoEm.
+  const agora = Date.now();
   await db.ref(`profiles/${alvo.uid}`).update({
     role: 'desativado',
     tenantId: null,
@@ -281,7 +284,6 @@ async function acaoRemoverUsuario({ db, auth }, dados, chamador) {
     console.warn('[Cargos] Falha ao bloquear credencial:', e.message || e);
   }
 
-  await registrarAuditoria(db, chamador, 'remover_usuario', `${alvo.email} (${alvo.uid})`, tenantId);
   return { uid: alvo.uid, email: alvo.email, removido: true, tenantId };
 }
 
@@ -291,31 +293,72 @@ const ACOES = {
 };
 
 async function handleCargoRequest(req, res, options) {
+  const inicio = Date.now();
+  const contexto = contextoRequisicao(req, inicio, 'admin:cargo');
   let chamador = null;
   let acao = 'desconhecida';
   let alvo = '';
+  let reserva = null;
+  let efeitoAplicado = false;
   try {
-    chamador = await verificarChamador(req, options);
+    // Barreiras baratas primeiro: flood não deve virar várias leituras RTDB.
     if (req.method !== 'POST') throw erro(405, 'metodo_nao_permitido', 'Método não permitido.');
+    const dados = validarCorpo(req);
+    await consumirCota(options.db, `cargo:ip:${hashIp(req)}`, 60, 60 * 1000);
 
-    const dados = req.body || {};
-    acao = String(dados.acao || '');
-    alvo = String(dados.email || dados.uid || '');
-    const executar = ACOES[acao];
-    if (!executar) throw erro(400, 'acao_invalida', 'Ação não reconhecida.');
+    chamador = await verificarChamador(req, options);
+    await consumirCota(options.db, `cargo:uid:${chamador.uid}`, 60, 60 * 1000);
 
-    const resultado = await executar(options, dados, chamador);
-    return responder(res, 200, { ok: true, ...resultado });
+    acao = String(dados.acao || '').slice(0, 64);
+    alvo = String(dados.email || dados.uid || '').slice(0, 300);
+    if (!Object.prototype.hasOwnProperty.call(ACOES, acao)) {
+      throw erro(400, 'acao_invalida', 'Ação não reconhecida.');
+    }
+
+    if (ACOES_DESTRUTIVAS.has(acao)) {
+      reserva = await reservarOperacao(options.db, contexto.requestId, {
+        acao, alvo, atorUid: chamador.uid
+      });
+      if (!reserva.committed) {
+        return responder(res, 200, { ok: true, idempotente: true, requestId: contexto.requestId });
+      }
+    }
+
+    const resultado = await ACOES[acao](options, dados, chamador);
+    efeitoAplicado = true;
+    const detalhes = acao === 'definir_cargo'
+      ? `${resultado.role} @ ${resultado.tenantId || 'sem tenant'}`
+      : String(resultado.tenantId || '');
+    await registrarAuditoria(options.db, chamador, acao, alvo, true, detalhes, contexto, true);
+    return responder(res, 200, { ok: true, ...resultado, requestId: contexto.requestId });
   } catch (err) {
     const status = Number(err.status) || 500;
     if (status >= 500) console.error('[Cargos] Erro na API:', err);
-    if (status < 500 && chamador) {
-      await registrarAuditoria(options.db, chamador, acao, alvo, err.code || err.message);
+    if (err.retryAfter && res && typeof res.set === 'function') {
+      res.set('Retry-After', String(err.retryAfter));
     }
-    return responder(res, status, {
+    // Se o efeito já foi aplicado, manter a reserva é o que impede uma reentrega
+    // de reaplicar a ação. O cliente recebe o requestId para repetir com segurança.
+    if (reserva && reserva.committed && !efeitoAplicado) {
+      await liberarOperacao(options.db, contexto.requestId);
+    }
+
+    contexto.duracaoMs = Math.max(0, Date.now() - inicio);
+    // Tentativas sem token/papel também são registradas (ator null).
+    let auditoriaFalhou = false;
+    try {
+      await registrarAuditoria(options.db, chamador, acao, alvo, false, err.code || err.message, contexto);
+    } catch (e) {
+      auditoriaFalhou = true;
+      console.error('[Cargos] Falha na auditoria obrigatória:', e && e.message);
+    }
+    const statusFinal = auditoriaFalhou ? 503 : status;
+    return responder(res, statusFinal, {
       ok: false,
-      erro: err.code || 'erro_interno',
-      mensagem: status >= 500 ? 'Erro interno no servidor.' : (err.message || 'Falha na operação.')
+      erro: auditoriaFalhou ? 'auditoria_falhou' : (err.code || 'erro_interno'),
+      mensagem: statusFinal >= 500 ? 'Erro interno no servidor.' : (err.message || 'Falha na operação.'),
+      requestId: contexto.requestId,
+      idempotente: efeitoAplicado
     });
   }
 }

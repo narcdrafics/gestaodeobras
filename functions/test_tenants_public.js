@@ -1,17 +1,24 @@
 const path = require('path');
-const admin = require('firebase-admin');
+const { initializeApp, getApps, cert } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
+const { getDatabase } = require('firebase-admin/database');
 const axios = require('axios');
 
 const serviceAccount = require(path.join(__dirname, 'serviceAccountKey.json'));
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+if (!getApps().length) {
+  initializeApp({
+    credential: cert(serviceAccount),
     databaseURL: 'https://controle-obras-c889d-default-rtdb.firebaseio.com'
   });
 }
 
-const API_KEY = 'AIzaSyD9i1vMwmJwiUfwUKetxrzIO6Bm5K-5oro';
+// Chave Web do Firebase é pública, mas não deve ficar fixa em scripts de teste.
+const API_KEY = String(process.env.FIREBASE_WEB_API_KEY || '').trim();
+if (!API_KEY) {
+  console.error('Defina FIREBASE_WEB_API_KEY antes de executar este teste local.');
+  process.exit(1);
+}
 const DB_URL = 'https://controle-obras-c889d-default-rtdb.firebaseio.com';
 
 function statusOf(error) {
@@ -37,7 +44,7 @@ async function runTests() {
 
   // Teste 2: listagem do nó pai COM token também deve ser negada
   console.log('\n[TESTE 2] GET /tenants_public COM token (deve ser negado)');
-  const db = admin.database();
+  const db = getDatabase();
   const profilesSnap = await db.ref('profiles').limitToFirst(1).once('value');
   const profiles = profilesSnap.val();
   if (!profiles) {
@@ -46,7 +53,7 @@ async function runTests() {
   }
 
   const uid = Object.keys(profiles)[0];
-  const customToken = await admin.auth().createCustomToken(uid);
+  const customToken = await getAuth().createCustomToken(uid);
   const exchangeUrl = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${API_KEY}`;
   const exchangeRes = await axios.post(exchangeUrl, { token: customToken, returnSecureToken: true });
   const idToken = exchangeRes.data.idToken;

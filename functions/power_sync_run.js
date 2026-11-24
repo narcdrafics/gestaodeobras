@@ -1,13 +1,14 @@
-const admin = require('firebase-admin');
+const { initializeApp, getApps, applicationDefault } = require('firebase-admin/app');
+const { getDatabase } = require('firebase-admin/database');
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
+if (!getApps().length) {
+  initializeApp({
+    credential: applicationDefault(),
     databaseURL: "https://controle-obras-c889d-default-rtdb.firebaseio.com"
   });
 }
 
-const db = admin.database();
+const db = getDatabase();
 const tenantId = '-OnrJnPKtJUHiiCblToQ';
 
 async function powerSync() {

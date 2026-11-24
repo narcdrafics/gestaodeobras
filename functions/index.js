@@ -3,7 +3,10 @@ const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onValueWritten } = require("firebase-functions/v2/database");
 const { defineSecret } = require('firebase-functions/params');
-const admin = require('firebase-admin');
+// firebase-admin v14 expõe as APIs de forma modular (getDatabase/getAuth).
+const { initializeApp } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
+const { getDatabase, ServerValue } = require('firebase-admin/database');
 const axios = require('axios');
 const { OpenAI } = require('openai');
 const fs = require('fs');
@@ -12,6 +15,7 @@ const os = require('os');
 const crypto = require('crypto');
 
 const { detectarEtapas } = require('./whatsapp/obra-etapas');
+const { handleWhatsappWebhook, urlAudioPermitida, LIMITE_AUDIO } = require('./whatsapp_auth');
 const { handleKiwifyWebhook } = require('./kiwify');
 const { atualizarBillingStatesJob } = require('./billing');
 const { hasFeature } = require('./plan_features');
@@ -20,6 +24,7 @@ const { aoEscreverAprovacao, processarAprovacoesJob } = require('./aprovacoes');
 const { handleAdminRequest } = require('./super_admin');
 const { handleCargoRequest } = require('./cargos');
 const { avaliarSuperAdmin, normalizarRole } = require('./claims');
+const { executarLimpeza } = require('./retencao');
 
 const OPENAI_KEY = defineSecret('OPENAI_KEY');
 const META_ACCESS_TOKEN = defineSecret('META_ACCESS_TOKEN');
@@ -35,8 +40,8 @@ const KIWIFY_CLIENT_SECRET = defineSecret('KIWIFY_CLIENT_SECRET');
 const KIWIFY_ACCOUNT_ID = defineSecret('KIWIFY_ACCOUNT_ID');
 const KIWIFY_API_TOKEN = defineSecret('KIWIFY_API_TOKEN');
 
-admin.initializeApp();
-const db = admin.database();
+initializeApp();
+const db = getDatabase();
 
 // defineSecret().value() pode falhar quando o segredo não foi provisionado.
 // No painel isso não pode derrubar a função: apenas desativa a integração.
@@ -121,121 +126,70 @@ function melhorMatch(termo, lista, getFn, threshold = 0.4) {
 
 exports.whatsappWebhook = onRequest({
   secrets: [OPENAI_KEY, META_ACCESS_TOKEN, META_PHONE_NUMBER_ID, META_VERIFY_TOKEN, META_APP_SECRET, META_WABA_ID],
-  cors: true,
+  // A Meta chama o webhook server-to-server: CORS aberto só ampliava a superfície.
+  cors: false,
   memory: '512MiB',
   timeoutSeconds: 60,
   minInstances: 0,
-  maxInstances: 10
+  maxInstances: 5
 }, async (req, res) => {
-  if (req.method === 'GET') {
-    const mode = req.query['hub.mode'];
-    const token = req.query['hub.verify_token'];
-    const challenge = req.query['hub.challenge'];
-
-    if (mode === 'subscribe' && token === META_VERIFY_TOKEN.value()) {
-      console.log('✅ Webhook verificado com sucesso!');
-      return res.status(200).send(challenge);
-    } else {
-      return res.status(403).send('Token inválido');
-    }
-  }
-
-  // Validação de assinatura para POST (segurança)
-  if (req.method === 'POST') {
-    if (!validateSignature(req)) {
-      console.error('❌ Assinatura inválida detectada.');
-      return res.status(401).send('Invalid signature');
-    }
-  }
-
-  const body = req.body || {};
-
-  if (body.object === 'whatsapp_business_account' || body.object === 'page') {
-    res.status(200).send('OK');
-
-    if (body.entry?.[0]?.changes?.[0]?.value?.messages) {
-      const msg = body.entry[0].changes[0].value.messages[0];
-      const From = msg.from;
-      const texto = msg.text?.body || '';
-      await processarMensagem(From, texto, null);
-    } else {
-      const entry = body.entry?.[0];
-      const msg = entry?.messaging?.[0];
-      if (msg) {
-        const From = msg.sender?.id;
-        const audioUrl = msg.message?.attachments?.find(a => a.type === 'audio')?.payload?.url;
-        const texto = msg.message?.text;
-        await processarMensagem(From, texto || '', audioUrl);
-      }
-    }
-  } else {
-    res.status(404).send('Not Found');
-  }
+  return handleWhatsappWebhook(req, res, {
+    db: getDatabase(),
+    secrets: {
+      verifyToken: valorSegredo(META_VERIFY_TOKEN),
+      appSecret: valorSegredo(META_APP_SECRET),
+      wabaId: valorSegredo(META_WABA_ID),
+      phoneNumberId: valorSegredo(META_PHONE_NUMBER_ID)
+    },
+    responder: responderWhatsApp,
+    processar: processarMensagem
+  });
 });
 
-async function processarMensagem(From, textoTarefa, audioUrl) {
+/**
+ * Processa uma mensagem JÁ autorizada por whatsapp_auth.js.
+ * `contexto.tenantId`/`contexto.user` vêm da resolução estrita feita no handler;
+ * nada aqui decide permissão (Admin SDK ignoraria as rules de qualquer forma).
+ */
+async function processarMensagem(From, textoTarefa, audioUrl, contexto = {}) {
   console.log(`📡 Mensagem de ${From}: ${textoTarefa}`);
   if (!From) return;
 
+  const { tenantId, user = {} } = contexto;
+  if (!tenantId) {
+    console.warn('[WhatsApp] processarMensagem chamado sem tenant autorizado.');
+    return;
+  }
+
   try {
-    const db = admin.database();
-    const phoneId = From.replace(/\D/g, '');
-
-    // 1. Busca primeiro em users (muito mais leve, sem baixar todas as tabelas de todos os tenants)
-    const usersSnap = await db.ref('users').once('value');
-    const usersData = usersSnap.val();
-
-    let user = null;
-    let tenantId = null;
-    const phoneLimpo = phoneId.replace(/\D/g, '');
-
-    // Busca em users primeiro
-    if (usersData) {
-      for (const key in usersData) {
-        const u = usersData[key];
-        const uTelefone = u.telefone ? String(u.telefone).replace(/\D/g, '') : '';
-        if ((u.whatsappId && u.whatsappId === From) ||
-          (uTelefone && (uTelefone.includes(phoneLimpo) || phoneLimpo.includes(uTelefone)))) {
-          user = u;
-          tenantId = u.tenantId;
-          break;
-        }
-      }
-    }
-
-    // 2. Fallback sob demanda: busca em tenants apenas se não encontrar em users
-    if (!user || !tenantId) {
-      console.log(`[WhatsApp] Telefone ${phoneId} não localizado em users. Buscando em tenants (fallback)...`);
-      const tenantsSnap = await db.ref('tenants').once('value');
-      const tenants = tenantsSnap.val() || {};
-      for (const [tid, tenantData] of Object.entries(tenants)) {
-        const telefonesData = tenantData?.config?.telefonesPermitidos;
-        const telefonesPermitidos = telefonesData ? [telefonesData].flat() : [];
-        const permitido = telefonesPermitidos.length > 0 && telefonesPermitidos.some(t => String(t || '').replace(/\D/g, '').includes(phoneLimpo));
-        if (permitido) {
-          tenantId = tid;
-          console.log(`✅ Telefone permitido: ${From} | tenantId: ${tenantId}`);
-          break;
-        }
-      }
-
-      if (!tenantId) {
-        console.log(`⚠️ WhatsApp ID ${phoneId} não autorizado.`);
-        await responderWhatsApp(phoneId, "Número não autorizado. Fale com o administrator.");
-        return;
-      }
-    }
+    const db = getDatabase();
+    const phoneId = String(From).replace(/\D/g, '');
 
     if (audioUrl) {
+      // Defesa em profundidade: o handler já validou a origem da URL.
+      if (!urlAudioPermitida(audioUrl)) {
+        console.warn('[WhatsApp] URL de áudio recusada fora do domínio da Meta.');
+        return;
+      }
       console.log('🎙️ Baixando áudio...');
-      const openai = new OpenAI({ apiKey: OPENAI_KEY.value() });
-      const response = await axios.get(audioUrl, { responseType: 'arraybuffer' });
-      const tempFilePath = path.join(os.tmpdir(), `audio-${Date.now()}.ogg`);
-      fs.writeFileSync(tempFilePath, Buffer.from(response.data));
-      const transcription = await openai.audio.transcriptions.create({ file: fs.createReadStream(tempFilePath), model: "whisper-1", language: "pt" });
-      textoTarefa = transcription.text;
-      console.log(`📝 Transcrito: "${textoTarefa}"`);
-      fs.unlinkSync(tempFilePath);
+      const openai = new OpenAI({ apiKey: valorSegredo(OPENAI_KEY) });
+      const response = await axios.get(audioUrl, {
+        responseType: 'arraybuffer',
+        maxContentLength: LIMITE_AUDIO,
+        maxBodyLength: LIMITE_AUDIO,
+        timeout: 20000
+      });
+      const bytes = Buffer.from(response.data);
+      if (bytes.length > LIMITE_AUDIO) throw new Error('Áudio excede o limite permitido.');
+      const tempFilePath = path.join(os.tmpdir(), `audio-${crypto.randomUUID()}.ogg`);
+      try {
+        fs.writeFileSync(tempFilePath, bytes);
+        const transcription = await openai.audio.transcriptions.create({ file: fs.createReadStream(tempFilePath), model: "whisper-1", language: "pt" });
+        textoTarefa = transcription.text;
+        console.log(`📝 Transcrito: "${textoTarefa}"`);
+      } finally {
+        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+      }
     }
 
     if (!textoTarefa) return;
@@ -374,7 +328,7 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
         resp: 'Equipe',
         status: 'Pendente',
         criadoPor: user?.nome || 'WhatsApp',
-        criadoEm: admin.database.ServerValue.TIMESTAMP,
+        criadoEm: ServerValue.TIMESTAMP,
         origem: 'WhatsApp'
       };
       lista.push(tarefaData);
@@ -414,7 +368,7 @@ async function processarMensagem(From, textoTarefa, audioUrl) {
           funcao: trab.funcao || '', vinculo: trab.vinculo || 'Informal', equipe: trab.equipe || '',
           entrada: statusP === 'Falta' ? '00:00' : '07:00', saida: statusP === 'Meio período' ? '12:00' : (statusP === 'Falta' ? '00:00' : '17:00'),
           hnorm, hextra: 0, presenca: statusP, diaria: parseFloat(trab.diaria) || 0, total: parseFloat(total),
-          pgtoStatus: 'Pendente', valpago: 0, lancador: user.nome || 'WhatsApp Bot',
+          pgtoStatus: 'Pendente', valpago: 0, lancador: user?.nome || 'WhatsApp Bot',
           hrLanc: new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date()),
           origem: 'WhatsApp', telefoneAutor: phoneId, _s: statusP
         });
@@ -490,23 +444,6 @@ async function responderWhatsApp(para, msg) {
   }
 }
 
-function validateSignature(req) {
-  const signature = req.headers['x-hub-signature-256'];
-  if (!signature) return false;
-
-  const expected = 'sha256=' + crypto
-    .createHmac('sha256', META_APP_SECRET.value())
-    .update(req.rawBody)
-    .digest('hex');
-
-
-  try {
-    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-  } catch (e) {
-    return false;
-  }
-}
-
 exports.dailyReport = onSchedule({
   schedule: '0 21 * * *', // 18h Brasília (UTC-3)
   timeZone: 'America/Sao_Paulo',
@@ -515,7 +452,7 @@ exports.dailyReport = onSchedule({
   timeoutSeconds: 120,
   maxInstances: 1
 }, async (event) => {
-  const db = admin.database();
+  const db = getDatabase();
   const hoje = getHojeBR();
 
   console.log(`🕒 Iniciando relatório diário agendado para ${hoje}`);
@@ -575,7 +512,7 @@ exports.dailyReport = onSchedule({
 
 
 async function processarConsultaGeral(para, tenantId, user) {
-  const db = admin.database();
+  const db = getDatabase();
   const hoje = getHojeBR();
 
   const [obrasSnap, tarefasSnap, pontoSnap] = await Promise.all([
@@ -690,7 +627,7 @@ async function aplicarLimiteDeAssentos(uid, tenantId, role) {
       console.warn(`[assentos] tenant=${tenantId} cheio (${ativos}/${limite + 1}). Perfil ${uid} marcado como pendente.`);
       await db.ref(`profiles/${uid}/status`).set('pendente');
       // Claims sem role/tenant: o usuário autentica mas não acessa dados do tenant.
-      await admin.auth().setCustomUserClaims(uid, { role: 'pendente', tenantId: null });
+      await getAuth().setCustomUserClaims(uid, { role: 'pendente', tenantId: null });
       return 'pendente';
     }
 
@@ -746,13 +683,13 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
   if (!after) {
     // Perfil deletado: exclui a conta e credenciais do usuário no Firebase Auth
     try {
-      await admin.auth().deleteUser(uid);
+      await getAuth().deleteUser(uid);
       console.log(`[syncCustomClaims] Usuário e credenciais deletados no Firebase Auth para uid: ${uid}`);
     } catch (e) {
       console.warn(`[syncCustomClaims] Aviso ao deletar usuário no Auth para uid ${uid}:`, e);
       try {
-        await admin.auth().updateUser(uid, { disabled: true });
-        await admin.auth().setCustomUserClaims(uid, null);
+        await getAuth().updateUser(uid, { disabled: true });
+        await getAuth().setCustomUserClaims(uid, null);
       } catch (_) {}
     }
     return null;
@@ -767,8 +704,8 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
   // claims de acesso. No bloqueio, revoga também os tokens já emitidos.
   if (after.status === 'pendente' || after.status === 'bloqueado') {
     try {
-      await admin.auth().setCustomUserClaims(uid, { role: after.status, tenantId: null });
-      if (after.status === 'bloqueado') await admin.auth().revokeRefreshTokens(uid);
+      await getAuth().setCustomUserClaims(uid, { role: after.status, tenantId: null });
+      if (after.status === 'bloqueado') await getAuth().revokeRefreshTokens(uid);
     } catch (e) {
       console.warn(`[syncCustomClaims] Erro ao bloquear claims de ${uid}:`, e);
     }
@@ -782,7 +719,7 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
   }
 
   try {
-    const userRecord = await admin.auth().getUser(uid);
+    const userRecord = await getAuth().getUser(uid);
     const currentClaims = userRecord.customClaims || {};
     const email = (userRecord.email || '').toLowerCase();
 
@@ -816,7 +753,7 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
 
     // Revoke imediato ao perder o papel master: tokens antigos deixam de valer.
     if (currentClaims.role === 'super_admin' && role !== 'super_admin') {
-      await admin.auth().revokeRefreshTokens(uid);
+      await getAuth().revokeRefreshTokens(uid);
     }
 
     // Evitar updates desnecessários (otimização de cota e performance)
@@ -825,7 +762,7 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
       return null;
     }
 
-    await admin.auth().setCustomUserClaims(uid, {
+    await getAuth().setCustomUserClaims(uid, {
       role: role,
       tenantId: tenantId
     });
@@ -843,11 +780,12 @@ exports.kiwifyWebhook = onRequest({
   secrets: [KIWIFY_TOKEN],
   cors: false,
   memory: '256MiB',
-  timeoutSeconds: 60
+  timeoutSeconds: 60,
+  maxInstances: 3
 }, async (req, res) => {
   return handleKiwifyWebhook(req, res, {
-    secret: KIWIFY_TOKEN.value(),
-    db: admin.database()
+    secret: valorSegredo(KIWIFY_TOKEN),
+    db: getDatabase()
   });
 });
 
@@ -862,11 +800,12 @@ exports.adminAccountApi = onRequest({
   cors: false,
   memory: '256MiB',
   timeoutSeconds: 60,
+  maxInstances: 3,
   secrets: [KIWIFY_CLIENT_ID, KIWIFY_CLIENT_SECRET, KIWIFY_ACCOUNT_ID, KIWIFY_API_TOKEN]
 }, async (req, res) => {
   return handleAdminRequest(req, res, {
-    auth: admin.auth(),
-    db: admin.database(),
+    auth: getAuth(),
+    db: getDatabase(),
     http: axios,
     cache: cacheTokenKiwify,
     credenciaisKiwify: {
@@ -884,11 +823,12 @@ exports.adminAccountApi = onRequest({
 exports.gerenciarCargo = onRequest({
   cors: false,
   memory: '256MiB',
-  timeoutSeconds: 60
+  timeoutSeconds: 60,
+  maxInstances: 3
 }, async (req, res) => {
   return handleCargoRequest(req, res, {
-    auth: admin.auth(),
-    db: admin.database()
+    auth: getAuth(),
+    db: getDatabase()
   });
 });
 
@@ -897,7 +837,7 @@ exports.gerenciarCargo = onRequest({
 exports.aplicarAprovacao = onValueWritten(
   "tenants/{tenantId}/aprovacoes/{aprovacaoId}",
   async (event) => aoEscreverAprovacao(
-    admin.database(),
+    getDatabase(),
     event.params.tenantId,
     event.params.aprovacaoId,
     event.data.after.val(),
@@ -912,7 +852,15 @@ exports.aprovacoesPrazosJob = onSchedule({
   timeZone: "America/Sao_Paulo",
   memory: "256MiB",
   timeoutSeconds: 120
-}, async () => processarAprovacoesJob(admin.database(), Date.now()));
+}, async () => processarAprovacoesJob(getDatabase(), Date.now()));
+
+// Limpeza de cotas, dedup e trilha de auditoria (evita crescimento ilimitado).
+exports.retencaoSegurancaJob = onSchedule({
+  schedule: "every day 03:30",
+  timeZone: "America/Sao_Paulo",
+  memory: "256MiB",
+  timeoutSeconds: 120
+}, async () => executarLimpeza(getDatabase()));
 
 // ==================== JOB DIÁRIO: BILLING ENFORCEMENT ====================
 exports.dailyBillingStateJob = onSchedule({
@@ -922,7 +870,7 @@ exports.dailyBillingStateJob = onSchedule({
   timeoutSeconds: 120
 }, async (event) => {
   console.log('[BillingJob] Iniciando recalculo diário de billingState...');
-  return atualizarBillingStatesJob(admin.database());
+  return atualizarBillingStatesJob(getDatabase());
 });
 
 

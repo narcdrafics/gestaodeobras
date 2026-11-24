@@ -50,7 +50,9 @@ describe('Cloud Function — criação de usuário com senha temporária', () =>
   });
 
   it('exige token válido, cargo administrativo e convite do mesmo tenant', () => {
-    expect(usuariosFn).toContain('admin.auth().verifyIdToken(match[1])');
+    // firebase-admin v14 usa a API modular (getAuth()); aceitar a forma antiga
+    // preserva compatibilidade caso o projeto volte à linha 11/12.
+    expect(usuariosFn).toMatch(/(?:admin\.auth\(\)|getAuth\(\))\.verifyIdToken\(match\[1\], true\)/);
     expect(usuariosFn).toContain("const ROLES_ADMIN = ['admin', 'super_admin']");
     expect(usuariosFn).toContain('!ROLES_ADMIN.includes(chamadorInfo.role)');
     expect(usuariosFn).toContain('invite.tenantId !== tenantId');
@@ -59,8 +61,8 @@ describe('Cloud Function — criação de usuário com senha temporária', () =>
 
   it('gera senha aleatória e nunca a grava no Realtime Database', () => {
     expect(usuariosFn).toContain('crypto.randomInt');
-    expect(usuariosFn).toContain('admin.auth().createUser(');
-    expect(usuariosFn).toContain('admin.auth().updateUser(');
+    expect(usuariosFn).toMatch(/(?:admin\.auth\(\)|getAuth\(\))\.createUser\(/);
+    expect(usuariosFn).toMatch(/(?:admin\.auth\(\)|getAuth\(\))\.updateUser\(/);
     expect(usuariosFn).toContain('password: senha');
     expect(usuariosFn).not.toMatch(/invites[^\n]*senha/);
     expect(usuariosFn).not.toContain(".set({ password");

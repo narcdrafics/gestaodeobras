@@ -26,6 +26,9 @@ const staticDB = {
   almocos: [],
 };
 
+// apiKey é o identificador Web público do Firebase (não é credencial de admin).
+// A proteção real vem das rules do RTDB/Storage, domínios autorizados no Auth e,
+// quando habilitado, App Check. Nunca coloque segredos de Admin SDK aqui.
 const firebaseConfig = {
   apiKey: "AIzaSyD9i1vMwmJwiUfwUKetxrzIO6Bm5K-5oro",
   authDomain: "controle-obras-c889d.firebaseapp.com",
@@ -537,7 +540,9 @@ const PROTECTED_TENANT_FIELDS = new Set([
   'cancelamentoAgendado', 'dataCancelamento', 'origemAtivacao', 'ultimoPagamento'
 ]);
 const PROTECTED_CONFIG_FIELDS = new Set([
-  'limiteObras', 'limiteUsuarios', 'limiteTrabalhadores'
+  'limiteObras', 'limiteUsuarios', 'limiteTrabalhadores',
+  // Autorização do webhook de WhatsApp: só o super_admin pode alterar.
+  'telefonesPermitidos'
 ]);
 
 // Nós gerenciados por escrita direta (Cloud Function) ou por trigger de servidor.

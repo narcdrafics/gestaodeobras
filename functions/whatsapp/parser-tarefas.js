@@ -1,4 +1,4 @@
-const admin = require('firebase-admin');
+const { getDatabase } = require('firebase-admin/database');
 const { extrairTarefas, detectarEtapas, detectarPrioridade } = require('./obra-etapas');
 
 async function handleAudioTarefas(transcricao, tenantId, from) {
@@ -10,7 +10,7 @@ async function handleAudioTarefas(transcricao, tenantId, from) {
     };
   }
 
-  const db = admin.database();
+  const db = getDatabase();
   await db.ref(`tenants/${tenantId}/tarefas_pendentes/${from}`).set({
     transcricao,
     tarefas,
@@ -54,7 +54,7 @@ function iconePrioridade(prioridade) {
 }
 
 async function confirmarTarefas(tenantId, from, prazo = null, responsavel = null) {
-  const db = admin.database();
+  const db = getDatabase();
   const pendingSnap = await db.ref(`tenants/${tenantId}/tarefas_pendentes/${from}`).once('value');
   const pending = pendingSnap.val();
 
@@ -98,7 +98,7 @@ async function editarTarefaPendente(texto, tenantId, from) {
   const [, numStr, novaDescricao] = match;
   const idx = parseInt(numStr) - 1;
 
-  const db = admin.database();
+  const db = getDatabase();
   const pendingRef = db.ref(`tenants/${tenantId}/tarefas_pendentes/${from}`);
   const pendingSnap = await pendingRef.once('value');
   const pending = pendingSnap.val();
@@ -128,7 +128,7 @@ async function editarTarefaPendente(texto, tenantId, from) {
 }
 
 async function cancelarTarefas(tenantId, from) {
-  const db = admin.database();
+  const db = getDatabase();
   await db.ref(`tenants/${tenantId}/tarefas_pendentes/${from}`).remove();
   return { response: '❌ Tarefas descartadas.' };
 }

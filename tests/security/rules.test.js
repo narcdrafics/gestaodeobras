@@ -266,7 +266,7 @@ describe('bloqueio no servidor — integração front-end', () => {
     const job = functionsSrc.slice(functionsSrc.indexOf('exports.dailyBillingStateJob'));
     expect(job).toContain('onSchedule(');
     expect(job).toContain('America/Sao_Paulo');
-    expect(job).toContain('atualizarBillingStatesJob(admin.database())');
+    expect(job).toMatch(/atualizarBillingStatesJob\((?:admin\.database\(\)|getDatabase\(\))\)/);
   });
 
   it('os checks do navegador são apenas UX, não autoridade', () => {
