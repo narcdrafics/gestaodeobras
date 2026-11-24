@@ -6,6 +6,12 @@ collected: 2026-05-07
 published: Unknown
 ---
 
+> **Documento legado (2026-05-07).** A implementação atual está em
+> `functions/whatsapp_auth.js` e `functions/index.js`, usa Secret Manager
+> (`META_VERIFY_TOKEN`, `META_APP_SECRET`, `META_WABA_ID`,
+> `META_PHONE_NUMBER_ID`) e não `functions.config()` nem token fixo. Consulte
+> `docs/security/hardening.md`.
+
 # EXECUTAR.md
 ## Plano de Implementação — WhatsApp Bot + IA de Tarefas
 ### Repositório: narcdrafics/gestaodeobras
@@ -186,7 +192,7 @@ cd ..
 firebase functions:config:set \
   meta.token="EAAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
   meta.phone_id="10646XXXXXXXXX" \
-  meta.verify_token="obrareal_whatsapp_2026" \
+  meta.verify_token="<token-aleatorio-do-secret-manager>" \
   meta.app_secret="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
   meta.waba_id="XXXXXXXXXXXXXXX" \
   openai.key="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
@@ -260,7 +266,7 @@ O emulador sobe na porta `5001` para functions.
 curl -X GET \
   "http://localhost:5001/SEU-PROJETO/us-central1/whatsappWebhook?\
 hub.mode=subscribe&\
-hub.verify_token=obrareal_whatsapp_2026&\
+hub.verify_token=<token-aleatorio-do-secret-manager>&\
 hub.challenge=TESTE123"
 
 # Resposta esperada: TESTE123
@@ -347,7 +353,7 @@ https://obrareal.com/api/whatsapp
 ### ✅ Validação Fase 7
 ```bash
 # Testar GET em produção
-curl "https://obrareal.com/api/whatsapp?hub.mode=subscribe&hub.verify_token=obrareal_whatsapp_2026&hub.challenge=PROD123"
+curl "https://obrareal.com/api/whatsapp?hub.mode=subscribe&hub.verify_token=<token-aleatorio-do-secret-manager>&hub.challenge=PROD123"
 # Deve retornar: PROD123
 ```
 
@@ -363,7 +369,7 @@ curl "https://obrareal.com/api/whatsapp?hub.mode=subscribe&hub.verify_token=obra
 3. Seção **Webhook** → clicar **Edit**
 4. Preencher:
    - **Callback URL:** `https://obrareal.com/api/whatsapp`
-   - **Verify Token:** `obrareal_whatsapp_2026`
+   - **Verify Token:** `<token-aleatorio-do-secret-manager>`
 5. Clicar **Verify and Save**
 6. Em **Webhook fields**, clicar **Subscribe** no campo `messages`
 

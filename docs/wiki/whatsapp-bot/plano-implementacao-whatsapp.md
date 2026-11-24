@@ -4,6 +4,12 @@ topic: whatsapp-bot
 updated: 2026-05-07
 ---
 
+> **Documento legado (2026-05-07).** A implementação atual está em
+> `functions/whatsapp_auth.js` e `functions/index.js`, usa Secret Manager
+> (`META_VERIFY_TOKEN`, `META_APP_SECRET`, `META_WABA_ID`,
+> `META_PHONE_NUMBER_ID`) e não `functions.config()` nem token fixo. Consulte
+> `docs/security/hardening.md`.
+
 # Plano de Implementação WhatsApp Bot
 
 Guia passo a passo para implementar a integração do WhatsApp Business com detecção automática de etapas de obra.
@@ -92,7 +98,7 @@ firebase deploy --only hosting
 firebase functions:config:set \
   meta.token="EAA..." \
   meta.phone_id="10646..." \
-  meta.verify_token="obrareal_whatsapp_2026" \
+  meta.verify_token="<token-aleatorio-do-secret-manager>" \
   meta.app_secret="..." \
   meta.waba_id="..." \
   openai.key="sk-..."

@@ -2,6 +2,22 @@
 
 Todas as mudanças notáveis para o projeto **Obra Real** serão documentadas neste arquivo seguindo o padrão [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) e [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Segurança
+- **WhatsApp:** verify token, App Secret, WABA e Phone Number ID passaram a vir do Secret Manager; assinatura validada no corpo bruto, matching normalizado/exato com rejeição de ambiguidade, dedup por `msg.id`, ACK após processamento, remoção do ramo `page` e allowlist de host para áudio (`functions/whatsapp_auth.js`).
+- **Kiwify:** idempotência atômica por `orderId + eventType` (sem status), reserva `processing` com lease, `payloadHash` sem status, conflito só ignorado contra `success`, efeitos e marca final na mesma escrita e `tenant_not_found` reprocessável como `pending_tenant` (`functions/kiwify.js`).
+- **APIs administrativas:** `verifyIdToken(token, true)`, papel reconfirmado no perfil/allowlist, contas `disabled` barradas, validação de método/cota antes do Auth, allowlist por `hasOwnProperty`, auto-reset bloqueado, tenant obtido do perfil e parâmetros Kiwify explicitamente limitados.
+- **Abuso:** payload de 16 KB, IP hashado, cotas transacionais em `rate_limits`, `cors: false` e `maxInstances` reduzido em webhooks/APIs (`functions/abuso.js`).
+- **Auditoria:** `requestId`, IP hashado, User-Agent e duração em `admin_audit`; ações destrutivas idempotentes por `requestId` em `admin_ops`, com fail-closed e preservação da reserva se o efeito foi aplicado antes de falhar a auditoria (`functions/auditoria.js`).
+- **Retenção:** job diário `retencaoSegurancaJob` limpa auditoria (90 dias), dedup/reservas (24h) e cotas expiradas (`functions/retencao.js`).
+- **CSP/CORS:** removido `'unsafe-eval'`, `img-src` com domínios explícitos, COOP `same-origin-allow-popups` para manter o popup do Firebase Auth; CORS da Storage e do worker continua em allowlist.
+- **Dependências:** `firebase-admin@14.5.1` e `firebase-functions@7.4.0` com migração para a API modular; `npm audit` sem vulnerabilidades na raiz e em `functions/`.
+- **Git:** ~7 mil arquivos de `functions/node_modules` removidos do índice e mantidos ignorados; `.gitignore` passou a cobrir `.env*`; chave Web do Firebase deixou de ser fixa no script local de teste. Nenhuma chave privada/.env/service account apareceu na varredura dos 423 commits.
+
+### Adicionado
+- Documentação consolidada em `docs/security/hardening.md` e notas de deploy/segredos.
+- Suítes `tests/whatsapp-auth.test.js`, `tests/kiwify-idempotency.test.js`, `tests/abuso.test.js` e `tests/auditoria.test.js`.
+
 ## [1.4.0] - 2026-11-22
 ### Adicionado
 - Recuperação de senha funcional na tela de login: o link "Esqueceu?" abre um painel que envia o link de redefinição nativo do Firebase Auth, com mensagem genérica que não revela se o e-mail está cadastrado (`login.html`, `js/auth_core.js`).

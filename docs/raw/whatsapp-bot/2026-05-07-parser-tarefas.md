@@ -6,6 +6,10 @@ collected: 2026-05-07
 published: Unknown
 ---
 
+> **Documento legado (2026-05-07).** Hoje os segredos vêm de `defineSecret()` /
+> Secret Manager, não de `functions.config()`, e o webhook é
+> `functions/whatsapp_auth.js`. Consulte `docs/security/hardening.md`.
+
 // functions/whatsapp/parser-tarefas.js
 // Extensão do parser.js — lida com áudio e criação preemptiva de tarefas
 // Integra com obra-etapas.js para mapeamento semântico automático

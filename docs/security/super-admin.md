@@ -15,17 +15,27 @@ O rewrite está em `firebase.json` e a função é `adminAccountApi`
 ## Modelo de autorização
 
 1. O navegador envia o **Firebase ID token** no header `Authorization: Bearer <token>`.
-2. `verificarSuperAdmin()` verifica o token com `auth.verifyIdToken()` — não
-   confia em papel/claims vindos do cliente.
-3. O papel é reconfirmado no banco pela allowlist `super_admins/<uid>` — gravada
-   **somente pelo Admin SDK** (`.write: false` nas rules). Como exceção histórica,
-   o e-mail `tonycampelo@gmail.com` continua autorizado. O nó
-   `users/<email com '.' → ','>` é apenas um passaporte legado: **não concede**
-   privilégio novo, só preserva contas que já tinham a claim `super_admin`.
+2. `verificarSuperAdmin()` usa `verifyIdToken(token, true)` — tokens emitidos
+   antes de um bloqueio/rebaixamento deixam de autorizar na hora, e nenhum papel
+   vem do cliente.
+3. O papel é reconfirmado no banco pelo perfil e pela allowlist
+   `super_admins/<uid>` — gravada **somente pelo Admin SDK** (`.write: false`
+   nas rules). Como exceção histórica, o e-mail `tonycampelo@gmail.com` continua
+   autorizado. O nó `users/<email com '.' → ','>` é apenas um passaporte legado:
+   **não concede** privilégio novo, só preserva contas que já tinham a claim
+   `super_admin`.
 4. Contas desabilitadas no Firebase Auth recebem `403 conta_bloqueada`.
 
-Toda ação grava um registro em `admin_audit` (sucesso ou falha). As regras do
-RTDB permitem **leitura apenas para Super Admin** e proíbem escrita pelo cliente.
+Método, tamanho do corpo e cotas por IP/UID são checados **antes** do Auth e do
+banco (`functions/abuso.js`). As funções administrativas usam `cors: false` e
+`maxInstances: 3`.
+
+Toda ação grava um registro em `admin_audit` (sucesso ou falha) com `requestId`,
+IP hashado, User-Agent e duração. Ações destrutivas são idempotentes por
+`requestId` em `admin_ops` e **fail-closed**: se a auditoria obrigatória falhar,
+a resposta é `503 auditoria_falhou` e o `requestId` é devolvido para repetição
+segura. As regras do RTDB permitem **leitura apenas para Super Admin** e proíbem
+escrita pelo cliente. Veja `docs/security/hardening.md`.
 
 ## Alteração de cargos — endpoint único
 
@@ -56,6 +66,9 @@ Não existe mais bootstrap de Super Admin pelo navegador. Para o primeiro master
 ```bash
 cd functions && node set_super_admin.js <uid> [email]
 ```
+
+O script depende de `functions/serviceAccountKey.json` (gitignorado) e usa a API
+modular do Admin SDK v14 (`initializeApp`/`cert`, `getAuth`, `getDatabase`).
 
 Contas legadas que já tinham a claim `super_admin` são migradas automaticamente
 para a allowlist em `avaliarSuperAdmin()` (`functions/claims.js`), sem promoter
@@ -152,7 +165,7 @@ os planos Start / Pro / Ilimitado (incluindo variantes anuais e `Full`).
 ## Verificação local
 
 ```bash
-npm test              # 429 testes, incluindo tests/security/privilege-escalation.test.js
+npm test              # 503 testes, incluindo tests/security/privilege-escalation.test.js e tests/auditoria.test.js
 npx vitest run tests/security/privilege-escalation.test.js tests/super-admin.test.js
 ```
 

@@ -36,6 +36,18 @@ cd cloudflare-worker
 wrangler deploy
 ```
 
+## APIs e webhooks
+
+As Cloud Functions administrativas (`adminAccountApi`, `gerenciarCargo`,
+`criarUsuarioTenant`), o webhook Kiwify e o webhook WhatsApp usam `cors: false`.
+Eles são chamados pelo servidor (Firebase Hosting rewrite, Meta/Kiwify) ou pelo
+próprio app com ID token — não precisam de CORS de navegador, e deixá-lo ligado
+só ampliaria a superfície. Detalhes em `docs/security/hardening.md`.
+
+O header `Cross-Origin-Opener-Policy: same-origin-allow-popups` em
+`firebase.json` é necessário para o `signInWithPopup` do Firebase Auth; voltar a
+`same-origin` quebra o login.
+
 ## Observações
 
 - **Por que remover `PUT`/`DELETE` do Storage?** A aplicação usa apenas upload (`POST`/resumável) e leitura (`GET`) via Firebase SDK. Exclusões do SDK usam `POST`/form-data, não `DELETE`.
