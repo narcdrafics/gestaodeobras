@@ -162,7 +162,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261122006';
+const HTML_CACHE_VERSION = '20261125001';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -2022,7 +2022,8 @@ function renderTaskTable(tasks) {
         const atrasada = t._atrasada || tarefaTaAtrasada(t);
         const venceHoje = !atrasada && t.prazo === getTodayBR();
         const linhaCls = atrasada ? 'tarefa-atrasada' : (venceHoje ? 'tarefa-hoje' : '');
-        const foto = t.photoUrl || (Array.isArray(t.photos) && t.photos[0]) || t.foto || '';
+        const fotos = taskPhotoList(t);
+        const fotosLabel = fotos.length > 1 ? `Fotos (${fotos.length})` : 'Foto';
         const acaoConcluir = t.status === 'Concluída'
           ? `<button class="btn btn-secondary btn-sm" onclick="toggleTarefaConcluida(${t._idx})" title="Reabrir tarefa"><span class="material-symbols-outlined md-16">restart_alt</span> Reabrir</button>`
           : `<button class="btn btn-primary btn-sm" onclick="concluirTarefaRapida(${t._idx})" title="Concluir tarefa"><span class="material-symbols-outlined md-16">check</span> Concluir</button>`;
@@ -2035,7 +2036,7 @@ function renderTaskTable(tasks) {
           <td data-label="Etapa / Frente"><small>${t.etapa || '—'}<br>${t.frente || '—'}</small></td>
           <td data-label="Descrição">
             <b>${t.desc}</b>
-            ${foto ? `<span class="badge badge-blue" style="font-size:10px;cursor:pointer;margin-left:6px;vertical-align:middle;" onclick="openLightbox('${foto}')" title="Ver evidência fotográfica"><span class="material-symbols-outlined md-16" style="vertical-align:middle;font-size:12px;">photo_camera</span> Foto</span>` : ''}
+            ${fotos.length ? `<span class="badge badge-blue" style="font-size:10px;cursor:pointer;margin-left:6px;vertical-align:middle;" onclick="openTarefaFotos(${t._idx})" title="Ver ${fotos.length} evidência(s): ${auditEsc(taskPhotoCaption(t, 0, fotos.length))}"><span class="material-symbols-outlined md-16" style="vertical-align:middle;font-size:12px;">photo_camera</span> ${fotosLabel}</span>` : ''}
           </td>
           <td data-label="Responsável">${t.resp || '—'}</td>
           <td data-label="Prior.">${statusBadge(t.prior)}</td>
@@ -2051,7 +2052,7 @@ function renderTaskTable(tasks) {
             <div class="tarefa-acoes">
               ${acaoIniciar}
               ${acaoConcluir}
-              ${foto ? `<button type="button" class="btn btn-secondary btn-sm" onclick="openLightbox('${foto}')" title="Ver evidência" aria-label="Ver evidência"><span class="material-symbols-outlined md-16">photo_camera</span> Foto</button>` : ''}
+              ${fotos.length ? `<button type="button" class="btn btn-secondary btn-sm" onclick="openTarefaFotos(${t._idx})" title="Ver fotos: ${auditEsc(taskPhotoCaption(t, 0, fotos.length))}" aria-label="Ver fotos"><span class="material-symbols-outlined md-16">photo_camera</span> ${fotosLabel}</button>` : ''}
               <button class="btn btn-secondary btn-sm" onclick="editTarefa(${t._idx})" title="Editar tarefa" aria-label="Editar tarefa"><span class="material-symbols-outlined md-16">edit</span> Editar</button>
               <button class="btn btn-danger btn-sm" onclick="deleteItem('tarefas',${t._idx})">Excluir</button>
             </div>
@@ -2091,12 +2092,20 @@ function renderKanban(tasks) {
         <div class="kanban-cards" ondragover="onTaskDragOver(event)" ondragleave="onTaskDragLeave(event)" ondrop="onTaskDrop(event, '${cId}')">
           ${cItems.length ? cItems.map(t => {
             const atrasada = t._atrasada || tarefaTaAtrasada(t);
-            const foto = t.photoUrl || (Array.isArray(t.photos) && t.photos[0]) || t.foto || '';
+            const fotos = taskPhotoList(t);
+            const thumbsHtml = fotos.length ? `
+              <div class="kanban-task-photos" onclick="event.stopPropagation()">
+                ${fotos.slice(0, 3).map((u, i) => {
+                  const legenda = taskPhotoCaption(t, i, fotos.length);
+                  return `<div class="kanban-task-photo"><img src="${auditEsc(u)}" alt="${auditEsc(legenda)}" title="${auditEsc(legenda)}" onclick="openTarefaFotos(${t._idx}, ${i})" loading="lazy"></div>`;
+                }).join('')}
+                ${fotos.length > 3 ? `<button type="button" class="kanban-task-photo-more" onclick="openTarefaFotos(${t._idx})" title="Ver todas as fotos">+${fotos.length - 3}</button>` : ''}
+              </div>` : '';
             return `
             <div class="kanban-card ${atrasada ? 'tarefa-atrasada' : (t.prazo === getTodayBR() ? 'tarefa-hoje' : '')}"
                  draggable="true" ondragstart="onTaskDragStart(event, ${t._idx})" ondragend="this.classList.remove('dragging')"
                  onclick="editTarefa(${t._idx})" title="Arraste para mudar o status">
-              ${foto ? `<div style="margin-bottom:8px;border-radius:6px;overflow:hidden;border:1px solid var(--border);"><img src="${foto}" style="width:100%;height:100px;object-fit:cover;display:block;cursor:pointer;" onclick="event.stopPropagation();openLightbox('${foto}')" title="Clique para ampliar evidência" loading="lazy"></div>` : ''}
+              ${thumbsHtml}
               <div class="kanban-card-title">${t.desc}</div>
               <div class="kanban-card-meta">
                 <span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">person</span> ${t.resp || 'Sem responsável'}</span>
@@ -3386,19 +3395,24 @@ function generateAuditReport() {
   const fotosTarefasHtml = incFotosTarefas ? `
     <section class="audit-block" id="sec-fotos-tarefas">
       <h2>Registro Fotográfico das Tarefas Executadas</h2>
-      <p class="audit-note" style="margin-bottom:14px;">Fotos e evidências organizadas pelas tarefas executadas no canteiro de obras.</p>
+      <p class="audit-note" style="margin-bottom:14px;">Fotos e evidências organizadas por tarefa. Cada imagem usa a descrição da tarefa como legenda.</p>
       ${tarefasParaRelatorio.length ? `
         <div class="audit-tarefas-grid">
           ${tarefasParaRelatorio.map(t => {
             const photos = t.photos || [];
             const thumbsHtml = photos.length
               ? `<div class="audit-task-photos-grid">
-                  ${photos.map(p => `
-                    <div class="audit-task-photo-card" onclick="openLightbox('${esc(p)}')">
-                      <img src="${esc(p)}" class="audit-task-photo-img" alt="Evidência ${esc(t.desc)}" loading="lazy">
-                      <div class="audit-task-photo-zoom"><span class="material-symbols-outlined md-16">zoom_in</span> Ampliar</div>
-                    </div>
-                  `).join('')}
+                  ${photos.map((p, i) => {
+                    const legenda = window.taskPhotoCaption ? window.taskPhotoCaption(t, i, photos.length) : t.desc;
+                    return `
+                    <figure class="audit-task-photo-card" data-photo="${esc(p)}" onclick="openLightbox(this.dataset.photo)">
+                      <div class="audit-task-photo-frame">
+                        <img src="${esc(p)}" class="audit-task-photo-img" alt="${esc(legenda)}" loading="eager">
+                        <div class="audit-task-photo-zoom"><span class="material-symbols-outlined md-16">zoom_in</span> Ampliar</div>
+                      </div>
+                      <figcaption class="audit-task-photo-caption" title="${esc(legenda)}">${esc(legenda)}</figcaption>
+                    </figure>`;
+                  }).join('')}
                 </div>`
               : `<div class="audit-muted" style="font-size:12px; font-style:italic; padding:6px 0;">Sem evidência fotográfica anexada a esta tarefa.</div>`;
 
@@ -3953,23 +3967,25 @@ function renderMedicaoGallery() {
   }
   const total = g.photos.length;
   const current = g.photos[g.index] || '';
+  const legenda = typeof g.captionFn === 'function' ? g.captionFn(g.index, total) : '';
   overlay.innerHTML = `
-    <div class="med-gallery-box" role="dialog" aria-modal="true" aria-label="Fotos da medição">
+    <div class="med-gallery-box" role="dialog" aria-modal="true" aria-label="${medicaoEsc(g.label || 'Fotos da medição')}">
       <div class="med-gallery-head">
         <div>
-          <b>Evidências da medição</b>
+          <b>${medicaoEsc(g.heading || 'Evidências da medição')}</b>
           <span>${medicaoEsc(g.title)}${g.meta ? ` — ${medicaoEsc(g.meta)}` : ''}</span>
         </div>
         <button type="button" class="med-gallery-close" onclick="closeMedicaoGallery()" title="Fechar"><span class="material-symbols-outlined md-18">close</span></button>
       </div>
       <div class="med-gallery-stage">
         ${total > 1 ? '<button type="button" class="med-gallery-nav prev" onclick="medicaoGalleryNav(-1)" title="Foto anterior">‹</button>' : ''}
-        <img src="${medicaoEsc(current)}" alt="Evidência ${g.index + 1} de ${total}" data-photo="${medicaoEsc(current)}" onclick="openLightbox(this.dataset.photo)">
+        <img src="${medicaoEsc(current)}" alt="${medicaoEsc(legenda || `Evidência ${g.index + 1} de ${total}`)}" data-photo="${medicaoEsc(current)}" onclick="openLightbox(this.dataset.photo)">
         ${total > 1 ? '<button type="button" class="med-gallery-nav next" onclick="medicaoGalleryNav(1)" title="Próxima foto">›</button>' : ''}
       </div>
+      ${legenda ? `<div class="med-gallery-caption">${medicaoEsc(legenda)}</div>` : ''}
       <div class="med-gallery-count">Foto ${g.index + 1} de ${total}</div>
       ${total > 1 ? `<div class="med-gallery-thumbs">${g.photos.map((u, i) =>
-    `<img src="${medicaoEsc(u)}" alt="Miniatura ${i + 1}" class="${i === g.index ? 'active' : ''}" onclick="medicaoGallerySelect(${i})">`
+    `<img src="${medicaoEsc(u)}" alt="Miniatura ${i + 1}" title="${medicaoEsc(typeof g.captionFn === 'function' ? g.captionFn(i, total) : `Foto ${i + 1}`)}" class="${i === g.index ? 'active' : ''}" onclick="medicaoGallerySelect(${i})">`
   ).join('')}</div>` : ''}
     </div>
   `;
@@ -4310,10 +4326,11 @@ function renderFotos() {
 
   // 1. Coleta das Tarefas
   (DB.tarefas || []).forEach(t => {
-    const rawPhotos = Array.isArray(t.photos) ? t.photos.filter(Boolean) : (t.photoUrl ? [t.photoUrl] : (t.foto ? [t.foto] : []));
-    rawPhotos.filter(Boolean).forEach(url => {
+    const rawPhotos = taskPhotoList(t);
+    rawPhotos.forEach((url, i) => {
       allPhotos.push({
         url,
+        legenda: taskPhotoCaption(t, i, rawPhotos.length),
         obra: t.obra,
         origem: 'Tarefa',
         cod: t.cod || 'TF',
@@ -4364,10 +4381,10 @@ function renderFotos() {
 
   grid.innerHTML = allPhotos.length
     ? allPhotos.map(p => `
-      <div class="photo-card" onclick="openLightbox('${p.url}')">
-        <img src="${p.url}" class="photo-card-img" alt="${auditEsc(p.desc)}" loading="lazy" onerror="this.onerror=null;this.style.opacity='0.5'">
+      <div class="photo-card" data-photo="${auditEsc(p.url)}" onclick="openLightbox(this.dataset.photo)">
+        <img src="${p.url}" class="photo-card-img" alt="${auditEsc(p.legenda || p.desc)}" loading="lazy" onerror="this.onerror=null;this.style.opacity='0.5'">
         <div class="photo-card-info">
-          <div class="photo-card-title" title="${auditEsc(p.desc)}">${auditEsc(p.desc)}</div>
+          <div class="photo-card-title" title="${auditEsc(p.legenda || p.desc)}">${auditEsc(p.legenda || p.desc)}</div>
           <div class="photo-card-meta">
             <span>${auditEsc(obName(p.obra))} · <b style="color:var(--accent)">${auditEsc(p.origem)}</b></span>
             <span>${p.data ? fmtDate(p.data) : '—'}</span>
@@ -5690,17 +5707,10 @@ async function openModal(id) {
       document.getElementById('tf-conclusao').value = '';
       document.getElementById('tf-perc').value = '0';
       document.getElementById('tf-obs').value = '';
-      document.getElementById('tf-photo-url').value = '';
+      window._tarefaPhotos = [];
       const fFile = document.getElementById('tf-file');
       if (fFile) fFile.value = '';
-      const fPreview = document.getElementById('tf-photo-preview');
-      if (fPreview) {
-        fPreview.style.display = 'none';
-        const img = fPreview.querySelector('img');
-        if (img) img.src = '';
-      }
-      const removeBtn = document.getElementById('btn-remove-tf-photo');
-      if (removeBtn) removeBtn.style.display = 'none';
+      renderTarefaPhotoPreview();
     }
   }
   if (id === 'modal-compra') {
@@ -6745,9 +6755,8 @@ window.processLotePgto = async function () {
 
 
 async function saveTarefa() {
-  const photoUrl = document.getElementById('tf-photo-url').value || '';
   const editIdx = parseEditIdx(document.getElementById('tf-edit-idx').value);
-  const existing = editIdx >= 0 && DB.tarefas[editIdx] ? DB.tarefas[editIdx] : {};
+  const photos = (Array.isArray(window._tarefaPhotos) ? window._tarefaPhotos : []).filter(Boolean);
 
   const data = {
     cod: document.getElementById('tf-cod').value,
@@ -6762,8 +6771,8 @@ async function saveTarefa() {
     prazo: document.getElementById('tf-prazo').value,
     conclusao: document.getElementById('tf-conclusao').value,
     perc: parseInt(document.getElementById('tf-perc').value) || 0,
-    photoUrl: photoUrl,
-    photos: photoUrl ? [photoUrl] : (Array.isArray(existing.photos) ? existing.photos : []),
+    photoUrl: photos[0] || '', // compatibilidade com leituras legadas
+    photos,
     obs: document.getElementById('tf-obs').value
   };
 
@@ -6794,26 +6803,10 @@ async function editTarefa(idx) {
   document.getElementById('tf-conclusao').value = t.conclusao || '';
   document.getElementById('tf-perc').value = t.perc || 0;
   
-  const photoUrl = t.photoUrl || (Array.isArray(t.photos) && t.photos[0]) || t.foto || '';
-  document.getElementById('tf-photo-url').value = photoUrl;
+  window._tarefaPhotos = taskPhotoList(t);
   const fFile = document.getElementById('tf-file');
   if (fFile) fFile.value = '';
-
-  const preview = document.getElementById('tf-photo-preview');
-  const removeBtn = document.getElementById('btn-remove-tf-photo');
-  if (preview) {
-    if (photoUrl) {
-      preview.style.display = 'block';
-      const img = preview.querySelector('img');
-      if (img) img.src = photoUrl;
-      if (removeBtn) removeBtn.style.display = 'inline-flex';
-    } else {
-      preview.style.display = 'none';
-      const img = preview.querySelector('img');
-      if (img) img.src = '';
-      if (removeBtn) removeBtn.style.display = 'none';
-    }
-  }
+  renderTarefaPhotoPreview();
   document.getElementById('tf-obs').value = t.obs || '';
 }
 
@@ -7935,21 +7928,110 @@ async function handleFileUpload(input, previewId, urlInputId) {
   }
 }
 
-function removeTarefaPhoto() {
-  safeSetValue('tf-photo-url', '');
+// ==================== FOTOS DE TAREFAS (MÚLTIPLAS + LEGENDAS) ====================
+const MAX_TAREFA_FOTOS = 6;
+
+/** Normaliza fotos de tarefas (formato atual, legado photoUrl ou foto antigo). */
+function taskPhotoList(t) {
+  if (!t) return [];
+  const list = Array.isArray(t.photos) && t.photos.length ? t.photos : [t.photoUrl, t.foto];
+  return list.filter(Boolean).filter(u => /^(https?:\/\/|data:image\/)/i.test(String(u)));
+}
+window.taskPhotoList = taskPhotoList;
+
+/** A legenda da foto é sempre herdada da descrição da tarefa. */
+function taskPhotoCaption(t, index = 0, total = 1) {
+  const desc = String((t && t.desc) || '').trim() || 'Tarefa';
+  return total > 1 ? `${desc} · Foto ${index + 1}/${total}` : desc;
+}
+window.taskPhotoCaption = taskPhotoCaption;
+
+function renderTarefaPhotoPreview() {
+  const box = document.getElementById('tf-photo-preview');
+  if (!box) return;
+  const photos = Array.isArray(window._tarefaPhotos) ? window._tarefaPhotos : [];
+  const desc = document.getElementById('tf-desc')?.value || '';
+  box.style.display = photos.length ? 'grid' : 'none';
+  box.innerHTML = photos.map((u, i) => {
+    const legenda = taskPhotoCaption({ desc }, i, photos.length);
+    return `<div class="tf-photo-card">
+      <img src="${auditEsc(u)}" alt="${auditEsc(legenda)}" data-photo="${auditEsc(u)}" onclick="openLightbox(this.dataset.photo)" title="Clique para ampliar" loading="lazy">
+      <button type="button" class="tf-photo-remove" onclick="removeTarefaPhoto(${i})" title="Remover foto ${i + 1}" aria-label="Remover foto ${i + 1}"><span class="material-symbols-outlined md-16">close</span></button>
+      <span class="tf-photo-caption" title="${auditEsc(legenda)}">${auditEsc(legenda)}</span>
+    </div>`;
+  }).join('');
+  // Compatibilidade com leitores antigos que ainda usam photoUrl.
+  safeSetValue('tf-photo-url', photos[0] || '');
+}
+window.renderTarefaPhotoPreview = renderTarefaPhotoPreview;
+
+async function handleTarefaPhotos(input) {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  if (!Array.isArray(window._tarefaPhotos)) window._tarefaPhotos = [];
+  const room = Math.max(0, MAX_TAREFA_FOTOS - window._tarefaPhotos.length);
+  const selected = files.slice(0, room);
+  if (files.length > room) toast(`Limite de ${MAX_TAREFA_FOTOS} fotos por tarefa. ${files.length - room} arquivo(s) ignorado(s).`, 'error');
+  if (!selected.length) { input.value = ''; return; }
+
+  const optimizer = window.optimizeImageFile || (typeof optimizeImageFile === 'function' ? optimizeImageFile : null);
+  for (const rawFile of selected) {
+    toast('Otimizando foto...', 'info');
+    try {
+      const { file: optimizedFile, dataUrl } = optimizer
+        ? await optimizer(rawFile, { maxDim: 1280, quality: 0.75 })
+        : { file: rawFile, dataUrl: null };
+      let url = '';
+      try {
+        url = await uploadEvidenceFile(optimizedFile || rawFile);
+      } catch (storageErr) {
+        console.warn('Storage indisponível para tarefa, usando foto otimizada:', storageErr);
+        if (dataUrl) url = dataUrl;
+        else throw storageErr;
+      }
+      window._tarefaPhotos.push(url);
+      renderTarefaPhotoPreview();
+    } catch (err) {
+      console.error('Upload Error:', err);
+      toast(`${uploadErrorMessage(err)} (${err.code || 'Ver console'})`, 'error');
+      break;
+    }
+  }
+  input.value = '';
+  if (window._tarefaPhotos.length) toast(`${window._tarefaPhotos.length} foto(s) anexada(s) com legenda da descrição.`, 'success');
+}
+window.handleTarefaPhotos = handleTarefaPhotos;
+
+function removeTarefaPhoto(idx) {
+  if (!Array.isArray(window._tarefaPhotos) || !window._tarefaPhotos.length) return;
+  if (idx === undefined || idx === null) window._tarefaPhotos = [];
+  else window._tarefaPhotos.splice(parseInt(idx, 10), 1);
   const fileInput = document.getElementById('tf-file');
   if (fileInput) fileInput.value = '';
-  const preview = document.getElementById('tf-photo-preview');
-  if (preview) {
-    preview.style.display = 'none';
-    const img = preview.querySelector('img');
-    if (img) img.src = '';
-  }
-  const removeBtn = document.getElementById('btn-remove-tf-photo');
-  if (removeBtn) removeBtn.style.display = 'none';
+  renderTarefaPhotoPreview();
   toast('Foto removida.');
 }
 window.removeTarefaPhoto = removeTarefaPhoto;
+
+/** Galeria navegável das evidências de uma tarefa (usa o mesmo player das medições). */
+function openTarefaFotos(idx, startIndex = 0) {
+  const t = DB.tarefas[idx];
+  if (!t) return;
+  const photos = taskPhotoList(t);
+  if (!photos.length) { toast('Nenhuma foto registrada nesta tarefa.', 'error'); return; }
+  window._medicaoGallery = {
+    photos,
+    index: Math.max(0, Math.min(Number(startIndex) || 0, photos.length - 1)),
+    title: t.desc || 'Tarefa',
+    meta: [t.cod, obName(t.obra), t.conclusao || t.prazo || ''].filter(Boolean).join(' · '),
+    heading: 'Evidências da tarefa',
+    label: 'Fotos da tarefa',
+    captionFn: (i, total) => taskPhotoCaption(t, i, total)
+  };
+  renderMedicaoGallery();
+  document.addEventListener('keydown', medicaoGalleryKeydown);
+}
+window.openTarefaFotos = openTarefaFotos;
 
 
 

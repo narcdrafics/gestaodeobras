@@ -180,6 +180,27 @@ describe('buildObraReport: fonte única de custo e orçamento', () => {
     expect(andamento.isExecutada).toBe(false);
     expect(andamento.photos).toEqual(['data:image/jpeg;base64,123']);
   });
+
+  it('preserva todas as fotos de uma tarefa na ordem em que foram anexadas', () => {
+    const db = baseDB();
+    db.tarefas.push({
+      cod: 'TF004',
+      obra: 'OB1',
+      desc: 'Instalação elétrica',
+      status: 'Concluída',
+      photos: ['https://storage/foto1.jpg', 'https://storage/foto2.jpg', 'https://storage/foto3.jpg'],
+      photoUrl: 'https://storage/foto1.jpg'
+    });
+
+    const r = buildObraReport(db, 'OB1', { hoje: HOJE });
+    const tarefa = r.tarefas.find(t => t.cod === 'TF004');
+    expect(tarefa.photos).toEqual([
+      'https://storage/foto1.jpg',
+      'https://storage/foto2.jpg',
+      'https://storage/foto3.jpg'
+    ]);
+    expect(tarefa.desc).toBe('Instalação elétrica'); // usada como legenda no relatório
+  });
 });
 
 describe('buildFinanceEntries: valor realizado x valor previsto', () => {

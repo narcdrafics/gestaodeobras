@@ -467,7 +467,10 @@ function _onFirebaseValue(snapshot) {
           DB.tarefas = DB.tarefas.map(t => {
             const savedFoto = fotosMap['tf_' + t.cod];
             if (savedFoto) {
-              return { ...t, photoUrl: t.photoUrl || savedFoto, photos: Array.isArray(t.photos) && t.photos.length ? t.photos : [savedFoto] };
+              const restauradas = (Array.isArray(savedFoto) ? savedFoto : [savedFoto]).filter(Boolean);
+              const atuais = Array.isArray(t.photos) ? t.photos.filter(Boolean) : [];
+              const fotos = [...new Set([...atuais, ...(t.photoUrl ? [t.photoUrl] : []), ...restauradas])].filter(Boolean);
+              return { ...t, photoUrl: t.photoUrl || fotos[0] || '', photos: fotos };
             }
             return t;
           });
@@ -718,15 +721,20 @@ function persistDB(force = false) {
     }
     if (Array.isArray(toCache.tarefas)) {
       toCache.tarefas = toCache.tarefas.map(t => {
+        // Fotos em base64 não vão para a nuvem; guardamos a lista completa no backup local.
+        const b64 = [
+          ...(t.photoUrl && String(t.photoUrl).startsWith('data:') ? [t.photoUrl] : []),
+          ...((Array.isArray(t.photos) ? t.photos : []).filter(u => String(u).startsWith('data:')))
+        ];
+        if (b64.length) fotosMap['tf_' + t.cod] = [...new Set(b64)].slice(0, 6);
+        else delete fotosMap['tf_' + t.cod];
+
         let rest = t;
-        if (t.photoUrl && t.photoUrl.startsWith('data:')) {
-          fotosMap['tf_' + t.cod] = t.photoUrl;
+        if (t.photoUrl && String(t.photoUrl).startsWith('data:')) {
           const { photoUrl, ...others } = rest;
           rest = others;
         }
         if (Array.isArray(rest.photos)) {
-          const b64 = rest.photos.find(u => String(u).startsWith('data:'));
-          if (b64) fotosMap['tf_' + t.cod] = b64;
           rest = { ...rest, photos: rest.photos.filter(u => !String(u).startsWith('data:')) };
         }
         return rest;
