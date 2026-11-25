@@ -1322,10 +1322,10 @@ const buildObraReport = (db, obraCod, options = {}) => {
 };
 
 /** Escapa texto digitado por usuários antes de ir para innerHTML. */
-const auditSafeImage = (v) => {
+function auditSafeImage(v) {
   const s = String(v == null ? '' : v);
   return /^(https?:\/\/|data:image\/)/i.test(s) ? s : '';
-};
+}
 window.auditSafeImage = auditSafeImage;
 
 /**
@@ -1333,7 +1333,7 @@ window.auditSafeImage = auditSafeImage;
  * Reduz dimensões (máx 1280px) e comprime em JPEG 75%.
  * Reduz fotos de celulares (10-15MB) para ~80-120KB sem perda visível de qualidade.
  */
-const optimizeImageFile = async (file, options = {}) => {
+async function optimizeImageFile(file, options = {}) {
   if (!file || typeof file !== 'object') return { file, dataUrl: null };
   const type = file.type || '';
   if (!type.startsWith('image/')) return { file, dataUrl: null };
