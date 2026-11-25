@@ -12,6 +12,21 @@ function hideLoginError() {
   errorEl.style.display = 'none';
 }
 
+// O tenant da URL é carregado de forma assíncrona em data_core.js. Sem esperar,
+// a validação cross-tenant rodava com CURRENT_TENANT_ID ainda nulo e deixava
+// entrar o perfil de outra empresa. Em caso de falha, encerra a sessão.
+async function aguardarContextoTenant() {
+  const promessa = window.subdomainContextPromise || (typeof subdomainContextPromise !== 'undefined' ? subdomainContextPromise : null);
+  if (!promessa) return;
+  try {
+    await promessa;
+  } catch (err) {
+    await firebase.auth().signOut().catch(() => { });
+    sessionStorage.removeItem('gestaoUser');
+    throw err;
+  }
+}
+
 // Encerra a sessão quando o Super Admin bloqueou a conta (perfil 'bloqueado'
 // ou passaporte global marcado). Usado no login e em sessões já abertas.
 async function encerrarSessaoBloqueada(mensagem) {
@@ -127,12 +142,17 @@ function normalizeUserRecord(user) {
 // ================== GOOGLE LOGIN ==================
 function doGoogleLogin() {
   hideLoginError();
+  // No painel Master o Google também precisa da verificação final de super_admin.
+  if (typeof isAdminLoginPage !== 'undefined' && isAdminLoginPage) window._adminLoginGuard = true;
   const provider = new firebase.auth.GoogleAuthProvider();
   firebase.auth().languageCode = 'pt';
 
   firebase.auth().signInWithPopup(provider).then((result) => {
     handleAuthSuccess(result.user);
-  }).catch(handleAuthError);
+  }).catch((err) => {
+    window._adminLoginGuard = false;
+    handleAuthError(err);
+  });
 }
 
 // ================== EMAIL LOGIN ==================
@@ -144,7 +164,10 @@ function doEmailLogin() {
 
   firebase.auth().signInWithEmailAndPassword(email, pass).then((userCredential) => {
     handleAuthSuccess(userCredential.user);
-  }).catch(handleAuthError);
+  }).catch((err) => {
+    window._adminLoginGuard = false;
+    handleAuthError(err);
+  });
 }
 
 // ================== EMAIL SIGNUP ==================
@@ -185,6 +208,15 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
   if (!email) { showLoginError('Google falhou em fornecer seu E-mail. Tente fazer login usando "E-mail e Senha" normais ou troque de conta Google.'); return; }
 
   try {
+    // Aguarda a identificação do tenant antes de validar o acesso.
+    try {
+      await aguardarContextoTenant();
+    } catch (err) {
+      console.warn('[Auth] Contexto do tenant indisponível no login:', err);
+      showLoginError('Não foi possível identificar a empresa deste endereço. Confira a URL e tente novamente.');
+      return;
+    }
+
     console.log('[AuthTrace] 1. Buscando perfil:', uid);
     const profileRef = firebase.database().ref(`profiles/${uid}`);
     const snapshot = await profileRef.once('value');
@@ -333,6 +365,18 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       return;
     }
 
+    // Conta autenticada sem perfil/convite/passaporte não tem acesso cadastrado.
+    // Sem este guard o código abaixo lançava TypeError e deixava a sessão aberta.
+    if (!userProfile) {
+      window._adminLoginGuard = false;
+      await firebase.auth().signOut();
+      sessionStorage.removeItem('gestaoUser');
+      showLoginError(window.location.pathname.includes('admin-login')
+        ? 'Este e-mail não possui autorização de Super Admin. Solicite acesso ao proprietário do sistema.'
+        : 'Esta conta não possui acesso cadastrado. Solicite um convite ao administrador da empresa.');
+      return;
+    }
+
     // 3. Validação Cross-Tenant (Segurança SaaS)
     if (CURRENT_TENANT_ID && userProfile.tenantId !== CURRENT_TENANT_ID && userProfile.role !== 'super_admin') {
       await firebase.auth().signOut();
@@ -462,8 +506,11 @@ function checkAuth() {
 
   firebase.auth().onAuthStateChanged(async (user) => {
     // SaaS: Aguarda o contexto de subdomínio ser carregado (se houver) para evitar race conditions
-    if (typeof subdomainContextPromise !== 'undefined') {
-      await subdomainContextPromise;
+    try {
+      await aguardarContextoTenant();
+    } catch (err) {
+      console.warn('[Auth] Sessão encerrada: contexto do tenant indisponível.', err);
+      return;
     }
 
     observarStatusPerfil(user);

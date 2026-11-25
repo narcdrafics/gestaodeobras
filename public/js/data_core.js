@@ -265,11 +265,14 @@ window.requireFeature = function requireFeature(nome) {
 
 // ==================== SUBDOMAIN & SAAS CONTEXT ====================
 function detectSubdomain() {
+  const host = String(window.location.hostname || '').toLowerCase();
   const urlParams = new URLSearchParams(window.location.search);
   const tenantParam = urlParams.get('tenant');
-  if (tenantParam) return tenantParam;
+  // Em produção o hostname é a autoridade: ?tenant= serve apenas para
+  // dev/staging (localhost, web.app, firebaseapp.com).
+  const isProducao = host === 'obrareal.com' || host.endsWith('.obrareal.com');
+  if (tenantParam && !isProducao) return tenantParam;
 
-  const host = window.location.hostname;
   // Ignora domínios técnicos do Firebase e Localhost (ambientes de dev/staging)
   if (host.includes('web.app') || host.includes('firebaseapp.com') || host.includes('localhost')) {
     return null;
@@ -291,7 +294,22 @@ async function loadTenantBySlug(slug) {
     const pubSnap = await firebase.database().ref(`tenants_public/${slug}`).once('value');
     const pub = pubSnap.val();
     if (pub) {
-      return { id: pub.tenantId || slug, data: { config: pub } };
+      let tenantId = pub.tenantId;
+      // Nós públicos legados não tinham tenantId; nesse caso o ID pode ser
+      // diferente do slug e precisa ser resolvido antes de validar o login.
+      if (!tenantId && firebase.auth().currentUser) {
+        try {
+          const legado = await firebase.database().ref('tenants')
+            .orderByChild('config/slug')
+            .equalTo(slug)
+            .once('value');
+          const encontrados = legado.val();
+          if (encontrados) tenantId = Object.keys(encontrados)[0];
+        } catch (e) {
+          console.warn('Aviso ao resolver tenant legado por slug:', e.code || e.message);
+        }
+      }
+      return { id: tenantId || slug, data: { config: pub } };
     }
 
     // Fallback: tenant legado cujo ID difere do slug (nó público sob outra chave).
@@ -418,7 +436,13 @@ function _onFirebaseValue(snapshot) {
     }
 
     // Dados comerciais de compras não entram no DB do canteiro (nem no localStorage).
-    DB = ensureSchema(sanitizeComprasForRole(data, _sessionRole(_getBillingSessionUser())));
+    const _uSess = _getBillingSessionUser();
+    const _papelSess = _sessionRole(_uSess);
+    // Acesso por obra: usuário designado a obras específicas só recebe os registros delas.
+    // lastTenantData continua completo (usado para remontar os arrays na gravação).
+    const _obrasPerm = typeof window.getObrasPermitidas === 'function'
+      ? window.getObrasPermitidas(data.usuarios, _uSess.email, _papelSess) : null;
+    DB = ensureSchema(window.filterDbByObras(sanitizeComprasForRole(data, _papelSess), _obrasPerm));
 
     // Calculado depois do ensureSchema: gravar em DB antes substituir o objeto perdia o valor.
     if (data.plano === 'free_trial' && data.trialExpiracao) {
@@ -513,10 +537,24 @@ function loadTheme(externalCfg) {
 }
 
 // SaaS: Inicialização de contexto por subdomínio (antes do login)
+function comLimite(promise, ms, mensagem) {
+  let timer;
+  const limite = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(mensagem)), ms);
+  });
+  return Promise.race([promise, limite]).finally(() => clearTimeout(timer));
+}
+
 const subdomainContextPromise = (async function initSubdomainContext() {
   const slug = detectSubdomain();
   if (slug) {
-    const tenant = await loadTenantBySlug(slug);
+    let tenant = null;
+    try {
+      // Sem limite o offline do RTDB deixaria o login preso para sempre.
+      tenant = await comLimite(loadTenantBySlug(slug), 8000, 'Tempo limite ao identificar a empresa deste endereço.');
+    } catch (e) {
+      console.error('Falha ao identificar o tenant do subdomínio:', e);
+    }
     if (tenant && tenant.data && tenant.data.config) {
       console.log('Contexto de subdomínio detectado:', slug);
       CURRENT_TENANT_ID = tenant.id; // Vincula o ID do tenant detectado
@@ -524,16 +562,21 @@ const subdomainContextPromise = (async function initSubdomainContext() {
       return tenant;
     } else {
       console.error(`ALERTA: O subdomínio "${slug}" não corresponde a nenhuma Empresa registrada! O acesso foi interrompido por segurança.`);
-      document.body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding:20px">
-        <h1 style="color:#ef4444;margin-bottom:10px"><span class="material-symbols-outlined md-24" style="vertical-align:middle;margin-right:6px;color:#ef4444;">error</span>Empresa Inexistente ou URL Incorreta</h1>
-        <p style="color:#cbd5e1;max-width:500px">O subdomínio <b>${slug}</b> não está vinculado a nenhuma empresa no sistema. Por favor, verifique se a URL da sua empresa está correta ou contrate um plano.</p>
-        <p style="color:#94a3b8;font-size:12px;margin-top:20px">Obra Real SaaS Security</p>
-      </div>`;
+      if (document.body) {
+        document.body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding:20px">
+          <h1 style="color:#ef4444;margin-bottom:10px"><span class="material-symbols-outlined md-24" style="vertical-align:middle;margin-right:6px;color:#ef4444;">error</span>Empresa Inexistente ou URL Incorreta</h1>
+          <p style="color:#cbd5e1;max-width:500px">O subdomínio <b>${slug}</b> não está vinculado a nenhuma empresa no sistema. Por favor, verifique se a URL da sua empresa está correta ou contrate um plano.</p>
+          <p style="color:#94a3b8;font-size:12px;margin-top:20px">Obra Real SaaS Security</p>
+        </div>`;
+      }
       throw new Error('Tenant não encontrado para este subdomínio.');
     }
   }
   return null;
 })();
+
+// Exposto para que auth_core.js não dependa de um binding léxico entre scripts.
+window.subdomainContextPromise = subdomainContextPromise;
 
 let _persistenceTimer = null;
 let _isSaving = false;
@@ -794,13 +837,32 @@ function persistDB(force = false) {
       // de plano/limites (que só o super_admin pode alterar) e não envia nós
       // que o papel não tem permissão de gravar (registro de obra é direto;
       // estoque/trabalhadores/financeiro/compras passam por aprovacoes).
-      const cloudUpdate = buildCloudUpdate(dbForCloud, papel);
+      // Acesso por obra: devolve ao payload os itens de obras fora do escopo do usuário,
+      // senão gravar o DB filtrado apagaria esses dados na nuvem.
+      const _obrasPermSave = typeof window.getObrasPermitidas === 'function'
+        ? window.getObrasPermitidas(dbForCloud.usuarios, sessionUser.email, papel) : null;
+      let dbParaNuvem = dbForCloud;
+      if (Array.isArray(_obrasPermSave)) {
+        dbParaNuvem = window.mergeScopedDb(lastTenantData, dbForCloud, _obrasPermSave);
+        if (!dbParaNuvem) {
+          _ignoreNextEcho = false;
+          if (typeof toast === 'function') toast('Aguarde a sincronização dos dados antes de salvar.', 'warning');
+          if (resolve) resolve();
+          return;
+        }
+      }
+      const cloudUpdate = buildCloudUpdate(dbParaNuvem, papel);
       await Promise.race([
         targetRef.update(cloudUpdate),
         new Promise((_, rej) => setTimeout(() => rej({ code: 'TIMEOUT', message: 'Conexão lenta ou sem internet.' }), 20000))
       ]);
 
       console.log('[Persist] Sincronizado com a nuvem com sucesso.');
+      if (Array.isArray(_obrasPermSave) && lastTenantData) {
+        window.OBRA_SCOPED_KEYS.concat(['obras']).forEach(k => {
+          if (dbParaNuvem[k] !== undefined) lastTenantData[k] = dbParaNuvem[k];
+        });
+      }
       window.dispatchEvent(new CustomEvent('syncStatus', { detail: { status: 'synced' } }));
       if (resolve) resolve();
     } catch (err) {

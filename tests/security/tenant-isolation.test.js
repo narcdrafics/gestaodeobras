@@ -224,6 +224,100 @@ describe('isolamento — slug público', () => {
   });
 });
 
+// O auto-cadastro (slug_onboarding) ainda precisa funcionar depois do hardening.
+// A exceção de self_signup é avaliada aqui com o estado que RESULTÁ do update
+// multi-path: newData.parent() enxerga os irmãos escritos na mesma operação.
+describe('auto-cadastro — primeira empresa via slug', () => {
+  const email = 'nova@empresa.com';
+  const chaveEmail = 'nova@empresa,com';
+  const slug = 'novaempresa';
+  const uid = 'novoUid';
+  const vars = { $tenantId: slug, $slug: slug, $email: chaveEmail, $uid: uid };
+  const novoUsuario = () => authDe({ uid, email, role: undefined, tenantId: undefined });
+
+  function cenario() {
+    const estado = estadoBase();
+    const novo = JSON.parse(JSON.stringify(estado));
+    const agora = Date.now();
+    novo.tenants[slug] = {
+      nomeEmpresa: 'Nova Empresa',
+      slug,
+      subdominioSlug: slug,
+      emailAdmin: email,
+      status: 'ativo',
+      plano: 'free_trial',
+      webhookCriacao: agora,
+      trialExpiracao: agora + 30 * 24 * 60 * 60 * 1000,
+      origem: 'self_signup',
+      criadoPorUid: uid,
+      config: {
+        nomeEmpresa: 'Nova Empresa',
+        slug,
+        esquemaCores: 'emerald',
+        limiteObras: 1,
+        limiteUsuarios: 1,
+        limiteTrabalhadores: 9999
+      }
+    };
+    novo.tenants_public[slug] = { slug, tenantId: slug, nomeEmpresa: 'Nova Empresa', esquemaCores: 'emerald' };
+    novo.users[chaveEmail] = {
+      uid, email, tenantId: slug, role: 'admin', nome: 'Nova Empresa', origem: 'self_signup'
+    };
+    return { estado, novo };
+  }
+
+  function avaliarRegra(regra, caminho, opcoes = {}) {
+    const { estado, novo } = cenario();
+    return avaliar(regra, {
+      estado,
+      novoEstado: opcoes.novoEstado || novo,
+      auth: opcoes.auth || novoUsuario(),
+      caminho,
+      vars
+    });
+  }
+
+  it('o novo usuário cria tenant, nó público e passaporte na mesma escrita atômica', () => {
+    expect(avaliarRegra(rules.tenants.$tenantId['.write'], ['tenants', slug])).toBe(true);
+    expect(avaliarRegra(rules.tenants.$tenantId.config['.write'], ['tenants', slug, 'config'])).toBe(true);
+    expect(avaliarRegra(rules.tenants_public.$slug['.write'], ['tenants_public', slug])).toBe(true);
+    expect(avaliarRegra(rules.tenants_public.$slug.tenantId['.validate'], ['tenants_public', slug, 'tenantId'])).toBe(true);
+    expect(avaliarRegra(rules.users.$email['.write'], ['users', chaveEmail])).toBe(true);
+    expect(avaliarRegra(rules.users.$email.tenantId['.validate'], ['users', chaveEmail, 'tenantId'])).toBe(true);
+  });
+
+  it('o perfil é criado depois, casando com o passaporte recém-gravado', () => {
+    const { novo } = cenario();
+    novo.profiles[uid] = { uid, email, tenantId: slug, role: 'admin', name: 'Nova Empresa', status: 'ativo' };
+    const base = { estado: novo, novoEstado: novo, auth: novoUsuario(), vars };
+    expect(avaliar(rules.profiles.$uid['.write'], { ...base, caminho: ['profiles', uid] })).toBe(true);
+    expect(avaliar(rules.profiles.$uid.tenantId['.validate'], { ...base, caminho: ['profiles', uid, 'tenantId'] })).toBe(true);
+  });
+
+  it('outro usuário não cria a empresa em nome do dono do e-mail', () => {
+    const atacante = authDe({ uid: 'atacante', email: 'atacante@x.com', role: undefined, tenantId: undefined });
+    expect(avaliarRegra(rules.tenants.$tenantId['.write'], ['tenants', slug], { auth: atacante })).toBe(false);
+    expect(avaliarRegra(rules.tenants_public.$slug['.write'], ['tenants_public', slug], { auth: atacante })).toBe(false);
+    expect(avaliarRegra(rules.users.$email['.write'], ['users', chaveEmail], { auth: atacante })).toBe(false);
+  });
+
+  it('a exceção não permite sobrescrever tenant ou slug já existente', () => {
+    const existente = estadoBase();
+    existente.tenants.sluga = { emailAdmin: 'adminA@a.com', origem: 'master', billingState: 'ativo' };
+    const novo = JSON.parse(JSON.stringify(existente));
+    novo.tenants.sluga = { emailAdmin: email, origem: 'self_signup', billingState: 'ativo' };
+    novo.tenants_public.sluga = { slug: 'sluga', tenantId: 'tenantA' };
+    const base = {
+      estado: existente,
+      novoEstado: novo,
+      auth: novoUsuario(),
+      vars: { $tenantId: 'sluga', $slug: 'sluga' }
+    };
+    expect(avaliar(rules.tenants.$tenantId['.write'], { ...base, caminho: ['tenants', 'sluga'] })).toBe(false);
+    expect(avaliar(rules.tenants_public.$slug['.write'], { ...base, caminho: ['tenants_public', 'sluga'] })).toBe(false);
+  });
+});
+
 describe('isolamento — nós por tenant', () => {
   const casos = [
     ['tenants.$tenantId.read', rules.tenants.$tenantId['.read'], 'tenantB'],

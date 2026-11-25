@@ -56,3 +56,6 @@ export const medicaoQuantidadeAnterior = window.medicaoQuantidadeAnterior;
 export const hojeLocal = window.hojeLocal;
 export const optimizeImageFile = window.optimizeImageFile;
 export const auditSafeImage = window.auditSafeImage;
+export const getObrasPermitidas = window.getObrasPermitidas;
+export const filterDbByObras = window.filterDbByObras;
+export const mergeScopedDb = window.mergeScopedDb;
