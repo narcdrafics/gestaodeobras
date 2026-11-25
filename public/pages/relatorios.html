@@ -29,6 +29,54 @@
   </div>
 </div>
 
+<div id="rel-sections-panel" class="rel-sections-panel" style="margin: 16px 0; padding: 16px 18px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;">
+  <div style="font-weight: 600; font-size: 13px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+    <span style="display:inline-flex; align-items:center; gap:6px;">
+      <span class="material-symbols-outlined md-18" style="color: var(--accent)">checklist</span>
+      <b>O que incluir na impressão / relatório</b> (selecione as seções desejadas)
+    </span>
+    <div style="display:flex; gap:8px;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAllRelSections(true)" style="font-size:11px; padding:3px 8px;">Marcar todas</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAllRelSections(false)" style="font-size:11px; padding:3px 8px;">Desmarcar todas</button>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 18px; font-size: 13px;">
+    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+      <input type="checkbox" id="rel-sec-resumo" checked> Resumo financeiro e avanço
+    </label>
+    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+      <input type="checkbox" id="rel-sec-categorias" checked> Custos por categoria
+    </label>
+    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+      <input type="checkbox" id="rel-sec-medicoes" checked> Medições por etapa
+    </label>
+    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+      <input type="checkbox" id="rel-sec-equipe" checked> Equipe no período
+    </label>
+    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+      <input type="checkbox" id="rel-sec-pendencias" checked> Pendências da obra
+    </label>
+    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+      <input type="checkbox" id="rel-sec-extrato" checked> Extrato conciliado
+    </label>
+    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; color: var(--accent);">
+      <input type="checkbox" id="rel-sec-fotos-tarefas" checked> Fotos das tarefas executadas
+    </label>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border); font-size: 12px; align-items: center;">
+    <span style="color: var(--text3); font-weight: 500;">Filtro de Tarefas no Relatório:</span>
+    <select id="rel-tarefas-status" class="form-control" style="width: auto; height: 32px; font-size: 12px; padding: 2px 8px;">
+      <option value="concluidas" selected>Apenas Tarefas Executadas (Concluídas)</option>
+      <option value="todas">Todas as Tarefas do Período</option>
+    </select>
+    <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text2);">
+      <input type="checkbox" id="rel-tarefas-com-fotos-only"> Apenas tarefas com fotos / evidências
+    </label>
+  </div>
+</div>
+
 <div id="rel-preview-area" style="margin-top: 24px;">
   <div class="ui-empty-state">
     <div class="ui-empty-icon"><span class="material-symbols-outlined" style="font-size:34px;">folder_open</span></div>

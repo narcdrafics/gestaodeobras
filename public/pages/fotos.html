@@ -3,11 +3,16 @@
 </div>
 
 <div class="table-wrap" style="padding: 20px;">
-  <div class="table-toolbar" style="border-bottom: none; padding: 0 0 20px 0;">
-    <h3>Galeria de Fotos</h3>
-    <div class="toolbar-right">
-      <select class="form-control" style="width:200px" id="fotos-obra-filter" onchange="renderFotos()">
+  <div class="table-toolbar" style="border-bottom: none; padding: 0 0 20px 0; flex-wrap: wrap; gap: 12px;">
+    <h3>Galeria de Fotos e Evidências</h3>
+    <div class="toolbar-right" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <select class="form-control" style="width:190px" id="fotos-obra-filter" onchange="renderFotos()">
         <option value="">Todas as obras</option>
+      </select>
+      <select class="form-control" style="width:160px" id="fotos-origem-filter" onchange="renderFotos()">
+        <option value="">Todas origens</option>
+        <option value="Tarefa">Tarefas</option>
+        <option value="Medição">Medições</option>
       </select>
       <button class="btn btn-secondary" onclick="renderFotos()"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:4px;">sync</span> Atualizar</button>
     </div>

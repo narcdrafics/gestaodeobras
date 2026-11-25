@@ -162,6 +162,24 @@ describe('buildObraReport: fonte única de custo e orçamento', () => {
       expect.objectContaining({ tipo: 'Compra pendente', desc: 'Tinta' })
     ]));
   });
+
+  it('organiza tarefas da obra com fotos e status de execução', () => {
+    const db = baseDB();
+    db.tarefas.push(
+      { cod: 'TF002', obra: 'OB1', desc: 'Alvenaria', status: 'Concluída', conclusao: '2026-11-10', photoUrl: 'https://storage/evidencia1.jpg' },
+      { cod: 'TF003', obra: 'OB1', desc: 'Reboco', status: 'Em andamento', perc: 60, photos: ['data:image/jpeg;base64,123'] }
+    );
+
+    const r = buildObraReport(db, 'OB1', { hoje: HOJE });
+    expect(r.tarefas).toHaveLength(3);
+    const executada = r.tarefas.find(t => t.cod === 'TF002');
+    expect(executada.isExecutada).toBe(true);
+    expect(executada.photos).toEqual(['https://storage/evidencia1.jpg']);
+
+    const andamento = r.tarefas.find(t => t.cod === 'TF003');
+    expect(andamento.isExecutada).toBe(false);
+    expect(andamento.photos).toEqual(['data:image/jpeg;base64,123']);
+  });
 });
 
 describe('buildFinanceEntries: valor realizado x valor previsto', () => {

@@ -2022,6 +2022,7 @@ function renderTaskTable(tasks) {
         const atrasada = t._atrasada || tarefaTaAtrasada(t);
         const venceHoje = !atrasada && t.prazo === getTodayBR();
         const linhaCls = atrasada ? 'tarefa-atrasada' : (venceHoje ? 'tarefa-hoje' : '');
+        const foto = t.photoUrl || (Array.isArray(t.photos) && t.photos[0]) || t.foto || '';
         const acaoConcluir = t.status === 'Concluída'
           ? `<button class="btn btn-secondary btn-sm" onclick="toggleTarefaConcluida(${t._idx})" title="Reabrir tarefa"><span class="material-symbols-outlined md-16">restart_alt</span> Reabrir</button>`
           : `<button class="btn btn-primary btn-sm" onclick="concluirTarefaRapida(${t._idx})" title="Concluir tarefa"><span class="material-symbols-outlined md-16">check</span> Concluir</button>`;
@@ -2032,7 +2033,10 @@ function renderTaskTable(tasks) {
           <td data-label="Cód."><span class="cod">${t.cod}</span></td>
           <td data-label="Obra">${obName(t.obra)}</td>
           <td data-label="Etapa / Frente"><small>${t.etapa || '—'}<br>${t.frente || '—'}</small></td>
-          <td data-label="Descrição"><b>${t.desc}</b></td>
+          <td data-label="Descrição">
+            <b>${t.desc}</b>
+            ${foto ? `<span class="badge badge-blue" style="font-size:10px;cursor:pointer;margin-left:6px;vertical-align:middle;" onclick="openLightbox('${foto}')" title="Ver evidência fotográfica"><span class="material-symbols-outlined md-16" style="vertical-align:middle;font-size:12px;">photo_camera</span> Foto</span>` : ''}
+          </td>
           <td data-label="Responsável">${t.resp || '—'}</td>
           <td data-label="Prior.">${statusBadge(t.prior)}</td>
           <td data-label="Status">${statusBadge(tarefaStatusEfetivo(t))}</td>
@@ -2047,7 +2051,7 @@ function renderTaskTable(tasks) {
             <div class="tarefa-acoes">
               ${acaoIniciar}
               ${acaoConcluir}
-              ${t.photoUrl ? `<button type="button" class="btn btn-secondary btn-sm" onclick="openLightbox('${t.photoUrl}')" title="Ver evidência" aria-label="Ver evidência"><span class="material-symbols-outlined md-16">photo_camera</span> Foto</button>` : ''}
+              ${foto ? `<button type="button" class="btn btn-secondary btn-sm" onclick="openLightbox('${foto}')" title="Ver evidência" aria-label="Ver evidência"><span class="material-symbols-outlined md-16">photo_camera</span> Foto</button>` : ''}
               <button class="btn btn-secondary btn-sm" onclick="editTarefa(${t._idx})" title="Editar tarefa" aria-label="Editar tarefa"><span class="material-symbols-outlined md-16">edit</span> Editar</button>
               <button class="btn btn-danger btn-sm" onclick="deleteItem('tarefas',${t._idx})">Excluir</button>
             </div>
@@ -2087,10 +2091,12 @@ function renderKanban(tasks) {
         <div class="kanban-cards" ondragover="onTaskDragOver(event)" ondragleave="onTaskDragLeave(event)" ondrop="onTaskDrop(event, '${cId}')">
           ${cItems.length ? cItems.map(t => {
             const atrasada = t._atrasada || tarefaTaAtrasada(t);
+            const foto = t.photoUrl || (Array.isArray(t.photos) && t.photos[0]) || t.foto || '';
             return `
             <div class="kanban-card ${atrasada ? 'tarefa-atrasada' : (t.prazo === getTodayBR() ? 'tarefa-hoje' : '')}"
                  draggable="true" ondragstart="onTaskDragStart(event, ${t._idx})" ondragend="this.classList.remove('dragging')"
                  onclick="editTarefa(${t._idx})" title="Arraste para mudar o status">
+              ${foto ? `<div style="margin-bottom:8px;border-radius:6px;overflow:hidden;border:1px solid var(--border);"><img src="${foto}" style="width:100%;height:100px;object-fit:cover;display:block;cursor:pointer;" onclick="event.stopPropagation();openLightbox('${foto}')" title="Clique para ampliar evidência" loading="lazy"></div>` : ''}
               <div class="kanban-card-title">${t.desc}</div>
               <div class="kanban-card-meta">
                 <span><span class="material-symbols-outlined md-16" style="vertical-align:middle;">person</span> ${t.resp || 'Sem responsável'}</span>
@@ -3355,6 +3361,80 @@ function generateAuditReport() {
     }).join('')
     : '<tr><td colspan="8" class="audit-empty">Nenhum lançamento realizado no período.</td></tr>';
 
+  const incResumo = document.getElementById('rel-sec-resumo') ? document.getElementById('rel-sec-resumo').checked : true;
+  const incCategorias = document.getElementById('rel-sec-categorias') ? document.getElementById('rel-sec-categorias').checked : true;
+  const incMedicoes = document.getElementById('rel-sec-medicoes') ? document.getElementById('rel-sec-medicoes').checked : true;
+  const incEquipe = document.getElementById('rel-sec-equipe') ? document.getElementById('rel-sec-equipe').checked : true;
+  const incPendencias = document.getElementById('rel-sec-pendencias') ? document.getElementById('rel-sec-pendencias').checked : true;
+  const incExtrato = document.getElementById('rel-sec-extrato') ? document.getElementById('rel-sec-extrato').checked : true;
+  const incFotosTarefas = document.getElementById('rel-sec-fotos-tarefas') ? document.getElementById('rel-sec-fotos-tarefas').checked : true;
+  const tarefasStatusFiltro = document.getElementById('rel-tarefas-status') ? document.getElementById('rel-tarefas-status').value : 'concluidas';
+  const tarefasComFotosOnly = document.getElementById('rel-tarefas-com-fotos-only') ? document.getElementById('rel-tarefas-com-fotos-only').checked : false;
+
+  let tarefasParaRelatorio = (report.tarefas || []).filter(t => {
+    if (tarefasStatusFiltro === 'concluidas' && !t.isExecutada) return false;
+    if (tarefasComFotosOnly && (!t.photos || !t.photos.length)) return false;
+    return true;
+  });
+
+  tarefasParaRelatorio.sort((a, b) => {
+    const da = a.conclusao || a.prazo || a.criacao || '';
+    const db = b.conclusao || b.prazo || b.criacao || '';
+    return db.localeCompare(da);
+  });
+
+  const fotosTarefasHtml = incFotosTarefas ? `
+    <section class="audit-block" id="sec-fotos-tarefas">
+      <h2>Registro Fotográfico das Tarefas Executadas</h2>
+      <p class="audit-note" style="margin-bottom:14px;">Fotos e evidências organizadas pelas tarefas executadas no canteiro de obras.</p>
+      ${tarefasParaRelatorio.length ? `
+        <div class="audit-tarefas-grid">
+          ${tarefasParaRelatorio.map(t => {
+            const photos = t.photos || [];
+            const thumbsHtml = photos.length
+              ? `<div class="audit-task-photos-grid">
+                  ${photos.map(p => `
+                    <div class="audit-task-photo-card" onclick="openLightbox('${esc(p)}')">
+                      <img src="${esc(p)}" class="audit-task-photo-img" alt="Evidência ${esc(t.desc)}" loading="lazy">
+                      <div class="audit-task-photo-zoom"><span class="material-symbols-outlined md-16">zoom_in</span> Ampliar</div>
+                    </div>
+                  `).join('')}
+                </div>`
+              : `<div class="audit-muted" style="font-size:12px; font-style:italic; padding:6px 0;">Sem evidência fotográfica anexada a esta tarefa.</div>`;
+
+            return `
+              <div class="audit-task-box">
+                <div class="audit-task-box-header">
+                  <div class="audit-task-box-title">
+                    <span class="audit-task-cod">${esc(t.cod || 'TF')}</span>
+                    <strong>${esc(t.desc)}</strong>
+                  </div>
+                  <div class="audit-task-badges">
+                    <span class="badge ${t.isExecutada ? 'badge-green' : 'badge-blue'}">${esc(t.status || (t.isExecutada ? 'Concluída' : 'Em andamento'))}</span>
+                    ${t.perc != null ? `<span class="badge badge-gray" style="margin-left:4px;">${t.perc}%</span>` : ''}
+                  </div>
+                </div>
+                <div class="audit-task-box-meta">
+                  ${t.etapa ? `<span><b>Etapa:</b> ${esc(t.etapa)}${t.frente ? ' / ' + esc(t.frente) : ''}</span>` : ''}
+                  ${t.resp ? `<span><b>Responsável:</b> ${esc(t.resp)}</span>` : ''}
+                  ${t.conclusao ? `<span><b>Conclusão:</b> ${fmtDate(t.conclusao)}</span>` : (t.prazo ? `<span><b>Prazo:</b> ${fmtDate(t.prazo)}</span>` : '')}
+                </div>
+                ${t.obs ? `<div class="audit-task-obs"><em>Obs: ${esc(t.obs)}</em></div>` : ''}
+                <div class="audit-task-photos-wrap">
+                  <div style="font-size:11px; font-weight:600; color:#475569; margin:8px 0 4px; display:flex; align-items:center; gap:4px;">
+                    <span class="material-symbols-outlined" style="font-size:15px; color:var(--accent);">photo_camera</span>
+                    Evidências Fotográficas (${photos.length})
+                  </div>
+                  ${thumbsHtml}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      ` : '<div class="audit-empty" style="padding:16px; text-align:center;">Nenhuma tarefa encontrada com os filtros selecionados.</div>'}
+    </section>
+  ` : '';
+
   const html = `
     <div id="print-area" class="audit-report">
       <div class="audit-actions audit-no-print">
@@ -3386,7 +3466,8 @@ function generateAuditReport() {
         <div><span>${orcamentoParcial ? 'Orçamento cadastrado' : 'Orçamento total'}</span><b>${semOrcamento ? 'Não definido' : fmt(r.totalPrevisto)}</b></div>
       </div>
 
-      <section class="audit-block">
+      ${incResumo ? `
+      <section class="audit-block" id="sec-resumo">
         <h2>Resumo financeiro</h2>
         <div class="audit-summary">
           <div class="audit-card"><span>Previsto</span><b>${semOrcamento ? '—' : fmt(r.totalPrevisto)}</b></div>
@@ -3415,8 +3496,10 @@ function generateAuditReport() {
         : 'O percentual financeiro é calculado sobre o orçamento total da obra; saldo negativo indica gasto acima do previsto e o avanço físico é ponderado pelo valor das medições.'}
         </p>
       </section>
+      ` : ''}
 
-      <section class="audit-block">
+      ${incCategorias ? `
+      <section class="audit-block" id="sec-categorias">
         <h2>Custos por categoria</h2>
         <div class="audit-table-wrap">
         <table class="audit-table">
@@ -3448,8 +3531,10 @@ function generateAuditReport() {
         <p class="audit-note">Compras não são somadas ao custo realizado para evitar duplicidade com lançamentos de Material. O custo vem da mesma fonte do Financeiro: lançamentos manuais, presença, medições e almoços.</p>
         ${dupEtapas.length ? `<p class="audit-note audit-warn"><span class="material-symbols-outlined md-16" style="vertical-align:middle;margin-right:2px;">warning</span>${report.duplicados.length} lançamento(s) de Empreiteiro (${fmt(dupTotal)}) não foram somados ao realizado porque a etapa já possui medição: ${esc(dupEtapas.join(', '))}.</p>` : ''}
       </section>
+      ` : ''}
 
-      <section class="audit-block">
+      ${incMedicoes ? `
+      <section class="audit-block" id="sec-medicoes">
         <h2>Avanço por etapa (medições)</h2>
         <div class="audit-table-wrap">
         <table class="audit-table">
@@ -3472,8 +3557,13 @@ function generateAuditReport() {
         </table>
         </div>
       </section>
+      ` : ''}
 
-      <section class="audit-block audit-grid-2">
+      ${fotosTarefasHtml}
+
+      ${(incEquipe || incPendencias) ? `
+      <section class="audit-block ${incEquipe && incPendencias ? 'audit-grid-2' : ''}">
+        ${incEquipe ? `
         <div>
           <h2>Equipe no período</h2>
           <div class="audit-table-wrap">
@@ -3483,6 +3573,8 @@ function generateAuditReport() {
           </table>
           </div>
         </div>
+        ` : ''}
+        ${incPendencias ? `
         <div>
           <h2>Pendências</h2>
           <div class="audit-table-wrap">
@@ -3492,9 +3584,12 @@ function generateAuditReport() {
           </table>
           </div>
         </div>
+        ` : ''}
       </section>
+      ` : ''}
 
-      <section class="audit-block">
+      ${incExtrato ? `
+      <section class="audit-block" id="sec-extrato">
         <h2>Extrato conciliado</h2>
         <div class="audit-table-wrap">
         <table class="audit-table">
@@ -3523,6 +3618,7 @@ function generateAuditReport() {
         </div>
         <p class="audit-note">Conferência: pago + a pagar = ${fmt(r.totalPago + r.totalAPagar)} · realizado = ${fmt(r.totalRealizado)}.</p>
       </section>
+      ` : ''}
 
       <section class="audit-signatures">
         <div>
@@ -3549,6 +3645,14 @@ function generateAuditReport() {
 
   safeSetInner('rel-preview-area', html);
 }
+
+function toggleAllRelSections(check) {
+  ['rel-sec-resumo', 'rel-sec-categorias', 'rel-sec-medicoes', 'rel-sec-equipe', 'rel-sec-pendencias', 'rel-sec-extrato', 'rel-sec-fotos-tarefas'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.checked = !!check;
+  });
+}
+window.toggleAllRelSections = toggleAllRelSections;
 
 function printAuditReport() {
   document.body.classList.add('audit-print');
@@ -4123,10 +4227,26 @@ async function handleMedicaoPhotos(input) {
   const selected = files.slice(0, room);
   if (files.length > room) toast(`Limite de 6 fotos por medição. ${files.length - room} arquivo(s) ignorado(s).`, 'error');
 
-  for (const file of selected) {
-    toast('Enviando foto...', 'success');
+  const optimizer = window.optimizeImageFile || (typeof optimizeImageFile === 'function' ? optimizeImageFile : null);
+
+  for (const rawFile of selected) {
+    toast('Otimizando foto...', 'info');
     try {
-      const url = await uploadEvidenceFile(file);
+      const { file: optimizedFile, dataUrl } = optimizer
+        ? await optimizer(rawFile, { maxDim: 1280, quality: 0.75 })
+        : { file: rawFile, dataUrl: null };
+
+      let url = '';
+      try {
+        url = await uploadEvidenceFile(optimizedFile || rawFile);
+      } catch (storageErr) {
+        console.warn('Storage indisponível para medição, usando foto otimizada:', storageErr);
+        if (dataUrl) {
+          url = dataUrl;
+        } else {
+          throw storageErr;
+        }
+      }
       window._medicaoPhotos.push(url);
       renderMedicaoPhotoPreview();
     } catch (err) {
@@ -4174,10 +4294,11 @@ function renderAdmin() {
 function renderFotos() {
   const obraFilter = document.getElementById('fotos-obra-filter');
   const selectedObra = obraFilter ? obraFilter.value : '';
+  const origemFilter = document.getElementById('fotos-origem-filter') ? document.getElementById('fotos-origem-filter').value : '';
 
   // Preenche o filter de obras se estiver vazio (apenas uma vez)
   if (obraFilter && obraFilter.options.length === 1) {
-    DB.obras.forEach(o => {
+    (DB.obras || []).forEach(o => {
       const opt = document.createElement('option');
       opt.value = o.cod;
       opt.textContent = `${o.cod} - ${o.nome}`;
@@ -4188,37 +4309,55 @@ function renderFotos() {
   let allPhotos = [];
 
   // 1. Coleta das Tarefas
-  DB.tarefas.forEach(t => {
-    if (t.photoUrl) {
+  (DB.tarefas || []).forEach(t => {
+    const rawPhotos = Array.isArray(t.photos) ? t.photos.filter(Boolean) : (t.photoUrl ? [t.photoUrl] : (t.foto ? [t.foto] : []));
+    rawPhotos.filter(Boolean).forEach(url => {
       allPhotos.push({
-        url: t.photoUrl,
+        url,
         obra: t.obra,
         origem: 'Tarefa',
-        desc: t.desc,
-        data: t.criacao || ''
+        cod: t.cod || 'TF',
+        desc: t.desc || 'Tarefa',
+        etapa: t.etapa || '',
+        frente: t.frente || '',
+        status: t.status || 'A fazer',
+        data: t.conclusao || t.prazo || t.criacao || ''
       });
-    }
+    });
   });
 
   // 2. Coleta das Medições (suporta múltiplas fotos e o formato antigo)
-  DB.medicao.forEach(m => {
-    const photos = Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
-    photos.forEach(url => {
+  (DB.medicao || []).forEach(m => {
+    const rawPhotos = Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
+    rawPhotos.filter(Boolean).forEach(url => {
       allPhotos.push({
         url,
         obra: m.obra,
         origem: 'Medição',
-        desc: m.servico,
+        cod: m.cod || 'MED',
+        desc: m.servico || m.etapa || 'Medição',
+        etapa: m.etapa || '',
+        frente: m.frente || '',
+        status: m.aprovacao || 'Aprovada',
         data: m.semana || m.data || ''
       });
     });
   });
 
-  // Filtragem e Ordenação
+  // Filtragem
   if (selectedObra) {
     allPhotos = allPhotos.filter(p => p.obra === selectedObra);
   }
-  allPhotos.sort((a, b) => new Date(b.data) - new Date(a.data));
+  if (origemFilter) {
+    allPhotos = allPhotos.filter(p => p.origem === origemFilter);
+  }
+
+  // Ordenação segura por data (mais recentes primeiro)
+  allPhotos.sort((a, b) => {
+    const da = a.data ? String(a.data) : '';
+    const db = b.data ? String(b.data) : '';
+    return db.localeCompare(da);
+  });
 
   const grid = document.getElementById('fotos-grid');
   if (!grid) return;
@@ -4226,17 +4365,18 @@ function renderFotos() {
   grid.innerHTML = allPhotos.length
     ? allPhotos.map(p => `
       <div class="photo-card" onclick="openLightbox('${p.url}')">
-        <img src="${p.url}" class="photo-card-img" alt="${p.desc}">
+        <img src="${p.url}" class="photo-card-img" alt="${auditEsc(p.desc)}" loading="lazy" onerror="this.onerror=null;this.style.opacity='0.5'">
         <div class="photo-card-info">
-          <div class="photo-card-title">${p.desc}</div>
+          <div class="photo-card-title" title="${auditEsc(p.desc)}">${auditEsc(p.desc)}</div>
           <div class="photo-card-meta">
-            <span>${p.obra} · ${p.origem}</span>
-            <span>${fmtDate(p.data)}</span>
+            <span>${auditEsc(obName(p.obra))} · <b style="color:var(--accent)">${auditEsc(p.origem)}</b></span>
+            <span>${p.data ? fmtDate(p.data) : '—'}</span>
           </div>
+          ${p.etapa ? `<div style="font-size:11px; color:var(--text3); margin-top:4px;">${auditEsc(p.etapa)}${p.frente ? ' / ' + auditEsc(p.frente) : ''} · <span class="badge ${p.status === 'Concluída' ? 'badge-green' : 'badge-gray'}" style="font-size:10px;">${auditEsc(p.status)}</span></div>` : ''}
         </div>
       </div>
     `).join('')
-    : '<div style="color:var(--text3); padding: 40px; text-align: center; grid-column: 1/-1;"><span class="material-symbols-outlined md-18" style="vertical-align:middle;">photo_camera</span> Nenhuma foto encontrada para esta consulta.</div>';
+    : '<div style="color:var(--text3); padding: 40px; text-align: center; grid-column: 1/-1;"><span class="material-symbols-outlined md-18" style="vertical-align:middle;">photo_camera</span> Nenhuma foto ou evidência encontrada para esta consulta.</div>';
 }
 
 // SaaS: renderBilling é fornecida por renderBillingSection() em data_core.js
@@ -5495,8 +5635,32 @@ async function openModal(id) {
     }
   }
   if (id === 'modal-tarefa') {
-    document.getElementById('tf-cod').value = nextCod(DB.tarefas, 'TF');
-    document.getElementById('tf-criacao').value = today;
+    const tfEditIdx = document.getElementById('tf-edit-idx') ? parseInt(document.getElementById('tf-edit-idx').value) : -1;
+    if (tfEditIdx === -1) {
+      document.getElementById('tf-cod').value = nextCod(DB.tarefas, 'TF');
+      document.getElementById('tf-criacao').value = today;
+      document.getElementById('tf-etapa').value = '';
+      document.getElementById('tf-frente').value = '';
+      document.getElementById('tf-desc').value = '';
+      document.getElementById('tf-resp').value = '';
+      document.getElementById('tf-prior').value = 'Média';
+      document.getElementById('tf-status').value = 'A fazer';
+      document.getElementById('tf-prazo').value = '';
+      document.getElementById('tf-conclusao').value = '';
+      document.getElementById('tf-perc').value = '0';
+      document.getElementById('tf-obs').value = '';
+      document.getElementById('tf-photo-url').value = '';
+      const fFile = document.getElementById('tf-file');
+      if (fFile) fFile.value = '';
+      const fPreview = document.getElementById('tf-photo-preview');
+      if (fPreview) {
+        fPreview.style.display = 'none';
+        const img = fPreview.querySelector('img');
+        if (img) img.src = '';
+      }
+      const removeBtn = document.getElementById('btn-remove-tf-photo');
+      if (removeBtn) removeBtn.style.display = 'none';
+    }
   }
   if (id === 'modal-compra') {
     document.getElementById('cp-num').value = nextCod(DB.compras, 'PC');
@@ -6536,6 +6700,9 @@ window.processLotePgto = async function () {
 
 
 async function saveTarefa() {
+  const photoUrl = document.getElementById('tf-photo-url').value || '';
+  const editIdx = parseEditIdx(document.getElementById('tf-edit-idx').value);
+  const existing = editIdx >= 0 && DB.tarefas[editIdx] ? DB.tarefas[editIdx] : {};
 
   const data = {
     cod: document.getElementById('tf-cod').value,
@@ -6550,10 +6717,11 @@ async function saveTarefa() {
     prazo: document.getElementById('tf-prazo').value,
     conclusao: document.getElementById('tf-conclusao').value,
     perc: parseInt(document.getElementById('tf-perc').value) || 0,
-    photoUrl: document.getElementById('tf-photo-url').value || '',
+    photoUrl: photoUrl,
+    photos: photoUrl ? [photoUrl] : (Array.isArray(existing.photos) ? existing.photos : []),
     obs: document.getElementById('tf-obs').value
   };
-  const editIdx = parseEditIdx(document.getElementById('tf-edit-idx').value);
+
   if (editIdx >= 0) {
     DB.tarefas[editIdx] = data;
     toast('Tarefa atualizada!');
@@ -6570,23 +6738,36 @@ async function editTarefa(idx) {
   const t = DB.tarefas[idx];
   document.getElementById('tf-cod').value = t.cod;
   document.getElementById('tf-obra').value = t.obra;
-  document.getElementById('tf-etapa').value = t.etapa;
-  document.getElementById('tf-frente').value = t.frente;
-  document.getElementById('tf-desc').value = t.desc;
-  document.getElementById('tf-resp').value = t.resp;
-  document.getElementById('tf-prior').value = t.prior;
-  document.getElementById('tf-status').value = t.status;
-  document.getElementById('tf-criacao').value = t.criacao;
-  document.getElementById('tf-prazo').value = t.prazo;
-  document.getElementById('tf-conclusao').value = t.conclusao;
-  document.getElementById('tf-perc').value = t.perc;
-  document.getElementById('tf-photo-url').value = t.photoUrl || '';
+  document.getElementById('tf-etapa').value = t.etapa || '';
+  document.getElementById('tf-frente').value = t.frente || '';
+  document.getElementById('tf-desc').value = t.desc || '';
+  document.getElementById('tf-resp').value = t.resp || '';
+  document.getElementById('tf-prior').value = t.prior || 'Média';
+  document.getElementById('tf-status').value = t.status || 'A fazer';
+  document.getElementById('tf-criacao').value = t.criacao || '';
+  document.getElementById('tf-prazo').value = t.prazo || '';
+  document.getElementById('tf-conclusao').value = t.conclusao || '';
+  document.getElementById('tf-perc').value = t.perc || 0;
+  
+  const photoUrl = t.photoUrl || (Array.isArray(t.photos) && t.photos[0]) || t.foto || '';
+  document.getElementById('tf-photo-url').value = photoUrl;
+  const fFile = document.getElementById('tf-file');
+  if (fFile) fFile.value = '';
+
   const preview = document.getElementById('tf-photo-preview');
-  if (t.photoUrl) {
-    preview.style.display = 'block';
-    preview.querySelector('img').src = t.photoUrl;
-  } else {
-    preview.style.display = 'none';
+  const removeBtn = document.getElementById('btn-remove-tf-photo');
+  if (preview) {
+    if (photoUrl) {
+      preview.style.display = 'block';
+      const img = preview.querySelector('img');
+      if (img) img.src = photoUrl;
+      if (removeBtn) removeBtn.style.display = 'inline-flex';
+    } else {
+      preview.style.display = 'none';
+      const img = preview.querySelector('img');
+      if (img) img.src = '';
+      if (removeBtn) removeBtn.style.display = 'none';
+    }
   }
   document.getElementById('tf-obs').value = t.obs || '';
 }
@@ -7655,24 +7836,69 @@ async function uploadEvidenceFile(file) {
 window.uploadEvidenceFile = uploadEvidenceFile;
 
 async function handleFileUpload(input, previewId, urlInputId) {
-  const file = input.files[0];
-  if (!file) return;
-  toast('Enviando foto...', 'success');
+  const rawFile = input.files && input.files[0];
+  if (!rawFile) return;
+
+  toast('Otimizando imagem...', 'info');
   try {
-    const url = await uploadEvidenceFile(file);
-    safeSetValue(urlInputId, url);
+    const optimizer = window.optimizeImageFile || (typeof optimizeImageFile === 'function' ? optimizeImageFile : null);
+    const { file: optimizedFile, dataUrl, width, height, size } = optimizer
+      ? await optimizer(rawFile, { maxDim: 1280, quality: 0.75 })
+      : { file: rawFile, dataUrl: null };
+
     const preview = document.getElementById(previewId);
     if (preview) {
       preview.style.display = 'block';
       const img = preview.querySelector('img');
+      if (img && dataUrl) img.src = dataUrl;
+    }
+    const removeBtn = document.getElementById('btn-remove-tf-photo');
+    if (removeBtn && urlInputId === 'tf-photo-url') {
+      removeBtn.style.display = 'inline-flex';
+    }
+
+    let url = '';
+    toast('Enviando foto...', 'info');
+    try {
+      url = await uploadEvidenceFile(optimizedFile || rawFile);
+    } catch (storageErr) {
+      console.warn('Firebase Storage indisponível, usando foto otimizada:', storageErr);
+      if (dataUrl) {
+        url = dataUrl;
+      } else {
+        throw storageErr;
+      }
+    }
+
+    safeSetValue(urlInputId, url);
+    if (preview) {
+      const img = preview.querySelector('img');
       if (img) img.src = url;
     }
-    toast('Foto enviada com sucesso!');
+
+    const kbSize = size ? Math.round(size / 1024) : (rawFile.size ? Math.round(rawFile.size / 1024) : 0);
+    toast(`Foto otimizada salva com sucesso! (${kbSize ? kbSize + ' KB' : 'OK'})`, 'success');
   } catch (err) {
     console.error('Upload Error Completo:', err);
     toast(`${uploadErrorMessage(err)} (${err.code || 'Ver console'})`, 'error');
   }
 }
+
+function removeTarefaPhoto() {
+  safeSetValue('tf-photo-url', '');
+  const fileInput = document.getElementById('tf-file');
+  if (fileInput) fileInput.value = '';
+  const preview = document.getElementById('tf-photo-preview');
+  if (preview) {
+    preview.style.display = 'none';
+    const img = preview.querySelector('img');
+    if (img) img.src = '';
+  }
+  const removeBtn = document.getElementById('btn-remove-tf-photo');
+  if (removeBtn) removeBtn.style.display = 'none';
+  toast('Foto removida.');
+}
+window.removeTarefaPhoto = removeTarefaPhoto;
 
 
 

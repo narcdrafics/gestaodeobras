@@ -429,14 +429,25 @@ function _onFirebaseValue(snapshot) {
     // Restaura fotos do localStorage separado (não são salvas na nuvem por serem base64)
     try {
       const fotosRaw = localStorage.getItem('gestaoObraFotos');
-      if (fotosRaw && Array.isArray(DB.trabalhadores)) {
+      if (fotosRaw) {
         const fotosMap = JSON.parse(fotosRaw);
-        DB.trabalhadores = DB.trabalhadores.map(t => {
-          if (!t.foto && fotosMap[t.cod]) {
-            return { ...t, foto: fotosMap[t.cod] };
-          }
-          return t;
-        });
+        if (Array.isArray(DB.trabalhadores)) {
+          DB.trabalhadores = DB.trabalhadores.map(t => {
+            if (!t.foto && fotosMap[t.cod]) {
+              return { ...t, foto: fotosMap[t.cod] };
+            }
+            return t;
+          });
+        }
+        if (Array.isArray(DB.tarefas)) {
+          DB.tarefas = DB.tarefas.map(t => {
+            const savedFoto = fotosMap['tf_' + t.cod];
+            if (savedFoto) {
+              return { ...t, photoUrl: t.photoUrl || savedFoto, photos: Array.isArray(t.photos) && t.photos.length ? t.photos : [savedFoto] };
+            }
+            return t;
+          });
+        }
       }
     } catch(e) { /* Silencioso: foto é opcional */ }
 
@@ -662,6 +673,22 @@ function persistDB(force = false) {
         return rest;
       });
     }
+    if (Array.isArray(toCache.tarefas)) {
+      toCache.tarefas = toCache.tarefas.map(t => {
+        let rest = t;
+        if (t.photoUrl && t.photoUrl.startsWith('data:')) {
+          fotosMap['tf_' + t.cod] = t.photoUrl;
+          const { photoUrl, ...others } = rest;
+          rest = others;
+        }
+        if (Array.isArray(rest.photos)) {
+          const b64 = rest.photos.find(u => String(u).startsWith('data:'));
+          if (b64) fotosMap['tf_' + t.cod] = b64;
+          rest = { ...rest, photos: rest.photos.filter(u => !String(u).startsWith('data:')) };
+        }
+        return rest;
+      });
+    }
 
     localStorage.setItem('gestaoObraDB', JSON.stringify(toCache));
 
@@ -731,6 +758,19 @@ function persistDB(force = false) {
         dbForCloud.medicao = dbForCloud.medicao.map(m => {
           let rest = m;
           if (m.photoUrl && m.photoUrl.startsWith('data:')) {
+            const { photoUrl, ...others } = rest;
+            rest = others;
+          }
+          if (Array.isArray(rest.photos)) {
+            rest = { ...rest, photos: rest.photos.filter(u => !String(u).startsWith('data:')) };
+          }
+          return rest;
+        });
+      }
+      if (Array.isArray(dbForCloud.tarefas)) {
+        dbForCloud.tarefas = dbForCloud.tarefas.map(t => {
+          let rest = t;
+          if (t.photoUrl && t.photoUrl.startsWith('data:')) {
             const { photoUrl, ...others } = rest;
             rest = others;
           }

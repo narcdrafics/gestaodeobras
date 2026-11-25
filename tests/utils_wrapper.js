@@ -54,3 +54,5 @@ export const buildOrcamentoBoard = window.buildOrcamentoBoard;
 export const buildMedicaoResumo = window.buildMedicaoResumo;
 export const medicaoQuantidadeAnterior = window.medicaoQuantidadeAnterior;
 export const hojeLocal = window.hojeLocal;
+export const optimizeImageFile = window.optimizeImageFile;
+export const auditSafeImage = window.auditSafeImage;

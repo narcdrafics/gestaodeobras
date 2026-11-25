@@ -1271,6 +1271,25 @@ const buildObraReport = (db, obraCod, options = {}) => {
     });
   });
 
+  // Tarefas da obra no período (organizadas com suas fotos/evidências)
+  const tarefas = (db.tarefas || [])
+    .filter(t => t && t.obra === obraCod)
+    .filter(t => {
+      if (!temPeriodo) return true;
+      const d = t.conclusao || t.prazo || t.criacao;
+      return inPeriod(d);
+    })
+    .map(t => {
+      const rawPhotos = Array.isArray(t.photos) ? t.photos.filter(Boolean) : (t.photoUrl ? [t.photoUrl] : (t.foto ? [t.foto] : []));
+      const photos = rawPhotos.map(auditSafeImage).filter(Boolean);
+      const isExecutada = t.status === 'Concluída' || Number(t.perc) >= 100;
+      return {
+        ...t,
+        photos,
+        isExecutada
+      };
+    });
+
   const empresa = (db.config && db.config.nomeEmpresa) || 'Obra Real';
   const logoUrl = (db.config && db.config.logoUrl) || '';
   const numero = options.numero || `REL-${obraCod}-${String(hoje).replace(/-/g, '')}`;
@@ -1296,12 +1315,90 @@ const buildObraReport = (db, obraCod, options = {}) => {
     medicoes,
     equipe,
     pendencias,
+    tarefas,
     orcamento: (db.orcamento || []).filter(o => o && o.obra === obraCod),
     responsavel: options.responsavel || ''
   };
 };
 
 /** Escapa texto digitado por usuários antes de ir para innerHTML. */
+const auditSafeImage = (v) => {
+  const s = String(v == null ? '' : v);
+  return /^(https?:\/\/|data:image\/)/i.test(s) ? s : '';
+};
+window.auditSafeImage = auditSafeImage;
+
+/**
+ * Otimiza uma foto no cliente usando Canvas antes de upload/salvamento.
+ * Reduz dimensões (máx 1280px) e comprime em JPEG 75%.
+ * Reduz fotos de celulares (10-15MB) para ~80-120KB sem perda visível de qualidade.
+ */
+const optimizeImageFile = async (file, options = {}) => {
+  if (!file || typeof file !== 'object') return { file, dataUrl: null };
+  const type = file.type || '';
+  if (!type.startsWith('image/')) return { file, dataUrl: null };
+
+  const maxDim = options.maxDim || 1280;
+  const quality = options.quality != null ? options.quality : 0.75;
+  const mimeType = 'image/jpeg';
+
+  if (typeof FileReader === 'undefined' || typeof Image === 'undefined' || typeof document === 'undefined') {
+    return { file, dataUrl: null };
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve({ file, dataUrl: null });
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => resolve({ file, dataUrl: null });
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve({ file, dataUrl: e.target.result });
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL(mimeType, quality);
+        if (typeof canvas.toBlob === 'function') {
+          canvas.toBlob((blob) => {
+            if (!blob) return resolve({ file, dataUrl });
+            const safeName = (file.name || 'foto.jpg').replace(/\.[^.]+$/, '') + '.jpg';
+            let optimizedFile;
+            try {
+              optimizedFile = new File([blob], safeName, { type: mimeType, lastModified: Date.now() });
+            } catch (fe) {
+              optimizedFile = blob;
+            }
+            resolve({ file: optimizedFile, dataUrl, width, height, size: blob.size });
+          }, mimeType, quality);
+        } else {
+          resolve({ file, dataUrl, width, height });
+        }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+};
+window.optimizeImageFile = optimizeImageFile;
 const escHtml = (v) => String(v == null ? '' : v)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
