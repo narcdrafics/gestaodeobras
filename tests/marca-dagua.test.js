@@ -230,9 +230,9 @@ describe('impressão', () => {
   });
 
   it('app e HTML servem a mesma versão de cache dos scripts', () => {
-    expect(app).toContain("const HTML_CACHE_VERSION = '20261126013';");
+    expect(app).toContain("const HTML_CACHE_VERSION = '20261126014';");
     for (const html of ['public/app.html', 'public/login.html', 'public/admin-login.html']) {
-      expect(read(html)).toContain('?v=20261126013');
+      expect(read(html)).toContain('?v=20261126014');
     }
   });
 });

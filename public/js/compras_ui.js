@@ -40,6 +40,30 @@
   }
   window.podeVerDadosComerciais = podeVerDadosComerciais;
 
+  // Além do papel, o dado comercial precisa respeitar o escopo por obra.
+  function obrasPermitidasCompras() {
+    try {
+      const permitidas = window.getObrasPermitidas
+        ? window.getObrasPermitidas((typeof DB !== 'undefined' && DB) ? DB.usuarios : [], sessao().email, papel())
+        : null;
+      return Array.isArray(permitidas) ? permitidas.map(String) : null;
+    } catch (e) { return null; }
+  }
+
+  function filtrarPrivadas(dados) {
+    const permitidas = obrasPermitidasCompras();
+    if (!permitidas) return dados || {};
+    const out = {};
+    Object.entries(dados || {}).forEach(([id, privada]) => {
+      const codigos = window.codigosObra
+        ? window.codigosObra(privada && privada.obra)
+        : String((privada && privada.obra) || '').split(/[,;|]/).map(s => s.trim()).filter(Boolean);
+      // Registro sem obra identificada não é exibido para quem não é admin.
+      if (codigos.some(c => permitidas.includes(String(c)))) out[id] = privada;
+    });
+    return out;
+  }
+
   function iniciarCompras() {
     const tid = tenantId();
     if (!tid || typeof firebase === 'undefined' || !firebase.database) return;
@@ -54,7 +78,7 @@
     tenantAtual = tid;
     ref = firebase.database().ref(`comprasPrivadas/${tid}`);
     ref.on('value', (snap) => {
-      privadas = snap.val() || {};
+      privadas = filtrarPrivadas(snap.val() || {});
       window.COMPRAS_PRIVADAS = privadas;
       if (typeof window.renderCompras === 'function') window.renderCompras();
     }, (erro) => console.warn('[compras] erro ao ler dados comerciais:', erro && erro.code));
@@ -75,6 +99,11 @@
   /** Grava só os dados sensíveis; o registro público vai por persistDB(). */
   async function salvarDadosComerciais(id, dados) {
     if (!id || !podeVerDadosComerciais()) return;
+    const permitidas = obrasPermitidasCompras();
+    if (permitidas && !permitidas.includes(String(dados.obra || ''))) {
+      if (typeof toast === 'function') toast('Esta compra não pertence às suas obras.', 'error');
+      return;
+    }
     const sensiveis = {};
     SENSITIVE.forEach(campo => {
       if (dados[campo] !== undefined) sensiveis[campo] = dados[campo];
@@ -85,6 +114,7 @@
       await firebase.database().ref(`comprasPrivadas/${tid}/${id}`).update({
         ...sensiveis,
         compraId: id,
+        obra: String(dados.obra || ''),
         criadoEm: Date.now()
       });
     } catch (e) {

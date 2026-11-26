@@ -201,11 +201,26 @@ function doEmailSignup() {
 }
 
 // ================== CENTRAL AUTH HANDLER ==================
+// O SDK 8 antigo devolve `auth/internal-error` com o JSON cru do Identity Toolkit
+// quando o backend responde INVALID_LOGIN_CREDENTIALS. Não mostrar esse payload
+// ao usuário (vaza detalhe do backend e parece "servidor quebrado").
+function isInvalidCredentialsError(error) {
+  const code = String((error && error.code) || '');
+  if (['auth/wrong-password', 'auth/user-not-found', 'auth/invalid-credential',
+    'auth/invalid-login-credentials'].includes(code)) return true;
+  if (code !== 'auth/internal-error') return false;
+  const detalhes = [
+    error && error.message,
+    error && error.customData && error.customData.message,
+    error && error._baseMessage
+  ].filter(Boolean).join(' ');
+  return /INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND/i.test(detalhes);
+}
+
 function handleAuthError(error) {
   console.error(error);
   if (error.code === 'auth/popup-closed-by-user') return;
-  if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' ||
-    error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
+  if (isInvalidCredentialsError(error)) {
     showLoginError('Credenciais inválidas. Tente novamente.');
   } else if (error.code === 'auth/email-already-in-use') {
     showLoginError('Este e-mail já está cadastrado. Alterne para a aba "Entrar" e faça login.');
@@ -291,7 +306,9 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
       userProfile = {
         uid,
         email,
-        name: userProfile?.name || Name,
+        // O nome vem do convite quando a conta já existia no Auth (mantemos a
+        // senha atual, então o displayName antigo não pode sobrescrevê-lo).
+        name: userProfile?.name || inviteData.name || Name,
         role: inviteData.role || userProfile?.role || 'engenheiro',
         tenantId: inviteData.tenantId,
         ...camposRhSessao(inviteData, normalizeRole(inviteData.role || userProfile?.role))

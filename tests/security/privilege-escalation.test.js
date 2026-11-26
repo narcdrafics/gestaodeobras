@@ -269,6 +269,26 @@ describe('API /api/admin/cargo — cargos centralizados no servidor', () => {
     expect(db.auditorias.at(-1).acao).toBe('definir_cargo');
   });
 
+  it('ajustar nome/obra sem mudar cargo ou tenant não revoga a sessão do usuário', async () => {
+    const db = criarDb(estadoBase());
+    const { auth, chamadas } = criarAuth();
+    const perfilAntes = JSON.parse(JSON.stringify(db.estado.profiles.alvoUid));
+
+    const resposta = await chamar({
+      acao: 'definir_cargo',
+      uid: 'alvoUid',
+      role: 'engenheiro',
+      tenantId: 'tenant1',
+      nome: 'Nome Atualizado'
+    }, { db, auth });
+
+    expect(resposta.statusCode).toBe(200);
+    expect(db.estado.profiles.alvoUid.name).toBe('Nome Atualizado');
+    expect(db.estado.profiles.alvoUid.role).toBe(perfilAntes.role);
+    expect(db.estado.profiles.alvoUid.tenantId).toBe(perfilAntes.tenantId);
+    expect(chamadas.revogacoes).not.toContain('alvoUid');
+  });
+
   it('ao remover o cargo de master, a allowlist é apagada e o tenant é preservado', async () => {
     const db = criarDb(estadoBase());
     db.estado.profiles.alvoUid.role = 'super_admin';

@@ -6,6 +6,9 @@
   <div class="table-toolbar">
     <h3>Cadastro de Trabalhadores</h3>
     <div class="toolbar-right">
+      <select id="trab-obra-filtro" class="form-control" style="width:auto;padding:6px 10px;border-radius:6px;font-size:13px" onchange="renderTrabalhadores()">
+        <option value="">Todas as obras</option>
+      </select>
       <input class="search-input" placeholder="Buscar..." oninput="filterTable('trab-tbody', this.value, [1,2,3])">
     </div>
   </div>

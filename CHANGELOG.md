@@ -6,9 +6,13 @@ Todas as mudanças notáveis para o projeto **Obra Real** serão documentadas ne
 ### Corrigido
 - Auto-cadastro por slug voltou a funcionar depois do hardening: as rules aceitam a criação `self_signup` apenas com `emailAdmin`/UID do próprio usuário, plano gratuito fixo e limites imutáveis, casando tenant, `tenants_public` e passaporte na mesma escrita atômica.
 - Login não entra mais no tenant errado quando o subdomínio ainda está sendo resolvido; falha/timeout na identificação encerra a sessão. O guard de Super Admin também cobre o login com Google e contas sem perfil não ficam autenticadas.
-- CSP volta a liberar hosts usados pelo Google Auth e pelo Firebase Storage; COOP continua `same-origin-allow-popups`. Rotas do Worker/restauração da raiz e cache-busting dos scripts de login/app alinhados.
+- Identificação do tenant por subdomínio não depende mais do WebSocket do SDK: lê `tenants_public/<slug>` por REST primeiro, com fallback para o SDK e cache curto da sessão. O limite foi ampliado e a tela de falha oferece "Tentar novamente".
+- Ajustar a designação de obras/nome de um usuário não derruba mais a sessão dele (revogação de token só quando cargo, tenant ou status mudam), e convidar um e-mail que já existe no Firebase Auth não redefine a senha. `INVALID_LOGIN_CREDENTIALS` devolvido como `auth/internal-error` agora aparece como "Credenciais inválidas" em vez de JSON cru.
+- CSP volta a liberar hosts usados pelo Google Auth e pelo Firebase Storage, inclusive `*.firebaseio.com`/`*.firebaseapp.com` em `script-src` (transporte JSONP long-polling do SDK 8 do RTDB, que estava bloqueado e travava o login). `connect-src`/`img-src` também passam a incluir os endpoints do Google Analytics (`analytics.google.com`, `stats.g.doubleclick.net`, `www.google.com`), eliminando os bloqueios de telemetria. COOP continua `same-origin-allow-popups`. Rotas do Worker/restauração da raiz e cache-busting dos scripts de login/app alinhados.
+- **Isolamento por obra:** trabalhadores passaram a fazer parte do escopo do usuário (`obras` em texto, com separadores `,`/`;`), e transferências de estoque passaram a considerar também `obraDestino`. O cache local, os quadros de presença/almoços, os cadastros, as datalists de medição/almoços, aprovações e dados comerciais de compras agora aplicam o mesmo filtro. Registro "sem obra" não é mais tratado como "todas as obras" nos vínculos, e o seletor por obra das telas preserva a escolha ao renderizar.
 
 ### Segurança
+- **Isolamento por obra (servidor):** `aplicarAprovacao` revalida no Admin SDK se `payload.obra`/`obraDestino` estão dentro das `obrasPermitidas` do solicitante; payload manipulado ou sem obra é marcado como `obra_fora_do_escopo` e não altera estoque, pessoas, dinheiro ou compras de outra obra.
 - **WhatsApp:** verify token, App Secret, WABA e Phone Number ID passaram a vir do Secret Manager; assinatura validada no corpo bruto, matching normalizado/exato com rejeição de ambiguidade, dedup por `msg.id`, ACK após processamento, remoção do ramo `page` e allowlist de host para áudio (`functions/whatsapp_auth.js`).
 - **Kiwify:** idempotência atômica por `orderId + eventType` (sem status), reserva `processing` com lease, `payloadHash` sem status, conflito só ignorado contra `success`, efeitos e marca final na mesma escrita e `tenant_not_found` reprocessável como `pending_tenant` (`functions/kiwify.js`).
 - **APIs administrativas:** `verifyIdToken(token, true)`, papel reconfirmado no perfil/allowlist, contas `disabled` barradas, validação de método/cota antes do Auth, allowlist por `hasOwnProperty`, auto-reset bloqueado, tenant obtido do perfil e parâmetros Kiwify explicitamente limitados.
@@ -37,6 +41,12 @@ Todas as mudanças notáveis para o projeto **Obra Real** serão documentadas ne
 - Removido o bootstrap de Super Admin pelo navegador; o primeiro master é criado via `functions/set_super_admin.js`. Documentação atualizada em `docs/security/super-admin.md` e cobertura com 22 novos testes em `tests/security/privilege-escalation.test.js`.
 - **Isolamento entre empresas:** `users/<email>` e `invites/<email>` deixaram de ser legíveis por qualquer usuário autenticado; convites só podem ser criados no próprio tenant (com `email` casando a chave) e só o dono ou o admin do tenant pode removê-los. `tenants_public/<slug>` teve o `tenantId` tornado imutável e a criação de tenant exige `emailAdmin` igual ao e-mail autenticado, fechando o sequestro de slug/empresa entre empresas. `admin_audit` passou a usar a allowlist `super_admins/<uid>` em vez do passaporte legado.
 - `storage.rules` agora exige claims de tenant **e** papel válido no caminho, limita tamanho/tipo de arquivo e nega qualquer caminho fora de `tenants/<tenantId>/`. O "Primeiro Acesso" do painel Master não lê mais `users/<email>` sem autenticação. Ver `docs/security/tenant-isolation.md` e `tests/security/tenant-isolation.test.js`.
+
+---
+
+## [1.3.0] - 2026-11-14
+### Adicionado
+- Cadastro com escolha do slug: ao entrar pela primeira vez, o storage.rules` agora exige claims de tenant **e** papel válido no caminho, limita tamanho/tipo de arquivo e nega qualquer caminho fora de `tenants/<tenantId>/`. O "Primeiro Acesso" do painel Master não lê mais `users/<email>` sem autenticação. Ver `docs/security/tenant-isolation.md` e `tests/security/tenant-isolation.test.js`.
 
 ---
 

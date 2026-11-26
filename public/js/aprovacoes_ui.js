@@ -98,6 +98,32 @@
     return role === 'admin' || role === 'super_admin';
   }
 
+  // Usuário restrito a obras específicas não pode ver nem decidir aprovações
+  // envolvendo outras obras — nem abrindo a tela, nem adivinhando o ID no modal.
+  function obrasPermitidasAprovacoes() {
+    try {
+      const u = sessao();
+      const permitidas = window.getObrasPermitidas
+        ? window.getObrasPermitidas((typeof DB !== 'undefined' && DB) ? DB.usuarios : [], u.email, papel())
+        : null;
+      return Array.isArray(permitidas) ? permitidas.map(String) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function aprovacaoNoEscopo(ap) {
+    const permitidas = obrasPermitidasAprovacoes();
+    if (!permitidas) return true; // admin / super_admin
+    const payload = (ap && ap.payload) || {};
+    const codigos = [payload.obra, payload.obraDestino, ap && ap.obra]
+      .filter(Boolean)
+      .flatMap(v => (window.codigosObra ? window.codigosObra(v) : String(v).split(/[,;|]/).map(s => s.trim())))
+      .map(String);
+    // Sem obra identificável, fail-closed para quem não é admin.
+    return codigos.length > 0 && codigos.some(c => permitidas.includes(c));
+  }
+
   function tenantId() {
     try {
       if (typeof superAdminActiveTenant !== 'undefined' && superAdminActiveTenant && superAdminActiveTenant.id) {
@@ -229,6 +255,11 @@
       if (typeof toast === 'function') toast('Tipo de solicitação inválido.', 'error');
       return null;
     }
+    // Não deixa o cliente solicitar uma mudança em obra fora do seu escopo.
+    if (!aprovacaoNoEscopo({ payload: payload || {}, obra: (payload && payload.obra) || '' })) {
+      if (typeof toast === 'function') toast('Esta operação não pertence às suas obras.', 'error');
+      return null;
+    }
     const agora = Date.now();
 
     // Evita duplo clique/reenvio: mesma solicitação pendente nos últimos 60s.
@@ -285,6 +316,10 @@
     // Revalida a claim antes de enviar: uma sessão antiga pode ter papel
     // diferente do perfil real no servidor.
     await atualizarPapelClaim();
+    if (!aprovacaoNoEscopo(ap)) {
+      if (typeof toast === 'function') toast('Esta solicitação não pertence às suas obras.', 'error');
+      return;
+    }
     if (!podeDecidir(ap)) {
       if (typeof toast === 'function') {
         toast(`Seu cargo (${papel() || 'desconhecido'}) não permite decidir esta solicitação.`, 'error');
@@ -365,6 +400,10 @@
       console.warn('[aprovacoes] não foi possível reler a solicitação:', e && e.message);
     }
     if (!ap) return;
+    if (!aprovacaoNoEscopo(ap)) {
+      if (typeof toast === 'function') toast('Esta solicitação não pertence às suas obras.', 'error');
+      return;
+    }
     if (typeof openModal === 'function') await openModal('modal-aprovacao');
     const set = (campo, valor) => {
       const el = document.getElementById(campo);
@@ -411,6 +450,7 @@
     if (!tbody) return;
     const lista = Object.entries(cache)
       .map(([id, ap]) => ({ ...ap, _id: id }))
+      .filter(ap => aprovacaoNoEscopo(ap))
       .filter(ap => !filtroStatus || ap.status === filtroStatus)
       .filter(ap => !filtroTipo || ap.tipo === filtroTipo)
       .sort((a, b) => (a.solicitadoEm || 0) - (b.solicitadoEm || 0));
@@ -476,7 +516,7 @@
       if (typeof showPage === 'function') showPage('aprovacoes');
     });
     if (!el) return;
-    const pendentes = Object.values(cache).filter(ap => ap && ap.status === 'pendente' && podeDecidir(ap));
+    const pendentes = Object.values(cache).filter(ap => ap && aprovacaoNoEscopo(ap) && ap.status === 'pendente' && podeDecidir(ap));
     const contador = el.querySelector('.badge-count');
     if (contador) contador.textContent = String(pendentes.length);
     el.style.display = pendentes.length ? 'inline-flex' : 'none';

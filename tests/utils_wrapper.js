@@ -64,3 +64,9 @@ export const trabNaObra = window.trabNaObra;
 export const obraNoEscopo = window.obraNoEscopo;
 export const trabNoEscopo = window.trabNoEscopo;
 export const trabalhadoresNoEscopo = window.trabalhadoresNoEscopo;
+
+export const codigosObra = window.codigosObra;
+export const registroDaObra = window.registroDaObra;
+export const registrosDaObra = window.registrosDaObra;
+export const trabalhadoresDaObra = window.trabalhadoresDaObra;
+
