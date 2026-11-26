@@ -1,6 +1,37 @@
 // ==================== HELPERS ====================
 let currentEditIdx = -1; // Global variable to identify if we are creating new (-1) or editing an existing record.
 
+// ==================== ESCOPO DE OBRAS DA SESSÃO ====================
+// Presença, Almoços e Funcionários só mostram dados das obras do usuário logado
+// e dos trabalhadores vinculados a elas. null = acesso a todas as obras.
+function escopoObrasDaSessao() {
+  let sessao = {};
+  try { sessao = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}') || {}; } catch (e) { }
+  const role = sessao.role === 'mestre' ? 'encarregado' : (sessao.role || 'admin');
+  if (typeof window.getObrasPermitidas !== 'function') return null;
+  const usuarios = (typeof DB !== 'undefined' && DB && DB.usuarios) || [];
+  return window.getObrasPermitidas(usuarios, sessao.email || sessao.username, role);
+}
+window.escopoObrasDaSessao = escopoObrasDaSessao;
+
+function obraNoEscopoAtual(obra) {
+  return typeof window.obraNoEscopo === 'function'
+    ? window.obraNoEscopo(obra, escopoObrasDaSessao())
+    : true;
+}
+
+function trabNoEscopoAtual(trabalhador) {
+  return typeof window.trabNoEscopo === 'function'
+    ? window.trabNoEscopo(trabalhador, escopoObrasDaSessao())
+    : true;
+}
+
+function trabsNoEscopoAtual(lista) {
+  const itens = (lista || []).filter(Boolean);
+  return typeof window.trabalhadoresNoEscopo === 'function'
+    ? window.trabalhadoresNoEscopo(itens, escopoObrasDaSessao())
+    : itens;
+}
 
 // ==================== SYSTEM GLOBALS (ANTI-REFERENCE ERROR) ====================
 // Cria 'stubs' para evitar que saves de uma página "crachem" tentando dar reload em UI de outra página
@@ -162,7 +193,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261126002';
+const HTML_CACHE_VERSION = '20261126003';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -893,8 +924,13 @@ window.shareObraWhatsApp = shareObraWhatsApp;
 function renderTrabalhadores() {
   const currentMonth = new Date().toISOString().substring(0, 7); // ISO YYYY-MM
 
-  safeSetInner('trab-tbody', DB.trabalhadores.length
-    ? DB.trabalhadores.map((t, i) => {
+  // Filtra pela obra do usuário, mas preserva o índice original para editar/excluir.
+  const visiveis = (DB.trabalhadores || [])
+    .map((t, i) => ({ t, i }))
+    .filter(({ t }) => trabNoEscopoAtual(t));
+
+  safeSetInner('trab-tbody', visiveis.length
+    ? visiveis.map(({ t, i }) => {
       const pres = (DB.presenca || []).filter(p => (p.trab === t.cod || p.nome === t.nome));
       const totalAtend = pres.filter(p => (p.presenca === 'Presente' || p.presenca === 'Falta')).length;
       const presentCnt = pres.filter(p => p.presenca === 'Presente').length;
@@ -959,7 +995,7 @@ window.getAlmocoWeekDates = getAlmocoWeekDates;
 function changeAlmocoWeek(offset) {
   currentAlmocoWeekOffset += offset;
   renderQuadroAlmocos();
-  const lista = DB.almocos || [];
+  const lista = (DB.almocos || []).filter(a => obraNoEscopoAtual(a.obra));
   renderAlmocosKPI(lista);
   renderFechamentosAlmocos(lista);
 }
@@ -984,7 +1020,7 @@ function renderQuadroAlmocos() {
   if (!container) return;
 
   const dias = getAlmocoWeekDates();
-  const trabalhadores = (DB.trabalhadores || []).filter(t => t.status === 'Ativo');
+  const trabalhadores = trabsNoEscopoAtual(DB.trabalhadores).filter(t => t.status === 'Ativo');
   if (!trabalhadores.length) {
     container.innerHTML = '<p style="text-align:center; padding:20px; color:var(--text3)">Nenhum trabalhador ativo para exibir no quadro.</p>';
     return;
@@ -998,7 +1034,8 @@ function renderQuadroAlmocos() {
   trabalhadores.forEach(w => {
     html += `<tr><td class="worker-info"><b>${escHtml(w.nome)}</b><br><small style="color:var(--text3)">${escHtml(w.equipe || w.funcao || '—')}</small></td>`;
     dias.forEach(d => {
-      const idx = (DB.almocos || []).findIndex(a => a && a.data === d.date && (
+      const idx = (DB.almocos || []).findIndex(a => a && a.data === d.date && obraNoEscopoAtual(a.obra) &&
+        (typeof window.trabNaObra !== 'function' || window.trabNaObra(w, a.obra)) && (
         a.empreiteiro === w.nome || a.empreiteiro === w.cod || (w.equipe && a.empreiteiro === w.equipe)
       ));
       const a = idx >= 0 ? DB.almocos[idx] : null;
@@ -1039,8 +1076,9 @@ async function openAlmocoModal(cod, data, existingIdx = -1) {
     const empEl = document.getElementById('al-empreiteiro');
     if (empEl) empEl.value = t ? t.nome : cod;
     const obraEl = document.getElementById('al-obra');
-    if (obraEl && t && t.obras) {
-      const primeira = String(t.obras).split(/[,;]/).map(s => s.trim()).find(Boolean);
+    if (obraEl && t) {
+      const primeira = (window.parseObrasTrabalhador ? window.parseObrasTrabalhador(t) : [])
+        .find(o => obraNoEscopoAtual(o));
       if (primeira && [...obraEl.options].some(o => o.value === primeira)) obraEl.value = primeira;
     }
     if (typeof toggleAlmocoModo === 'function') toggleAlmocoModo();
@@ -1057,7 +1095,9 @@ function renderAlmocos() {
   const grupo = document.getElementById('almoco-group-select')?.value || '';
   const ordem = document.getElementById('almoco-sort-select')?.value || 'data_desc';
 
-  let itens = lista.map((a, i) => ({ ...a, _idx: i }));
+  // Filtra mantendo o índice original do array (usado por editar/excluir).
+  let itens = lista.map((a, i) => ({ ...a, _idx: i }))
+    .filter(a => a && obraNoEscopoAtual(a.obra));
   if (qStr) {
     itens = itens.filter(a => [fmtDate(a.data), a.data, obName(a.obra), a.empreiteiro, a.obs]
       .join(' ').toLowerCase().includes(qStr));
@@ -1109,7 +1149,7 @@ function renderAlmocosKPI(list) {
   const dias = getAlmocoWeekDates();
   const ini = dias[0].date;
   const fim = dias[6].date;
-  const semana = list.filter(a => a.data >= ini && a.data <= fim);
+  const semana = (list || []).filter(a => a && a.data >= ini && a.data <= fim && obraNoEscopoAtual(a.obra));
   const qtdSemana = semana.reduce((s, a) => s + (parseFloat(a.qtd) || 0), 0);
   const custoSemana = semana.reduce((s, a) => s + (parseFloat(a.vtotal) || 0), 0);
   const pendente = semana.reduce((s, a) => s + almocoDevido(a), 0);
@@ -1125,7 +1165,7 @@ function renderAlmocosKPI(list) {
 
 function renderFechamentosAlmocos(list) {
   const dias = getAlmocoWeekDates();
-  const semana = (list || []).filter(a => a.data >= dias[0].date && a.data <= dias[6].date);
+  const semana = (list || []).filter(a => a && a.data >= dias[0].date && a.data <= dias[6].date && obraNoEscopoAtual(a.obra));
 
   const porObra = {};
   const porEmpreiteiro = {};
@@ -1195,8 +1235,8 @@ window.filterAlmoco = filterAlmoco;
 /** Fechamento em lote da semana navegada (análogo a prepareLotePgto). */
 async function fecharSemanaAlmocos() {
   const dias = getAlmocoWeekDates();
-  const pendentes = (DB.almocos || []).filter(a =>
-    a.data >= dias[0].date && a.data <= dias[6].date && almocoDevido(a) > 0);
+  const pendentes = (DB.almocos || []).filter(a => a &&
+    a.data >= dias[0].date && a.data <= dias[6].date && obraNoEscopoAtual(a.obra) && almocoDevido(a) > 0);
   if (!pendentes.length) {
     toast('Não há almoços pendentes nesta semana.', 'warning');
     return;
@@ -1227,11 +1267,8 @@ function toggleAlmocoModo() {
     indiv.style.display = 'none';
     massa.style.display = '';
     const obra = document.getElementById('al-obra')?.value;
-    const trabList = DB.trabalhadores.filter(t => {
-      if (t.status !== 'Ativo') return false;
-      if (!t.obras || t.obras.trim() === '') return true;
-      return t.obras.includes(obra);
-    });
+    const trabList = trabsNoEscopoAtual(DB.trabalhadores).filter(t =>
+      t.status === 'Ativo' && (window.trabNaObra ? window.trabNaObra(t, obra) : true));
     if (lista) {
       lista.innerHTML = trabList.length > 0
         ? trabList.map(t => `
@@ -1275,6 +1312,7 @@ async function saveAlmoco(keepOpen = false) {
   else if (pgtoStatus !== 'Parcial') valpago = 0;
 
   if (!dataVal || !obraVal) { toast('Preencha data e obra!', 'error'); return; }
+  if (!obraNoEscopoAtual(obraVal)) { toast('Esta obra não está no seu escopo de acesso.', 'error'); return; }
 
   let empreiteiros = [];
   if (modoMassa) {
@@ -1289,6 +1327,13 @@ async function saveAlmoco(keepOpen = false) {
 
   let salvos = 0;
   for (const emp of empreiteiros) {
+    // Não registra almoço para trabalhador de outra obra (nem por manipulação do DOM).
+    const trabalhador = (DB.trabalhadores || []).find(t => t.nome === emp || t.cod === emp);
+    const vinculado = !trabalhador || !window.trabNaObra || window.trabNaObra(trabalhador, obraVal);
+    if (!vinculado) {
+      if (!modoMassa) { toast(`${emp} não pertence à obra ${obraVal}.`, 'error'); return; }
+      continue;
+    }
     if (editIdx < 0 || !modoMassa) {
       const jaExiste = DB.almocos.some((a, i) => editIdx >= 0 && i === editIdx ? false : a.data === dataVal && a.empreiteiro === emp && a.obra === obraVal);
       if (jaExiste) {
@@ -1387,7 +1432,7 @@ function renderQuadroSemanal() {
     });
   }
 
-  const workers = DB.trabalhadores.filter(t => t.status === 'Ativo');
+  const workers = trabsNoEscopoAtual(DB.trabalhadores).filter(t => t.status === 'Ativo');
   if (workers.length === 0) {
     container.innerHTML = '<p style="text-align:center; padding:20px; color:var(--text3)">Nenhum trabalhador ativo para exibir no quadro.</p>';
     return;
@@ -1418,7 +1463,8 @@ function renderQuadroSemanal() {
 
     days.forEach(d => {
       const pIdx = (DB.presenca || []).findIndex(record =>
-        record && record.data === d.date && (
+        record && record.data === d.date && obraNoEscopoAtual(record.obra) &&
+        (typeof window.trabNaObra !== 'function' || window.trabNaObra(w, record.obra)) && (
           record.trab === w.cod ||
           (record.trab == null || record.trab === '') && record.nome === w.nome
         )
@@ -1468,7 +1514,7 @@ function openPresenceModal(workerCod, date, existingIdx = -1) {
 
 function renderPresenca() {
   console.log('Iniciando renderPresenca...');
-  const allPres = DB.presenca || [];
+  const allPres = (DB.presenca || []).filter(p => p && p.data && obraNoEscopoAtual(p.obra));
 
   // Normaliza total para registros com diária setada mas total ausente/zero
   allPres.forEach(p => {
@@ -1508,7 +1554,10 @@ function renderPresenca() {
   const sortSelect = document.getElementById('pres-sort-select');
   const sortVal = sortSelect ? sortSelect.value : 'data_desc'; // O Padrão é data decrescente
 
-  let listForTable = allPres.map((p, i) => (p ? { ...p, _idx: i } : null)).filter(p => p !== null);
+  // Filtra mantendo o índice original do array (usado por editar/excluir).
+  let listForTable = (DB.presenca || [])
+    .map((p, i) => (p ? { ...p, _idx: i } : null))
+    .filter(p => p && p.data && obraNoEscopoAtual(p.obra));
 
   // Realiza o Sort Seguro
   listForTable.sort((a, b) => {
@@ -5703,13 +5752,15 @@ async function openModal(id) {
   const m = modalContent;
   const obraSelects = m.querySelectorAll('select[id$="-obra"], select[id^="pr-obra"], select[id^="fn-obra"], select[id^="cp-obra"], select[id^="md-obra"], select[id^="tf-obra"], select[id^="es-obra"], select[id^="mv-obra"], select[id^="oc-obra"]');
   obraSelects.forEach(sel => {
-    sel.innerHTML = DB.obras.map(o => `<option value="${o.cod}">${o.cod} — ${o.nome}</option>`).join('');
+    sel.innerHTML = (DB.obras || []).filter(o => obraNoEscopoAtual(o.cod))
+      .map(o => `<option value="${o.cod}">${o.cod} — ${o.nome}</option>`).join('');
   });
   if (id === 'modal-presenca') {
     const tsel = document.getElementById('pr-trab');
     if (tsel) {
-      // Pré-carga total antes do filtro
-      tsel.innerHTML = DB.trabalhadores.filter(t => t.status === 'Ativo').map(t => `<option value="${t.cod}">${t.nome}</option>`).join('');
+      // Pré-carga antes do filtro, já limitada às obras do usuário
+      tsel.innerHTML = trabsNoEscopoAtual(DB.trabalhadores).filter(t => t.status === 'Ativo')
+        .map(t => `<option value="${t.cod}">${t.nome}</option>`).join('');
       // Auto-preenche apenas ao criar novo (não ao editar)
       const prEditIdx = document.getElementById('pr-edit-idx') ? parseInt(document.getElementById('pr-edit-idx').value) : -1;
       if (prEditIdx === -1) {
@@ -5897,11 +5948,8 @@ function filterTrabByObra() {
   if (!tsel || !osel) return;
 
   const obraSelecionada = osel.value;
-  const filtered = DB.trabalhadores.filter(t => {
-    if (t.status !== 'Ativo') return false;
-    if (!t.obras || t.obras.trim() === '') return true;
-    return t.obras.includes(obraSelecionada);
-  });
+  const filtered = trabsNoEscopoAtual(DB.trabalhadores).filter(t =>
+    t.status === 'Ativo' && (window.trabNaObra ? window.trabNaObra(t, obraSelecionada) : true));
 
   // 1. Popula Select Individual
   if (filtered.length === 0) {
@@ -6104,13 +6152,25 @@ async function saveTrabalhador() {
   // Verifica unicidade do código (desconsiderando o registro em edição)
   const duplicado = DB.trabalhadores.some((t, i) => t.cod === cod && i !== editIdx);
   if (duplicado) { toast(`Código "${cod}" já existe! Use outro.`, 'error'); return; }
+
+  // Obras do trabalhador: normaliza a lista e não permite vínculo fora do escopo do usuário.
+  const obrasDigitadas = document.getElementById('tr-obras').value;
+  const obrasTrab = window.parseObrasTrabalhador
+    ? window.parseObrasTrabalhador({ obras: obrasDigitadas })
+    : String(obrasDigitadas || '').split(/[,;]/).map(s => s.trim()).filter(Boolean);
+  const escopoAtual = escopoObrasDaSessao();
+  if (Array.isArray(escopoAtual) && obrasTrab.some(o => !escopoAtual.includes(o))) {
+    toast('Você só pode vincular o trabalhador às obras do seu acesso.', 'error');
+    return;
+  }
+
   const data = {
     cod, nome: document.getElementById('tr-nome').value.trim(),
     cpf: document.getElementById('tr-cpf').value,
     funcao: document.getElementById('tr-funcao').value,
     vinculo: document.getElementById('tr-vinculo').value,
     equipe: document.getElementById('tr-equipe').value,
-    obras: document.getElementById('tr-obras').value,
+    obras: obrasTrab.join(', '),
     diaria: parseFloat(document.getElementById('tr-diaria').value) || 0,
     pgto: document.getElementById('tr-pgto').value,
     pixtipo: document.getElementById('tr-pixtipo').value,
@@ -6299,6 +6359,7 @@ async function savePresenca(keepOpen = false) {
 
   if (!dataVal) { toast('Informe a data!', 'error'); return; }
   if (!obraVal) { toast('Selecione a obra!', 'error'); return; }
+  if (!obraNoEscopoAtual(obraVal)) { toast('Esta obra não está no seu escopo de acesso.', 'error'); return; }
 
   let lastSavedData = null; // Captura último registro salvo para o toast fora do loop
   let trabsParaSalvar = [];
@@ -6333,9 +6394,11 @@ async function savePresenca(keepOpen = false) {
       return;
     }
 
-    // Vínculo Automático: Se o peão não estiver engajado na Obra em sua ficha local, anexa a tag!
-    if (t && (!t.obras || !t.obras.includes(obraVal))) {
-      t.obras = t.obras && t.obras.trim() !== '' ? (t.obras + ", " + obraVal) : obraVal;
+    // Vínculo Automático: se o peão não estiver engajado na obra, anexa a tag (comparação exata).
+    if (t && !(window.trabNaObra ? window.trabNaObra(t, obraVal) : true)) {
+      const obrasAtuais = window.parseObrasTrabalhador
+        ? window.parseObrasTrabalhador(t) : String(t.obras || '').split(/[,;]/).map(s => s.trim()).filter(Boolean);
+      t.obras = [...obrasAtuais, obraVal].join(', ');
     }
 
     const isInformal = t && t.vinculo === 'Informal';

@@ -1634,10 +1634,50 @@ const mergeScopedDb = function(full, scoped, permitidas) {
   return out;
 };
 
+// ==================== OBRAS DO TRABALHADOR (escopo das páginas de ponto) ====================
+// A ficha do trabalhador guarda as obras em texto livre separado por vírgula/ponto e vírgula
+// (ou como array, em dados migados). Comparação exata: "OB1" não pode casar com "OB10".
+const parseObrasTrabalhador = function(trabalhador) {
+  if (!trabalhador) return [];
+  const raw = trabalhador.obras;
+  if (Array.isArray(raw)) return raw.map(String).map(s => s.trim()).filter(Boolean);
+  return String(raw || '').split(/[,;]/).map(s => s.trim()).filter(Boolean);
+};
+
+/** Sem obras cadastradas = trabalhador legado, sem restrição (comportamento anterior). */
+const trabNaObra = function(trabalhador, codObra) {
+  const obras = parseObrasTrabalhador(trabalhador);
+  if (!obras.length) return true;
+  return obras.includes(String(codObra || '').trim());
+};
+
+/** null/undefined = todas as obras; array = somente os códigos listados. */
+const obraNoEscopo = function(obra, permitidas) {
+  if (!Array.isArray(permitidas)) return true;
+  return permitidas.includes(String(obra || '').trim());
+};
+
+/** Um trabalhador aparece se atua em alguma obra do escopo (ou não tem restrição). */
+const trabNoEscopo = function(trabalhador, permitidas) {
+  if (!Array.isArray(permitidas)) return true;
+  if (!permitidas.length) return false; // falha fechada: sem obras permitidas, não mostra ninguém
+  const obras = parseObrasTrabalhador(trabalhador);
+  return !obras.length || obras.some(o => permitidas.includes(o));
+};
+
+const trabalhadoresNoEscopo = function(trabalhadores, permitidas) {
+  return _toArr(trabalhadores).filter(t => trabNoEscopo(t, permitidas));
+};
+
 window.OBRA_SCOPED_KEYS = OBRA_SCOPED_KEYS;
 window.getObrasPermitidas = getObrasPermitidas;
 window.filterDbByObras = filterDbByObras;
 window.mergeScopedDb = mergeScopedDb;
+window.parseObrasTrabalhador = parseObrasTrabalhador;
+window.trabNaObra = trabNaObra;
+window.obraNoEscopo = obraNoEscopo;
+window.trabNoEscopo = trabNoEscopo;
+window.trabalhadoresNoEscopo = trabalhadoresNoEscopo;
 
 // Exports for testing (vitest roda como module, navegador roda como defer)
 // O try/catch evita SyntaxError quando carregado sem type="module"

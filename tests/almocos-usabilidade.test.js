@@ -44,7 +44,13 @@ function carregarModulo(DB, elementos = {}, retornos = {}) {
     ...elementos
   };
   const document = { getElementById: (id) => els[id] || null };
-  const win = {};
+  const win = {
+    parseObrasTrabalhador: (t) => String((t && t.obras) || '').split(/[,;]/).map(s => s.trim()).filter(Boolean)
+  };
+  win.trabNaObra = (t, cod) => {
+    const obras = win.parseObrasTrabalhador(t);
+    return !obras.length || obras.includes(String(cod || '').trim());
+  };
   const editAlmoco = retornos.editAlmoco || vi.fn();
   const persistDB = retornos.persistDB || vi.fn(async () => {});
   const toast = retornos.toast || vi.fn();
@@ -54,6 +60,7 @@ function carregarModulo(DB, elementos = {}, retornos = {}) {
   new Function(
     'window', 'document', 'DB', 'escHtml', 'fmt', 'fmtDate', 'obName', 'statusBadge',
     'toast', 'persistDB', 'openModal', 'editAlmoco', 'toggleAlmocoModo',
+    'escopoObrasDaSessao', 'obraNoEscopoAtual', 'trabNoEscopoAtual', 'trabsNoEscopoAtual',
     'confirm', 'setTimeout', codigo
   )(
     win, document, DB,
@@ -63,6 +70,7 @@ function carregarModulo(DB, elementos = {}, retornos = {}) {
     (v) => (v === 'OB1' ? 'Obra Um' : String(v || '')),
     (v) => `<span class="badge">${v || '—'}</span>`,
     toast, persistDB, openModal, editAlmoco, vi.fn(),
+    () => null, () => true, () => true, (lista) => (lista || []).filter(Boolean),
     (typeof confirmar === 'function' ? confirmar : () => confirmar), (fn) => fn()
   );
   return { win, els, editAlmoco, persistDB, toast, openModal };
