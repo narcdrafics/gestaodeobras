@@ -94,11 +94,14 @@ describe('aprovacoes — contrato do cliente', () => {
     expect(requer).not.toContain("role === 'comprador'");
   });
 
-  it('usa a claim do Firebase como papel autoritativo, não o sessionStorage velho', () => {
+  it('usa a maior claim/perfil/sessão, sem rebaixar admin por claim desatualizada', () => {
     expect(uiSrc).toContain('let papelClaim = null;');
-    expect(uiSrc).toContain('getIdTokenResult');
-    const papel = trecho(uiSrc, 'function papel(', 'async function atualizarPapelClaim(');
-    expect(papel).toContain('papelClaim || sessao().role');
+    expect(uiSrc).toContain('let papelPerfil = null;');
+    expect(uiSrc).toContain('getIdTokenResult(true)');
+    expect(uiSrc).toContain('profiles/${user.uid}/role');
+    const papel = trecho(uiSrc, '/** Maior papel entre claim, perfil e sessão', 'async function atualizarPapelClaim(');
+    expect(papel).toContain('[papelClaim, papelPerfil, sessao().role]');
+    expect(papel).toContain('HIERARQUIA_PAPEL.find');
     const decisao = trecho(uiSrc, 'async function decidirAprovacao(', 'function payloadParaExibicao(');
     expect(decisao).toContain('await atualizarPapelClaim()');
   });

@@ -255,7 +255,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261126008';
+const HTML_CACHE_VERSION = '20261126009';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);

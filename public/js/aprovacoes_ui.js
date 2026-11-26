@@ -29,10 +29,12 @@
   let tenantAtual = null;
   let filtroStatus = 'pendente';
   let filtroTipo = '';
-  // Papel vindo da claim do Firebase: fonte autoritativa para a UI. O cargo no
-  // sessionStorage pode ficar velho após uma troca de papel e mostraria botões
-  // que o servidor (corretamente) recusa.
+  // Papel efetivo = união de claim do token + perfil no RTDB (a mesma regra do
+  // servidor). Uma claim desatualizada não pode rebaixar um admin cujo perfil
+  // continua admin — era isso que fazia o cargo sumir após a primeira decisão.
   let papelClaim = null;
+  let papelPerfil = null;
+  const HIERARQUIA_PAPEL = ['super_admin', 'admin', 'engenheiro', 'comprador', 'encarregado', 'pendente', 'bloqueado', 'desativado'];
 
   function sessao() {
     try {
@@ -42,24 +44,37 @@
     }
   }
 
-  function papel() {
-    const role = papelClaim || sessao().role || '';
+  function normalizarPapel(role) {
+    if (!role) return '';
     return window.normalizeRole ? window.normalizeRole(role) : (role === 'mestre' ? 'encarregado' : role);
+  }
+
+  /** Maior papel entre claim, perfil e sessão — espelha a regra do servidor. */
+  function papel() {
+    const papeis = [papelClaim, papelPerfil, sessao().role]
+      .map(normalizarPapel)
+      .filter(Boolean);
+    return HIERARQUIA_PAPEL.find(role => papeis.includes(role)) || papeis[0] || '';
   }
 
   async function atualizarPapelClaim() {
     try {
       const user = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
-      if (!user || typeof user.getIdTokenResult !== 'function') return;
-      const resultado = await user.getIdTokenResult();
-      const claimRole = resultado && resultado.claims && resultado.claims.role;
-      if (claimRole) {
-        papelClaim = window.normalizeRole
-          ? window.normalizeRole(claimRole)
-          : (claimRole === 'mestre' ? 'encarregado' : claimRole);
+      if (!user) return;
+      if (typeof user.getIdTokenResult === 'function') {
+        // Refresca a claim: o getIdToken() enviado na decisão pode trazer um
+        // papel antigo; reler com force alinha o token ao perfil atual.
+        const resultado = await user.getIdTokenResult(true);
+        const claimRole = resultado && resultado.claims && resultado.claims.role;
+        if (claimRole) papelClaim = normalizarPapel(claimRole);
+      }
+      if (typeof firebase.database !== 'undefined' && user.uid) {
+        const snap = await firebase.database().ref(`profiles/${user.uid}/role`).once('value');
+        const perfilRole = snap.val();
+        if (perfilRole) papelPerfil = normalizarPapel(perfilRole);
       }
     } catch (e) {
-      console.warn('[aprovacoes] não foi possível ler a claim de papel:', e && e.message);
+      console.warn('[aprovacoes] não foi possível atualizar o papel:', e && e.message);
     }
   }
 
