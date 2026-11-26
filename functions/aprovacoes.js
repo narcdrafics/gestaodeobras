@@ -25,6 +25,16 @@ const RESERVA_STALE_MS = 10 * 60 * 1000;
 const PRAZO_APROVACAO_DIAS = 15;
 const DIAS_ALERTA = [7, 12, 15];
 const ADMIN_ROLES = new Set(['admin', 'super_admin']);
+const MODULO_POR_TIPO = {
+  movimentacao_estoque: 'estoque',
+  trabalhador_add: 'funcionarios',
+  trabalhador_remove: 'funcionarios',
+  financeiro_lancamento: 'financeiro',
+  financeiro_status: 'financeiro',
+  orcamento_fechamento: 'orcamento',
+  compra_criacao: 'compras',
+  medicao_fechamento: 'medicao'
+};
 const STATUS_PAGAMENTO = new Set(['Pago', 'Parcial', 'Pendente', 'Atrasado']);
 const CAMPOS_COMPRAS_PRIVADOS = ['forn', 'pixkey', 'vunit', 'vtotal', 'vorc', 'prazo'];
 
@@ -70,10 +80,14 @@ function deveExpirar(aprovacao, agora) {
   return Number.isFinite(expiraEm) && Number(agora) >= expiraEm;
 }
 
-/** Engenheiro só decide movimentação de estoque e é obrigado a avisar o admin. */
-function papelPodeDecidir(papel, aprovacao) {
+/** Engenheiro só decide movimentação; RH só nos módulos que o admin liberou. */
+function papelPodeDecidir(papel, aprovacao, modulos) {
   const role = normalizarRole(papel);
   if (ehAdmin(role)) return true;
+  if (role === 'rh' && modulos && modulos.aprovacoes === true) {
+    const modulo = MODULO_POR_TIPO[aprovacao && aprovacao.tipo];
+    return !!modulo && modulos[modulo] === true;
+  }
   return role === 'engenheiro'
     && aprovacao.tipo === 'movimentacao_estoque'
     && aprovacao.notificarAdmin === true;
@@ -100,7 +114,7 @@ function podeAplicar(aprovacao, agora) {
   if (!aprovacao.decididoPor) {
     return { ok: false, motivo: 'sem_decisor' };
   }
-  if (!papelPodeDecidir(aprovacao.decididoPorPapel, aprovacao)) {
+  if (!papelPodeDecidir(aprovacao.decididoPorPapel, aprovacao, aprovacao.decididoPorModulos)) {
     return { ok: false, motivo: 'decisor_sem_autoridade' };
   }
   return { ok: true };
@@ -698,6 +712,7 @@ module.exports = {
   alertasDevidos,
   deveExpirar,
   papelPodeDecidir,
+  MODULO_POR_TIPO,
   podeAplicar,
   validarIntegridadeFinanceira,
   comoArray,

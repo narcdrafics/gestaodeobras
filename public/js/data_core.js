@@ -442,7 +442,9 @@ function _onFirebaseValue(snapshot) {
     // lastTenantData continua completo (usado para remontar os arrays na gravação).
     const _obrasPerm = typeof window.getObrasPermitidas === 'function'
       ? window.getObrasPermitidas(data.usuarios, _uSess.email, _papelSess) : null;
-    DB = ensureSchema(window.filterDbByObras(sanitizeComprasForRole(data, _papelSess), _obrasPerm));
+    DB = ensureSchema(window.filterDbByObras(
+      sanitizeComprasForRole(data, _papelSess, modulosRhSessao()), _obrasPerm
+    ));
 
     // Calculado depois do ensureSchema: gravar em DB antes substituir o objeto perdia o valor.
     if (data.plano === 'free_trial' && data.trialExpiracao) {
@@ -618,6 +620,42 @@ const ROLE_WRITE_ALLOW = {
 };
 ROLE_WRITE_ALLOW.mestre = ROLE_WRITE_ALLOW.encarregado;
 
+// RH: a allow-list vem dos módulos que o admin marcou para aquele usuário.
+// Padrão (perfil sem modulosPermitidos) = funcionários + presença + almoços.
+const RH_MODULOS_PADRAO = { funcionarios: true, presenca: true, almocos: true };
+const RH_MODULO_NOS = {
+  funcionarios: ['trabalhadores'],
+  presenca: ['presenca'],
+  almocos: ['almocos'],
+  tarefas: ['tarefas'],
+  obras: ['obras'],
+  medicao: ['medicao'],
+  estoque: ['estoque', 'movEstoque'],
+  compras: ['compras'],
+  financeiro: ['financeiro'],
+  orcamento: ['orcamento']
+};
+
+/** Módulos do RH na sessão (fallback = padrão quando ainda não reidratou). */
+function modulosRhSessao() {
+  const user = _getBillingSessionUser();
+  if (_sessionRole(user) !== 'rh') return {};
+  return (user.modulosPermitidos && typeof user.modulosPermitidos === 'object')
+    ? user.modulosPermitidos : RH_MODULOS_PADRAO;
+}
+
+/** Conjunto de nós que o RH pode gravar, conforme os módulos habilitados. */
+function rhNosPermitidos(user) {
+  const modulos = (user && user.modulosPermitidos && typeof user.modulosPermitidos === 'object')
+    ? user.modulosPermitidos : RH_MODULOS_PADRAO;
+  const nos = new Set();
+  Object.entries(RH_MODULO_NOS).forEach(([modulo, chaves]) => {
+    if (modulos[modulo] === true) chaves.forEach(chave => nos.add(chave));
+  });
+  return nos;
+}
+window.rhNosPermitidos = rhNosPermitidos;
+
 // Dados comerciais das compras: separados em comprasPrivadas no servidor.
 // Enquanto a migração não acontece, pelo menos não ficam no DB/localStorage
 // dos papéis que não podem vê-los.
@@ -632,6 +670,7 @@ function _sessionRole(user) {
 function _nodeBloqueadoParaRole(role, key) {
   if (SERVER_OR_TARGETED_NODES.has(key)) return true;
   if (role === 'admin' || role === 'super_admin') return false;
+  if (role === 'rh') return !rhNosPermitidos(_getBillingSessionUser()).has(key);
   const permitidos = ROLE_WRITE_ALLOW[role];
   // Papel desconhecido/pendente não ganha escrita irrestrita.
   return !permitidos || !permitidos.has(key);
@@ -639,8 +678,9 @@ function _nodeBloqueadoParaRole(role, key) {
 
 // Remove campos comerciais das compras para papéis sem acesso. Não altera o DB
 // original: devolve uma cópia rasa dos objetos quando há algo a remover.
-function sanitizeComprasForRole(db, role) {
-  if (!COMPRAS_RESTRICTED_ROLES.has(role) || !Array.isArray(db.compras)) return db;
+function sanitizeComprasForRole(db, role, modulos) {
+  const semCompras = role === 'rh' && !(modulos && modulos.compras === true);
+  if ((!COMPRAS_RESTRICTED_ROLES.has(role) && !semCompras) || !Array.isArray(db.compras)) return db;
   return {
     ...db,
     compras: db.compras.map(c => {
@@ -690,7 +730,10 @@ function persistDB(force = false) {
   // 1. BACKUP LOCAL (Sanitizado — sem base64 para respeitar limite de 5MB do iOS Safari)
   try {
     // Papéis sem acesso comercial não guardam fornecedor/valores/PIX no dispositivo.
-    const toCache = JSON.parse(JSON.stringify(sanitizeComprasForRole(DB, papel)));
+    const usuarioSessao = _getBillingSessionUser();
+    const modulosSessao = _sessionRole(usuarioSessao) === 'rh'
+      ? (usuarioSessao.modulosPermitidos || {}) : {};
+    const toCache = JSON.parse(JSON.stringify(sanitizeComprasForRole(DB, papel, modulosSessao)));
     toCache._tenantId = _currentTenantId;
 
     // Remove base64 do backup principal (economiza espaço no localStorage do mobile)

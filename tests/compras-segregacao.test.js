@@ -108,7 +108,7 @@ describe('compras — segregação dos dados comerciais', () => {
 
 describe('compras — fiação no app e regras', () => {
   it('carrega o módulo com cache-bust e inicializa ao abrir a página', () => {
-    expect(appHtml).toContain('js/compras_ui.js?v=20261122006');
+    expect(appHtml).toContain('js/compras_ui.js?v=');
     expect(appSrc).toContain('window.prepareModalCompra(modalContent)');
     expect(appSrc).toContain('window.iniciarCompras()');
   });

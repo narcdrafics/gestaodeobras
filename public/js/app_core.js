@@ -104,16 +104,22 @@ window.renderDashboard = window.renderDashboard || function () {
   // Sessões antigas podem ainda carregar o alias `mestre`.
   if (role === 'mestre') role = 'encarregado';
 
-  const { kpis, linhas, alertas, tarefas: resumoTarefas } = window.calcDashboardResumo(DB, null, role);
+  // RH só vê o que o admin habilitou no cadastro do usuário.
+  let modulosRhSessao = {};
+  try { modulosRhSessao = JSON.parse(sessionStorage.getItem('gestaoUser') || '{}').modulosPermitidos || {}; } catch (e) { }
+  const podeModulo = (modulo) => role !== 'rh' || modulosRhSessao[modulo] === true;
+
+  const { kpis, linhas, alertas, tarefas: resumoTarefas } =
+    window.calcDashboardResumo(DB, null, role, modulosRhSessao);
   const esc = window.escHtml;
 
   // Ações rápidas, respeitando o que cada papel acessa (encarregado não vê compras; engenheiro não vê presença)
   const actionsEl = document.getElementById('dash-actions');
   if (actionsEl) {
     const acoes = [];
-    if (role !== 'engenheiro') acoes.push(['modal-presenca', '+ Lançar Presença']);
-    acoes.push(['modal-tarefa', '+ Nova Tarefa']);
-    if (role !== 'encarregado' && role !== 'mestre') acoes.push(['modal-compra', '+ Nova Compra']);
+    if (role !== 'engenheiro' && podeModulo('presenca')) acoes.push(['modal-presenca', '+ Lançar Presença']);
+    if (podeModulo('tarefas')) acoes.push(['modal-tarefa', '+ Nova Tarefa']);
+    if (role !== 'encarregado' && role !== 'mestre' && podeModulo('compras')) acoes.push(['modal-compra', '+ Nova Compra']);
     actionsEl.innerHTML = acoes
       .map(([modal, label]) => `<button class="btn btn-primary btn-sm" onclick="openModal('${modal}')">${label}</button>`)
       .join('');
@@ -182,7 +188,7 @@ window.renderDashboard = window.renderDashboard || function () {
         : `<span style="color:${pct > 100 ? 'var(--red)' : pct >= 80 ? 'var(--orange)' : 'var(--green)'}">${pct.toFixed(1)}%</span>`;
       const mestreCell = o.mestre
         ? esc(o.mestre)
-        : (role !== 'encarregado' && role !== 'mestre' && idx >= 0 ? `<button class="btn btn-secondary btn-sm" onclick="editObra(${idx})">Atribuir</button>` : '-');
+        : (role !== 'encarregado' && role !== 'mestre' && podeModulo('obras') && idx >= 0 ? `<button class="btn btn-secondary btn-sm" onclick="editObra(${idx})">Atribuir</button>` : '-');
       const pctTarefas = l.tarefasTotal ? Math.round((l.tarefasFeitas / l.tarefasTotal) * 100) : 0;
       const codSeguro = String(o.cod || '').replace(/'/g, "\\'");
       const tarefasCell = l.tarefasTotal
@@ -255,7 +261,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261126009';
+const HTML_CACHE_VERSION = '20261126012';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -4432,7 +4438,7 @@ function renderAdmin() {
   safeSetInner('usuarios-tbody', (DB.usuarios && DB.usuarios.length)
     ? DB.usuarios.map((u, i) => `<tr>
         <td><b>${u.email || u.username}</b></td><td>${u.name}${u.acessoObras === 'especificas' ? ` <span class="badge badge-orange" title="Acesso restrito às obras designadas">${(u.obrasPermitidas || []).length} obra(s)</span>` : ''}</td>
-        <td><span class="badge ${u.role === 'admin' ? 'badge-red' : u.role === 'engenheiro' ? 'badge-blue' : u.role === 'pendente' ? 'badge-orange' : 'badge-green'}">${u.role.toUpperCase()}</span></td>
+        <td><span class="badge ${u.role === 'admin' ? 'badge-red' : u.role === 'rh' ? 'badge-purple' : u.role === 'engenheiro' ? 'badge-blue' : u.role === 'pendente' ? 'badge-orange' : 'badge-green'}">${u.role === 'rh' ? 'RH' : u.role.toUpperCase()}</span></td>
         <td>
            <button class="btn btn-secondary btn-sm" onclick="editUsuario(${i})" title="Editar usuário" aria-label="Editar usuário" style="margin-right:8px"><span class="material-symbols-outlined md-16">edit</span> Editar</button>
            <button class="btn btn-danger btn-sm" onclick="deleteUsuario(${i})">Excluir</button>
@@ -5673,6 +5679,8 @@ function toggleUsrObras() {
   const wrap = document.getElementById('usr-obras-wrap');
   const modo = document.getElementById('usr-obras-modo');
   const lista = document.getElementById('usr-obras-lista');
+  const modulosWrap = document.getElementById('usr-modulos-wrap');
+  if (modulosWrap) modulosWrap.style.display = role === 'rh' ? '' : 'none';
   if (!wrap || !modo || !lista) return;
   // Administrador sempre enxerga tudo.
   wrap.style.display = role === 'admin' ? 'none' : '';
@@ -5687,6 +5695,17 @@ function lerEscopoObrasDoModal() {
   return { acessoObras: 'especificas', obrasPermitidas };
 }
 
+/** Módulos marcados no modal. Vazio = padrão (funcionários/presença/almocos). */
+function lerModulosRhDoModal() {
+  const role = document.getElementById('usr-role')?.value;
+  if (role !== 'rh') return null;
+  const modulos = {};
+  document.querySelectorAll('.usr-modulo-chk').forEach(chk => {
+    if (chk.checked) modulos[chk.value] = true;
+  });
+  return modulos;
+}
+
 async function editUsuario(idx) {
   await openModal('modal-usuario');
   const u = DB.usuarios[idx];
@@ -5698,6 +5717,12 @@ async function editUsuario(idx) {
   document.getElementById('usr-email').disabled = true; // Impede alteração do e-mail de acesso
   const modoEl = document.getElementById('usr-obras-modo');
   if (modoEl) modoEl.value = u.acessoObras === 'especificas' ? 'especificas' : 'todas';
+  const modulos = u.role === 'rh' && u.modulosPermitidos && typeof u.modulosPermitidos === 'object'
+    ? u.modulosPermitidos
+    : { funcionarios: true, presenca: true, almocos: true };
+  document.querySelectorAll('.usr-modulo-chk').forEach(chk => {
+    chk.checked = modulos[chk.value] === true;
+  });
   renderUsrObrasLista(u.obrasPermitidas);
   toggleUsrObras();
 }
@@ -7657,6 +7682,11 @@ async function saveUsuario() {
   }
 
   const escopoObras = lerEscopoObrasDoModal();
+  const modulosRh = lerModulosRhDoModal();
+  if (role === 'rh' && modulosRh && Object.keys(modulosRh).length === 0) {
+    toast('Selecione ao menos um módulo para este usuário RH.', 'error');
+    return;
+  }
   if (escopoObras.acessoObras === 'especificas' && escopoObras.obrasPermitidas.length === 0) {
     toast('Selecione ao menos uma obra para este usuário (ou escolha "Todas as obras").', 'error');
     return;
@@ -7695,7 +7725,12 @@ async function saveUsuario() {
   // Edição: cargo/tenant são alterados apenas pelo servidor (Admin SDK).
   if (editIdx >= 0) {
     try {
-      await cargoApiRequest({ acao: 'definir_cargo', email, role, tenantId, nome: name });
+      await cargoApiRequest({
+        acao: 'definir_cargo', email, role, tenantId, nome: name,
+        modulosPermitidos: modulosRh,
+        acessoObras: escopoObras.acessoObras,
+        obrasPermitidas: escopoObras.obrasPermitidas
+      });
     } catch (err) {
       console.error('Erro ao atualizar cargo:', err);
       toast('Erro ao atualizar cargo: ' + (err.message || err), 'error');
@@ -7703,7 +7738,7 @@ async function saveUsuario() {
       return;
     }
     if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.textContent = textoBotao; }
-    DB.usuarios[editIdx] = { email, name, role, ...escopoObras };
+    DB.usuarios[editIdx] = { email, name, role, ...escopoObras, ...(modulosRh ? { modulosPermitidos: modulosRh } : {}) };
     toast('Permissões de Usuário atualizadas!');
     closeModal('modal-usuario');
     renderAdmin();
@@ -7741,7 +7776,7 @@ async function saveUsuario() {
     return;
   }
 
-  DB.usuarios.push({ email, name, role, ...escopoObras });
+  DB.usuarios.push({ email, name, role, ...escopoObras, ...(modulosRh ? { modulosPermitidos: modulosRh } : {}) });
   persistDB();
   renderAdmin();
 

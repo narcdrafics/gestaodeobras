@@ -8,8 +8,28 @@ const { EMAIL_MESTRA, chaveEmail, emailNormalizado, normalizarRole } = require('
 const { validarCorpo, hashIp, consumirCota } = require('./abuso');
 const { ACOES_DESTRUTIVAS, contextoRequisicao, registrar, reservarOperacao, liberarOperacao } = require('./auditoria');
 
-const ROLES_TENANT = new Set(['admin', 'engenheiro', 'encarregado', 'comprador', 'pendente']);
+const ROLES_TENANT = new Set(['admin', 'rh', 'engenheiro', 'encarregado', 'comprador', 'pendente']);
 const ROLES_MASTER = new Set([...ROLES_TENANT, 'super_admin', 'desativado', 'bloqueado']);
+
+// Cargo RH: fica entre admin e engenheiro. O admin escolhe, por usuário, quais
+// módulos ele pode usar e em quais obras atua. Padrão = pessoas/ponto.
+const MODULOS_RH = new Set([
+  'funcionarios', 'presenca', 'almocos', 'tarefas', 'obras', 'medicao',
+  'estoque', 'compras', 'financeiro', 'orcamento', 'aprovacoes'
+]);
+const MODULOS_RH_PADRAO = { funcionarios: true, presenca: true, almocos: true };
+
+/** Aceita apenas chaves conhecidas e valores booleanos; padrão quando ausente. */
+function normalizarModulosRh(valor, cargo) {
+  if (cargo !== 'rh') return null;
+  const entrada = valor && typeof valor === 'object' && !Array.isArray(valor) ? valor : null;
+  if (!entrada) return { ...MODULOS_RH_PADRAO };
+  const saida = {};
+  MODULOS_RH.forEach(modulo => {
+    if (entrada[modulo] === true) saida[modulo] = true;
+  });
+  return saida;
+}
 
 function erro(status, code, message) {
   const e = new Error(message);
@@ -192,21 +212,41 @@ async function acaoDefinirCargo({ db, auth }, dados, chamador) {
   const nome = String(dados.nome || '').trim();
   if (nome) perfilUpdates.name = nome;
 
+  // Permissões granulares e escopo de obras são opcionais e só valem para RH.
+  // O admin define no modal; o servidor normaliza para não aceitar chaves
+  // arbitrárias nem promover o usuário a admin disfarçado.
+  const modulos = normalizarModulosRh(dados.modulosPermitidos, cargo);
+  if (modulos) perfilUpdates.modulosPermitidos = modulos;
+  else if (cargo !== 'rh') perfilUpdates.modulosPermitidos = null;
+
+  const obras = Array.isArray(dados.obrasPermitidas)
+    ? dados.obrasPermitidas.map(o => String(o || '').trim()).filter(Boolean).slice(0, 500)
+    : null;
+  if (cargo === 'rh') {
+    perfilUpdates.acessoObras = dados.acessoObras === 'especificas' ? 'especificas' : 'todas';
+    perfilUpdates.obrasPermitidas = perfilUpdates.acessoObras === 'especificas' && obras && obras.length
+      ? obras : null;
+  } else {
+    perfilUpdates.acessoObras = null;
+    perfilUpdates.obrasPermitidas = null;
+  }
+
   await db.ref(`profiles/${alvo.uid}`).update(perfilUpdates);
 
   // Passaporte global e convite são espelhos do perfil; nunca a origem da autoridade.
+  const espelho = {
+    role: cargo,
+    tenantId: tenantId || null,
+    modulosPermitidos: modulos || null,
+    acessoObras: cargo === 'rh' ? (perfilUpdates.acessoObras || 'todas') : null,
+    obrasPermitidas: cargo === 'rh' ? (perfilUpdates.obrasPermitidas || null) : null
+  };
   if (passaporte) {
-    await db.ref(`users/${chaveEmail(alvo.email)}`).update({
-      role: cargo,
-      tenantId: tenantId || null
-    });
+    await db.ref(`users/${chaveEmail(alvo.email)}`).update(espelho);
   }
   const inviteSnap = await db.ref(`invites/${chaveEmail(alvo.email)}`).once('value');
   if (inviteSnap && inviteSnap.val()) {
-    await db.ref(`invites/${chaveEmail(alvo.email)}`).update({
-      role: cargo,
-      tenantId: tenantId || null
-    });
+    await db.ref(`invites/${chaveEmail(alvo.email)}`).update(espelho);
   }
 
   // Allowlist gravada somente pelo Admin SDK. Ao remover o cargo, a entrada
@@ -224,7 +264,12 @@ async function acaoDefinirCargo({ db, auth }, dados, chamador) {
     console.warn('[Cargos] Falha ao revogar tokens:', e.message || e);
   }
 
-  return { uid: alvo.uid, email: alvo.email, role: cargo, tenantId: tenantId || null, status };
+  return {
+    uid: alvo.uid, email: alvo.email, role: cargo, tenantId: tenantId || null, status,
+    modulosPermitidos: modulos,
+    acessoObras: cargo === 'rh' ? (perfilUpdates.acessoObras || 'todas') : null,
+    obrasPermitidas: cargo === 'rh' ? (perfilUpdates.obrasPermitidas || null) : null
+  };
 }
 
 /** CMD: desvincula o usuário do tenant sem apagar a conta do Firebase Auth. */
@@ -368,5 +413,8 @@ module.exports = {
   verificarChamador,
   ACOES,
   ROLES_TENANT,
-  ROLES_MASTER
+  ROLES_MASTER,
+  MODULOS_RH,
+  MODULOS_RH_PADRAO,
+  normalizarModulosRh
 };

@@ -90,7 +90,7 @@ describe('aprovacoes — contrato do cliente', () => {
 
   it('só encarregado e engenheiro são desviados para aprovação', () => {
     const requer = trecho(uiSrc, 'function requerAprovacao(', 'window.requerAprovacao');
-    expect(requer).toContain("role === 'encarregado' || role === 'engenheiro'");
+    expect(requer).toContain("role === 'encarregado' || role === 'engenheiro' || role === 'rh'");
     expect(requer).not.toContain("role === 'comprador'");
   });
 
@@ -98,7 +98,8 @@ describe('aprovacoes — contrato do cliente', () => {
     expect(uiSrc).toContain('let papelClaim = null;');
     expect(uiSrc).toContain('let papelPerfil = null;');
     expect(uiSrc).toContain('getIdTokenResult(true)');
-    expect(uiSrc).toContain('profiles/${user.uid}/role');
+    expect(uiSrc).toContain('profiles/${user.uid}');
+    expect(uiSrc).toContain('modulosPermitidos');
     const papel = trecho(uiSrc, '/** Maior papel entre claim, perfil e sessão', 'async function atualizarPapelClaim(');
     expect(papel).toContain('[papelClaim, papelPerfil, sessao().role]');
     expect(papel).toContain('HIERARQUIA_PAPEL.find');

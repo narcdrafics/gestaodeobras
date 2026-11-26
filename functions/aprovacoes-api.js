@@ -16,9 +16,21 @@ const TIPOS = new Set([
   'compra_criacao', 'medicao_fechamento'
 ]);
 const ADMIN_ROLES = new Set(['admin', 'super_admin']);
+// Cada tipo de solicitação pertence a um módulo. O RH só atua no tipo se o
+// admin habilitou o módulo correspondente E o de aprovações.
+const MODULO_POR_TIPO = {
+  movimentacao_estoque: 'estoque',
+  trabalhador_add: 'funcionarios',
+  trabalhador_remove: 'funcionarios',
+  financeiro_lancamento: 'financeiro',
+  financeiro_status: 'financeiro',
+  orcamento_fechamento: 'orcamento',
+  compra_criacao: 'compras',
+  medicao_fechamento: 'medicao'
+};
 // Ordem decrescente de privilégio para reconciliar claim x perfil: um perfil
 // desatualizado não pode rebaixar uma claim admin vigente (nem o contrário).
-const HIERARQUIA = ['super_admin', 'admin', 'engenheiro', 'comprador', 'encarregado', 'pendente', 'bloqueado', 'desativado'];
+const HIERARQUIA = ['super_admin', 'admin', 'rh', 'engenheiro', 'comprador', 'encarregado', 'pendente', 'bloqueado', 'desativado'];
 
 function erro(status, code, message) {
   const e = new Error(message);
@@ -39,9 +51,18 @@ function papelEfetivo(...papeis) {
   return HIERARQUIA.find(role => normalizados.includes(role)) || normalizados[0] || 'admin';
 }
 
-function papelPodeDecidir(papel, aprovacao) {
+function moduloDaAprovacao(tipo) {
+  return MODULO_POR_TIPO[tipo] || null;
+}
+
+function papelPodeDecidir(papel, aprovacao, modulos) {
   const role = normalizarRole(papel);
   if (ADMIN_ROLES.has(role)) return true;
+  // RH decide somente os tipos cujos módulos o admin habilitou explicitamente.
+  if (role === 'rh' && modulos && modulos.aprovacoes === true) {
+    const modulo = moduloDaAprovacao(aprovacao && aprovacao.tipo);
+    return !!modulo && modulos[modulo] === true;
+  }
   return role === 'engenheiro'
     && aprovacao.tipo === 'movimentacao_estoque'
     && aprovacao.notificarAdmin === true;
@@ -87,6 +108,11 @@ async function verificarChamador(req, { auth, db }) {
   const perfilRole = normalizarRole(perfil.role || '');
   const role = papelEfetivo(claimsRole, perfilRole);
 
+  const modulos = (perfil.role === 'rh' && perfil.modulosPermitidos && typeof perfil.modulosPermitidos === 'object')
+    ? perfil.modulosPermitidos
+    : (claims.modulosPermitidos && typeof claims.modulosPermitidos === 'object'
+      ? claims.modulosPermitidos : null);
+
   return {
     uid,
     email,
@@ -95,6 +121,7 @@ async function verificarChamador(req, { auth, db }) {
     claimsRole,
     perfilRole,
     ehMaster,
+    modulos,
     ehAdmin: ADMIN_ROLES.has(role) || ADMIN_ROLES.has(claimsRole) || ADMIN_ROLES.has(perfilRole)
   };
 }
@@ -150,7 +177,7 @@ async function decidir({ db, auth }, dados, chamador) {
   const adminPorEmail = emailNormalizado(tenant.emailAdmin) === chamador.email;
   const ehAdmin = chamador.ehMaster || chamador.ehAdmin || adminPorEmail;
   const papel = ehAdmin ? 'admin' : chamador.role;
-  if (!papelPodeDecidir(papel, ap)) {
+  if (!papelPodeDecidir(papel, ap, chamador.modulos)) {
     console.warn('[Aprovações API] sem_permissao', {
       uid: chamador.uid,
       tenantId,
@@ -177,6 +204,9 @@ async function decidir({ db, auth }, dados, chamador) {
   };
   if (decisao === 'rejeitado') updates[`${caminho}/motivo`] = motivo;
   if (papel === 'engenheiro') updates[`${caminho}/notificarAdmin`] = true;
+  if (papel === 'rh' && chamador.modulos) {
+    updates[`${caminho}/decididoPorModulos`] = chamador.modulos;
+  }
 
   // Transação: só o primeiro decididor altera um pendente, mesmo em corrida.
   const resultado = await db.ref(caminho).transaction((atual) => {
@@ -263,5 +293,7 @@ async function handleAprovacaoRequest(req, res, options) {
 module.exports = {
   handleAprovacaoRequest,
   verificarChamador,
-  papelPodeDecidir
+  papelPodeDecidir,
+  moduloDaAprovacao,
+  MODULO_POR_TIPO
 };

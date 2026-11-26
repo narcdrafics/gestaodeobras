@@ -30,10 +30,13 @@
     return sessao().tenantId || window.OBRA_CHECKOUT_TENANT_ID || '';
   }
 
-  /** Somente admin/super/comprador podem ver e gravar os dados comerciais. */
+  /** Admin/super/comprador, ou RH com o módulo de compras habilitado. */
   function podeVerDadosComerciais() {
     const role = papel();
-    return role === 'admin' || role === 'super_admin' || role === 'comprador';
+    if (role === 'admin' || role === 'super_admin' || role === 'comprador') return true;
+    if (role !== 'rh') return false;
+    const modulos = sessao().modulosPermitidos || {};
+    return modulos.compras === true;
   }
   window.podeVerDadosComerciais = podeVerDadosComerciais;
 

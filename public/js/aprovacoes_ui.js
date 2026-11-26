@@ -19,6 +19,17 @@
     compra_criacao: 'Compra',
     medicao_fechamento: 'Fechamento de medição'
   };
+  // Módulo que habilita cada tipo de solicitação para o cargo RH.
+  const MODULO_POR_TIPO = {
+    movimentacao_estoque: 'estoque',
+    trabalhador_add: 'funcionarios',
+    trabalhador_remove: 'funcionarios',
+    financeiro_lancamento: 'financeiro',
+    financeiro_status: 'financeiro',
+    orcamento_fechamento: 'orcamento',
+    compra_criacao: 'compras',
+    medicao_fechamento: 'medicao'
+  };
   const CAMPOS_SENSIVEIS = ['forn', 'pixkey', 'vunit', 'vtotal', 'vorc', 'prazo'];
 
   let aprovacoesRef = null;
@@ -34,7 +45,8 @@
   // continua admin — era isso que fazia o cargo sumir após a primeira decisão.
   let papelClaim = null;
   let papelPerfil = null;
-  const HIERARQUIA_PAPEL = ['super_admin', 'admin', 'engenheiro', 'comprador', 'encarregado', 'pendente', 'bloqueado', 'desativado'];
+  let modulosRh = null;
+  const HIERARQUIA_PAPEL = ['super_admin', 'admin', 'rh', 'engenheiro', 'comprador', 'encarregado', 'pendente', 'bloqueado', 'desativado'];
 
   function sessao() {
     try {
@@ -69,9 +81,12 @@
         if (claimRole) papelClaim = normalizarPapel(claimRole);
       }
       if (typeof firebase.database !== 'undefined' && user.uid) {
-        const snap = await firebase.database().ref(`profiles/${user.uid}/role`).once('value');
-        const perfilRole = snap.val();
-        if (perfilRole) papelPerfil = normalizarPapel(perfilRole);
+        const snap = await firebase.database().ref(`profiles/${user.uid}`).once('value');
+        const perfil = snap.val() || {};
+        if (perfil.role) papelPerfil = normalizarPapel(perfil.role);
+        modulosRh = (perfil.role === 'rh' && perfil.modulosPermitidos)
+          ? perfil.modulosPermitidos
+          : ((sessao().modulosPermitidos && sessao().role === 'rh') ? sessao().modulosPermitidos : null);
       }
     } catch (e) {
       console.warn('[aprovacoes] não foi possível atualizar o papel:', e && e.message);
@@ -111,6 +126,10 @@
   function podeDecidir(ap) {
     if (!ap) return false;
     if (ehAdmin()) return ap.status === 'pendente';
+    if (papel() === 'rh' && modulosRh && modulosRh.aprovacoes === true) {
+      const modulo = MODULO_POR_TIPO[ap.tipo];
+      return ap.status === 'pendente' && !!modulo && modulosRh[modulo] === true;
+    }
     return papel() === 'engenheiro' && ap.tipo === 'movimentacao_estoque' && ap.status === 'pendente';
   }
 
@@ -121,7 +140,7 @@
    */
   function requerAprovacao() {
     const role = papel();
-    return role === 'encarregado' || role === 'engenheiro';
+    return role === 'encarregado' || role === 'engenheiro' || role === 'rh';
   }
   window.requerAprovacao = requerAprovacao;
 

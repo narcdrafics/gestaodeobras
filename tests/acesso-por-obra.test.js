@@ -108,7 +108,8 @@ describe('acesso por obra — integração de UI e persistência', () => {
   it('saveUsuario grava o escopo (novo e edição) e exige ao menos uma obra', () => {
     const trecho = app.slice(app.indexOf('async function saveUsuario('), app.indexOf('// ==================== DELETE'));
     expect(trecho).toContain('lerEscopoObrasDoModal()');
-    expect(trecho).toContain('{ email, name, role, ...escopoObras }');
+    expect(trecho).toContain('...escopoObras');
+    expect(trecho).toContain('...(modulosRh ?');
     expect(trecho).toContain('obrasPermitidas.length === 0');
   });
   it('carga filtra e gravação remonta os arrays', () => {

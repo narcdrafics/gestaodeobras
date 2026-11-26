@@ -43,8 +43,17 @@ Todo cargo/tenant é alterado no servidor. O navegador **nunca** escreve
 `role`, `tenantId` ou `status` em `profiles/<uid>` nem em `users/<email>`:
 
 ```
-POST /api/admin/cargo   -> { acao: 'definir_cargo' | 'remover_usuario', uid/email, role, tenantId }
+POST /api/admin/cargo   -> { acao: 'definir_cargo' | 'remover_usuario', uid/email, role, tenantId,
+                             modulosPermitidos?, acessoObras?, obrasPermitidas? }
 ```
+
+O cargo `rh` fica entre `admin` e `engenheiro`. O admin escolhe, por usuário,
+quais módulos ele usa (`funcionarios`, `presenca`, `almocos`, `tarefas`, `obras`,
+`medicao`, `estoque`, `compras`, `financeiro`, `orcamento`, `aprovacoes`) e em
+quais obras atua. Padrão: funcionários + presença + almoços. Módulos e obras são
+normalizados no servidor, espelhados em `profiles`/`users`/`invites` e copiados
+para as custom claims pelo `syncCustomClaims`; as Firebase Rules repetem a mesma
+checagem (sempre com guard de tenant e faturamento).
 
 A função `gerenciarCargo` (`functions/index.js` → `functions/cargos.js`) valida o
 ID token, reconfirma o papel do chamador e:
@@ -71,7 +80,9 @@ A função `decidirAprovacaoApi` (`functions/index.js` → `functions/aprovacoes
 verifica o ID token, reconfirma o papel em `profiles`/`super_admins`, bloqueia
 tenant alheio (salvo Super Admin) e plano `somente_leitura`/`bloqueado`, grava a
 decisão com Admin SDK em transação e dispara o trigger `aplicarAprovacao`.
-Assim o `PERMISSION_DENIED` das rules do cliente não acontece — inclusive quando
+O RH só decide quando o admin habilitou `aprovacoes` **e** o módulo do tipo da
+solicitação (ex.: `compras` para `compra_criacao`). Assim o `PERMISSION_DENIED`
+das rules do cliente não acontece — inclusive quando
 o Super Admin opera a empresa de outro tenant.
 
 ### Bootstrap e migração

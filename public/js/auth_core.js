@@ -129,14 +129,27 @@ function normalizeRole(role) {
 }
 window.normalizeRole = normalizeRole;
 
-function normalizeUserRecord(user) {
+/** Campos exclusivos do RH que precisam acompanhar a sessão. */
+function camposRhSessao(dados, role) {
+  if (role !== 'rh') return {};
   return {
+    modulosPermitidos: (dados && dados.modulosPermitidos) || null,
+    acessoObras: (dados && dados.acessoObras) || 'todas',
+    obrasPermitidas: (dados && dados.obrasPermitidas) || []
+  };
+}
+window.camposRhSessao = camposRhSessao;
+
+function normalizeUserRecord(user) {
+  const registro = {
     uid: user.uid,
     tenantId: user.tenantId,
     email: user.email,
     name: user.name || user.email,
     role: normalizeRole(user.role)
   };
+  // RH carrega as permissões definidas pelo admin na própria sessão.
+  return { ...registro, ...camposRhSessao(user, registro.role) };
 }
 
 // ================== GOOGLE LOGIN ==================
@@ -259,7 +272,9 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
         // Para novos perfis criados pelo cliente, usamos 'admin' para respeitar a regra do banco (que proíbe cliente de auto-conceder super_admin).
         // A Cloud Function syncCustomClaims promove imediatamente para 'super_admin' e concede as Custom Claims.
         role: (snapshot.exists() && isSuper) ? 'super_admin' : (isSuper ? 'admin' : (globalData.role || 'admin')),
-        tenantId: isSuper ? 'MASTER_SYSTEM' : (globalData.tenantId || userProfile?.tenantId)
+        tenantId: isSuper ? 'MASTER_SYSTEM' : (globalData.tenantId || userProfile?.tenantId),
+        ...camposRhSessao({ ...globalData, ...(snapshot.val() || {}) },
+          normalizeRole(globalData.role || userProfile?.role))
       };
       if (!snapshot.exists()) {
         await profileRef.set({ ...userProfile, status: 'ativo' });
@@ -278,7 +293,8 @@ async function handleAuthSuccess(firebaseUser, fallbackName) {
         email,
         name: userProfile?.name || Name,
         role: inviteData.role || userProfile?.role || 'engenheiro',
-        tenantId: inviteData.tenantId
+        tenantId: inviteData.tenantId,
+        ...camposRhSessao(inviteData, normalizeRole(inviteData.role || userProfile?.role))
       };
       // Update não-destrutivo: role/status só vêm do servidor. Na criação do
       // perfil o cargo do convite é aceito; depois, alterações passam pela API.
@@ -659,10 +675,14 @@ function setRestrictions(user) {
 
   const role = normalizeRole(user.role);
 
-  // Aprovações: admin decide tudo; engenheiro acompanha/decide movimentações.
+  // Aprovações: admin decide tudo; engenheiro decide movimentações; RH só
+  // quando o admin habilitou explicitamente o módulo de aprovações.
+  const modulosRh = (role === 'rh' && user.modulosPermitidos) ? user.modulosPermitidos : {};
   const navAprovacoes = document.getElementById('nav-aprovacoes');
   if (navAprovacoes) {
-    navAprovacoes.style.display = (role === 'admin' || role === 'super_admin' || role === 'engenheiro') ? '' : 'none';
+    navAprovacoes.style.display =
+      (role === 'admin' || role === 'super_admin' || role === 'engenheiro' || modulosRh.aprovacoes === true)
+        ? '' : 'none';
   }
 
   if (role === 'admin' || role === 'super_admin') {
@@ -692,6 +712,16 @@ function setRestrictions(user) {
     if (impBtn?.parentElement) impBtn.parentElement.style.display = 'none';
   } else if (role === 'engenheiro') {
     hidePages = ['trabalhadores', 'presenca', 'financeiro', 'orcamento'];
+  } else if (role === 'rh') {
+    // RH enxerga apenas os módulos marcados pelo admin no cadastro do usuário.
+    const paginaModulo = {
+      trabalhadores: 'funcionarios', presenca: 'presenca', almocos: 'almocos',
+      tarefas: 'tarefas', obras: 'obras', medicao: 'medicao', estoque: 'estoque',
+      compras: 'compras', financeiro: 'financeiro', orcamento: 'orcamento'
+    };
+    hidePages = Object.entries(paginaModulo)
+      .filter(([, modulo]) => modulosRh[modulo] !== true)
+      .map(([pagina]) => pagina);
   }
 
   hidePages.forEach(p => {

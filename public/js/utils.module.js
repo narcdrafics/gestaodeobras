@@ -1018,7 +1018,7 @@ const PRIORIDADE_ALERTA = { alto: 0, medio: 1, baixo: 2 };
  * `linhas` = saída de calcDashboardResumo (precisa de pctCusto por obra).
  * `role` (opcional): mestre não acessa compras/financeiro, então não recebe esses alertas.
  */
-const calcAlertas = (db, hoje, linhas, role) => {
+const calcAlertas = (db, hoje, linhas, role, modulos) => {
   const alertas = [];
   const obras = db.obras || [];
   const nomeObra = (cod) => (obras.find(o => o.cod === cod) || {}).nome || cod || 'Geral';
@@ -1038,14 +1038,19 @@ const calcAlertas = (db, hoje, linhas, role) => {
     .forEach(t => add('TAREFA HOJE', t.obraNome, t.desc, 'medio'));
 
   // Encarregado (e o alias legado `mestre`) não acessa custos/compras neste alerta.
-  if (role !== 'mestre' && role !== 'encarregado') {
+  // RH segue os módulos liberados pelo admin.
+  const rhSemCustos = role === 'rh' && !(modulos && (modulos.financeiro === true || modulos.orcamento === true));
+  const rhSemCompras = role === 'rh' && !(modulos && modulos.compras === true);
+  if (role !== 'mestre' && role !== 'encarregado' && !rhSemCustos) {
     (linhas || []).forEach(l => {
       if (l.obra.status !== 'Em andamento' || l.pctCusto === null) return;
       if (l.pctCusto > 100) add('CUSTO ACIMA DO ORÇAMENTO', l.obra.nome, `${l.pctCusto.toFixed(0)}% do orçamento já foi gasto`, 'alto');
       else if (l.pctCusto >= 80) add('CUSTO PERTO DO LIMITE', l.obra.nome, `${l.pctCusto.toFixed(0)}% do orçamento já foi gasto`, 'medio');
     });
-    (db.compras || []).filter(c => c && c.status === 'Aguardando')
-      .forEach(c => add('COMPRA PENDENTE', nomeObra(c.obra), c.mat, 'medio'));
+    if (!rhSemCompras) {
+      (db.compras || []).filter(c => c && c.status === 'Aguardando')
+        .forEach(c => add('COMPRA PENDENTE', nomeObra(c.obra), c.mat, 'medio'));
+    }
   }
 
   // Obra em andamento sem nenhuma presença lançada hoje (domingo não conta)
@@ -1066,7 +1071,7 @@ const calcAlertas = (db, hoje, linhas, role) => {
  * Tudo que o Dashboard Executivo mostra, já calculado (a tela só desenha).
  * Semana = segunda-feira até hoje; mês = dia 1 até hoje (mesmos períodos da página Hoje).
  */
-const calcDashboardResumo = (db, hoje, role) => {
+const calcDashboardResumo = (db, hoje, role, modulos) => {
   hoje = hoje || hojeLocal();
   const obras = db.obras || [];
   const presHoje = (db.presenca || []).filter(p => p && p.data === hoje);
@@ -1101,7 +1106,7 @@ const calcDashboardResumo = (db, hoje, role) => {
     kpis,
     linhas,
     tarefas: calcTarefasResumo(db, hoje),
-    alertas: calcAlertas(db, hoje, linhas, role)
+    alertas: calcAlertas(db, hoje, linhas, role, modulos)
   };
 };
 

@@ -8,6 +8,7 @@ service firebase.storage {
       return request.auth != null
         && request.auth.token.tenantId == tenantId
         && (request.auth.token.role == 'admin'
+          || request.auth.token.role == 'rh'
           || request.auth.token.role == 'engenheiro'
           || request.auth.token.role == 'encarregado'
           || request.auth.token.role == 'mestre'

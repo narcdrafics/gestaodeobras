@@ -5,10 +5,28 @@
   <div class="form-group"><label class="form-label">Perfil de Acesso *</label>
     <select class="form-control" id="usr-role" onchange="toggleUsrObras()">
       <option value="admin">Administrador (Total)</option>
+      <option value="rh">Recursos Humanos (Personalizável)</option>
       <option value="engenheiro">Engenheiro (Gestão de Obra)</option>
       <option value="encarregado">Encarregado de Obra (Operacional)</option>
       <option value="pendente">Pendente de Aprovação</option>
     </select>
+  </div>
+  <div class="form-group form-full" id="usr-modulos-wrap" style="display:none">
+    <label class="form-label">Módulos liberados para Recursos Humanos</label>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;border:1px solid var(--border);border-radius:8px;padding:10px;">
+      <label><input type="checkbox" class="usr-modulo-chk" value="funcionarios" checked> Funcionários</label>
+      <label><input type="checkbox" class="usr-modulo-chk" value="presenca" checked> Presença</label>
+      <label><input type="checkbox" class="usr-modulo-chk" value="almocos" checked> Almoços</label>
+      <label><input type="checkbox" class="usr-modulo-chk" value="tarefas"> Tarefas</label>
+      <label><input type="checkbox" class="usr-modulo-chk" value="obras"> Obras</label>
+      <label><input type="checkbox" class="usr-modulo-chk" value="medicao"> Medição</label>
+      <label><input type="checkbox" class="usr-modulo-chk" value="estoque"> Estoque</label>
+      <label><input type="checkbox" class="usr-modulo-chk" value="compras"> Compras</label>
+      <label><input type="checkbox" class="usr-modulo-chk" value="financeiro"> Financeiro</label>
+      <label><input type="checkbox" class="usr-modulo-chk" value="orcamento"> Orçamento</label>
+      <label><input type="checkbox" class="usr-modulo-chk" value="aprovacoes"> Decidir aprovações</label>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">Padrão: funcionários, presença e almoços. Demais módulos só com liberação explícita.</div>
   </div>
   <div class="form-group form-full" id="usr-obras-wrap">
     <label class="form-label">Acesso às Obras</label>

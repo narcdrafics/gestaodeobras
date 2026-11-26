@@ -757,16 +757,56 @@ exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
       await getAuth().revokeRefreshTokens(uid);
     }
 
-    // Evitar updates desnecessários (otimização de cota e performance)
-    if (currentClaims.role === role && currentClaims.tenantId === tenantId) {
+    // Evitar updates desnecessários (otimização de cota e performance).
+    // Para RH, módulos/obras também fazem parte da assinatura das claims.
+    const modulosClaimAtual = (currentClaims.modulosPermitidos && typeof currentClaims.modulosPermitidos === 'object')
+      ? Object.keys(currentClaims.modulosPermitidos).filter(k => currentClaims.modulosPermitidos[k] === true).sort()
+      : [];
+    const assinaturaAtual = JSON.stringify({
+      modulos: currentClaims.role === 'rh' ? modulosClaimAtual : null,
+      acesso: currentClaims.role === 'rh' ? (currentClaims.acessoObras || 'todas') : null,
+      obras: currentClaims.role === 'rh'
+        ? (Array.isArray(currentClaims.obrasPermitidas) ? currentClaims.obrasPermitidas.slice().sort() : [])
+        : []
+    });
+    const modulosPerfil = (after.modulosPermitidos && typeof after.modulosPermitidos === 'object')
+      ? Object.keys(after.modulosPermitidos).filter(k => after.modulosPermitidos[k] === true).sort()
+      : [];
+    const obrasPerfil = (Array.isArray(after.obrasPermitidas) ? after.obrasPermitidas : [])
+      .map(o => String(o || '').trim()).filter(Boolean).sort();
+    const assinaturaPerfil = JSON.stringify({
+      modulos: role === 'rh' ? modulosPerfil : null,
+      acesso: role === 'rh' ? (after.acessoObras === 'especificas' ? 'especificas' : 'todas') : null,
+      obras: role === 'rh' ? obrasPerfil : []
+    });
+    if (currentClaims.role === role && currentClaims.tenantId === tenantId &&
+        assinaturaAtual === assinaturaPerfil) {
       console.log(`[syncCustomClaims] Claims inalteradas para uid: ${uid}`);
       return null;
     }
 
-    await getAuth().setCustomUserClaims(uid, {
-      role: role,
-      tenantId: tenantId
-    });
+    // RH carrega nas claims os módulos e o escopo de obras definidos pelo
+    // admin, para que as rules e o cliente decidam sem outra leitura.
+    const claimsUpdate = { role: role, tenantId: tenantId };
+    if (role === 'rh') {
+      const modulos = after.modulosPermitidos && typeof after.modulosPermitidos === 'object'
+        ? after.modulosPermitidos : null;
+      const modulosLimpos = {};
+      if (modulos) {
+        Object.keys(modulos).forEach(chave => {
+          if (modulos[chave] === true) modulosLimpos[chave] = true;
+        });
+      }
+      claimsUpdate.modulosPermitidos = modulosLimpos;
+      claimsUpdate.acessoObras = after.acessoObras === 'especificas' ? 'especificas' : 'todas';
+      const obras = Array.isArray(after.obrasPermitidas)
+        ? after.obrasPermitidas.map(o => String(o || '').trim()).filter(Boolean).slice(0, 50)
+        : [];
+      claimsUpdate.obrasPermitidas = obras;
+    }
+    // setCustomUserClaims substitui o objeto inteiro: para os outros cargos as
+    // chaves de RH simplesmente não existem (equivalem a null nas rules).
+    await getAuth().setCustomUserClaims(uid, claimsUpdate);
 
     console.log(`[syncCustomClaims] Atualizado uid: ${uid} -> role: ${role}, tenant: ${tenantId}`);
     return { success: true };
