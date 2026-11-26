@@ -58,6 +58,22 @@ ID token, reconfirma o papel do chamador e:
 - espelha o resultado em `profiles`, `users` e `invites`, revoga os ID tokens
   antigos e registra auditoria.
 
+## Decisão de aprovações — endpoint único
+
+Aprovar/rejeitar solicitação (incluir/remover trabalhador, estoque, finanças,
+compras etc.) também passa pelo servidor:
+
+```
+POST /api/admin/aprovacao -> { tenantId, aprovacaoId, decisao: 'aprovado'|'rejeitado', motivo? }
+```
+
+A função `decidirAprovacaoApi` (`functions/index.js` → `functions/aprovacoes-api.js`)
+verifica o ID token, reconfirma o papel em `profiles`/`super_admins`, bloqueia
+tenant alheio (salvo Super Admin) e plano `somente_leitura`/`bloqueado`, grava a
+decisão com Admin SDK em transação e dispara o trigger `aplicarAprovacao`.
+Assim o `PERMISSION_DENIED` das rules do cliente não acontece — inclusive quando
+o Super Admin opera a empresa de outro tenant.
+
 ### Bootstrap e migração
 
 Não existe mais bootstrap de Super Admin pelo navegador. Para o primeiro master

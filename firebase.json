@@ -30,6 +30,10 @@
         "function": "gerenciarCargo"
       },
       {
+        "source": "/api/admin/aprovacao",
+        "function": "decidirAprovacaoApi"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

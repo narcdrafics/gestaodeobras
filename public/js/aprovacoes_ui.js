@@ -1,11 +1,13 @@
 // ==================== APROVAÇÕES — UI (cliente) ====================
-// O cliente apenas solicita e decide. A gravação do resultado é feita pela
-// Cloud Function `aplicarAprovacao` (servidor), nunca por persistDB().
+// O cliente solicita e envia a decisão para /api/admin/aprovacao. O servidor
+// valida token/papel/billing e grava o resultado com Admin SDK; a operação real
+// é aplicada pelo trigger `aplicarAprovacao`. Nunca por persistDB().
 (function () {
   'use strict';
 
   const PRAZO_MS = 15 * 24 * 60 * 60 * 1000;
   const DIAS_ALERTA = [7, 12, 15];
+  const APROVACAO_API_URL = '/api/admin/aprovacao';
 
   const TIPOS = {
     movimentacao_estoque: 'Material / ferramenta',
@@ -61,6 +63,14 @@
     } catch (e) {
       return sessao().uid || '';
     }
+  }
+
+  async function tokenDaSessao() {
+    const user = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+    if (!user || typeof user.getIdToken !== 'function') {
+      throw new Error('Sua sessão expirou. Entre novamente para continuar.');
+    }
+    return user.getIdToken();
   }
 
   function podeDecidir(ap) {
@@ -230,26 +240,29 @@
       return;
     }
 
-    const caminho = `tenants/${tid}/aprovacoes/${id}`;
-    const updates = {
-      [`${caminho}/status`]: decisao,
-      [`${caminho}/decididoPor`]: uid(),
-      [`${caminho}/decididoEm`]: Date.now(),
-      [`${caminho}/decididoPorPapel`]: ehAdmin() ? 'admin' : 'engenheiro'
-    };
-    if (decisao === 'rejeitado') updates[`${caminho}/motivo`] = motivo.slice(0, 500);
-    // A rules exige notificarAdmin === true quando o engenheiro decide.
-    if (!ehAdmin()) updates[`${caminho}/notificarAdmin`] = true;
-
     try {
-      await firebase.database().ref().update(updates);
+      const token = await tokenDaSessao();
+      const resposta = await fetch(APROVACAO_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ tenantId: tid, aprovacaoId: id, decisao, motivo })
+      });
+      let dados = null;
+      try { dados = await resposta.json(); } catch (e) { /* resposta sem JSON */ }
+      if (!resposta.ok || !dados || dados.ok === false) {
+        const msg = (dados && (dados.mensagem || dados.erro)) || ('Falha HTTP ' + resposta.status);
+        throw new Error(msg);
+      }
       if (typeof closeModal === 'function') closeModal('modal-aprovacao');
       if (typeof toast === 'function') {
         toast(decisao === 'aprovado' ? 'Solicitação aprovada e aplicada.' : 'Solicitação rejeitada.', 'success');
       }
     } catch (e) {
       console.error('[aprovacoes] erro ao decidir:', e);
-      if (typeof toast === 'function') toast('Não foi possível registrar a decisão.', 'error');
+      const mensagem = /sessão expirou/i.test(e.message || '')
+        ? e.message
+        : 'Não foi possível registrar a decisão. ' + (e.message || '');
+      if (typeof toast === 'function') toast(mensagem, 'error');
     }
   }
   window.decidirAprovacao = decidirAprovacao;

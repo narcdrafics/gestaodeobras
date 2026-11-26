@@ -21,6 +21,7 @@ const trecho = (src, inicio, fim) => src.slice(src.indexOf(inicio), src.indexOf(
 describe('aprovacoes — fiação no app', () => {
   it('carrega o módulo com cache-bust e oferece a página no menu', () => {
     expect(appHtml).toContain('js/aprovacoes_ui.js?v=');
+    expect(appHtml).not.toContain('js/aprovacoes_ui.js?v=20261122006');
     expect(appHtml).toContain('css/app.css?v=');
     expect(appHtml).toContain("onclick=\"showPage('aprovacoes')\"");
     expect(appHtml).toContain('id="nav-aprovacoes"');
@@ -75,13 +76,16 @@ describe('aprovacoes — contrato do cliente', () => {
     expect(criacao).toContain('Solicitação já enviada');
   });
 
-  it('engenheiro decide apenas movimentação e é obrigado a sinalizar notificarAdmin', () => {
+  it('engenheiro decide apenas movimentação; decisão vai por API server-side', () => {
     const pode = trecho(uiSrc, 'function podeDecidir(', 'function requerAprovacao(');
     expect(pode).toContain("ap.tipo === 'movimentacao_estoque'");
 
     const decisao = trecho(uiSrc, 'async function decidirAprovacao(', 'function payloadParaExibicao(');
-    expect(decisao).toContain("ehAdmin() ? 'admin' : 'engenheiro'");
-    expect(decisao).toContain('updates[`${caminho}/notificarAdmin`] = true');
+    expect(decisao).toContain('APROVACAO_API_URL');
+    expect(decisao).toContain("method: 'POST'");
+    expect(decisao).toContain('Authorization');
+    expect(decisao).toContain('aprovacaoId: id');
+    expect(decisao).not.toContain('firebase.database().ref().update');
   });
 
   it('só encarregado e engenheiro são desviados para aprovação', () => {

@@ -23,6 +23,7 @@ const { criarUsuarioTenant } = require('./usuarios');
 const { aoEscreverAprovacao, processarAprovacoesJob } = require('./aprovacoes');
 const { handleAdminRequest } = require('./super_admin');
 const { handleCargoRequest } = require('./cargos');
+const { handleAprovacaoRequest } = require('./aprovacoes-api');
 const { avaliarSuperAdmin, normalizarRole } = require('./claims');
 const { executarLimpeza } = require('./retencao');
 
@@ -833,7 +834,21 @@ exports.gerenciarCargo = onRequest({
 });
 
 // ==================== APROVAÇÕES (SERVIDOR) ====================
-// O cliente apenas cria/muda o status; a operação real é aplicada aqui.
+// Decisão via Admin SDK: o navegador não escreve status/decidido* no RTDB.
+// cobre admin comum e super_admin operando tenant alheio (billing permitido).
+exports.decidirAprovacaoApi = onRequest({
+  cors: false,
+  memory: '256MiB',
+  timeoutSeconds: 60,
+  maxInstances: 3
+}, async (req, res) => {
+  return handleAprovacaoRequest(req, res, {
+    auth: getAuth(),
+    db: getDatabase()
+  });
+});
+
+// A operação real é aplicada aqui depois da decisão gravada pela API.
 exports.aplicarAprovacao = onValueWritten(
   "tenants/{tenantId}/aprovacoes/{aprovacaoId}",
   async (event) => aoEscreverAprovacao(
