@@ -9,6 +9,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
 const modal = read('public/modals/modal-tarefa.html');
+const modalMedicao = read('public/modals/modal-medicao.html');
 const app = read('public/js/app_core.js');
 const css = read('public/css/app.css');
 const dataCore = read('public/js/data_core.js');
@@ -52,5 +53,24 @@ describe('legendas e impressão', () => {
     expect(css).toContain('max-height: 36mm;');
     expect(css).toContain('.audit-task-photo-caption { font-size: 8px;');
     expect(css).toContain('aspect-ratio: 16 / 10;');
+  });
+});
+
+describe('fotos das medições no mesmo padrão das tarefas', () => {
+  it('o modal usa a mesma grade com legenda do serviço medido', () => {
+    expect(modalMedicao).toMatch(/id="md-photos-input"[^>]*multiple/);
+    expect(modalMedicao).toContain('id="md-photo-preview"');
+    expect(modalMedicao).toContain('Cada foto recebe como legenda a descrição do serviço medido.');
+    expect(app).toContain('medicaoPhotoCaption({ servico: medicaoFormDescription() }');
+    expect(app).toContain('<span class="md-photo-caption"');
+    expect(css).toContain('.md-photo-grid { display: grid;');
+    expect(css).toContain('.md-photo-caption {');
+  });
+
+  it('a galeria e o histórico usam a legenda da medição', () => {
+    expect(app).toContain('function medicaoPhotoCaption(m, index = 0, total = 1)');
+    expect(app).toContain('captionFn: (i, total) => medicaoPhotoCaption(m, i, total)');
+    expect(app).toContain('med-history-photos');
+    expect(app).toContain('legenda: medicaoPhotoCaption(m, i, rawPhotos.length)');
   });
 });

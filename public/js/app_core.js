@@ -162,7 +162,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261126001';
+const HTML_CACHE_VERSION = '20261126002';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -3897,7 +3897,13 @@ function openMedicaoHistorico(key) {
             <td>${medicaoEsc(window.medicaoAprovacao ? window.medicaoAprovacao(m) : 'Aprovada')}</td>
             <td>${medicaoEsc(m.pgtoStatus || 'Pendente')}</td>
             <td>${photos.length
-        ? photos.slice(0, 3).map((u, i) => `<img class="med-history-thumb" src="${medicaoEsc(u)}" alt="Evidência" onclick="openMedicaoFotos(${m._idx}, ${i})">`).join('') + (photos.length > 3 ? ` <span class="med-muted">+${photos.length - 3}</span>` : '')
+        ? `<div class="med-history-photos">
+            ${photos.slice(0, 3).map((u, i) => {
+              const legenda = medicaoPhotoCaption(m, i, photos.length);
+              return `<div class="med-history-photo"><img class="med-history-thumb" src="${medicaoEsc(u)}" alt="${medicaoEsc(legenda)}" title="${medicaoEsc(legenda)}" onclick="openMedicaoFotos(${m._idx}, ${i})"><span class="med-history-photo-caption">${medicaoEsc(legenda)}</span></div>`;
+            }).join('')}
+            ${photos.length > 3 ? `<button type="button" class="med-history-photo-more" onclick="openMedicaoFotos(${m._idx})" title="Ver todas as fotos">+${photos.length - 3}</button>` : ''}
+          </div>`
         : '—'}</td>
             <td>${medicaoEsc(m.obs || '—')}</td>
             <td><div class="med-actions">
@@ -3934,8 +3940,15 @@ window.medicaoRowClick = medicaoRowClick;
 
 function medicaoPhotoList(m) {
   if (!m) return [];
-  return Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
+  return Array.isArray(m.photos) && m.photos.length ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
 }
+
+/** A legenda da foto vem da descrição do serviço medido. */
+function medicaoPhotoCaption(m, index = 0, total = 1) {
+  const desc = String((m && (m.servico || m.etapa)) || '').trim() || 'Medição';
+  return total > 1 ? `${desc} · Foto ${index + 1}/${total}` : desc;
+}
+window.medicaoPhotoCaption = medicaoPhotoCaption;
 
 function openMedicaoFotos(idx, startIndex = 0) {
   const m = DB.medicao[idx];
@@ -3947,7 +3960,10 @@ function openMedicaoFotos(idx, startIndex = 0) {
     photos,
     index,
     title: `${m.etapa || 'Medição'} · ${m.servico || 'Serviço'}`,
-    meta: [fmtDate(m.semana || m.data), m.equipe].filter(Boolean).join(' · ')
+    meta: [fmtDate(m.semana || m.data), m.equipe].filter(Boolean).join(' · '),
+    heading: 'Evidências da medição',
+    label: 'Fotos da medição',
+    captionFn: (i, total) => medicaoPhotoCaption(m, i, total)
   };
   renderMedicaoGallery();
   document.addEventListener('keydown', medicaoGalleryKeydown);
@@ -4188,6 +4204,7 @@ function updateMedicaoAnterior() {
   const el = document.getElementById('md-qant');
   if (el) el.value = qant;
   recalcMedicao();
+  renderMedicaoPhotoPreview(); // mantém as legendas sincronizadas com a descrição do serviço
 }
 window.updateMedicaoAnterior = updateMedicaoAnterior;
 
@@ -4214,23 +4231,31 @@ function syncMedicaoRetrabalho() {
 }
 window.syncMedicaoRetrabalho = syncMedicaoRetrabalho;
 
+function medicaoFormDescription() {
+  return (document.getElementById('md-servico')?.value || '').trim() || 'Medição';
+}
+
 function renderMedicaoPhotoPreview() {
   const box = document.getElementById('md-photo-preview');
   if (!box) return;
-  const photos = window._medicaoPhotos || [];
+  const photos = Array.isArray(window._medicaoPhotos) ? window._medicaoPhotos : [];
   box.style.display = photos.length ? 'grid' : 'none';
-  box.innerHTML = photos.map((u, i) => `
-    <div class="md-photo-item">
-      <img src="${medicaoEsc(u)}" alt="Evidência" data-photo="${medicaoEsc(u)}" onclick="openLightbox(this.dataset.photo)">
-      <button type="button" class="md-photo-remove" onclick="removeMedicaoPhoto(${i})" title="Remover foto"><span class="material-symbols-outlined md-16">close</span></button>
-    </div>
-  `).join('');
+  box.innerHTML = photos.map((u, i) => {
+    const legenda = medicaoPhotoCaption({ servico: medicaoFormDescription() }, i, photos.length);
+    return `<div class="md-photo-card">
+      <img src="${medicaoEsc(u)}" alt="${medicaoEsc(legenda)}" data-photo="${medicaoEsc(u)}" onclick="openLightbox(this.dataset.photo)" title="Clique para ampliar" loading="lazy">
+      <button type="button" class="md-photo-remove" onclick="removeMedicaoPhoto(${i})" title="Remover foto ${i + 1}" aria-label="Remover foto ${i + 1}"><span class="material-symbols-outlined md-16">close</span></button>
+      <span class="md-photo-caption" title="${medicaoEsc(legenda)}">${medicaoEsc(legenda)}</span>
+    </div>`;
+  }).join('');
 }
 window.renderMedicaoPhotoPreview = renderMedicaoPhotoPreview;
 
 function removeMedicaoPhoto(idx) {
   if (!Array.isArray(window._medicaoPhotos)) return;
   window._medicaoPhotos.splice(idx, 1);
+  const fileInput = document.getElementById('md-photos-input');
+  if (fileInput) fileInput.value = '';
   renderMedicaoPhotoPreview();
 }
 window.removeMedicaoPhoto = removeMedicaoPhoto;
@@ -4272,6 +4297,7 @@ async function handleMedicaoPhotos(input) {
     }
   }
   input.value = '';
+  if (window._medicaoPhotos.length) toast(`${window._medicaoPhotos.length} foto(s) anexada(s) com legenda do serviço.`, 'success');
 }
 window.handleMedicaoPhotos = handleMedicaoPhotos;
 
@@ -4345,10 +4371,11 @@ function renderFotos() {
 
   // 2. Coleta das Medições (suporta múltiplas fotos e o formato antigo)
   (DB.medicao || []).forEach(m => {
-    const rawPhotos = Array.isArray(m.photos) ? m.photos.filter(Boolean) : (m.photoUrl ? [m.photoUrl] : []);
-    rawPhotos.filter(Boolean).forEach(url => {
+    const rawPhotos = medicaoPhotoList(m);
+    rawPhotos.forEach((url, i) => {
       allPhotos.push({
         url,
+        legenda: medicaoPhotoCaption(m, i, rawPhotos.length),
         obra: m.obra,
         origem: 'Medição',
         cod: m.cod || 'MED',
