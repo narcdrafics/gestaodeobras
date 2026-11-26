@@ -124,6 +124,20 @@ describe('buildCloudUpdate — filtro por papel', () => {
     }
   });
 
+  it('as opções de marca d\'água acompanham o white-label salvo no admin', () => {
+    const cfg = {
+      config: {
+        nomeEmpresa: 'Construtora Alfa',
+        marcaDaguaApp: true,
+        marcaDaguaRelatorios: false,
+        limiteObras: 1
+      }
+    };
+    const update = helpers.buildCloudUpdate(cfg, 'admin');
+    expect(update['config/marcaDaguaApp']).toBe(true);
+    expect(update['config/marcaDaguaRelatorios']).toBe(false);
+  });
+
   it('encarregado envia somente registro de obra', () => {
     const update = helpers.buildCloudUpdate(db, 'encarregado');
     expect(Object.keys(update).sort()).toEqual(['almocos', 'presenca', 'tarefas']);

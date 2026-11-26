@@ -261,7 +261,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261126012';
+const HTML_CACHE_VERSION = '20261126013';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -698,6 +698,19 @@ window.exportHoje = function exportHoje() {
   const kpiGrid = document.getElementById('kpi-grid')?.innerHTML || '';
   const alertsGrid = document.getElementById('alerts-grid')?.innerHTML || '';
 
+  // Marca d'água do relatório diário (janela de impressão própria).
+  const cfgMarca = DB.config || {};
+  const nomeMarca = String(cfgMarca.nomeEmpresa || '').trim();
+  const podeMarca = typeof window.requireFeature !== 'function' ||
+    window.requireFeature('relatorio.marca');
+  const wmRelatorio = podeMarca && cfgMarca.marcaDaguaRelatorios === true && nomeMarca;
+  const wmCss = wmRelatorio && typeof window.cssMarcaDaguaImpressao === 'function'
+    ? '<style>' + window.cssMarcaDaguaImpressao() + '</style>' : '';
+  const wmAttr = wmRelatorio
+    ? ' data-watermark-print="' + nomeMarca
+        .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;') + '"'
+    : '';
+
   // Custos do dia com valores históricos gravados
   const hoje = getTodayBR();
   const custosDiariasHoje = window.calcCustosDiarias(DB.presenca, { dataInicio: hoje, dataFim: hoje });
@@ -838,8 +851,9 @@ window.exportHoje = function exportHoje() {
     '* { margin: 0; padding: 0; }' +
     '}' +
     '</style>' +
+    wmCss +
     '</head>' +
-    '<body>' +
+    '<body' + wmAttr + '>' +
     '<div class="page-header">' +
     '<div class="page-title">Relatório do Dia - Obra Real</div>' +
     '<div>' + hojeData + '</div>' +
@@ -4427,6 +4441,10 @@ function renderAdmin() {
     safeSetValue('cfg-tema', cfg.tema || 'dark');
     safeSetValue('cfg-slug', cfg.slug || '');
     safeSetValue('cfg-logo-url', cfg.logoUrl || '');
+    const marcaApp = document.getElementById('cfg-marca-app');
+    const marcaRel = document.getElementById('cfg-marca-relatorios');
+    if (marcaApp) marcaApp.checked = cfg.marcaDaguaApp === true;
+    if (marcaRel) marcaRel.checked = cfg.marcaDaguaRelatorios === true;
 
     if (cfg.logoUrl) {
       safeSetStyle('cfg-logo-preview', 'display', 'block');
@@ -5640,6 +5658,8 @@ function saveConfig() {
   const tema = document.getElementById('cfg-tema').value;
   const slug = document.getElementById('cfg-slug').value.trim().toLowerCase();
   const logoUrl = document.getElementById('cfg-logo-url').value;
+  const marcaDaguaApp = !!document.getElementById('cfg-marca-app')?.checked;
+  const marcaDaguaRelatorios = !!document.getElementById('cfg-marca-relatorios')?.checked;
 
   if (!DB.config) DB.config = {};
 
@@ -5648,6 +5668,8 @@ function saveConfig() {
   DB.config.tema = tema;
   DB.config.slug = slug;
   DB.config.logoUrl = logoUrl;
+  DB.config.marcaDaguaApp = marcaDaguaApp;
+  DB.config.marcaDaguaRelatorios = marcaDaguaRelatorios;
 
   // Aplica visualmente em tempo real
   loadTheme();

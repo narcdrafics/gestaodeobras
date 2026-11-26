@@ -73,8 +73,8 @@ describe('deploy — headers, rotas e cache', () => {
 
   it('as páginas de login e o app servem a mesma versão corrigida dos scripts', () => {
     for (const html of htmls) {
-      expect(html).toContain('js/auth_core.js?v=20261126012');
-      expect(html).toContain('js/data_core.js?v=20261126012');
+      expect(html).toContain('js/auth_core.js?v=20261126013');
+      expect(html).toContain('js/data_core.js?v=20261126013');
     }
   });
 

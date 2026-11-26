@@ -8,6 +8,9 @@ const staticDB = {
   config: {
     nomeEmpresa: 'Obra Real',
     esquemaCores: 'emerald',
+    // Marca d'água: o texto é sempre o nome da empresa (white-label).
+    marcaDaguaApp: false,
+    marcaDaguaRelatorios: false,
     limiteObras: 1,
     limiteUsuarios: 1,
     limiteTrabalhadores: 9999,
@@ -539,7 +542,58 @@ function loadTheme(externalCfg) {
       }
     }
   }
+  aplicarMarcaDagua(cfg);
 }
+
+// Marca d'água: texto = nome da empresa. Duas opções independentes na
+// Administração (fundo do app / relatórios impressos). Estilo leve e diagonal.
+function _escaparTextoSvg(texto) {
+  return String(texto).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;'
+  }[c]));
+}
+
+/** CSS reutilizado pelo app e pela janela de impressão do Relatório do Dia. */
+function cssMarcaDaguaImpressao() {
+  return 'body[data-watermark-print]::before{' +
+    'content:attr(data-watermark-print);position:fixed;top:45%;left:50%;' +
+    'transform:translate(-50%,-50%) rotate(-30deg);' +
+    'font:800 72px/1 Arial,sans-serif;color:rgba(0,0,0,.06);' +
+    'white-space:nowrap;pointer-events:none;z-index:0;' +
+    '-webkit-print-color-adjust:exact;print-color-adjust:exact}';
+}
+window.cssMarcaDaguaImpressao = cssMarcaDaguaImpressao;
+
+function aplicarMarcaDagua(cfgExterno) {
+  if (typeof document === 'undefined' || !document.body) return;
+  const cfg = cfgExterno || (DB && DB.config) || {};
+  const nome = String(cfg.nomeEmpresa || '').trim();
+  const liberado = typeof window.requireFeature !== 'function' ||
+    window.requireFeature('relatorio.marca');
+
+  if (liberado && cfg.marcaDaguaRelatorios === true && nome) {
+    document.body.setAttribute('data-watermark-print', nome);
+  } else {
+    document.body.removeAttribute('data-watermark-print');
+  }
+
+  if (liberado && cfg.marcaDaguaApp === true && nome) {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="420" height="220">' +
+      '<text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" ' +
+      'fill="black" fill-opacity="0.055" font-family="Arial,sans-serif" ' +
+      'font-size="30" font-weight="700" transform="rotate(-30 210 110)">' +
+      _escaparTextoSvg(nome) + '</text></svg>';
+    document.body.style.backgroundImage =
+      'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")';
+    document.body.style.backgroundRepeat = 'repeat';
+    document.body.style.backgroundSize = '420px 220px';
+  } else {
+    document.body.style.backgroundImage = '';
+    document.body.style.backgroundRepeat = '';
+    document.body.style.backgroundSize = '';
+  }
+}
+window.aplicarMarcaDagua = aplicarMarcaDagua;
 
 // SaaS: Inicialização de contexto por subdomínio (antes do login)
 function comLimite(promise, ms, mensagem) {

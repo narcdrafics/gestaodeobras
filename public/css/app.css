@@ -671,6 +671,15 @@ select.form-control option { background: var(--bg2); }
 @media print {
   @page { margin: 1cm; }
   body { background: #fff !important; color: #000 !important; }
+  /* Marca d'água dos relatórios (texto = nome da empresa). */
+  body[data-watermark-print]::before {
+    content: attr(data-watermark-print);
+    position: fixed; top: 45%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-30deg);
+    font: 800 72px/1 Arial, sans-serif; color: rgba(0, 0, 0, .06);
+    white-space: nowrap; pointer-events: none; z-index: 0;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
   .header, .sidebar, .menu-toggle, .btn, .modal-overlay, #toast-container, .page-header button { display: none !important; }
   .layout { grid-template-columns: 1fr !important; }
   .main { margin-left: 0 !important; width: 100% !important; padding: 0 !important; overflow: visible !important; }
