@@ -19,8 +19,10 @@
   </div>
   <div class="form-group"><label class="form-label">Empreiteiro/Equipe</label><input class="form-control" id="tr-equipe"
       placeholder="Própria"></div>
-  <div class="form-group"><label class="form-label">Obra(s)</label><input class="form-control" id="tr-obras"
-      placeholder="OB001"></div>
+  <div class="form-group"><label class="form-label">Obra(s)</label>
+    <select class="form-control" id="tr-obras" multiple size="3" onchange="syncTrabObrasHint()"></select>
+    <small class="form-hint" id="tr-obras-hint">Selecione uma ou mais obras (Ctrl/Cmd + clique).</small>
+  </div>
   <div class="form-group"><label class="form-label">Diária/Salário (R$)</label><input type="number" class="form-control"
       id="tr-diaria"></div>
   <div class="form-group"><label class="form-label">Forma Pgto</label>

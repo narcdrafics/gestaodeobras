@@ -472,6 +472,7 @@ tbody td { padding: 14px 20px; font-size: 14px; vertical-align: middle; }
 .form-full { grid-column: 1/-1; }
 .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
 .form-label { font-size: 13px; color: var(--text2); font-weight: 500; margin-bottom: 2px; }
+.form-hint { display: block; margin-top: 5px; font-size: 11px; color: var(--text3); }
 .form-control {
   background: var(--bg); border: 1px solid var(--border); color: var(--text);
   padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none;

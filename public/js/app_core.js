@@ -33,6 +33,68 @@ function trabsNoEscopoAtual(lista) {
     : itens;
 }
 
+/**
+ * Popula os selects de obra de um modal. Admin vê o dropdown com todos os códigos;
+ * quem tem uma única obra permitida já recebe o código selecionado e o campo travado.
+ */
+function prepararSelectsDeObra(modalContent) {
+  if (!modalContent) return null;
+  const escopo = escopoObrasDaSessao();
+  const obrasVisiveis = (DB.obras || []).filter(o => obraNoEscopoAtual(o.cod));
+  const codigoUnico = Array.isArray(escopo) && escopo.length === 1 ? String(escopo[0]) : null;
+  if (codigoUnico && !obrasVisiveis.some(o => String(o.cod) === codigoUnico)) {
+    obrasVisiveis.push({ cod: codigoUnico, nome: codigoUnico });
+  }
+  const opcoesObra = obrasVisiveis
+    .map(o => `<option value="${o.cod}">${o.cod} — ${o.nome}</option>`).join('');
+
+  const obraSelects = modalContent.querySelectorAll('select[id$="-obra"], select[id^="pr-obra"], select[id^="fn-obra"], select[id^="cp-obra"], select[id^="md-obra"], select[id^="tf-obra"], select[id^="es-obra"], select[id^="mv-obra"], select[id^="oc-obra"]');
+  obraSelects.forEach(sel => {
+    sel.innerHTML = opcoesObra;
+    if (codigoUnico && [...(sel.options || [])].some(o => o.value === codigoUnico)) {
+      sel.value = codigoUnico;
+      if (typeof sel.dispatchEvent === 'function' && typeof Event === 'function') {
+        sel.dispatchEvent(new Event('change'));
+      }
+      sel.disabled = true;
+    }
+  });
+
+  const trObrasEl = document.getElementById('tr-obras');
+  if (trObrasEl) {
+    trObrasEl.innerHTML = opcoesObra;
+    if (codigoUnico) {
+      Array.from(trObrasEl.options || []).forEach(o => { o.selected = o.value === codigoUnico; });
+      trObrasEl.disabled = true;
+    }
+    if (typeof syncTrabObrasHint === 'function') syncTrabObrasHint();
+  }
+  return codigoUnico;
+}
+window.prepararSelectsDeObra = prepararSelectsDeObra;
+
+/** Lê as obras do formulário de trabalhador (multi-select; texto legado como fallback). */
+function lerObrasDoFormTrabalhador() {
+  const el = document.getElementById('tr-obras');
+  if (!el) return '';
+  if (el.multiple && el.selectedOptions) {
+    return Array.from(el.selectedOptions).map(o => o.value).filter(Boolean).join(', ');
+  }
+  return el.value || '';
+}
+window.lerObrasDoFormTrabalhador = lerObrasDoFormTrabalhador;
+
+function syncTrabObrasHint() {
+  const el = document.getElementById('tr-obras');
+  const hint = document.getElementById('tr-obras-hint');
+  if (!hint) return;
+  const qtd = el && el.selectedOptions ? el.selectedOptions.length : 0;
+  hint.textContent = qtd
+    ? `${qtd} obra(s) selecionada(s).`
+    : 'Selecione uma ou mais obras (Ctrl/Cmd + clique).';
+}
+window.syncTrabObrasHint = syncTrabObrasHint;
+
 // ==================== SYSTEM GLOBALS (ANTI-REFERENCE ERROR) ====================
 // Cria 'stubs' para evitar que saves de uma página "crachem" tentando dar reload em UI de outra página
 window.renderDashboard = window.renderDashboard || function () {
@@ -193,7 +255,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261126003';
+const HTML_CACHE_VERSION = '20261126004';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -5748,13 +5810,9 @@ async function openModal(id) {
     await injectSuperAdminTenantBanner(modalContent);
   }
 
-  // Populate selects
+  // Popula os selects de obra (dropdown completo para admin; obra única pré-selecionada).
   const m = modalContent;
-  const obraSelects = m.querySelectorAll('select[id$="-obra"], select[id^="pr-obra"], select[id^="fn-obra"], select[id^="cp-obra"], select[id^="md-obra"], select[id^="tf-obra"], select[id^="es-obra"], select[id^="mv-obra"], select[id^="oc-obra"]');
-  obraSelects.forEach(sel => {
-    sel.innerHTML = (DB.obras || []).filter(o => obraNoEscopoAtual(o.cod))
-      .map(o => `<option value="${o.cod}">${o.cod} — ${o.nome}</option>`).join('');
-  });
+  prepararSelectsDeObra(m);
   if (id === 'modal-presenca') {
     const tsel = document.getElementById('pr-trab');
     if (tsel) {
@@ -6154,7 +6212,7 @@ async function saveTrabalhador() {
   if (duplicado) { toast(`Código "${cod}" já existe! Use outro.`, 'error'); return; }
 
   // Obras do trabalhador: normaliza a lista e não permite vínculo fora do escopo do usuário.
-  const obrasDigitadas = document.getElementById('tr-obras').value;
+  const obrasDigitadas = lerObrasDoFormTrabalhador();
   const obrasTrab = window.parseObrasTrabalhador
     ? window.parseObrasTrabalhador({ obras: obrasDigitadas })
     : String(obrasDigitadas || '').split(/[,;]/).map(s => s.trim()).filter(Boolean);
@@ -6321,7 +6379,16 @@ async function editTrabalhador(idx) {
   document.getElementById('tr-funcao').value = t.funcao;
   document.getElementById('tr-vinculo').value = t.vinculo;
   document.getElementById('tr-equipe').value = t.equipe;
-  document.getElementById('tr-obras').value = t.obras;
+  const trObrasEl = document.getElementById('tr-obras');
+  if (trObrasEl && trObrasEl.multiple && trObrasEl.options) {
+    const codigos = window.parseObrasTrabalhador
+      ? window.parseObrasTrabalhador(t)
+      : String(t.obras || '').split(/[,;]/).map(s => s.trim()).filter(Boolean);
+    Array.from(trObrasEl.options).forEach(o => { o.selected = codigos.includes(o.value); });
+  } else if (trObrasEl) {
+    trObrasEl.value = t.obras || '';
+  }
+  if (typeof syncTrabObrasHint === 'function') syncTrabObrasHint();
   document.getElementById('tr-diaria').value = t.diaria;
   document.getElementById('tr-pgto').value = t.pgto || 'PIX';
   document.getElementById('tr-pixtipo').value = t.pixtipo || 'cpf';
