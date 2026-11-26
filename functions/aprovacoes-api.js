@@ -16,6 +16,9 @@ const TIPOS = new Set([
   'compra_criacao', 'medicao_fechamento'
 ]);
 const ADMIN_ROLES = new Set(['admin', 'super_admin']);
+// Ordem decrescente de privilégio para reconciliar claim x perfil: um perfil
+// desatualizado não pode rebaixar uma claim admin vigente (nem o contrário).
+const HIERARQUIA = ['super_admin', 'admin', 'engenheiro', 'comprador', 'encarregado', 'pendente', 'bloqueado', 'desativado'];
 
 function erro(status, code, message) {
   const e = new Error(message);
@@ -26,6 +29,14 @@ function erro(status, code, message) {
 
 function responder(res, status, payload) {
   return res.status(status).json(payload);
+}
+
+/** Maior papel entre a claim do token e o perfil do banco. */
+function papelEfetivo(...papeis) {
+  const normalizados = papeis
+    .map(p => normalizarRole(p || ''))
+    .filter(Boolean);
+  return HIERARQUIA.find(role => normalizados.includes(role)) || normalizados[0] || 'admin';
 }
 
 function papelPodeDecidir(papel, aprovacao) {
@@ -72,15 +83,19 @@ async function verificarChamador(req, { auth, db }) {
     email === EMAIL_MESTRA ||
     !!(allow && allow.ativo !== false) ||
     (claims.role === 'super_admin' && perfil.role === 'super_admin' && passaporte.role === 'super_admin');
-  const role = normalizarRole(perfil.role || claims.role || 'admin');
+  const claimsRole = normalizarRole(claims.role || '');
+  const perfilRole = normalizarRole(perfil.role || '');
+  const role = papelEfetivo(claimsRole, perfilRole);
 
   return {
     uid,
     email,
     claims,
     role,
+    claimsRole,
+    perfilRole,
     ehMaster,
-    ehAdmin: ADMIN_ROLES.has(role)
+    ehAdmin: ADMIN_ROLES.has(role) || ADMIN_ROLES.has(claimsRole) || ADMIN_ROLES.has(perfilRole)
   };
 }
 
@@ -130,9 +145,27 @@ async function decidir({ db, auth }, dados, chamador) {
     }
   }
 
-  const papel = chamador.ehMaster ? 'admin' : chamador.role;
+  // A rule antiga autorizava admin por claim, perfil OU emailAdmin do tenant.
+  // Mantemos a mesma união para não rebaixar quem já tinha acesso.
+  const adminPorEmail = emailNormalizado(tenant.emailAdmin) === chamador.email;
+  const ehAdmin = chamador.ehMaster || chamador.ehAdmin || adminPorEmail;
+  const papel = ehAdmin ? 'admin' : chamador.role;
   if (!papelPodeDecidir(papel, ap)) {
-    throw erro(403, 'sem_permissao', 'Você não tem autoridade para esta decisão.');
+    console.warn('[Aprovações API] sem_permissao', {
+      uid: chamador.uid,
+      tenantId,
+      tipo: ap.tipo,
+      claim: chamador.claimsRole,
+      perfil: chamador.perfilRole,
+      papelEfetivo: papel,
+      ehMaster: chamador.ehMaster,
+      adminPorEmail
+    });
+    const falha = erro(403, 'sem_permissao', 'Seu papel nesta empresa não permite decidir este tipo de solicitação.');
+    falha.papel = papel;
+    falha.claim = chamador.claimsRole;
+    falha.perfil = chamador.perfilRole;
+    throw falha;
   }
 
   const agora = Date.now();
@@ -212,11 +245,18 @@ async function handleAprovacaoRequest(req, res, options) {
       auditoriaFalhou = true;
       console.error('[Aprovações API] Falha na auditoria:', e && e.message);
     }
-    return responder(res, auditoriaFalhou ? 503 : status, {
+    const corpo = {
       ok: false,
       erro: auditoriaFalhou ? 'auditoria_falhou' : (err.code || 'erro_interno'),
       mensagem: status >= 500 ? 'Erro interno no servidor.' : (err.message || 'Falha na operação.')
-    });
+    };
+    // Diagnóstico somente do próprio chamador (papéis não são segredos).
+    if (err.papel) {
+      corpo.papel = err.papel;
+      corpo.claim = err.claim || '';
+      corpo.perfil = err.perfil || '';
+    }
+    return responder(res, auditoriaFalhou ? 503 : status, corpo);
   }
 }
 

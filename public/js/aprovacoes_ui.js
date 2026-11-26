@@ -250,7 +250,10 @@
       let dados = null;
       try { dados = await resposta.json(); } catch (e) { /* resposta sem JSON */ }
       if (!resposta.ok || !dados || dados.ok === false) {
-        const msg = (dados && (dados.mensagem || dados.erro)) || ('Falha HTTP ' + resposta.status);
+        let msg = (dados && (dados.mensagem || dados.erro)) || ('Falha HTTP ' + resposta.status);
+        if (dados && dados.papel) {
+          msg += ` (papel no servidor: ${dados.papel}; claim: ${dados.claim || '—'}; perfil: ${dados.perfil || '—'})`;
+        }
         throw new Error(msg);
       }
       if (typeof closeModal === 'function') closeModal('modal-aprovacao');

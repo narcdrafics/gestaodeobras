@@ -116,6 +116,48 @@ describe('aprovacoes-api — decisão server-side', () => {
     });
   });
 
+  it('aprova quando a claim é admin mas o perfil está desatualizado como encarregado', async () => {
+    const db = criarFakeDB(estado());
+    await db.ref('profiles/uid-admin').update({ role: 'encarregado' });
+    const res = resposta();
+    await handleAprovacaoRequest(
+      req(dados()), res,
+      opcoes(db, 'uid-admin', 'admin')
+    );
+    expect(res.status).toBe(200);
+    expect(db.ler('tenants/t1/aprovacoes/AP1')).toMatchObject({
+      status: 'aprovado',
+      decididoPorPapel: 'admin'
+    });
+  });
+
+  it('aprova quando o perfil é admin mas a claim é antiga (encarregado)', async () => {
+    const db = criarFakeDB(estado());
+    const res = resposta();
+    await handleAprovacaoRequest(
+      req(dados()), res,
+      opcoes(db, 'uid-admin', 'encarregado')
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('aprova pelo emailAdmin do tenant mesmo com papel comum no perfil', async () => {
+    const inicial = estado();
+    inicial.tenants.t1.emailAdmin = 'dono@obra.com';
+    const db = criarFakeDB(inicial);
+    await db.ref('profiles/uid-admin').update({ role: 'comprador' });
+    const res = resposta();
+    await handleAprovacaoRequest(
+      req(dados()), res,
+      opcoes(db, 'uid-admin', 'comprador', 't1', 'dono@obra.com')
+    );
+    expect(res.status).toBe(200);
+    expect(db.ler('tenants/t1/aprovacoes/AP1')).toMatchObject({
+      status: 'aprovado',
+      decididoPorPapel: 'admin'
+    });
+  });
+
   it('bloqueia decisão quando o plano está em somente_leitura', async () => {
     const db = criarFakeDB(estado({ billing: 'somente_leitura' }));
     const res = resposta();
