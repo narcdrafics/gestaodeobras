@@ -314,7 +314,22 @@
   }
 
   async function abrirAprovacao(id) {
-    const ap = cache[id];
+    // Cada abertura precisa do papel vigente e do status mais recente: depois
+    // de decidir uma solicitação, o cache/local pode estar defasado.
+    await atualizarPapelClaim();
+    let ap = cache[id];
+    try {
+      if (id && typeof firebase !== 'undefined' && firebase.database) {
+        const tid = tenantId();
+        const snap = await firebase.database().ref(`tenants/${tid}/aprovacoes/${id}`).once('value');
+        if (snap.exists()) {
+          ap = snap.val();
+          cache[id] = ap;
+        }
+      }
+    } catch (e) {
+      console.warn('[aprovacoes] não foi possível reler a solicitação:', e && e.message);
+    }
     if (!ap) return;
     if (typeof openModal === 'function') await openModal('modal-aprovacao');
     const set = (campo, valor) => {
@@ -336,6 +351,9 @@
     if (pre) pre.textContent = payloadParaExibicao(ap.payload, ap);
 
     const pode = podeDecidir(ap);
+    if (!pode && ap.status === 'pendente' && typeof toast === 'function') {
+      toast(`Seu cargo (${papel() || 'desconhecido'}) não decide solicitações de ${labelTipo(ap.tipo)}.`, 'warning');
+    }
     const botoes = document.getElementById('ap-acoes');
     if (botoes) botoes.style.display = pode ? 'flex' : 'none';
     const soLeitura = document.getElementById('ap-acoes-leitura');

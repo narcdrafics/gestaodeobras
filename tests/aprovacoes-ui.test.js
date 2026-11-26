@@ -103,6 +103,14 @@ describe('aprovacoes — contrato do cliente', () => {
     expect(decisao).toContain('await atualizarPapelClaim()');
   });
 
+  it('cada abertura relê a claim e o status da solicitação antes de mostrar botões', () => {
+    const abrir = trecho(uiSrc, 'async function abrirAprovacao(', 'window.abrirAprovacao');
+    expect(abrir).toContain('await atualizarPapelClaim()');
+    expect(abrir).toContain("aprovacoes/${id}");
+    expect(abrir).toContain('cache[id] = ap');
+    expect(abrir).toContain('const pode = podeDecidir(ap)');
+  });
+
   it('notificações são lidas no caminho por uid, sem vazar as dos outros membros', () => {
     expect(uiSrc).toContain('notificacoes/${tid}/${userId}');
     expect(uiSrc).toContain("window.addEventListener('firebaseSync'");
