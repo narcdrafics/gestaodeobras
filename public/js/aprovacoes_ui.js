@@ -29,6 +29,10 @@
   let tenantAtual = null;
   let filtroStatus = 'pendente';
   let filtroTipo = '';
+  // Papel vindo da claim do Firebase: fonte autoritativa para a UI. O cargo no
+  // sessionStorage pode ficar velho após uma troca de papel e mostraria botões
+  // que o servidor (corretamente) recusa.
+  let papelClaim = null;
 
   function sessao() {
     try {
@@ -39,8 +43,24 @@
   }
 
   function papel() {
-    const role = sessao().role || 'admin';
+    const role = papelClaim || sessao().role || '';
     return window.normalizeRole ? window.normalizeRole(role) : (role === 'mestre' ? 'encarregado' : role);
+  }
+
+  async function atualizarPapelClaim() {
+    try {
+      const user = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+      if (!user || typeof user.getIdTokenResult !== 'function') return;
+      const resultado = await user.getIdTokenResult();
+      const claimRole = resultado && resultado.claims && resultado.claims.role;
+      if (claimRole) {
+        papelClaim = window.normalizeRole
+          ? window.normalizeRole(claimRole)
+          : (claimRole === 'mestre' ? 'encarregado' : claimRole);
+      }
+    } catch (e) {
+      console.warn('[aprovacoes] não foi possível ler a claim de papel:', e && e.message);
+    }
   }
 
   function ehAdmin() {
@@ -128,7 +148,8 @@
   }
 
   // ==================== CARREGAMENTO ====================
-  function iniciarAprovacoes() {
+  async function iniciarAprovacoes() {
+    await atualizarPapelClaim();
     const tid = tenantId();
     const userId = uid();
     if (!tid || typeof firebase === 'undefined' || !firebase.database) return;
@@ -227,8 +248,13 @@
     const ap = cache[id];
     const tid = tenantId();
     if (!ap || !tid) return;
+    // Revalida a claim antes de enviar: uma sessão antiga pode ter papel
+    // diferente do perfil real no servidor.
+    await atualizarPapelClaim();
     if (!podeDecidir(ap)) {
-      if (typeof toast === 'function') toast('Você não tem autoridade para esta decisão.', 'error');
+      if (typeof toast === 'function') {
+        toast(`Seu cargo (${papel() || 'desconhecido'}) não permite decidir esta solicitação.`, 'error');
+      }
       return;
     }
     if (decisao !== 'aprovado' && decisao !== 'rejeitado') return;

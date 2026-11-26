@@ -94,6 +94,15 @@ describe('aprovacoes — contrato do cliente', () => {
     expect(requer).not.toContain("role === 'comprador'");
   });
 
+  it('usa a claim do Firebase como papel autoritativo, não o sessionStorage velho', () => {
+    expect(uiSrc).toContain('let papelClaim = null;');
+    expect(uiSrc).toContain('getIdTokenResult');
+    const papel = trecho(uiSrc, 'function papel(', 'async function atualizarPapelClaim(');
+    expect(papel).toContain('papelClaim || sessao().role');
+    const decisao = trecho(uiSrc, 'async function decidirAprovacao(', 'function payloadParaExibicao(');
+    expect(decisao).toContain('await atualizarPapelClaim()');
+  });
+
   it('notificações são lidas no caminho por uid, sem vazar as dos outros membros', () => {
     expect(uiSrc).toContain('notificacoes/${tid}/${userId}');
     expect(uiSrc).toContain("window.addEventListener('firebaseSync'");
