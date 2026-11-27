@@ -349,7 +349,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261126014';
+const HTML_CACHE_VERSION = '20261127001';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -6911,6 +6911,21 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
     customDiv.style.display = periodoSel === 'custom' ? 'flex' : 'none';
   }
 
+  // Filtro de obra do fechamento: ao abrir pela tela de presença, herda a obra
+  // já selecionada lá; quando o modal está aberto, preserves a escolha atual.
+  const obraAberta = document.getElementById('lote-obra-filtro')?.value;
+  const obraPresenca = typeof obraFiltroTela === 'function' ? obraFiltroTela('pres-obra-filtro') : '';
+  const obraInicial = isAlreadyOpen ? (obraAberta || '') : (obraPresenca || '');
+  if (typeof popularFiltroObra === 'function') {
+    popularFiltroObra('lote-obra-filtro', { placeholder: 'Todas as obras' });
+  }
+  const obraSel = document.getElementById('lote-obra-filtro');
+  if (obraSel) {
+    const preservar = obraInicial && [...obraSel.options].some(o => o.value === obraInicial) ? obraInicial : '';
+    obraSel.value = preservar;
+  }
+  const obraLote = obraSel ? String(obraSel.value || '').trim() : '';
+
   // Determinar range de datas
   let dataIni, dataFim;
   if (periodoSel === 'custom') {
@@ -6937,22 +6952,32 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
     dataFim = range.fim;
   }
 
-  // Filtrar presenças pelo período - a tabela de presença é quem manda
-  let pendentesRaw = DB.presenca.filter(p => {
-    if (p.pgtoStatus === 'Pago') return false;
-    if (!p.data) return false;
+  // Filtrar presenças pelo período e pela obra selecionada. O modal não pode
+  // misturar pendências de obras diferentes só porque o código do trabalhador
+  // coincide (importações antigas reaproveitaram TR001..TR004 em OB004).
+  let pendentesRaw = (DB.presenca || []).filter(p => {
+    if (!p || p.pgtoStatus === 'Pago' || !p.data) return false;
+    const obra = String(p.obra || '').trim();
+    if (obraLote && obra !== obraLote) return false;
+    if (typeof obraNoEscopoAtual === 'function' && !obraNoEscopoAtual(obra)) return false;
     if (periodoSel === 'todas') return true;
     return p.data >= dataIni && p.data <= dataFim;
   });
 
   const saldos = {};
   pendentesRaw.forEach(p => {
-    const key = p.trab || (p.nome + '-' + p.funcao);
+    // Chave por obra + código + nome do registro: nunca agrupe "Valdenir"
+    // (Ajudante, OB001) com "Jakson Pereira" (Encarregado, OB004) só porque
+    // ambos vieram com o código TR002.
+    const obra = String(p.obra || '').trim();
+    const nomeRegistro = String(p.nome || '').trim();
+    const codigo = String(p.trab || '').trim();
+    const key = `${obra}::${codigo}::${nomeRegistro.toLowerCase()}`;
 
     let devido = (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0);
     if (devido > 0) {
       if (!saldos[key]) {
-        saldos[key] = { chave: key, nome: p.nome, funcao: p.funcao, diarias: 0, valor: 0, indices: [], datas: [], descontados: [] };
+        saldos[key] = { chave: key, nome: nomeRegistro, cod: codigo, funcao: p.funcao, obra, diarias: 0, valor: 0, indices: [], datas: [], descontados: [] };
       }
       saldos[key].diarias += 1;
       saldos[key].valor += devido;
@@ -6961,7 +6986,7 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
     } else {
       // Register as descontado
       if (!saldos[key]) {
-        saldos[key] = { chave: key, nome: p.nome, funcao: p.funcao, diarias: 0, valor: 0, indices: [], datas: [], descontados: [] };
+        saldos[key] = { chave: key, nome: nomeRegistro, cod: codigo, funcao: p.funcao, obra, diarias: 0, valor: 0, indices: [], datas: [], descontados: [] };
       }
       saldos[key].descontados.push(p.data);
     }
@@ -6979,26 +7004,31 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
     titulo.innerHTML = `<span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">payments</span> Fechamento de Folha - ${labels[periodoSel] || periodoSel}`;
   }
 
-  renderLoteTbody();
+  window.renderLoteTbody();
 };
 
 window.renderLoteTbody = function () {
   const tbody = document.getElementById('lote-tbody');
   if (!tbody) return;
+  const escLote = (v) => window.escHtml ? window.escHtml(String(v == null ? '' : v)) : String(v == null ? '' : v);
+  const nomeObra = (cod) => typeof window.obName === 'function' ? window.obName(cod) : cod;
 
-  if (lotePendentes.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:4px;">celebration</span> Nenhuma diária pendente! Toda a folha já está quitada.</td></tr>';
+  if (window.lotePendentes.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:4px;">celebration</span> Nenhuma diária pendente! Toda a folha já está quitada.</td></tr>';
     document.getElementById('lote-total-sel').textContent = 'R$ 0,00';
     return;
   }
 
-  tbody.innerHTML = lotePendentes.map((item, i) => {
+  tbody.innerHTML = window.lotePendentes.map((item, i) => {
     const datasUnicas = [...new Set(item.datas)].slice(0, 3).join(', ');
     const maisDias = item.datas.length > 3 ? ` +${item.datas.length - 3}` : '';
     const descontados = item.descontados?.length ? `<br><small style="color:var(--orange)"><span class="material-symbols-outlined md-16" style="vertical-align:middle;">pause_circle</span> Folgas/feriados: ${item.descontados.join(', ')}</small>` : '';
+    const obraNome = nomeObra(item.obra);
+    const codigo = item.cod ? `Cód. ${escLote(item.cod)} · ` : '';
     return `<tr>
     <td style="text-align:center"><input type="checkbox" class="ck-lote-item" value="${i}" onchange="updateLoteTotal()" style="transform:scale(1.2)"></td>
-    <td><b>${item.nome}</b> <small style="color:var(--text3)">(${item.funcao})</small><br><small style="color:var(--text2)">${datasUnicas}${maisDias}${descontados}</small></td>
+    <td><b>${escLote(item.nome || 'Desconhecido')}</b> <small style="color:var(--text3)">(${escLote(item.funcao || 'Sem função')})</small><br><small style="color:var(--text2)">${codigo}${datasUnicas}${maisDias}${descontados}</small></td>
+    <td>${escLote(obraNome)}</td>
     <td style="text-align:center"><span class="badge badge-gray">${item.diarias}</span><br><small style="color:var(--text3)">dias</small></td>
     <td style="text-align:right">Dinheiro/Pix</td>
     <td style="text-align:right; font-weight:bold; color:var(--red)">${fmt(item.valor)}</td>
@@ -7008,13 +7038,13 @@ window.renderLoteTbody = function () {
   </tr>`;
   }).join('');
 
-  updateLoteTotal();
+  window.updateLoteTotal();
 };
 
 window.toggleLoteAll = function (el) {
   const cks = document.querySelectorAll('.ck-lote-item');
   cks.forEach(ck => ck.checked = el.checked);
-  updateLoteTotal();
+  window.updateLoteTotal();
 };
 
 window.updateLoteTotal = function () {
@@ -7022,7 +7052,7 @@ window.updateLoteTotal = function () {
   let total = 0;
   cks.forEach(ck => {
     const idx = parseInt(ck.value);
-    const item = lotePendentes[idx];
+    const item = window.lotePendentes[idx];
     if (item) total += item.valor;
   });
   document.getElementById('lote-total-sel').textContent = fmt(total);
@@ -7031,7 +7061,14 @@ window.updateLoteTotal = function () {
 window.toggleLoteAll = function (el) {
   const cks = document.querySelectorAll('.ck-lote-item');
   cks.forEach(ck => ck.checked = el.checked);
-  updateLoteTotal();
+  window.updateLoteTotal();
+};
+
+window.changeLoteObra = function () {
+  const periodo = document.getElementById('lote-periodo')?.value || 'semana';
+  const ini = document.getElementById('lote-data-ini')?.value;
+  const fim = document.getElementById('lote-data-fim')?.value;
+  window.prepareLotePgto(periodo, ini, fim);
 };
 
 window.changeLotePeriodoCustom = function (el) {
@@ -7044,7 +7081,7 @@ window.changeLotePeriodoCustom = function (el) {
     document.getElementById('lote-data-fim').value = hoje.toISOString().split('T')[0];
   } else {
     document.getElementById('lote-custom-dates').style.display = 'none';
-    prepareLotePgto(el.value);
+    window.prepareLotePgto(el.value);
   }
 };
 
@@ -7052,7 +7089,7 @@ window.applyCustomLotePeriod = function () {
   const iniEl = document.getElementById('lote-data-ini');
   const fimEl = document.getElementById('lote-data-fim');
   if (iniEl?.value && fimEl?.value) {
-    prepareLotePgto('custom', iniEl.value, fimEl.value);
+    window.prepareLotePgto('custom', iniEl.value, fimEl.value);
   }
 };
 
@@ -7061,7 +7098,7 @@ window.processLotePgto = async function () {
   if (cks.length === 0) { toast('Nenhum trabalhador selecionado!', 'error'); return; }
 
   cks.forEach(ck => {
-    const item = lotePendentes[parseInt(ck.value)];
+    const item = window.lotePendentes[parseInt(ck.value)];
     if (item) {
       item.indices.forEach(p => {
         p.pgtoStatus = 'Pago';
