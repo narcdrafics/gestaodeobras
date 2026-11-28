@@ -1,0 +1,104 @@
+{
+  "generated_at": "2026-11-27T00:00:00Z",
+  "project_root": "C:/Users/tonyd/OneDrive/Documentos/gestaodeobras",
+  "languages": [
+    { "name": "JavaScript", "extensions": [".js"], "file_count": 80 },
+    { "name": "HTML", "extensions": [".html"], "file_count": 43 },
+    { "name": "Markdown", "extensions": [".md"], "file_count": 19 },
+    { "name": "Imagens", "extensions": [".png"], "file_count": 8 },
+    { "name": "JSON", "extensions": [".json"], "file_count": 7 },
+    { "name": "YAML", "extensions": [".yml", ".yaml"], "file_count": 3 },
+    { "name": "CSS", "extensions": [".css"], "file_count": 2 },
+    { "name": "Configuração various", "extensions": [".mjs", ".jsonc", ".toml", ".rules", ".firebaserc", ".gitignore", ".cache"], "file_count": 7 }
+  ],
+  "primary_language": "JavaScript",
+  "frameworks": [
+    { "name": "Express", "version": "4.22.3", "source": "package-lock.json" },
+    { "name": "Firebase Client SDK", "version": "13.4.0", "source": "package.json" },
+    { "name": "Firebase Cloud Functions", "version": "7.4.0", "source": "functions/package.json" },
+    { "name": "Firebase Admin SDK", "version": "14.5.1", "source": "functions/package.json" },
+    { "name": "Vitest", "version": "4.1.12", "source": "package-lock.json" },
+    { "name": "jsdom", "version": "29.0.1", "source": "package.json" },
+    { "name": "axios", "version": "1.21.1", "source": "functions/package-lock.json" },
+    { "name": "OpenAI SDK", "version": "4.104.0", "source": "functions/package.json" },
+    { "name": "Cloudflare Workers", "version": null, "source": "wrangler.jsonc" }
+  ],
+  "package_manager": "npm",
+  "entry_points": [
+    { "path": "server.js", "type": "server_entry" },
+    { "path": "public/index.html", "type": "web_entry" },
+    { "path": "public/app.html", "type": "app_shell" },
+    { "path": "functions/index.js", "type": "functions_entry" },
+    { "path": "cloudflare-worker/worker.js", "type": "edge_worker_entry" },
+    { "path": "public/js/app_core.js", "type": "frontend_core" },
+    { "path": "public/js/auth_core.js", "type": "auth_core" },
+    { "path": "public/js/data_core.js", "type": "data_core" }
+  ],
+  "config_files": [
+    "package.json",
+    "package-lock.json",
+    "functions/package.json",
+    "functions/package-lock.json",
+    "firebase.json",
+    ".firebaserc",
+    "wrangler.jsonc",
+    "cloudflare-worker/wrangler.toml",
+    "vitest.config.mjs",
+    "apphosting.yaml",
+    "cors.json",
+    "database.rules.json",
+    "storage.rules",
+    ".gitignore"
+  ],
+  "ci_cd": [
+    ".github/workflows/deploy.yml",
+    ".github/workflows/test.yml"
+  ],
+  "database_hints": [
+    { "path": "database.rules.json", "type": "realtime_database_rules" },
+    { "path": "storage.rules", "type": "cloud_storage_rules" },
+    { "path": "functions/index.js", "type": "rtdb_paths_in_code" },
+    { "path": "docs/plans/features.md", "type": "domain_documentation" }
+  ],
+  "test_framework": "Vitest",
+  "test_file_count": 40,
+  "modules": [
+    "auth",
+    "tenants-e-slug",
+    "admin-e-super-admin",
+    "usuarios-e-cargos",
+    "aprovacoes",
+    "obras",
+    "tarefas",
+    "trabalhadores",
+    "presenca-e-ponto",
+    "almocos",
+    "compras",
+    "estoque",
+    "financeiro-e-pix",
+    "orcamento",
+    "medicao",
+    "relatorios-e-dashboard",
+    "fotos",
+    "billing-e-planos",
+    "whatsapp-bot",
+    "seguranca-e-rbac",
+    "infra-e-deploy"
+  ],
+  "total_files": 169,
+  "organization_suggestion": {
+    "granularity": "endpoint",
+    "rationale": "O roteamento é centralizado em firebase.json (rewrites /api/*) e functions/index.js (exports onRequest/onSchedule/onValueWritten), com fallback SPA em server.js.",
+    "signals": [
+      {
+        "type": "centralized_routing",
+        "evidence": ["firebase.json", "functions/index.js", "server.js"]
+      },
+      {
+        "type": "domain_files",
+        "evidence": ["public/pages/", "public/js/", "functions/"]
+      }
+    ],
+    "features": []
+  }
+}

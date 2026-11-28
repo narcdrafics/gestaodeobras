@@ -1,0 +1,931 @@
+// v2.1 - Percepção inteligente de nomes e respostas formatadas
+const { onRequest } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onValueWritten } = require("firebase-functions/v2/database");
+const { defineSecret } = require('firebase-functions/params');
+// firebase-admin v14 expõe as APIs de forma modular (getDatabase/getAuth).
+const { initializeApp } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
+const { getDatabase, ServerValue } = require('firebase-admin/database');
+const axios = require('axios');
+const { OpenAI } = require('openai');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const crypto = require('crypto');
+
+const { detectarEtapas } = require('./whatsapp/obra-etapas');
+const { handleWhatsappWebhook, urlAudioPermitida, LIMITE_AUDIO } = require('./whatsapp_auth');
+const { handleKiwifyWebhook } = require('./kiwify');
+const { atualizarBillingStatesJob } = require('./billing');
+const { hasFeature } = require('./plan_features');
+const { criarUsuarioTenant } = require('./usuarios');
+const { aoEscreverAprovacao, processarAprovacoesJob } = require('./aprovacoes');
+const { handleAdminRequest } = require('./super_admin');
+const { handleCargoRequest } = require('./cargos');
+const { handleAprovacaoRequest } = require('./aprovacoes-api');
+const { avaliarSuperAdmin, normalizarRole } = require('./claims');
+const { executarLimpeza } = require('./retencao');
+
+const OPENAI_KEY = defineSecret('OPENAI_KEY');
+const META_ACCESS_TOKEN = defineSecret('META_ACCESS_TOKEN');
+const META_PHONE_NUMBER_ID = defineSecret('META_PHONE_NUMBER_ID');
+const META_VERIFY_TOKEN = defineSecret('META_VERIFY_TOKEN');
+const META_APP_SECRET = defineSecret('META_APP_SECRET');
+const META_WABA_ID = defineSecret('META_WABA_ID');
+const KIWIFY_TOKEN = defineSecret('KIWIFY_TOKEN');
+// Credenciais de leitura da API pública da Kiwify (painel super admin).
+// O token do webhook (KIWIFY_TOKEN) NÃO serve para a API REST.
+const KIWIFY_CLIENT_ID = defineSecret('KIWIFY_CLIENT_ID');
+const KIWIFY_CLIENT_SECRET = defineSecret('KIWIFY_CLIENT_SECRET');
+const KIWIFY_ACCOUNT_ID = defineSecret('KIWIFY_ACCOUNT_ID');
+const KIWIFY_API_TOKEN = defineSecret('KIWIFY_API_TOKEN');
+
+initializeApp();
+const db = getDatabase();
+
+// defineSecret().value() pode falhar quando o segredo não foi provisionado.
+// No painel isso não pode derrubar a função: apenas desativa a integração.
+function valorSegredo(secret) {
+  try { return secret.value() || ''; } catch (_) { return ''; }
+}
+
+function getHojeBR() {
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date()).split('/').reverse().join('-');
+}
+
+function formatarDataBR(isoStr) {
+  if (!isoStr) return '';
+  const partes = isoStr.split('-');
+  if (partes.length !== 3) return isoStr;
+  return `${partes[2]}/${partes[1]}/${partes[0]}`;
+}
+
+function parseDataFromText(texto) {
+  if (/ontem/i.test(texto)) {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(d).split('/').reverse().join('-');
+  }
+  const match = texto.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?/);
+  if (match) {
+    let [, dia, mes, ano] = match;
+    dia = dia.padStart(2, '0');
+    mes = mes.padStart(2, '0');
+    if (!ano) {
+      const hoje = new Date();
+      ano = hoje.getFullYear();
+    }
+    return `${ano}-${mes}-${dia}`;
+  }
+  return null;
+}
+
+function norm(str) {
+  if (!str) return '';
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function levenshtein(a, b) {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) matrix[i][j] = matrix[i - 1][j - 1];
+      else matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+function similarity(s1, s2) {
+  const na = norm(s1), nb = norm(s2);
+  if (na === nb) return 1.0;
+  if (na.includes(nb) || nb.includes(na)) return 0.95;
+  const dist = levenshtein(na, nb);
+  const maxLen = Math.max(na.length, nb.length);
+  return 1 - dist / maxLen;
+}
+
+function melhorMatch(termo, lista, getFn, threshold = 0.4) {
+  let best = null, bestScore = threshold - 0.001;
+  for (const item of lista) {
+    const score = similarity(termo, getFn(item));
+    if (score > bestScore) { bestScore = score; best = item; }
+  }
+  return best;
+}
+
+exports.whatsappWebhook = onRequest({
+  secrets: [OPENAI_KEY, META_ACCESS_TOKEN, META_PHONE_NUMBER_ID, META_VERIFY_TOKEN, META_APP_SECRET, META_WABA_ID],
+  // A Meta chama o webhook server-to-server: CORS aberto só ampliava a superfície.
+  cors: false,
+  memory: '512MiB',
+  timeoutSeconds: 60,
+  minInstances: 0,
+  maxInstances: 5
+}, async (req, res) => {
+  return handleWhatsappWebhook(req, res, {
+    db: getDatabase(),
+    secrets: {
+      verifyToken: valorSegredo(META_VERIFY_TOKEN),
+      appSecret: valorSegredo(META_APP_SECRET),
+      wabaId: valorSegredo(META_WABA_ID),
+      phoneNumberId: valorSegredo(META_PHONE_NUMBER_ID)
+    },
+    responder: responderWhatsApp,
+    processar: processarMensagem
+  });
+});
+
+/**
+ * Processa uma mensagem JÁ autorizada por whatsapp_auth.js.
+ * `contexto.tenantId`/`contexto.user` vêm da resolução estrita feita no handler;
+ * nada aqui decide permissão (Admin SDK ignoraria as rules de qualquer forma).
+ */
+async function processarMensagem(From, textoTarefa, audioUrl, contexto = {}) {
+  console.log(`📡 Mensagem de ${From}: ${textoTarefa}`);
+  if (!From) return;
+
+  const { tenantId, user = {} } = contexto;
+  if (!tenantId) {
+    console.warn('[WhatsApp] processarMensagem chamado sem tenant autorizado.');
+    return;
+  }
+
+  try {
+    const db = getDatabase();
+    const phoneId = String(From).replace(/\D/g, '');
+
+    if (audioUrl) {
+      // Defesa em profundidade: o handler já validou a origem da URL.
+      if (!urlAudioPermitida(audioUrl)) {
+        console.warn('[WhatsApp] URL de áudio recusada fora do domínio da Meta.');
+        return;
+      }
+      console.log('🎙️ Baixando áudio...');
+      const openai = new OpenAI({ apiKey: valorSegredo(OPENAI_KEY) });
+      const response = await axios.get(audioUrl, {
+        responseType: 'arraybuffer',
+        maxContentLength: LIMITE_AUDIO,
+        maxBodyLength: LIMITE_AUDIO,
+        timeout: 20000
+      });
+      const bytes = Buffer.from(response.data);
+      if (bytes.length > LIMITE_AUDIO) throw new Error('Áudio excede o limite permitido.');
+      const tempFilePath = path.join(os.tmpdir(), `audio-${crypto.randomUUID()}.ogg`);
+      try {
+        fs.writeFileSync(tempFilePath, bytes);
+        const transcription = await openai.audio.transcriptions.create({ file: fs.createReadStream(tempFilePath), model: "whisper-1", language: "pt" });
+        textoTarefa = transcription.text;
+        console.log(`📝 Transcrito: "${textoTarefa}"`);
+      } finally {
+        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+      }
+    }
+
+    if (!textoTarefa) return;
+
+    const txt = textoTarefa.trim();
+    const txtUpper = txt.toUpperCase();
+    const isTextoCurto = !audioUrl && txt.length < 200;
+    let dados = null;
+    let usarGPT = true;
+
+    if (isTextoCurto) {
+      const matchTarefa = txt.replace(/^(TAREFA| TAREFAS?)\s*-?\s*/i, '').trim();
+      const matchPonto = txt.replace(/^(PONTO|PRESENÇA|ENTRADA|SAÍDA|FALTA)\s*/i, '').trim();
+
+      if (txt.match(/^TAREFA\b/i) && !txtUpper.includes('LISTA')) {
+        const isObra = matchTarefa.includes(' - ') ? matchTarefa.split(' - ')[0].trim() : null;
+        const titulo = isObra ? matchTarefa.split(' - ').slice(1).join(' - ').trim() : matchTarefa;
+        const etapas = detectarEtapas(titulo);
+        dados = { intencao: 'criar_tarefa', tarefa: { titulo, obra_nome: isObra }, _etapas: etapas };
+        usarGPT = false;
+      } else if (txtUpper.match(/^PONTO\s/i) || txtUpper.match(/^PRESEN/i)) {
+        const presenca = txtUpper.includes('SAÍTA') || txtUpper.includes('SAÍDA') ? 'Saída' : txtUpper.includes('FALTA') ? 'Falta' : 'Presente';
+        dados = { intencao: 'lancar_ponto', ponto: { trabalhadores: [matchPonto || 'Equipe'], presenca, obra_nome: null } };
+        usarGPT = false;
+      } else if (txtUpper === 'OI' || txtUpper === 'OLA' || txtUpper.match(/^BOM DIA/i)) {
+        dados = { intencao: 'consultar' };
+        usarGPT = false;
+      } else if (txtUpper === 'PONTO' || txtUpper === 'PRESENÇA') {
+        dados = { intencao: 'consultar_ponto' };
+        usarGPT = false;
+      } else if (txtUpper.includes('TAREFA') || txtUpper === 'LISTA' || txtUpper === 'MENU') {
+        dados = { intencao: 'consultar' };
+        usarGPT = false;
+      } else {
+        const etapas = detectarEtapas(txt);
+        if (etapas.length > 0) {
+          dados = { intencao: 'criar_tarefa', tarefa: { titulo: txt, obra_nome: null }, _etapas: etapas };
+          usarGPT = false;
+        }
+      }
+    }
+
+    const dataHojeBR = getHojeBR();
+
+    if (!dados) {
+      const prompt = `Você é um assistente de gestão de obras. Extraia as informações da mensagem para o seguinte formato JSON:
+      { 
+        "intencao": "lancar_ponto" | "criar_tarefa" | "consultar", 
+        "ponto": { 
+          "trabalhadores": ["Nomes mencionados"], 
+          "presenca": "Presente" | "Falta" | "Meio período", 
+          "obra_nome": "Nome da obra mencionado (ex: Timbumba, Fachada, etc)", 
+          "data": "${dataHojeBR}" 
+        }, 
+        "tarefa": { 
+          "titulo": "Descrição clara da tarefa", 
+          "obra_nome": "Nome da obra mencionado" 
+        } 
+      }
+      Instruções:
+      - Se a mensagem for "Oi", "Bom dia", etc, intencao = "consultar".
+      - No campo "trabalhadores", se disser "toda a equipe", tente identificar se há nomes específicos ou use a frase.
+      - Seja inteligente ao extrair o nome da obra, ignore preposições como "na", "da", "em".
+      
+      Mensagem do usuário: "${textoTarefa}"`;
+
+      const openai = new OpenAI({ apiKey: OPENAI_KEY.value() });
+      const gptRes = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "Você é um especialista em extração de dados JSON para construção civil. Retorne apenas o objeto JSON, sem explicações." },
+          { role: "user", content: prompt }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      dados = JSON.parse(gptRes.choices[0].message.content);
+      console.log(`🤖 GPT JSON:`, JSON.stringify(dados));
+    } else {
+      console.log(`🔍 Detecção local:`, JSON.stringify(dados));
+    }
+
+    const buscarObra = async () => {
+      const nomeOuId = dados.tarefa?.obra_nome || dados.ponto?.obra_nome;
+      if (!nomeOuId || nomeOuId === 'nao_informada') return null;
+
+      const obrasSnap = await db.ref(`tenants/${tenantId}/obras`).once('value');
+      console.log(`🔍 DB path: tenants/${tenantId}/obras`);
+      const obras = obrasSnap.val() || [];
+      const listaObras = Array.isArray(obras) ? obras : Object.values(obras);
+
+      // Filtrar obras ativas com mais flexibilidade no status
+      const listaAtivas = listaObras.filter(o => o && (
+        ['ativa', 'em andamento', 'planejada', 'execucao'].includes(norm(o.status))
+      ));
+
+      console.log(`🔍 Debug busca obra: "${nomeOuId}" | Total: ${listaObras.length} | Ativas: ${listaAtivas.length}`);
+      console.log(`🔍 Obras ativas:`, listaAtivas.map(o => ({ nome: o.nome, cod: o.cod, status: o.status })));
+
+      // 1. Busca exata (Nome, Código ou ID)
+      const buscaNorm = norm(nomeOuId);
+      const exata = listaAtivas.find(o =>
+        norm(o.nome) === buscaNorm ||
+        norm(o.cod) === buscaNorm ||
+        o._id === nomeOuId
+      );
+      console.log(`🔍 Busca exata: "${buscaNorm}" | Encontrada:`, exata ? exata.nome : 'null');
+      if (exata) return exata;
+
+      // 2. Busca por contém (ex: usuário disse "Timbumba" e a obra chama "Residencial Timbumba")
+      const contem = listaAtivas.find(o => norm(o.nome).includes(buscaNorm));
+      console.log(`🔍 Busca contém: "${buscaNorm}" | Encontrada:`, contem ? contem.nome : 'null');
+      if (contem) return contem;
+
+      // 3. Busca por similaridade (Fuzzy) - Threshold baixo para captar erros de digitação
+      return melhorMatch(nomeOuId, listaAtivas, o => o.nome, 0.3);
+    };
+
+    if (dados.intencao === 'criar_tarefa') {
+      const obraMatch = await buscarObra();
+      if (!obraMatch) { await responderWhatsApp(phoneId, `Obra "${dados.tarefa?.obra_nome}" não encontrada.`); return; }
+      const tarefasRef = db.ref(`tenants/${tenantId}/tarefas`);
+      const snapshot = await tarefasRef.once('value');
+      let lista = Array.isArray(snapshot.val()) ? snapshot.val() : Object.values(snapshot.val() || {});
+      const novoCod = `TF${String(lista.length + 1).padStart(3, '0')}`;
+
+      const melhorEtapa = dados._etapas?.[0];
+      const tarefaData = {
+        cod: novoCod,
+        obra: obraMatch.cod || obraMatch._id,
+        desc: dados.tarefa.titulo,
+        etapa: melhorEtapa?.etapa || null,
+        etapaCodigo: melhorEtapa?.codigo || null,
+        frente: melhorEtapa?.frente || null,
+        prioridade: melhorEtapa?.prioridade || 'Média',
+        resp: 'Equipe',
+        status: 'Pendente',
+        criadoPor: user?.nome || 'WhatsApp',
+        criadoEm: ServerValue.TIMESTAMP,
+        origem: 'WhatsApp'
+      };
+      lista.push(tarefaData);
+      await tarefasRef.set(lista);
+
+      const etapaInfo = melhorEtapa ? `\n📂 ${melhorEtapa.etapa} | 🔨 ${melhorEtapa.frente} | ${melhorEtapa.prioridade}` : '';
+      const msgSucesso = `🎯 *Tarefa Registrada!* \n\n📋 *O que:* ${dados.tarefa.titulo}\n🏗️ *Obra:* ${obraMatch.nome.trim()}${etapaInfo}\n\nJá está no painel! ✅`;
+      await responderWhatsApp(phoneId, msgSucesso);
+
+    } else if (dados.intencao === 'lancar_ponto') {
+      const obraMatch = await buscarObra();
+      if (!obraMatch) { await responderWhatsApp(phoneId, `Obra "${dados.ponto?.obra_nome}" não identificada.`); return; }
+
+      const trabSnap = await db.ref(`tenants/${tenantId}/trabalhadores`).once('value');
+      const trabalhadores = trabSnap.val() || [];
+      const listaTrab = Array.isArray(trabalhadores) ? trabalhadores : Object.values(trabalhadores);
+      const listaAtivos = listaTrab.filter(t => t && norm(t.status) === 'ativo');
+
+      const presencaRef = db.ref(`tenants/${tenantId}/presenca`);
+      const nomesTrab = dados.ponto?.trabalhadores || [];
+      const dataLanc = dados.ponto?.data || dataHojeBR;
+      const statusP = dados.ponto?.presenca || 'Presente';
+      const resultados = [];
+      const novos = [];
+
+      for (const nomeB of nomesTrab) {
+        const trab = melhorMatch(nomeB, listaAtivos, t => t.nome, 0.5);
+        if (!trab) { resultados.push(`⚠️ "${nomeB}" não achado`); continue; }
+
+        let total = 0, hnorm = 0;
+        if (statusP === 'Presente') { total = trab.diaria || 0; hnorm = 8; }
+        else if (statusP === 'Meio período') { total = (trab.diaria || 0) / 2; hnorm = 4; }
+        else if (statusP === 'Falta') { total = 0; hnorm = 0; }
+
+        novos.push({
+          data: dataLanc, obra: obraMatch.cod || obraMatch._id, trab: trab.cod, nome: trab.nome,
+          funcao: trab.funcao || '', vinculo: trab.vinculo || 'Informal', equipe: trab.equipe || '',
+          entrada: statusP === 'Falta' ? '00:00' : '07:00', saida: statusP === 'Meio período' ? '12:00' : (statusP === 'Falta' ? '00:00' : '17:00'),
+          hnorm, hextra: 0, presenca: statusP, diaria: parseFloat(trab.diaria) || 0, total: parseFloat(total),
+          pgtoStatus: 'Pendente', valpago: 0, lancador: user?.nome || 'WhatsApp Bot',
+          hrLanc: new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date()),
+          origem: 'WhatsApp', telefoneAutor: phoneId, _s: statusP
+        });
+      }
+
+      if (novos.length > 0) {
+        await presencaRef.transaction((current) => {
+          let lista = Array.isArray(current) ? current : Object.values(current || {});
+          for (const n of novos) {
+            const idx = lista.findIndex(p => p && p.data === n.data && p.trab === n.trab);
+            const { _s, ...final } = n;
+            if (idx === -1) {
+              lista.push(final);
+              resultados.push(`✅ ${n.nome} (${n.funcao || '—'}) — ${_s}`);
+            } else {
+              lista[idx] = { ...lista[idx], ...final };
+              resultados.push(`🔄 ${n.nome} (${n.funcao || '—'}) alterado para ${_s} em ${obraMatch.nome}`);
+            }
+          }
+          return lista;
+        });
+      }
+      const dataFmt = formatarDataBR(dataLanc);
+      await responderWhatsApp(phoneId, `📋 Presença — ${dataFmt}:\n${resultados.join('\n')}`);
+    } else if (dados.intencao === 'consultar') {
+      await processarConsultaGeral(phoneId, tenantId, user);
+    }
+  } catch (err) {
+    console.error('Erro:', err);
+    await responderWhatsApp(From, 'Erro no servidor.');
+  }
+}
+
+async function responderWhatsApp(para, msg) {
+  const accessToken = META_ACCESS_TOKEN.value();
+  const phoneNumberId = META_PHONE_NUMBER_ID.value();
+
+  if (!accessToken || !phoneNumberId) {
+    console.error('❌ Falta configuração da Meta (Token ou PhoneID)');
+    return;
+  }
+
+  if (!msg) {
+    console.warn('⚠️ Tentativa de enviar mensagem vazia para:', para);
+    return;
+  }
+
+  let payload = null;
+  try {
+    const cleanPhoneId = phoneNumberId.trim();
+    const url = `https://graph.facebook.com/v20.0/${cleanPhoneId}/messages`;
+    payload = {
+      messaging_product: "whatsapp",
+      to: para.trim(),
+      type: "text",
+      text: { body: msg }
+    };
+
+    console.log(`📤 Enviando para ${para} via ${cleanPhoneId}...`);
+
+    await axios.post(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.trim()}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log(`✅ Resposta enviada para ${para}:`, msg.substring(0, 200));
+  } catch (error) {
+    console.error('❌ Erro Meta API:', error.response?.data || error.message);
+    if (error.response?.data && payload) {
+      console.error('Payload enviado:', JSON.stringify(payload, null, 2));
+    }
+  }
+}
+
+exports.dailyReport = onSchedule({
+  schedule: '0 21 * * *', // 18h Brasília (UTC-3)
+  timeZone: 'America/Sao_Paulo',
+  secrets: [META_ACCESS_TOKEN, META_PHONE_NUMBER_ID],
+  memory: '512MiB',
+  timeoutSeconds: 120,
+  maxInstances: 1
+}, async (event) => {
+  const db = getDatabase();
+  const hoje = getHojeBR();
+
+  console.log(`🕒 Iniciando relatório diário agendado para ${hoje}`);
+
+  try {
+    const tenantsSnap = await db.ref('tenants').once('value');
+    const tenants = tenantsSnap.val();
+    if (!tenants) return;
+
+    for (const tenantId in tenants) {
+      const tenant = tenants[tenantId];
+      // Mesma matriz de features do front: apenas quem tem o módulo recebe o relatório.
+      if (!hasFeature('relatorio.whatsapp.diario', tenant.plano, tenant)) {
+        console.log(`⏭️  Tenant ${tenantId} sem módulo de relatório diário (${tenant.plano || 'sem plano'}).`);
+        continue;
+      }
+      // Verifica se o tenant está ativo e possui telefone de admin configurado
+      if (!tenant.adminPhone || tenant.status === 'inativo') continue;
+
+      console.log(`📊 Gerando relatório para tenant: ${tenantId} (${tenant.nome || 'Sem nome'})`);
+
+      const [pontoSnap, tarefasSnap] = await Promise.all([
+        db.ref(`tenants/${tenantId}/ponto/${hoje}`).once('value'),
+        db.ref(`tenants/${tenantId}/tarefas`).once('value')
+      ]);
+
+      const ponto = Object.values(pontoSnap.val() || {});
+      const tarefas = Object.values(tarefasSnap.val() || {});
+
+      const presentes = ponto.filter(p => p.entrada && !p.falta).length;
+      const ausentes = ponto.filter(p => p.falta).length;
+      const totalPessoal = ponto.length;
+
+      const concluidasHoje = tarefas.filter(t => t.status === 'Concluída' && t.concluidaEm?.startsWith(hoje)).length;
+      const pendentes = tarefas.filter(t => t.status === 'Pendente').length;
+      const atrasadas = tarefas.filter(t => t.status === 'Pendente' && t.prazo < hoje).length;
+
+      const msg = `📊 *Relatório Diário — ${tenant.nome || 'Obra Real'}*\n` +
+        `📅 Data: ${formatarDataBR(hoje)}\n\n` +
+        `👷 *Pessoal*\n` +
+        `✅ Presentes: ${presentes}\n` +
+        `❌ Faltas: ${ausentes}\n` +
+        `👥 Total: ${totalPessoal}\n\n` +
+        `📋 *Tarefas*\n` +
+        `✅ Concluídas hoje: ${concluidasHoje}\n` +
+        `🔵 Em aberto: ${pendentes}\n` +
+        `🔴 Em atraso: ${atrasadas}\n\n` +
+        `Para detalhes, responda *MENU*.`;
+
+      await responderWhatsApp(tenant.adminPhone, msg);
+    }
+    console.log('✅ Relatórios diários enviados com sucesso.');
+  } catch (error) {
+    console.error('❌ Erro ao processar relatórios diários:', error);
+  }
+});
+
+
+async function processarConsultaGeral(para, tenantId, user) {
+  const db = getDatabase();
+  const hoje = getHojeBR();
+
+  const [obrasSnap, tarefasSnap, pontoSnap] = await Promise.all([
+    db.ref(`tenants/${tenantId}/obras`).once('value'),
+    db.ref(`tenants/${tenantId}/tarefas`).once('value'),
+    db.ref(`tenants/${tenantId}/presenca`).once('value')
+  ]);
+
+  const obras = Object.values(obrasSnap.val() || {}).filter(o => o && ['ativa', 'em andamento', 'planejada', 'execucao'].includes(norm(o.status)));
+  const hojePonto = Object.values(pontoSnap.val() || {}).filter(p => p && p.data === hoje);
+  const tarefasAbertas = Object.values(tarefasSnap.val() || {}).filter(t => t && t.status !== 'Concluída');
+
+  const nomeEmpresa = 'Empresa';
+  const nomeObra = obras[0]?.nome || 'Sem obra';
+  const presentes = hojePonto.filter(p => p.presenca === 'Presente').length;
+  const faltantes = hojePonto.filter(p => p.presenca === 'Falta').length;
+  const tarefasPendentes = tarefasAbertas.length;
+
+  const msg = `👋 *Olá!* ${user?.nome || ''}\n\n📅 *${hoje}*\n\n🏗️ *${nomeObra}*\n\n👷 *Presentes:* ${presentes}\n❌ *Faltas:* ${faltantes}\n📋 *Tarefas abertas:* ${tarefasPendentes}\n\nUse:\n• *TAREFA* - listar tarefas\n• *PONTO* - lancar ponto\n• *MENU* - ver opcoes`;
+
+  await responderWhatsApp(para, msg);
+}
+
+
+// ==================== TRAVA DE PLANO (SERVER-SIDE) ====================
+// As Firebase Rules protegem os campos de plano (cliente não consegue aumentá-los),
+// mas o RTDB não expõe numChildren() para validar QUANTIDADE de registros.
+// O enforcement de quantidade é feito aqui, com o Admin SDK (ignora as rules),
+// então funciona também para quem escreve direto pelo SDK/DevTools.
+
+const LIMITE_PLANO_ILIMITADO = 9999;
+const LIMITE_FALLBACK = 1; // plano mais restrito quando o metadado está ausente
+
+function normalizarLimite(valor) {
+  const n = Number(valor);
+  // Number(null) === 0: nunca tratar ausência como 0 (bloquearia tudo) nem como ilimitado.
+  if (!Number.isFinite(n) || n <= 0) return LIMITE_FALLBACK;
+  return Math.floor(n);
+}
+
+function contarFilhos(snap) {
+  const val = snap && typeof snap.val === 'function' ? snap.val() : snap;
+  if (!val || typeof val !== 'object') return 0;
+  return Object.keys(val).length;
+}
+
+async function lerLimiteDoPlano(tenantId, campo) {
+  const snap = await db.ref(`tenants/${tenantId}/config/${campo}`).once('value');
+  return normalizarLimite(snap.val());
+}
+
+// Reverte um crescimento acima do limite do plano. Preserva o estado anterior
+// (não apaga registros legados) — apenas desfaz a escrita que estourou a cota.
+async function reverterCrescimentoAcimaDoLimite(ref, beforeVal, limite) {
+  await ref.transaction((atual) => {
+    const quantidade = contarFilhos(atual);
+    if (quantidade <= limite) return atual; // já voltou ao normal, nada a fazer
+    // Sem estado anterior não há como reverter com segurança: aborta (undefined = não grava).
+    if (contarFilhos(beforeVal) === 0) return undefined;
+    return beforeVal;
+  });
+}
+
+async function enforceGrowthLimit(event, campo, recursivo) {
+  const tenantId = event.params.tenantId;
+  const before = event.data.before.val();
+  const after = event.data.after.val();
+  const quantidadeAntes = contarFilhos(before);
+  const quantidadeDepois = contarFilhos(after);
+
+  if (quantidadeDepois <= quantidadeAntes) return null; // remoção/edição: sempre permitido
+
+  const tenantSnap = await db.ref(`tenants/${tenantId}/config`).once('value');
+  if (!tenantSnap.exists()) return null; // tenant sem metadados: não bloqueia (legado)
+
+  const limite = await lerLimiteDoPlano(tenantId, campo);
+  if (limite >= LIMITE_PLANO_ILIMITADO) return null;
+
+  if (quantidadeDepois > limite) {
+    const descricao = recursivo === 'obras' ? 'obras' : 'usuários';
+    console.warn(`[enforce] tenant=${tenantId} tentou exceder limite de ${descricao} (${quantidadeDepois}/${limite}). Revertendo.`);
+    await reverterCrescimentoAcimaDoLimite(event.data.after.ref, before, limite);
+  }
+  return null;
+}
+
+// Conta perfis ativos (sem status 'pendente') do tenant, excluindo o próprio uid.
+async function contarPerfisAtivos(tenantId, uid) {
+  const snap = await db.ref('profiles').once('value');
+  const perfis = snap.val() || {};
+  return Object.values(perfis).filter((p) => {
+    if (!p || p.tenantId !== tenantId) return false;
+    if (uid && p.uid === uid) return false;
+    return p.status !== 'pendente';
+  }).length;
+}
+
+// Trava de assentos: o dono (admin) conta separado e não é afetado.
+// Se o tenant já estiver cheio, o perfil novo é marcado como `pendente` e não recebe claims.
+async function aplicarLimiteDeAssentos(uid, tenantId, role) {
+  if (!tenantId) return role;
+
+  try {
+    const tenantSnap = await db.ref(`tenants/${tenantId}/config`).once('value');
+    if (!tenantSnap.exists()) return role;
+
+    const limite = await lerLimiteDoPlano(tenantId, 'limiteUsuarios');
+    const ativos = await contarPerfisAtivos(tenantId, uid);
+
+    // limiteUsuarios = máximo de funcionários; o dono conta separado (+1).
+    if (ativos >= limite + 1) {
+      console.warn(`[assentos] tenant=${tenantId} cheio (${ativos}/${limite + 1}). Perfil ${uid} marcado como pendente.`);
+      await db.ref(`profiles/${uid}/status`).set('pendente');
+      // Claims sem role/tenant: o usuário autentica mas não acessa dados do tenant.
+      await getAuth().setCustomUserClaims(uid, { role: 'pendente', tenantId: null });
+      return 'pendente';
+    }
+
+    return role;
+  } catch (e) {
+    console.error(`[assentos] Erro ao aplicar limite em ${uid}/${tenantId}:`, e);
+    return role;
+  }
+}
+
+// Triggers: aplicam a cota de quantidade mesmo quando a escrita vem do SDK/DevTools
+// (o Admin SDK ignora as rules, então estas funções continuam valendo nesses casos).
+exports.enforceObrasLimit = onValueWritten("tenants/{tenantId}/obras", async (event) => {
+  return enforceGrowthLimit(event, 'limiteObras', 'obras');
+});
+
+exports.enforceUsuariosLimit = onValueWritten("tenants/{tenantId}/usuarios", async (event) => {
+  return enforceGrowthLimit(event, 'limiteUsuarios', 'usuarios');
+});
+
+// Subdomínio personalizado é Pro+. O slug inicial do cadastro é sempre igual ao
+// tenantId (necessário para criar a conta) e por isso é permitido a todos.
+async function enforceSubdomainPlan(event) {
+  const tenantId = event.params.tenantId;
+  const depois = event.data.after.val();
+  const antes = event.data.before.val();
+
+  if (!depois || depois === tenantId) return null;
+
+  const tenantSnap = await db.ref(`tenants/${tenantId}`).once('value');
+  const tenant = tenantSnap.val() || {};
+
+  if (hasFeature('subdominio', tenant.plano, tenant)) return null;
+
+  console.warn(`[enforce] tenant=${tenantId} (${tenant.plano || 'sem plano'}) tentou definir subdomínio "${depois}". Revertendo.`);
+  const valorSeguro = antes && antes !== depois ? antes : tenantId;
+  await event.data.after.ref.set(valorSeguro);
+
+  // Remove o nó público criado para um slug que o plano não pode usar.
+  await db.ref(`tenants_public/${depois}`).transaction((atual) => {
+    return atual && atual.tenantId === tenantId ? null : atual;
+  });
+  return null;
+}
+
+exports.enforceSubdomainPlan = onValueWritten("tenants/{tenantId}/subdominioSlug", enforceSubdomainPlan);
+exports.enforceConfigSlugPlan = onValueWritten("tenants/{tenantId}/config/slug", enforceSubdomainPlan);
+
+exports.syncCustomClaims = onValueWritten("profiles/{uid}", async (event) => {
+  const uid = event.params.uid;
+  const after = event.data.after.val();
+
+  if (!after) {
+    // Perfil deletado: exclui a conta e credenciais do usuário no Firebase Auth
+    try {
+      await getAuth().deleteUser(uid);
+      console.log(`[syncCustomClaims] Usuário e credenciais deletados no Firebase Auth para uid: ${uid}`);
+    } catch (e) {
+      console.warn(`[syncCustomClaims] Aviso ao deletar usuário no Auth para uid ${uid}:`, e);
+      try {
+        await getAuth().updateUser(uid, { disabled: true });
+        await getAuth().setCustomUserClaims(uid, null);
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  let role = after.role || 'admin';
+  // `mestre` é alias legado: as claims passam a usar sempre `encarregado`.
+  if (role === 'mestre') role = 'encarregado';
+  let tenantId = after.tenantId || null;
+
+  // Perfis 'pendente' (sem assento) e 'bloqueado' (painel master) nunca recebem
+  // claims de acesso. No bloqueio, revoga também os tokens já emitidos.
+  if (after.status === 'pendente' || after.status === 'bloqueado') {
+    try {
+      await getAuth().setCustomUserClaims(uid, { role: after.status, tenantId: null });
+      if (after.status === 'bloqueado') await getAuth().revokeRefreshTokens(uid);
+    } catch (e) {
+      console.warn(`[syncCustomClaims] Erro ao bloquear claims de ${uid}:`, e);
+    }
+    return null;
+  }
+
+  // Trava de assentos: só vale para perfis novos, para não punir usuários legados.
+  if (!event.data.before.exists()) {
+    role = await aplicarLimiteDeAssentos(uid, tenantId, role);
+    if (role === 'pendente') return null; // claims de bloqueio já aplicadas
+  }
+
+  try {
+    const userRecord = await getAuth().getUser(uid);
+    const currentClaims = userRecord.customClaims || {};
+    const email = (userRecord.email || '').toLowerCase();
+
+    // Nunca confie em users/<email>/role para PROMOVER: esse nó é um espelho
+    // legado. A autoridade é super_admins/<uid>, gravada só pelo servidor.
+    const decisao = await avaliarSuperAdmin({ uid, email, currentClaims, db });
+
+    if (decisao.autorizado) {
+      if (role !== 'super_admin') {
+        role = 'super_admin';
+        tenantId = 'MASTER_SYSTEM';
+        await db.ref(`profiles/${uid}`).update({
+          role: 'super_admin',
+          tenantId: 'MASTER_SYSTEM',
+          status: 'ativo'
+        });
+      }
+    } else if (role === 'super_admin') {
+      // Tentativa de escalação: derruba a claim e corrige o perfil, pois as
+      // rules do RTDB também leem profiles/<uid>/role para autorizar leituras.
+      console.warn(`[syncCustomClaims] Escalação bloqueada (${decisao.motivo}): uid=${uid}, email=${email}`);
+      const tenantSeguro = after.tenantId === 'MASTER_SYSTEM' ? null : after.tenantId;
+      role = 'admin';
+      tenantId = tenantSeguro || null;
+      await db.ref(`profiles/${uid}`).update({
+        role: 'admin',
+        tenantId: tenantId,
+        cargoAtualizadoPor: 'syncCustomClaims'
+      });
+    }
+
+    // Revoke imediato ao perder o papel master: tokens antigos deixam de valer.
+    if (currentClaims.role === 'super_admin' && role !== 'super_admin') {
+      await getAuth().revokeRefreshTokens(uid);
+    }
+
+    // Evitar updates desnecessários (otimização de cota e performance).
+    // Para RH, módulos/obras também fazem parte da assinatura das claims.
+    const modulosClaimAtual = (currentClaims.modulosPermitidos && typeof currentClaims.modulosPermitidos === 'object')
+      ? Object.keys(currentClaims.modulosPermitidos).filter(k => currentClaims.modulosPermitidos[k] === true).sort()
+      : [];
+    const assinaturaAtual = JSON.stringify({
+      modulos: currentClaims.role === 'rh' ? modulosClaimAtual : null,
+      acesso: currentClaims.role === 'rh' ? (currentClaims.acessoObras || 'todas') : null,
+      obras: currentClaims.role === 'rh'
+        ? (Array.isArray(currentClaims.obrasPermitidas) ? currentClaims.obrasPermitidas.slice().sort() : [])
+        : []
+    });
+    const modulosPerfil = (after.modulosPermitidos && typeof after.modulosPermitidos === 'object')
+      ? Object.keys(after.modulosPermitidos).filter(k => after.modulosPermitidos[k] === true).sort()
+      : [];
+    const obrasPerfil = (Array.isArray(after.obrasPermitidas) ? after.obrasPermitidas : [])
+      .map(o => String(o || '').trim()).filter(Boolean).sort();
+    const assinaturaPerfil = JSON.stringify({
+      modulos: role === 'rh' ? modulosPerfil : null,
+      acesso: role === 'rh' ? (after.acessoObras === 'especificas' ? 'especificas' : 'todas') : null,
+      obras: role === 'rh' ? obrasPerfil : []
+    });
+    if (currentClaims.role === role && currentClaims.tenantId === tenantId &&
+        assinaturaAtual === assinaturaPerfil) {
+      console.log(`[syncCustomClaims] Claims inalteradas para uid: ${uid}`);
+      return null;
+    }
+
+    // RH carrega nas claims os módulos e o escopo de obras definidos pelo
+    // admin, para que as rules e o cliente decidam sem outra leitura.
+    const claimsUpdate = { role: role, tenantId: tenantId };
+    if (role === 'rh') {
+      const modulos = after.modulosPermitidos && typeof after.modulosPermitidos === 'object'
+        ? after.modulosPermitidos : null;
+      const modulosLimpos = {};
+      if (modulos) {
+        Object.keys(modulos).forEach(chave => {
+          if (modulos[chave] === true) modulosLimpos[chave] = true;
+        });
+      }
+      claimsUpdate.modulosPermitidos = modulosLimpos;
+      claimsUpdate.acessoObras = after.acessoObras === 'especificas' ? 'especificas' : 'todas';
+      const obras = Array.isArray(after.obrasPermitidas)
+        ? after.obrasPermitidas.map(o => String(o || '').trim()).filter(Boolean).slice(0, 50)
+        : [];
+      claimsUpdate.obrasPermitidas = obras;
+    }
+    // setCustomUserClaims substitui o objeto inteiro: para os outros cargos as
+    // chaves de RH simplesmente não existem (equivalem a null nas rules).
+    await getAuth().setCustomUserClaims(uid, claimsUpdate);
+
+    console.log(`[syncCustomClaims] Atualizado uid: ${uid} -> role: ${role}, tenant: ${tenantId}`);
+    return { success: true };
+  } catch (err) {
+    console.error(`[syncCustomClaims] Erro ao atualizar claims para uid: ${uid}`, err);
+    return null;
+  }
+});
+
+// ==================== WEBHOOK KIWIFY (SAAS BILLING) ====================
+exports.kiwifyWebhook = onRequest({
+  secrets: [KIWIFY_TOKEN],
+  cors: false,
+  memory: '256MiB',
+  timeoutSeconds: 60,
+  maxInstances: 3
+}, async (req, res) => {
+  return handleKiwifyWebhook(req, res, {
+    secret: valorSegredo(KIWIFY_TOKEN),
+    db: getDatabase()
+  });
+});
+
+// ==================== CRIAÇÃO DE USUÁRIO PELO PAINEL ADMIN ====================
+exports.criarUsuarioTenant = criarUsuarioTenant;
+
+// ==================== API DO PAINEL SUPER ADMIN ====================
+// Ações de conta (reset/bloqueio/exclusão/plano/limites) e leitura da Kiwify.
+// Token do Firebase é verificado dentro de handleAdminRequest (Admin SDK).
+const cacheTokenKiwify = {};
+exports.adminAccountApi = onRequest({
+  cors: false,
+  memory: '256MiB',
+  timeoutSeconds: 60,
+  maxInstances: 3,
+  secrets: [KIWIFY_CLIENT_ID, KIWIFY_CLIENT_SECRET, KIWIFY_ACCOUNT_ID, KIWIFY_API_TOKEN]
+}, async (req, res) => {
+  return handleAdminRequest(req, res, {
+    auth: getAuth(),
+    db: getDatabase(),
+    http: axios,
+    cache: cacheTokenKiwify,
+    credenciaisKiwify: {
+      clientId: valorSegredo(KIWIFY_CLIENT_ID),
+      clientSecret: valorSegredo(KIWIFY_CLIENT_SECRET),
+      accountId: valorSegredo(KIWIFY_ACCOUNT_ID),
+      apiToken: valorSegredo(KIWIFY_API_TOKEN)
+    }
+  });
+});
+
+// ==================== CARGOS (SERVIDOR) ====================
+// Toda alteração de cargo/tenant passa por aqui. O navegador nunca escreve
+// role/tenantId/status diretamente no banco.
+exports.gerenciarCargo = onRequest({
+  cors: false,
+  memory: '256MiB',
+  timeoutSeconds: 60,
+  maxInstances: 3
+}, async (req, res) => {
+  return handleCargoRequest(req, res, {
+    auth: getAuth(),
+    db: getDatabase()
+  });
+});
+
+// ==================== APROVAÇÕES (SERVIDOR) ====================
+// Decisão via Admin SDK: o navegador não escreve status/decidido* no RTDB.
+// cobre admin comum e super_admin operando tenant alheio (billing permitido).
+exports.decidirAprovacaoApi = onRequest({
+  cors: false,
+  memory: '256MiB',
+  timeoutSeconds: 60,
+  maxInstances: 3
+}, async (req, res) => {
+  return handleAprovacaoRequest(req, res, {
+    auth: getAuth(),
+    db: getDatabase()
+  });
+});
+
+// A operação real é aplicada aqui depois da decisão gravada pela API.
+exports.aplicarAprovacao = onValueWritten(
+  "tenants/{tenantId}/aprovacoes/{aprovacaoId}",
+  async (event) => aoEscreverAprovacao(
+    getDatabase(),
+    event.params.tenantId,
+    event.params.aprovacaoId,
+    event.data.after.val(),
+    event.data.before.val(),
+    Date.now()
+  )
+);
+
+// Alertas em 7/12 dias, expiração em 15 e retomada de aplicações órfãs.
+exports.aprovacoesPrazosJob = onSchedule({
+  schedule: "every day 06:00",
+  timeZone: "America/Sao_Paulo",
+  memory: "256MiB",
+  timeoutSeconds: 120
+}, async () => processarAprovacoesJob(getDatabase(), Date.now()));
+
+// Limpeza de cotas, dedup e trilha de auditoria (evita crescimento ilimitado).
+exports.retencaoSegurancaJob = onSchedule({
+  schedule: "every day 03:30",
+  timeZone: "America/Sao_Paulo",
+  memory: "256MiB",
+  timeoutSeconds: 120
+}, async () => executarLimpeza(getDatabase()));
+
+// ==================== JOB DIÁRIO: BILLING ENFORCEMENT ====================
+exports.dailyBillingStateJob = onSchedule({
+  schedule: "every day 04:00",
+  timeZone: "America/Sao_Paulo",
+  memory: "256MiB",
+  timeoutSeconds: 120
+}, async (event) => {
+  console.log('[BillingJob] Iniciando recalculo diário de billingState...');
+  return atualizarBillingStatesJob(getDatabase());
+});
+
+

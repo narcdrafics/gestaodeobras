@@ -1,0 +1,22 @@
+{
+  "name": "obra-real-webhook",
+  "version": "1.0.0",
+  "description": "Cloud Functions para cobrança e automação de SaaS",
+  "engines": {
+    "node": "24"
+  },
+  "main": "index.js",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "axios": "^1.15.2",
+    "firebase-admin": "^14.5.1",
+    "firebase-functions": "^7.4.0",
+    "openai": "^4.104.0"
+  },
+  "private": true
+}

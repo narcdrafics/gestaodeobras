@@ -1,0 +1,410 @@
+openapi: 3.0.3
+info:
+  title: API legada — obra-real (gestaodeobras)
+  version: "1.0.0-reversa"
+  description: >-
+    Contrato HTTP das 6 rotas `/api/*` publicadas via Firebase Hosting rewrites
+    (`firebase.json:11-40`). 🟢 CONFIRMADO no código. 🔴 Lacunas bloqueantes são
+    marcadas inline e não devem ser implementadas sem decisão humana.
+    Idioma dos contratos: Português. Martelos de confiança: 🟢 confirmado, 🟡 inferido, 🔴 lacuna.
+servers:
+  - url: https://controle-obras-c889d.web.app
+    description: 🟢 Hosting de produção (web.app)
+  - url: https://obrareal.com
+    description: 🟢 Domínio via Cloudflare Worker (proxy para Hosting)
+  - url: http://localhost:3000
+    description: 🟢 Express local (`server.js`), sem rewrites de Functions
+tags:
+  - name: Webhooks
+    description: 🟢 Integrações externas com dedup obrigatório (ADR-004)
+  - name: Admin
+    description: 🟢 APIs administrativas com defesa em profundidade (ADR-006)
+paths:
+  /api/kiwify:
+    post:
+      tags: [Webhooks]
+      summary: 🟢 Webhook de eventos de cobrança Kiwify
+      operationId: kiwifyWebhook
+      description: >-
+        🟢 HMAC-SHA1 sobre `rawBody`, aceito em `?signature=` ou no header
+        `x-kiwify-signature`. 🟢 Chave de dedup `orderId + eventType`; `order_status`
+        fica fora do hash. 🟢 `pending_tenant` e `failed` são não terminais; lease
+        `processing` expira em 2 min. 🟡 Evento desconhecido vira `success` sem
+        efeito e sem fila de revisão.
+      parameters:
+        - name: signature
+          in: query
+          required: false
+          description: 🟢 HMAC-SHA1 alternativo ao header
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KiwifyEvent"
+      responses:
+        "200":
+          description: 🟢 Evento processado ou reentrega idempotente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessedResponse"
+        "202":
+          description: 🟢 Tenant ainda não identificado (`pending_tenant`)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [pending_tenant] }
+        "400":
+          description: 🟢 `Missing order_id`
+        "401":
+          description: 🟢 Assinatura ausente ou inválida (`webhook_debug` sem PII)
+        "409":
+          description: 🟢 Conflito de hash/tenant em evento já `success`
+        "413":
+          description: 🟢 Corpo acima do limite
+        "429":
+          description: 🟢 Cota excedida
+      security: []
+  /api/whatsapp:
+    get:
+      tags: [Webhooks]
+      summary: 🟢 Handshake de verificação da Meta
+      operationId: whatsappVerify
+      description: 🟢 `hub.mode=subscribe` e `hub.verify_token` comparados com `seguroEqual`.
+      parameters:
+        - name: hub.mode
+          in: query
+          required: true
+          schema: { type: string, enum: [subscribe] }
+        - name: hub.verify_token
+          in: query
+          required: true
+          schema: { type: string }
+        - name: hub.challenge
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: 🟢 Retorna `hub.challenge` em texto plano
+          content:
+            text/plain:
+              schema: { type: string }
+        "403":
+          description: 🟢 Token inválido
+      security: []
+    post:
+      tags: [Webhooks]
+      summary: 🟢 Recepção de mensagens da Meta WhatsApp Cloud API
+      operationId: whatsappWebhook
+      description: >-
+        🟢 HMAC-SHA256 sobre `rawBody` em `x-hub-signature-256`; somente
+        `whatsapp_business_account`. 🟢 Dedup transacional por `msg.id`; áudio
+        limitado a 8 MB/20 s e transcrito com Whisper-1. 🔴 Lacunas bloqueantes:
+        GAP-01 (`consultar_ponto` sem handler), GAP-02/04 (parser órfão e
+        `tarefas_pendentes`), GAP-03 (`dailyReport` lê `ponto/<hoje>` enquanto o
+        bot grava `presenca`), GAP-05 (Graph API sem retry/fila/dead-letter).
+        Não gerar comportamento novo para essas lacunas.
+      parameters:
+        - name: x-hub-signature-256
+          in: header
+          required: true
+          description: 🟢 `sha256=<hmac>`
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WhatsappPayload"
+      responses:
+        "200":
+          description: 🟢 Processado ou duplicado
+          content:
+            text/plain:
+              schema: { type: string }
+        "400":
+          description: 🟢 URL de áudio fora da allowlist
+        "401":
+          description: 🟢 Assinatura ausente ou inválida
+        "403":
+          description: 🟢 Origem WABA divergente, número não autorizado/ambíguo ou tenant/usuário bloqueado
+        "404":
+          description: 🟢 Objeto diferente de `whatsapp_business_account` (ramo `page` ignorado)
+        "405":
+          description: 🟢 Método não permitido
+        "500":
+          description: 🟢 Exceção no processamento — reserva removida para reenvio
+      security: []
+  /api/admin/criar-usuario:
+    post:
+      tags: [Admin]
+      summary: 🟢 Criação de usuário do tenant a partir de convite
+      operationId: criarUsuarioTenant
+      description: 🟢 Cota e tamanho (16 KB) checados antes do Auth; convite consumido por transação (`usos: 0→1`). 🔴 Senha temporária é devolvida apenas na resposta, nunca gravada no RTDB.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, nome, tenantId]
+              properties:
+                email: { type: string, format: email }
+                nome: { type: string }
+                tenantId: { type: string, description: 🟢 slug do tenant }
+      responses:
+        "200":
+          description: 🟢 Usuário criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uid: { type: string }
+                  email: { type: string }
+                  password: { type: string, description: 🔴 Senha temporária, somente nesta resposta }
+                  criado: { type: boolean }
+        "400": { description: 🟢 Campos obrigatórios ou auto-alteração }
+        "401": { description: 🟢 Token ausente/inválido/revogado }
+        "403": { description: 🟢 Sem permissão }
+        "405": { description: 🟢 Método inválido }
+        "409": { description: 🟢 Convite inexistente/usado ou e-mail vinculado a outro tenant }
+        "413": { description: 🟢 Corpo > 16 KB }
+        "429": { description: 🟢 Cota de IP ou UID excedida }
+      security:
+        - bearerAuth: []
+  /api/admin/conta:
+    get:
+      tags: [Admin]
+      summary: 🟢 Leitura de dados da Kiwify (painel master)
+      operationId: adminContaLeitura
+      parameters:
+        - name: recurso
+          in: query
+          required: true
+          schema: { type: string, enum: [kiwify] }
+        - name: tipo
+          in: query
+          required: true
+          schema: { type: string, enum: [products, sales, account, webhooks] }
+        - name: page_size
+          in: query
+          required: false
+          schema: { type: integer, maximum: 100 }
+        - name: page_number
+          in: query
+          required: false
+          schema: { type: integer, maximum: 1000 }
+        - name: status
+          in: query
+          required: false
+          schema: { type: string }
+        - name: product_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: 🟢 `{ok, resultado, catalogoLocal}` ou `{configurado:false, mensagem}`
+          content:
+            application/json:
+              schema: { type: object }
+      security:
+        - bearerAuth: []
+    post:
+      tags: [Admin]
+      summary: 🟢 Ações administrativas e de cobrança do painel master
+      operationId: adminAccountApi
+      description: >-
+        🟢 Ações destrutivas usam `requestId` em `admin_ops`; reenvio retorna
+        `200 {idempotente:true}`. 🟢 Falha de auditoria obrigatória ⇒ `503
+        auditoria_falhou`. 🟡 Ajuste manual de limites pode ir até 9999 sem
+        aprovação adicional.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [acao, requestId]
+              properties:
+                acao:
+                  type: string
+                  enum:
+                    [reset_password, bloquear_usuario, excluir_usuario, definir_limites, definir_plano, bloquear_tenant]
+                requestId: { type: string, format: uuid, description: 🟢 chave de idempotência }
+                email: { type: string, format: email }
+                uid: { type: string }
+                tenantId: { type: string }
+                plano: { type: string }
+                bloquear: { type: boolean }
+                limiteObras: { type: integer }
+                limiteUsuarios: { type: integer }
+                limiteTrabalhadores: { type: integer }
+      responses:
+        "200": { description: 🟢 Operação concluída ou idempotente }
+        "400": { description: 🟢 Parâmetros inválidos }
+        "401": { description: 🟢 Token inválido }
+        "403": { description: 🟢 Sem permissão }
+        "404": { description: 🟢 Alvo não encontrado }
+        "405": { description: 🟢 Método inválido }
+        "409": { description: 🟢 Conflito de estado }
+        "413": { description: 🟢 Corpo > 16 KB }
+        "429": { description: 🟢 Cota excedida }
+        "502": { description: 🟢 Falha na integração Kiwify/Auth }
+        "503": { description: 🟢 `auditoria_falhou` }
+      security:
+        - bearerAuth: []
+  /api/admin/cargo:
+    post:
+      tags: [Admin]
+      summary: 🟢 Definição/remoção de cargo e módulos de RH
+      operationId: gerenciarCargo
+      description: 🟢 Admin comum atua somente no próprio tenant; super_admin escolhe tenant. 🟢 `mestre` normalizado para `encarregado`; claims são assíncronas (`syncCustomClaims`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [acao, uid]
+              properties:
+                acao: { type: string, enum: [definir_cargo, remover_usuario] }
+                uid: { type: string }
+                role: { type: string }
+                modulosPermitidos:
+                  type: object
+                  additionalProperties: { type: boolean }
+                acessoObras: { type: string, enum: [especificas, todas] }
+                obrasPermitidas:
+                  type: array
+                  items: { type: string }
+                  maxItems: 50
+      responses:
+        "200":
+          description: 🟢 `{ok:true, perfil}`
+        "400": { description: 🟢 `auto_alteracao`, `cargo_obrigatorio` ou `cargo_invalido` }
+        "401": { description: 🟢 Token inválido }
+        "403": { description: 🟢 Sem permissão }
+        "404": { description: 🟢 Alvo não encontrado }
+        "405": { description: 🟢 Método inválido }
+        "413": { description: 🟢 Corpo > 16 KB }
+        "429": { description: 🟢 Cota excedida }
+        "503": { description: 🟢 `auditoria_falhou` }
+      security:
+        - bearerAuth: []
+  /api/admin/aprovacao:
+    post:
+      tags: [Admin]
+      summary: 🟢 Decisão de aprovação (aprovar/rejeitar)
+      operationId: decidirAprovacaoApi
+      description: >-
+        🟢 `rh` exige `modulosPermitidos.aprovacoes` e o módulo do tipo;
+        `engenheiro` somente `movimentacao_estoque` com `notificarAdmin=true`.
+        🔴 GAP-04: `tarefas_pendentes` não tem contrato de rules consistente e
+        fica fora deste contrato até decisão humana.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, decisao]
+              properties:
+                id: { type: string, description: 🟢 aprovacaoId }
+                decisao: { type: string, enum: [aprovado, rejeitado] }
+                motivo: { type: string, description: 🟢 obrigatório quando `rejeitado` }
+                notificarAdmin: { type: boolean }
+      responses:
+        "200":
+          description: 🟢 `{ok:true, status}`
+        "400": { description: 🟢 Corpo inválido ou rejeição sem motivo }
+        "401": { description: 🟢 Token inválido }
+        "403": { description: 🟢 `plano_bloqueado`, `tenant_invalido`, `sem_permissao` ou conta bloqueada }
+        "404": { description: 🟢 Aprovação inexistente }
+        "405": { description: 🟢 Método inválido }
+        "409": { description: 🟢 `ja_decidida` }
+        "413": { description: 🟢 Corpo > 16 KB }
+        "429": { description: 🟢 Cota excedida }
+      security:
+        - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase ID token
+      description: 🟢 `verifyIdToken(token, true)` — token revogado é rejeitado
+  schemas:
+    KiwifyEvent:
+      type: object
+      required: [order_id]
+      description: 🟢 Corpo bruto da Kiwify; `order_status` é removido do hash de idempotência.
+      properties:
+        order_id: { type: string }
+        order_status: { type: string }
+        event_type: { type: string }
+        external_reference: { type: string, description: 🟢 tenantId no checkout }
+        emailAdmin: { type: string, format: email }
+        product_name: { type: string }
+        Commissions:
+          type: object
+          properties:
+            charge_amount: { type: number }
+        order_value: { type: number }
+    ProcessedResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        status:
+          type: string
+          enum: [processed, already_processed, conflict_ignored]
+    WhatsappPayload:
+      type: object
+      required: [object, entry]
+      properties:
+        object:
+          type: string
+          enum: [whatsapp_business_account]
+          description: 🟢 Outros valores são ignorados (404)
+        entry:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              changes:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    value:
+                      type: object
+                      properties:
+                        metadata:
+                          type: object
+                          properties:
+                            phone_number_id: { type: string }
+                        messages:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id: { type: string, description: 🟢 chave de dedup }
+                              from: { type: string }
+                              text: { type: object, properties: { body: { type: string } } }
+                              button: { type: object, properties: { text: { type: string } } }
+                              audio: { type: object, properties: { id: { type: string } } }
+    ErrorResponse:
+      type: object
+      description: 🟢 Corpo de erro padrão das APIs administrativas.
+      properties:
+        motivo: { type: string }
+        status: { type: string }
+        requestId: { type: string }

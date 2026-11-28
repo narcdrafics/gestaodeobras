@@ -1,0 +1,148 @@
+[
+  {
+    "id": "H1",
+    "veredito": "CONFIRMADO EM RUNTIME",
+    "detalhes": {
+      "hipotese": "H1",
+      "claims": {
+        "role": "admin",
+        "tenantId": "tenant-tracer-a"
+      },
+      "perfilDepois": {
+        "role": "admin",
+        "tenantId": "tenant-tracer-a",
+        "status": "ativo",
+        "cargoAtualizadoPor": null
+      },
+      "esperaMs": 8262
+    }
+  },
+  {
+    "id": "H2",
+    "veredito": "CONFIRMADO EM RUNTIME",
+    "detalhes": {
+      "hipotese": "H2",
+      "claims": {
+        "role": "encarregado",
+        "tenantId": "tenant-tracer-a"
+      },
+      "perfilDepois": {
+        "role": "mestre",
+        "tenantId": "tenant-tracer-a",
+        "status": "ativo",
+        "cargoAtualizadoPor": null
+      },
+      "esperaMs": 271
+    }
+  },
+  {
+    "id": "H3",
+    "veredito": "CONFIRMADO EM RUNTIME",
+    "detalhes": {
+      "hipotese": "H3",
+      "claims": {
+        "role": "admin",
+        "tenantId": "tenant-tracer-a"
+      },
+      "perfilDepois": {
+        "role": "super_admin",
+        "tenantId": "tenant-tracer-a",
+        "status": "ativo",
+        "cargoAtualizadoPor": null
+      },
+      "esperaMs": 265
+    }
+  },
+  {
+    "id": "H4",
+    "veredito": "INCONCLUSIVO",
+    "detalhes": {
+      "hipotese": "H4",
+      "claims": {
+        "role": "admin",
+        "tenantId": "tenant-tracer-lotado"
+      },
+      "perfilDepois": {
+        "role": "admin",
+        "tenantId": "tenant-tracer-lotado",
+        "status": "ativo",
+        "cargoAtualizadoPor": null
+      },
+      "esperaMs": 12084
+    }
+  },
+  {
+    "id": "H5",
+    "veredito": "CONFIRMADO EM RUNTIME",
+    "detalhes": {
+      "hipotese": "H5",
+      "claims": {
+        "role": "rh",
+        "tenantId": "tenant-tracer-a",
+        "modulosPermitidos": {
+          "financeiro": true
+        },
+        "acessoObras": "especificas",
+        "obrasPermitidas": [
+          "obra-tracer-01",
+          "obra-tracer-02",
+          "obra-tracer-03",
+          "obra-tracer-04",
+          "obra-tracer-05",
+          "obra-tracer-06",
+          "obra-tracer-07",
+          "obra-tracer-08",
+          "obra-tracer-09",
+          "obra-tracer-10",
+          "obra-tracer-11",
+          "obra-tracer-12",
+          "obra-tracer-13",
+          "obra-tracer-14",
+          "obra-tracer-15",
+          "obra-tracer-16",
+          "obra-tracer-17",
+          "obra-tracer-18",
+          "obra-tracer-19",
+          "obra-tracer-20",
+          "obra-tracer-21",
+          "obra-tracer-22",
+          "obra-tracer-23",
+          "obra-tracer-24",
+          "obra-tracer-25",
+          "obra-tracer-26",
+          "obra-tracer-27",
+          "obra-tracer-28",
+          "obra-tracer-29",
+          "obra-tracer-30",
+          "obra-tracer-31",
+          "obra-tracer-32",
+          "obra-tracer-33",
+          "obra-tracer-34",
+          "obra-tracer-35",
+          "obra-tracer-36",
+          "obra-tracer-37",
+          "obra-tracer-38",
+          "obra-tracer-39",
+          "obra-tracer-40",
+          "obra-tracer-41",
+          "obra-tracer-42",
+          "obra-tracer-43",
+          "obra-tracer-44",
+          "obra-tracer-45",
+          "obra-tracer-46",
+          "obra-tracer-47",
+          "obra-tracer-48",
+          "obra-tracer-49",
+          "obra-tracer-50"
+        ]
+      },
+      "perfilDepois": {
+        "role": "rh",
+        "tenantId": "tenant-tracer-a",
+        "status": "ativo",
+        "cargoAtualizadoPor": null
+      },
+      "esperaMs": 268
+    }
+  }
+]

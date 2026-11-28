@@ -1,0 +1,47 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // O Storage não consegue ler o Realtime Database nas Security Rules.
+    // A autoridade aqui são as Custom Claims emitidas por syncCustomClaims:
+    // role + tenantId são gravados juntos pelo servidor (Admin SDK).
+    function membroTenant(tenantId) {
+      return request.auth != null
+        && request.auth.token.tenantId == tenantId
+        && (request.auth.token.role == 'admin'
+          || request.auth.token.role == 'rh'
+          || request.auth.token.role == 'engenheiro'
+          || request.auth.token.role == 'encarregado'
+          || request.auth.token.role == 'mestre'
+          || request.auth.token.role == 'comprador');
+    }
+
+    function superAdmin() {
+      return request.auth != null
+        && request.auth.token.role == 'super_admin'
+        && request.auth.token.tenantId == 'MASTER_SYSTEM';
+    }
+
+    function arquivoPermitido() {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType != null
+        && (request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/pdf');
+    }
+
+    // Nomes de arquivo são imutáveis dentro do tenant; o caminho completo
+    // precisa começar com tenants/<tenantId>/ para valer a checagem abaixo.
+    match /tenants/{tenantId}/{allPaths=**} {
+      allow get: if superAdmin() || membroTenant(tenantId);
+      allow list: if superAdmin() || membroTenant(tenantId);
+      allow create, update: if (superAdmin() || membroTenant(tenantId)) && arquivoPermitido();
+      allow delete: if superAdmin() || membroTenant(tenantId);
+    }
+
+    // Qualquer caminho fora de tenants/<tenantId>/ continua bloqueado.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
