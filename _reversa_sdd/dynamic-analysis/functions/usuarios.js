@@ -1,8 +1,10 @@
 // Criação de credenciais pelo painel administrativo.
 //
 // O painel grava o convite em `invites/<email>` e chama esta função. Aqui, com o
-// Firebase Admin SDK, a conta é criada no Auth com uma senha temporária que é
-// devolvida apenas ao administrador autenticado, para exibição na tela.
+// Firebase Admin SDK, contas NOVAS recebem uma senha temporária devolvida apenas
+// ao administrador autenticado, para exibição na tela. Contas que já existem no
+// Auth mantêm a senha atual: redefini-la aqui derrubava o acesso do usuário no
+// momento em que o admin apenas ajustava o cargo/as obras dele.
 // A senha NUNCA é gravada no Realtime Database; role/tenantId continuam sendo
 // definidos pelo perfil e propagados por `syncCustomClaims`.
 const { onRequest } = require('firebase-functions/v2/https');
@@ -130,7 +132,7 @@ exports.criarUsuarioTenant = onRequest(
         return responder(res, 409, { error: 'convite_ja_usado' });
       }
 
-      const senha = gerarSenhaTemporaria();
+      let senha = null; // preenchida só para contas realmente novas
       let existente = null;
       let uid;
       let criado = false;
@@ -143,8 +145,8 @@ exports.criarUsuarioTenant = onRequest(
         }
 
         if (existente) {
-          // Nunca permita que um admin de outra empresa redefina a senha de uma
-          // conta já vinculada a um tenant diferente. Vínculo vazio também bloqueia.
+          // Nunca permita que um admin de outra empresa vincule uma conta já
+          // pertencente a um tenant diferente. Vínculo vazio também bloqueia.
           let perfil = {};
           try {
             const perfilSnap = await getDatabase().ref(`profiles/${existente.uid}`).once('value');
@@ -158,11 +160,11 @@ exports.criarUsuarioTenant = onRequest(
             throw Object.assign(new Error('email_vinculado_outro_tenant'), { code: 'email_vinculado_outro_tenant', status: 409 });
           }
 
-          await getAuth().updateUser(existente.uid, { password: senha, displayName: name });
-          // Senha nova: tokens antigos devem deixar de valer imediatamente.
-          await getAuth().revokeRefreshTokens(existente.uid).catch(() => {});
+          // A conta já existe: manter a senha atual. Redefinir aqui era a causa
+          // de "perdi o acesso ao slug" quando o admin só ajustava obra/cargo.
           uid = existente.uid;
         } else {
+          senha = gerarSenhaTemporaria();
           const novo = await getAuth().createUser({
             email,
             password: senha,
@@ -178,7 +180,14 @@ exports.criarUsuarioTenant = onRequest(
 
       // Não gravar senha no RTDB: o fluxo de primeiro login consome o convite,
       // cria o perfil e o syncCustomClaims continua dono de role/tenantId.
-      return responder(res, 200, { uid, email, password: senha, criado });
+      return responder(res, 200, {
+        uid,
+        email,
+        password: senha,
+        criado,
+        senhaTemporaria: criado,
+        contaExistente: !criado
+      });
     } catch (e) {
       console.warn('[criarUsuarioTenant] Falha:', e && (e.code || e.message || e));
       const status = Number(e && e.status) || 500;
