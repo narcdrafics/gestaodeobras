@@ -59,6 +59,33 @@ function ehAdmin(role) {
   return ADMIN_ROLES.has(normalizarRole(role));
 }
 
+/** `OB001`, `OB001; OB002`, arrays etc. -> códigos limpos. */
+function codigosObraAprovacao(valor) {
+  if (Array.isArray(valor)) return valor.flatMap(codigosObraAprovacao);
+  if (valor && typeof valor === 'object') {
+    return codigosObraAprovacao(valor.cod || valor.obra || valor.obraDestino);
+  }
+  return String(valor == null ? '' : valor)
+    .split(/[,;|]/)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Nenhuma aprovação pode mexer em obra fora do escopo do solicitante.
+ * Usuário sem `acessoObras: 'especificas'` mantém o comportamento legado
+ * (todas as obras), o mesmo critério usado no cliente.
+ */
+function aprovacaoDentroDoEscopo(aprovacao, usuario) {
+  if (!usuario || ehAdmin(usuario.role) || ehAdmin(usuario.perfilRole)) return true;
+  if (usuario.acessoObras !== 'especificas') return true;
+  const permitidas = new Set((usuario.obrasPermitidas || []).map(String));
+  const payload = (aprovacao && aprovacao.payload) || {};
+  const citadas = codigosObraAprovacao([payload.obra, payload.obraDestino, aprovacao && aprovacao.obra]);
+  // Sem obra identificável, fail-closed para quem não é admin.
+  return citadas.length > 0 && citadas.every(c => permitidas.has(String(c)));
+}
+
 function diasDecorridos(solicitadoEm, agora) {
   const inicio = Number(solicitadoEm);
   if (!Number.isFinite(inicio)) return -1;
@@ -516,6 +543,27 @@ async function marcarFalha(db, tenantId, aprovacaoId, aprovacao, motivo, agora) 
   await db.ref().update(updates);
 }
 
+/** Cruza o uid do solicitante com o cadastro de usuários do tenant. */
+async function carregarUsuarioDaAprovacao(db, tenantId, aprovacao) {
+  const uidSolicitante = aprovacao && aprovacao.solicitadoPor;
+  if (!uidSolicitante) return null;
+  try {
+    const [perfilSnap, tenantSnap] = await Promise.all([
+      db.ref(`profiles/${uidSolicitante}`).once('value'),
+      db.ref(`tenants/${tenantId}/usuarios`).once('value')
+    ]);
+    const perfil = perfilSnap.val() || {};
+    const valor = tenantSnap.val();
+    const usuarios = Array.isArray(valor) ? valor : Object.values(valor || {});
+    const email = String(perfil.email || '').trim().toLowerCase();
+    const cadastro = usuarios.find(u => u && String(u.email || u.username || '').trim().toLowerCase() === email);
+    return { ...(cadastro || {}), perfilRole: perfil.role };
+  } catch (e) {
+    console.error('[aprovacoes] falha ao carregar escopo do solicitante:', e);
+    return null;
+  }
+}
+
 /**
  * Aplica uma aprovação já decidida. Seguro para chamadas concorrentes:
  * a reserva via transaction só é obtida por uma execução.
@@ -542,6 +590,14 @@ async function aplicarAprovacaoPorId(db, tenantId, aprovacaoId, agora = Date.now
   if (!validacao.ok) {
     await marcarFalha(db, tenantId, aprovacaoId, aprovacao, validacao.motivo, agora);
     return { aplicado: false, motivo: validacao.motivo };
+  }
+
+  // Defesa em profundidade: o payload manipulado no cliente não pode aplicar
+  // alterações em obra fora do escopo do solicitante.
+  const usuarioSolicitante = await carregarUsuarioDaAprovacao(db, tenantId, aprovacao);
+  if (!aprovacaoDentroDoEscopo(aprovacao, usuarioSolicitante)) {
+    await marcarFalha(db, tenantId, aprovacaoId, aprovacao, 'obra_fora_do_escopo', agora);
+    return { aplicado: false, motivo: 'obra_fora_do_escopo' };
   }
 
   try {
@@ -708,6 +764,8 @@ module.exports = {
   TIPOS_APROVACAO,
   normalizarRole,
   ehAdmin,
+  codigosObraAprovacao,
+  aprovacaoDentroDoEscopo,
   diasDecorridos,
   alertasDevidos,
   deveExpirar,

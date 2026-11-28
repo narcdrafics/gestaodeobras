@@ -3,7 +3,10 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getObrasPermitidas, filterDbByObras, mergeScopedDb } from './utils_wrapper.js';
+import {
+  getObrasPermitidas, filterDbByObras, mergeScopedDb,
+  codigosObra, registroDaObra, registrosDaObra, trabalhadoresDaObra
+} from './utils_wrapper.js';
 
 const root = path.resolve(import.meta.dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -95,6 +98,54 @@ describe('mergeScopedDb', () => {
   });
 });
 
+describe('isolamento de trabalhadores e vínculos por obra', () => {
+  const dbTrabs = {
+    trabalhadores: [
+      { cod: 'T1', nome: 'Ana', obras: 'OB001' },
+      { cod: 'T2', nome: 'Bia', obras: 'OB002' },
+      { cod: 'T3', nome: 'Caio', obras: 'OB001, OB002' },
+      { cod: 'T4', nome: 'Sem obra', obras: '' }
+    ]
+  };
+
+  it('codigosObra separa lista por vírgula/ponto e vírgula sem casamento parcial', () => {
+    expect(codigosObra('OB001; OB002')).toEqual(['OB001', 'OB002']);
+    expect(codigosObra('OB001,OB002')).toEqual(['OB001', 'OB002']);
+    expect(registroDaObra({ obras: 'OB0010' }, 'trabalhadores', ['OB001'])).toBe(false);
+    expect(registroDaObra({ obras: 'OB001, OB002' }, 'trabalhadores', ['OB002'])).toBe(true);
+  });
+
+  it('trabalhadores de outra obra (e sem obra) não entram no DB filtrado', () => {
+    const f = filterDbByObras(dbTrabs, ['OB001']);
+    expect(f.trabalhadores.map(t => t.cod)).toEqual(['T1', 'T3']);
+    expect(f.trabalhadores.map(t => t.nome)).not.toContain('Bia');
+  });
+
+  it('trabalhadoresDaObra filtra por uma obra específica mesmo para admin', () => {
+    expect(trabalhadoresDaObra(dbTrabs, 'OB002').map(t => t.cod)).toEqual(['T2', 'T3']);
+    expect(trabalhadoresDaObra(dbTrabs, 'OB999')).toEqual([]);
+    expect(registrosDaObra(dbTrabs, 'trabalhadores', 'OB001')).toHaveLength(2);
+  });
+
+  it('mergeScopedDb preserva trabalhadores de fora do escopo e não grava os de dentro em outra obra', () => {
+    const full = {
+      ...dbTrabs,
+      obras: [{ cod: 'OB001' }, { cod: 'OB002' }]
+    };
+    const scoped = filterDbByObras(full, ['OB001']);
+    scoped.trabalhadores.push({ cod: 'T5', nome: 'Dia', obras: 'OB002' });
+    const m = mergeScopedDb(full, scoped, ['OB001']);
+    expect(m.trabalhadores.map(t => t.cod).sort()).toEqual(['T1', 'T2', 'T3', 'T4']);
+    expect(m.trabalhadores.find(t => t.cod === 'T5')).toBeUndefined();
+  });
+
+  it('movimentação de estoque é do escopo também pelo destino', () => {
+    const mov = { movEstoque: [{ id: 1, obra: 'OB002', obraDestino: 'OB001' }] };
+    expect(filterDbByObras(mov, ['OB001']).movEstoque).toHaveLength(1);
+    expect(filterDbByObras(mov, ['OB003']).movEstoque).toHaveLength(0);
+  });
+});
+
 describe('acesso por obra — integração de UI e persistência', () => {
   const modal = read('public/modals/modal-usuario.html');
   const app = read('public/js/app_core.js');
@@ -113,7 +164,43 @@ describe('acesso por obra — integração de UI e persistência', () => {
     expect(trecho).toContain('obrasPermitidas.length === 0');
   });
   it('carga filtra e gravação remonta os arrays', () => {
-    expect(data).toContain('window.filterDbByObras(');
+    expect(data).toContain('aplicarEscopoLocal(');
+    expect(data).toContain('DB = restaurarFotosLocais(aplicarEscopoLocal(cached))');
     expect(data).toContain('window.mergeScopedDb(lastTenantData');
+  });
+
+  it('todas as telas de trabalhadores usam o filtro por obra (sem "sem obra = todas")', () => {
+    expect(app).toContain('trabalhadoresDaObraTela(');
+    expect(app).not.toMatch(/if \(!t\.obras \|\| t\.obras\.trim\(\) === ''\) return true;/);
+    expect(app).not.toContain("!t.obras || t.obras.trim() === ''");
+    expect(read('public/pages/trabalhadores.html')).toContain('id="trab-obra-filtro"');
+    expect(read('public/pages/presenca.html')).toContain('id="pres-obra-filtro"');
+    expect(read('public/pages/almocos.html')).toContain('id="almoco-obra-filtro"');
+  });
+
+  it('datalists, modais e PIX não usam o cadastro inteiro fora da obra', () => {
+    const trechoDatalist = app.slice(app.indexOf('function populateMedicaoDatalists()'), app.indexOf('function populateMedicaoDatalists()') + 1200);
+    expect(trechoDatalist).toContain('trabalhadoresDaObraTela(obra)');
+    expect(trechoDatalist).toContain('DB.almocos || []).filter(a => a && a.obra === obra)');
+    const trechoAlmoco = app.slice(app.indexOf("if (id === 'modal-almoco')"), app.indexOf("if (id === 'modal-almoco')") + 500);
+    expect(trechoAlmoco).toContain('atualizarDatalistEquipesAlmoco()');
+    expect(app).toContain('function atualizarDatalistEquipesAlmoco()');
+  });
+
+  it('aprovações e dados comerciais respeitam o escopo', () => {
+    const aprovacoes = read('public/js/aprovacoes_ui.js');
+    expect(aprovacoes).toContain('function aprovacaoNoEscopo(ap)');
+    expect(aprovacoes).toContain('.filter(ap => aprovacaoNoEscopo(ap))');
+    expect(aprovacoes).toContain('if (!aprovacaoNoEscopo(ap))');
+    const compras = read('public/js/compras_ui.js');
+    expect(compras).toContain('function filtrarPrivadas(dados)');
+    expect(compras).toContain('privadas = filtrarPrivadas(');
+    expect(compras).toContain('obra: String(dados.obra || \'\')');
+  });
+
+  it('o servidor rejeita aprovações que mexem em obra fora do escopo', () => {
+    const fn = read('functions/aprovacoes.js');
+    expect(fn).toContain('function aprovacaoDentroDoEscopo(aprovacao, usuario)');
+    expect(fn).toContain("marcarFalha(db, tenantId, aprovacaoId, aprovacao, 'obra_fora_do_escopo', agora)");
   });
 });

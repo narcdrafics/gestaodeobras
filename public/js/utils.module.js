@@ -1596,10 +1596,47 @@ window.safeSetStyle = safeSetStyle;
 // === 'especificas' + obrasPermitidas: [cod...]). Falha fechada: lista vazia = nada.
 // ATENÇÃO: isto é filtro de UX no cliente (o tenant ainda é um nó único no RTDB);
 // isolamento real exige regras/estrutura por obra no servidor.
-const OBRA_SCOPED_KEYS = ['presenca', 'tarefas', 'estoque', 'movEstoque', 'compras',
-  'financeiro', 'orcamento', 'medicao', 'almocos'];
+const OBRA_SCOPED_KEYS = ['trabalhadores', 'presenca', 'tarefas', 'estoque', 'movEstoque',
+  'compras', 'financeiro', 'orcamento', 'medicao', 'almocos'];
+
+// Cada array guarda a obra de um jeito diferente. Trabalhador usa `obras` (string
+// "OB001, OB002"); transferência de estoque pode ter origem e destino.
+const OBRA_FIELDS_POR_CHAVE = {
+  trabalhadores: ['obras'],
+  movEstoque: ['obra', 'obraDestino']
+};
+const camposDeObra = (chave) => OBRA_FIELDS_POR_CHAVE[chave] || ['obra'];
 
 const _toArr = v => Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
+
+/** Converte `OB001`, `OB001; OB002`, arrays etc. em uma lista de códigos limpos. */
+const codigosObra = function(valor) {
+  if (Array.isArray(valor)) return valor.flatMap(codigosObra);
+  if (valor && typeof valor === 'object') {
+    return codigosObra(valor.cod || valor.codigo || valor.obra || valor.obraDestino);
+  }
+  return String(valor == null ? '' : valor)
+    .split(/[,;|]/)
+    .map(s => s.trim())
+    .filter(Boolean);
+};
+
+const registroDaObra = function(registro, chave, permitidas) {
+  if (!registro) return false;
+  const set = new Set(codigosObra(permitidas));
+  return camposDeObra(chave).some(campo => codigosObra(registro[campo]).some(cod => set.has(String(cod))));
+};
+
+/** Registros de uma chave do DB vinculados a um código de obra (filtro de tela). */
+const registrosDaObra = function(db, chave, codigoObra) {
+  if (!codigoObra) return [];
+  return _toArr(db && db[chave]).filter(r => registroDaObra(r, chave, codigoObra));
+};
+
+/** Trabalhadores vinculados a uma obra; vazio = sem vínculo, nunca "todas". */
+const trabalhadoresDaObra = function(db, codigoObra) {
+  return registrosDaObra(db, 'trabalhadores', codigoObra);
+};
 
 // null = acesso a todas as obras; array = somente esses códigos.
 const getObrasPermitidas = function(usuarios, email, role) {
@@ -1612,11 +1649,13 @@ const getObrasPermitidas = function(usuarios, email, role) {
 
 const filterDbByObras = function(db, permitidas) {
   if (!Array.isArray(permitidas) || !db) return db;
-  const set = new Set(permitidas);
+  const set = new Set(codigosObra(permitidas));
   const out = { ...db };
   out.obras = _toArr(db.obras).filter(o => o && set.has(String(o.cod)));
   OBRA_SCOPED_KEYS.forEach(k => {
-    if (db[k] !== undefined) out[k] = _toArr(db[k]).filter(r => r && set.has(String(r.obra)));
+    if (db[k] !== undefined) {
+      out[k] = _toArr(db[k]).filter(r => registroDaObra(r, k, permitidas));
+    }
   });
   return out;
 };
@@ -1627,15 +1666,22 @@ const filterDbByObras = function(db, permitidas) {
 const mergeScopedDb = function(full, scoped, permitidas) {
   if (!Array.isArray(permitidas)) return scoped;
   if (!full) return null;
-  const set = new Set(permitidas);
   const out = { ...scoped };
-  const merge = (key, field) => {
-    const fora = _toArr(full[key]).filter(r => r && !set.has(String(r[field])));
-    const dentro = _toArr(scoped[key]).filter(r => r && set.has(String(r[field])));
-    out[key] = [...fora, ...dentro];
+  const merge = (key, chaveParaCampo) => {
+    const dentro = r => registroDaObra(r, chaveParaCampo, permitidas);
+    const fora = _toArr(full[key]).filter(r => r && !dentro(r));
+    const escopo = _toArr(scoped[key]).filter(r => r && dentro(r));
+    out[key] = [...fora, ...escopo];
   };
-  merge('obras', 'cod');
-  OBRA_SCOPED_KEYS.forEach(k => { if (full[k] !== undefined || scoped[k] !== undefined) merge(k, 'obra'); });
+  // `obras` tem `cod`, não `obra`: compara direto.
+  {
+    const set = new Set(codigosObra(permitidas));
+    out.obras = [
+      ..._toArr(full.obras).filter(o => o && !set.has(String(o.cod))),
+      ..._toArr(scoped.obras).filter(o => o && set.has(String(o.cod)))
+    ];
+  }
+  OBRA_SCOPED_KEYS.forEach(k => { if (full[k] !== undefined || scoped[k] !== undefined) merge(k, k); });
   return out;
 };
 
@@ -1675,6 +1721,10 @@ const trabalhadoresNoEscopo = function(trabalhadores, permitidas) {
 };
 
 window.OBRA_SCOPED_KEYS = OBRA_SCOPED_KEYS;
+window.codigosObra = codigosObra;
+window.registroDaObra = registroDaObra;
+window.registrosDaObra = registrosDaObra;
+window.trabalhadoresDaObra = trabalhadoresDaObra;
 window.getObrasPermitidas = getObrasPermitidas;
 window.filterDbByObras = filterDbByObras;
 window.mergeScopedDb = mergeScopedDb;

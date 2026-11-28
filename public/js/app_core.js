@@ -95,6 +95,94 @@ function syncTrabObrasHint() {
 }
 window.syncTrabObrasHint = syncTrabObrasHint;
 
+// Filtro de obra por tela. `DB` já chega filtrado pelo escopo do usuário; este
+// seletor adicional garante que, mesmo para admin, uma tela aberta para a obra A
+// nunca liste trabalhadores/registros da obra B. Sem seleção = "Todas" (o escopo
+// do usuário continua valendo). Vazio nunca significa "todas as obras" em vínculo
+// de trabalhador: só um registro explicitamente vinculado aparece.
+function popularFiltroObra(id, opcoes = {}) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const esc = (v) => window.escHtml ? window.escHtml(String(v == null ? '' : v)) : String(v == null ? '' : v);
+  const selecionada = String(el.value || '');
+  const placeholder = opcoes.placeholder || 'Todas as obras';
+  const comNome = opcoes.comNome !== false;
+  el.innerHTML = `<option value="">${esc(placeholder)}</option>` +
+    (DB.obras || []).map(o => {
+      const cod = esc(o && o.cod);
+      const nome = esc(o && o.nome);
+      return `<option value="${cod}">${comNome && nome ? `${cod} — ${nome}` : cod}</option>`;
+    }).join('');
+  // Repopular não pode resetar a obra escolhida pelo usuário ao trocar o filtro.
+  if (selecionada && [...el.options].some(o => o.value === selecionada)) el.value = selecionada;
+}
+
+function obraFiltroTela(id) {
+  const el = document.getElementById(id);
+  return el ? String(el.value || '').trim() : '';
+}
+
+function trabalhadoresDaObraTela(codigo) {
+  if (!codigo) return DB.trabalhadores || [];
+  if (typeof window.trabalhadoresDaObra === 'function') return window.trabalhadoresDaObra(DB, codigo);
+  return (DB.trabalhadores || []).filter(t => codigosObraSimples(t && t.obras).includes(String(codigo)));
+}
+
+function codigosObraSimples(valor) {
+  if (Array.isArray(valor)) return valor.flatMap(codigosObraSimples);
+  if (valor && typeof valor === 'object') return codigosObraSimples(valor.cod || valor.obra || valor.obraDestino);
+  return String(valor == null ? '' : valor).split(/[,;|]/).map(s => s.trim()).filter(Boolean);
+}
+
+/** Fotos de um registro, aceitando o formato antigo (photoUrl) e o novo (photos). */
+function fotosDeRegistro(registro) {
+  if (!registro) return [];
+  const lista = Array.isArray(registro.photos) ? registro.photos : (registro.photoUrl ? [registro.photoUrl] : []);
+  const vistas = new Set();
+  return lista.map(u => String(u == null ? '' : u).trim()).filter(u => {
+    if (!u || vistas.has(u)) return false;
+    vistas.add(u);
+    return true;
+  });
+}
+
+/** Abre a foto do cartão sem interpolar a URL dentro do atributo onclick. */
+function abrirFotoCard(card) {
+  const alvo = card && card.querySelector('[data-photo]');
+  if (alvo && alvo.dataset.photo) openLightbox(alvo.dataset.photo);
+}
+
+/** Substitui uma miniatura quebrada por um aviso, sem deixar espaço em branco. */
+function fotoErro(img) {
+  if (!img || img.dataset.erro === '1') return;
+  img.dataset.erro = '1';
+  const aviso = document.createElement('div');
+  aviso.className = 'photo-card-erro';
+  aviso.textContent = 'Imagem indisponível';
+  img.replaceWith(aviso);
+}
+
+/** Datalist de equipes do almoço: apenas trabalhadores da obra selecionada. */
+function atualizarDatalistEquipesAlmoco() {
+  const dlist = document.getElementById('list-equipes');
+  if (!dlist) return;
+  const osel = document.getElementById('al-obra');
+  const trabalhadores = trabalhadoresDaObraTela(osel ? osel.value : '');
+  const equipes = [...new Set(trabalhadores.map(t => t.equipe).filter(e => e && e !== 'Própria'))];
+  const nomes = trabalhadores.map(t => t.nome).filter(Boolean);
+  dlist.innerHTML = [...new Set([...equipes, ...nomes])].map(e => `<option value="${window.escHtml ? window.escHtml(String(e)) : e}">`).join('');
+}
+
+window.popularFiltroObra = popularFiltroObra;
+window.fotosDeRegistro = fotosDeRegistro;
+window.abrirFotoCard = abrirFotoCard;
+window.fotoErro = fotoErro;
+window.obraFiltroTela = obraFiltroTela;
+window.trabalhadoresDaObraTela = trabalhadoresDaObraTela;
+window.atualizarDatalistEquipesAlmoco = atualizarDatalistEquipesAlmoco;
+
+
+
 // ==================== SYSTEM GLOBALS (ANTI-REFERENCE ERROR) ====================
 // Cria 'stubs' para evitar que saves de uma página "crachem" tentando dar reload em UI de outra página
 window.renderDashboard = window.renderDashboard || function () {
@@ -261,7 +349,7 @@ const cachePaginas = {};
 const MAX_CACHE_SIZE = 10;
 
 // Use a mesma versão dos scripts base para renovar o cache do HTML
-const HTML_CACHE_VERSION = '20261126013';
+const HTML_CACHE_VERSION = '20261127001';
 
 function clearPageCache() {
   const keys = Object.keys(cachePaginas);
@@ -1005,14 +1093,18 @@ window.shareObraWhatsApp = shareObraWhatsApp;
 // ==================== TRABALHADORES ====================
 function renderTrabalhadores() {
   const currentMonth = new Date().toISOString().substring(0, 7); // ISO YYYY-MM
+  if (typeof popularFiltroObra === 'function') popularFiltroObra('trab-obra-filtro');
+  const obraFiltro = typeof obraFiltroTela === 'function' ? obraFiltroTela('trab-obra-filtro') : '';
+  // Índice original preservado: editar/excluir continuam agindo no registro correto.
+  const lista = (typeof trabalhadoresDaObraTela === 'function'
+    ? trabalhadoresDaObraTela(obraFiltro)
+    : (DB.trabalhadores || [])
+  ).map(t => ({ t, i: (DB.trabalhadores || []).indexOf(t) }))
+    .filter(item => item.i >= 0 &&
+      (typeof trabNoEscopoAtual !== 'function' || trabNoEscopoAtual(item.t)));
 
-  // Filtra pela obra do usuário, mas preserva o índice original para editar/excluir.
-  const visiveis = (DB.trabalhadores || [])
-    .map((t, i) => ({ t, i }))
-    .filter(({ t }) => trabNoEscopoAtual(t));
-
-  safeSetInner('trab-tbody', visiveis.length
-    ? visiveis.map(({ t, i }) => {
+  safeSetInner('trab-tbody', lista.length
+    ? lista.map(({ t, i }) => {
       const pres = (DB.presenca || []).filter(p => (p.trab === t.cod || p.nome === t.nome));
       const totalAtend = pres.filter(p => (p.presenca === 'Presente' || p.presenca === 'Falta')).length;
       const presentCnt = pres.filter(p => p.presenca === 'Presente').length;
@@ -1102,7 +1194,14 @@ function renderQuadroAlmocos() {
   if (!container) return;
 
   const dias = getAlmocoWeekDates();
-  const trabalhadores = trabsNoEscopoAtual(DB.trabalhadores).filter(t => t.status === 'Ativo');
+  if (typeof popularFiltroObra === 'function') popularFiltroObra('almoco-obra-filtro');
+  const obraFiltro = typeof obraFiltroTela === 'function' ? obraFiltroTela('almoco-obra-filtro') : '';
+  const candidatos = (typeof trabalhadoresDaObraTela === 'function'
+    ? trabalhadoresDaObraTela(obraFiltro)
+    : (DB.trabalhadores || [])
+  ).filter(t => t.status === 'Ativo');
+  const trabalhadores = typeof trabsNoEscopoAtual === 'function'
+    ? trabsNoEscopoAtual(candidatos) : candidatos;
   if (!trabalhadores.length) {
     container.innerHTML = '<p style="text-align:center; padding:20px; color:var(--text3)">Nenhum trabalhador ativo para exibir no quadro.</p>';
     return;
@@ -1116,7 +1215,8 @@ function renderQuadroAlmocos() {
   trabalhadores.forEach(w => {
     html += `<tr><td class="worker-info"><b>${escHtml(w.nome)}</b><br><small style="color:var(--text3)">${escHtml(w.equipe || w.funcao || '—')}</small></td>`;
     dias.forEach(d => {
-      const idx = (DB.almocos || []).findIndex(a => a && a.data === d.date && obraNoEscopoAtual(a.obra) &&
+      const idx = (DB.almocos || []).findIndex(a => a && a.data === d.date &&
+        (!obraFiltro || a.obra === obraFiltro) && obraNoEscopoAtual(a.obra) &&
         (typeof window.trabNaObra !== 'function' || window.trabNaObra(w, a.obra)) && (
         a.empreiteiro === w.nome || a.empreiteiro === w.cod || (w.equipe && a.empreiteiro === w.equipe)
       ));
@@ -1158,9 +1258,13 @@ async function openAlmocoModal(cod, data, existingIdx = -1) {
     const empEl = document.getElementById('al-empreiteiro');
     if (empEl) empEl.value = t ? t.nome : cod;
     const obraEl = document.getElementById('al-obra');
-    if (obraEl && t) {
+    const obraTela = typeof obraFiltroTela === 'function' ? obraFiltroTela('almoco-obra-filtro') : '';
+    if (obraEl && obraTela && [...obraEl.options].some(o => o.value === obraTela)) {
+      // Tela filtrada pela obra: o lançamento herda esse contexto.
+      obraEl.value = obraTela;
+    } else if (obraEl && t && t.obras) {
       const primeira = (window.parseObrasTrabalhador ? window.parseObrasTrabalhador(t) : [])
-        .find(o => obraNoEscopoAtual(o));
+        .find(o => obraNoEscopoAtual(o)) || codigosObraSimples(t.obras)[0];
       if (primeira && [...obraEl.options].some(o => o.value === primeira)) obraEl.value = primeira;
     }
     if (typeof toggleAlmocoModo === 'function') toggleAlmocoModo();
@@ -1345,12 +1449,17 @@ function toggleAlmocoModo() {
   const massa = document.getElementById('al-massa-grp');
   const lista = document.getElementById('al-lista-massa');
   if (!indiv || !massa) return;
+  if (typeof atualizarDatalistEquipesAlmoco === 'function') atualizarDatalistEquipesAlmoco();
   if (modo === 'massa') {
     indiv.style.display = 'none';
     massa.style.display = '';
     const obra = document.getElementById('al-obra')?.value;
-    const trabList = trabsNoEscopoAtual(DB.trabalhadores).filter(t =>
-      t.status === 'Ativo' && (window.trabNaObra ? window.trabNaObra(t, obra) : true));
+    const trabList = (typeof window.trabalhadoresDaObra === 'function'
+      ? window.trabalhadoresDaObra(DB, obra)
+      : DB.trabalhadores.filter(t => String(t.obras || '').includes(obra))
+    ).filter(t => t.status === 'Ativo' &&
+      (typeof trabNoEscopoAtual !== 'function' || trabNoEscopoAtual(t)) &&
+      (window.trabNaObra ? window.trabNaObra(t, obra) : true));
     if (lista) {
       lista.innerHTML = trabList.length > 0
         ? trabList.map(t => `
@@ -1514,7 +1623,14 @@ function renderQuadroSemanal() {
     });
   }
 
-  const workers = trabsNoEscopoAtual(DB.trabalhadores).filter(t => t.status === 'Ativo');
+  if (typeof popularFiltroObra === 'function') popularFiltroObra('pres-obra-filtro');
+  const obraFiltro = typeof obraFiltroTela === 'function' ? obraFiltroTela('pres-obra-filtro') : '';
+  const candidatos = (typeof trabalhadoresDaObraTela === 'function'
+    ? trabalhadoresDaObraTela(obraFiltro)
+    : (DB.trabalhadores || [])
+  ).filter(t => t.status === 'Ativo');
+  const workers = typeof trabsNoEscopoAtual === 'function'
+    ? trabsNoEscopoAtual(candidatos) : candidatos;
   if (workers.length === 0) {
     container.innerHTML = '<p style="text-align:center; padding:20px; color:var(--text3)">Nenhum trabalhador ativo para exibir no quadro.</p>';
     return;
@@ -1545,7 +1661,8 @@ function renderQuadroSemanal() {
 
     days.forEach(d => {
       const pIdx = (DB.presenca || []).findIndex(record =>
-        record && record.data === d.date && obraNoEscopoAtual(record.obra) &&
+        record && record.data === d.date && (!obraFiltro || record.obra === obraFiltro) &&
+        obraNoEscopoAtual(record.obra) &&
         (typeof window.trabNaObra !== 'function' || window.trabNaObra(w, record.obra)) && (
           record.trab === w.cod ||
           (record.trab == null || record.trab === '') && record.nome === w.nome
@@ -1589,6 +1706,15 @@ function openPresenceModal(workerCod, date, existingIdx = -1) {
       const dsel = document.getElementById('pr-data');
       if (tsel) tsel.value = workerCod;
       if (dsel) dsel.value = date;
+      const obraTela = typeof obraFiltroTela === 'function' ? obraFiltroTela('pres-obra-filtro') : '';
+      if (obraTela) {
+        const osel = document.getElementById('pr-obra');
+        if (osel && [...osel.options].some(o => o.value === obraTela)) {
+          osel.value = obraTela;
+          if (typeof filterTrabByObra === 'function') filterTrabByObra();
+          if (tsel) tsel.value = workerCod;
+        }
+      }
       if (typeof fillTrabInfo === 'function') fillTrabInfo();
     }, 300);
   }
@@ -1852,6 +1978,12 @@ function limparFiltrosTarefas() {
 window.limparFiltrosTarefas = limparFiltrosTarefas;
 
 function renderTarefas() {
+  // O HTML da página traz só o placeholder; sem repovoar, o filtro por obra
+  // nunca funciona (inclusive ao chegar do dashboard via verTarefasDaObra).
+  if (typeof popularFiltroObra === 'function') {
+    popularFiltroObra('tar-obra-filter', { comNome: false, placeholder: 'Todas obras' });
+  }
+
   // A página é reinjetada a cada navegação; reaplica o modo Tabela/Quadro escolhido.
   const tableCont = document.getElementById('tar-table-container');
   const kanbanCont = document.getElementById('tar-kanban-container');
@@ -2251,6 +2383,7 @@ function renderKanban(tasks) {
                 </div>
               </div>
               <div class="kanban-card-actions" onclick="event.stopPropagation()">
+                ${fotosDeRegistro(t).length ? `<button type="button" class="btn btn-secondary btn-sm" data-photo="${escHtml(String(fotosDeRegistro(t)[0]))}" onclick="openLightbox(this.dataset.photo)" title="Ver evidência"><span class="material-symbols-outlined md-16">photo_camera</span></button>` : ''}
                 ${t.status === 'Concluída'
                   ? `<button class="btn btn-secondary btn-sm" onclick="toggleTarefaConcluida(${t._idx})">Reabrir</button>`
                   : `<button class="btn btn-primary btn-sm" onclick="concluirTarefaRapida(${t._idx})">Concluir</button>`}
@@ -3442,8 +3575,7 @@ function generateAuditReport() {
 
   const medicoesHtml = report.medicoes.length
     ? report.medicoes.map(m => {
-      const photos = (Array.isArray(m.photos) ? m.photos : (m.photoUrl ? [m.photoUrl] : []))
-        .map(auditSafeImage).filter(Boolean);
+      const photos = fotosDeRegistro(m).map(auditSafeImage).filter(Boolean);
       const aprov = m.aprovacao || 'Aprovada';
       const aprovCls = aprov === 'Rejeitada' ? 'audit-value-negative' : (aprov === 'Pendente' ? '' : 'audit-value-positive');
       const thumbs = photos.slice(0, 3).map(u =>
@@ -4251,12 +4383,13 @@ function populateMedicaoDatalists() {
   (DB.medicao || []).filter(m => m && m.obra === obra).forEach(m => { if (m.frente) frentes.add(m.frente); });
 
   const equipes = new Set();
-  (DB.trabalhadores || []).forEach(t => {
+  // Só equipes/nomes vinculados à obra selecionada — nunca o cadastro inteiro.
+  trabalhadoresDaObraTela(obra).forEach(t => {
     if (t.equipe && t.equipe !== 'Própria') equipes.add(t.equipe);
     if (t.nome) equipes.add(t.nome);
   });
   (DB.medicao || []).filter(m => m && m.obra === obra).forEach(m => { if (m.equipe) equipes.add(m.equipe); });
-  (DB.almocos || []).forEach(a => { if (a.empreiteiro) equipes.add(a.empreiteiro); });
+  (DB.almocos || []).filter(a => a && a.obra === obra).forEach(a => { if (a.empreiteiro) equipes.add(a.empreiteiro); });
 
   const fill = (id, values) => {
     const dl = document.getElementById(id);
@@ -4470,18 +4603,10 @@ function renderAdmin() {
 // ==================== FOTOS (RELATÓRIO FOTOGRÁFICO) ====================
 function renderFotos() {
   const obraFilter = document.getElementById('fotos-obra-filter');
-  const selectedObra = obraFilter ? obraFilter.value : '';
+  if (typeof popularFiltroObra === 'function') popularFiltroObra('fotos-obra-filter');
+  const selectedObra = typeof obraFiltroTela === 'function'
+    ? obraFiltroTela('fotos-obra-filter') : (obraFilter ? obraFilter.value : '');
   const origemFilter = document.getElementById('fotos-origem-filter') ? document.getElementById('fotos-origem-filter').value : '';
-
-  // Preenche o filter de obras se estiver vazio (apenas uma vez)
-  if (obraFilter && obraFilter.options.length === 1) {
-    (DB.obras || []).forEach(o => {
-      const opt = document.createElement('option');
-      opt.value = o.cod;
-      opt.textContent = `${o.cod} - ${o.nome}`;
-      obraFilter.appendChild(opt);
-    });
-  }
 
   let allPhotos = [];
 
@@ -5972,13 +6097,7 @@ async function openModal(id) {
   if (id === 'modal-almoco') {
     const osel = m.querySelector('#al-obra');
     if (osel) osel.innerHTML = DB.obras.map(o => `<option value="${o.cod}">${o.cod} — ${o.nome}</option>`).join('');
-    const dlist = m.querySelector('#list-equipes');
-    if (dlist) {
-      const equipes = [...new Set(DB.trabalhadores.map(t => t.equipe).filter(e => e && e !== 'Própria'))];
-      const nomes = DB.trabalhadores.map(t => t.nome);
-      const opcoes = [...new Set([...equipes, ...nomes])];
-      dlist.innerHTML = opcoes.map(e => `<option value="${e}">`).join('');
-    }
+    atualizarDatalistEquipesAlmoco();
     m.querySelector('#al-data').value = today;
     calcAlmocoTotal();
     const alStatus = document.getElementById('al-status');
@@ -6053,7 +6172,8 @@ function filterTrabByObra() {
   if (!tsel || !osel) return;
 
   const obraSelecionada = osel.value;
-  const filtered = trabsNoEscopoAtual(DB.trabalhadores).filter(t =>
+  // Sem vínculo explícito com a obra não é elegível: nunca "todas as obras".
+  const filtered = trabalhadoresDaObraTela(obraSelecionada).filter(t =>
     t.status === 'Ativo' && (window.trabNaObra ? window.trabNaObra(t, obraSelecionada) : true));
 
   // 1. Popula Select Individual
@@ -6508,11 +6628,14 @@ async function savePresenca(keepOpen = false) {
       return;
     }
 
-    // Vínculo Automático: se o peão não estiver engajado na obra, anexa a tag (comparação exata).
-    if (t && !(window.trabNaObra ? window.trabNaObra(t, obraVal) : true)) {
-      const obrasAtuais = window.parseObrasTrabalhador
-        ? window.parseObrasTrabalhador(t) : String(t.obras || '').split(/[,;]/).map(s => s.trim()).filter(Boolean);
-      t.obras = [...obrasAtuais, obraVal].join(', ');
+    // Vínculo Automático: mantém o critério do helper window.trabNaObra(t, obraVal)
+    // e aceita também o formato legado de obras em texto/objeto.
+    const semVinculo = t && (typeof window.trabNaObra === 'function'
+      ? !window.trabNaObra(t, obraVal)
+      : !codigosObraSimples(t.obras).includes(String(obraVal)));
+    if (t && semVinculo) {
+      const atuais = codigosObraSimples(t.obras);
+      t.obras = atuais.length ? (atuais.join(', ') + ', ' + obraVal) : String(obraVal);
     }
 
     const isInformal = t && t.vinculo === 'Informal';
@@ -6788,6 +6911,21 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
     customDiv.style.display = periodoSel === 'custom' ? 'flex' : 'none';
   }
 
+  // Filtro de obra do fechamento: ao abrir pela tela de presença, herda a obra
+  // já selecionada lá; quando o modal está aberto, preserves a escolha atual.
+  const obraAberta = document.getElementById('lote-obra-filtro')?.value;
+  const obraPresenca = typeof obraFiltroTela === 'function' ? obraFiltroTela('pres-obra-filtro') : '';
+  const obraInicial = isAlreadyOpen ? (obraAberta || '') : (obraPresenca || '');
+  if (typeof popularFiltroObra === 'function') {
+    popularFiltroObra('lote-obra-filtro', { placeholder: 'Todas as obras' });
+  }
+  const obraSel = document.getElementById('lote-obra-filtro');
+  if (obraSel) {
+    const preservar = obraInicial && [...obraSel.options].some(o => o.value === obraInicial) ? obraInicial : '';
+    obraSel.value = preservar;
+  }
+  const obraLote = obraSel ? String(obraSel.value || '').trim() : '';
+
   // Determinar range de datas
   let dataIni, dataFim;
   if (periodoSel === 'custom') {
@@ -6814,22 +6952,32 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
     dataFim = range.fim;
   }
 
-  // Filtrar presenças pelo período - a tabela de presença é quem manda
-  let pendentesRaw = DB.presenca.filter(p => {
-    if (p.pgtoStatus === 'Pago') return false;
-    if (!p.data) return false;
+  // Filtrar presenças pelo período e pela obra selecionada. O modal não pode
+  // misturar pendências de obras diferentes só porque o código do trabalhador
+  // coincide (importações antigas reaproveitaram TR001..TR004 em OB004).
+  let pendentesRaw = (DB.presenca || []).filter(p => {
+    if (!p || p.pgtoStatus === 'Pago' || !p.data) return false;
+    const obra = String(p.obra || '').trim();
+    if (obraLote && obra !== obraLote) return false;
+    if (typeof obraNoEscopoAtual === 'function' && !obraNoEscopoAtual(obra)) return false;
     if (periodoSel === 'todas') return true;
     return p.data >= dataIni && p.data <= dataFim;
   });
 
   const saldos = {};
   pendentesRaw.forEach(p => {
-    const key = p.trab || (p.nome + '-' + p.funcao);
+    // Chave por obra + código + nome do registro: nunca agrupe "Valdenir"
+    // (Ajudante, OB001) com "Jakson Pereira" (Encarregado, OB004) só porque
+    // ambos vieram com o código TR002.
+    const obra = String(p.obra || '').trim();
+    const nomeRegistro = String(p.nome || '').trim();
+    const codigo = String(p.trab || '').trim();
+    const key = `${obra}::${codigo}::${nomeRegistro.toLowerCase()}`;
 
     let devido = (parseFloat(p.total) || 0) - (p.pgtoStatus === 'Parcial' ? (parseFloat(p.valpago) || 0) : 0);
     if (devido > 0) {
       if (!saldos[key]) {
-        saldos[key] = { chave: key, nome: p.nome, funcao: p.funcao, diarias: 0, valor: 0, indices: [], datas: [], descontados: [] };
+        saldos[key] = { chave: key, nome: nomeRegistro, cod: codigo, funcao: p.funcao, obra, diarias: 0, valor: 0, indices: [], datas: [], descontados: [] };
       }
       saldos[key].diarias += 1;
       saldos[key].valor += devido;
@@ -6838,7 +6986,7 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
     } else {
       // Register as descontado
       if (!saldos[key]) {
-        saldos[key] = { chave: key, nome: p.nome, funcao: p.funcao, diarias: 0, valor: 0, indices: [], datas: [], descontados: [] };
+        saldos[key] = { chave: key, nome: nomeRegistro, cod: codigo, funcao: p.funcao, obra, diarias: 0, valor: 0, indices: [], datas: [], descontados: [] };
       }
       saldos[key].descontados.push(p.data);
     }
@@ -6856,26 +7004,31 @@ window.prepareLotePgto = async function (periodo, dataIniCustom, dataFimCustom) 
     titulo.innerHTML = `<span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:6px;">payments</span> Fechamento de Folha - ${labels[periodoSel] || periodoSel}`;
   }
 
-  renderLoteTbody();
+  window.renderLoteTbody();
 };
 
 window.renderLoteTbody = function () {
   const tbody = document.getElementById('lote-tbody');
   if (!tbody) return;
+  const escLote = (v) => window.escHtml ? window.escHtml(String(v == null ? '' : v)) : String(v == null ? '' : v);
+  const nomeObra = (cod) => typeof window.obName === 'function' ? window.obName(cod) : cod;
 
-  if (lotePendentes.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:4px;">celebration</span> Nenhuma diária pendente! Toda a folha já está quitada.</td></tr>';
+  if (window.lotePendentes.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;"><span class="material-symbols-outlined md-18" style="vertical-align:middle;margin-right:4px;">celebration</span> Nenhuma diária pendente! Toda a folha já está quitada.</td></tr>';
     document.getElementById('lote-total-sel').textContent = 'R$ 0,00';
     return;
   }
 
-  tbody.innerHTML = lotePendentes.map((item, i) => {
+  tbody.innerHTML = window.lotePendentes.map((item, i) => {
     const datasUnicas = [...new Set(item.datas)].slice(0, 3).join(', ');
     const maisDias = item.datas.length > 3 ? ` +${item.datas.length - 3}` : '';
     const descontados = item.descontados?.length ? `<br><small style="color:var(--orange)"><span class="material-symbols-outlined md-16" style="vertical-align:middle;">pause_circle</span> Folgas/feriados: ${item.descontados.join(', ')}</small>` : '';
+    const obraNome = nomeObra(item.obra);
+    const codigo = item.cod ? `Cód. ${escLote(item.cod)} · ` : '';
     return `<tr>
     <td style="text-align:center"><input type="checkbox" class="ck-lote-item" value="${i}" onchange="updateLoteTotal()" style="transform:scale(1.2)"></td>
-    <td><b>${item.nome}</b> <small style="color:var(--text3)">(${item.funcao})</small><br><small style="color:var(--text2)">${datasUnicas}${maisDias}${descontados}</small></td>
+    <td><b>${escLote(item.nome || 'Desconhecido')}</b> <small style="color:var(--text3)">(${escLote(item.funcao || 'Sem função')})</small><br><small style="color:var(--text2)">${codigo}${datasUnicas}${maisDias}${descontados}</small></td>
+    <td>${escLote(obraNome)}</td>
     <td style="text-align:center"><span class="badge badge-gray">${item.diarias}</span><br><small style="color:var(--text3)">dias</small></td>
     <td style="text-align:right">Dinheiro/Pix</td>
     <td style="text-align:right; font-weight:bold; color:var(--red)">${fmt(item.valor)}</td>
@@ -6885,13 +7038,13 @@ window.renderLoteTbody = function () {
   </tr>`;
   }).join('');
 
-  updateLoteTotal();
+  window.updateLoteTotal();
 };
 
 window.toggleLoteAll = function (el) {
   const cks = document.querySelectorAll('.ck-lote-item');
   cks.forEach(ck => ck.checked = el.checked);
-  updateLoteTotal();
+  window.updateLoteTotal();
 };
 
 window.updateLoteTotal = function () {
@@ -6899,7 +7052,7 @@ window.updateLoteTotal = function () {
   let total = 0;
   cks.forEach(ck => {
     const idx = parseInt(ck.value);
-    const item = lotePendentes[idx];
+    const item = window.lotePendentes[idx];
     if (item) total += item.valor;
   });
   document.getElementById('lote-total-sel').textContent = fmt(total);
@@ -6908,7 +7061,14 @@ window.updateLoteTotal = function () {
 window.toggleLoteAll = function (el) {
   const cks = document.querySelectorAll('.ck-lote-item');
   cks.forEach(ck => ck.checked = el.checked);
-  updateLoteTotal();
+  window.updateLoteTotal();
+};
+
+window.changeLoteObra = function () {
+  const periodo = document.getElementById('lote-periodo')?.value || 'semana';
+  const ini = document.getElementById('lote-data-ini')?.value;
+  const fim = document.getElementById('lote-data-fim')?.value;
+  window.prepareLotePgto(periodo, ini, fim);
 };
 
 window.changeLotePeriodoCustom = function (el) {
@@ -6921,7 +7081,7 @@ window.changeLotePeriodoCustom = function (el) {
     document.getElementById('lote-data-fim').value = hoje.toISOString().split('T')[0];
   } else {
     document.getElementById('lote-custom-dates').style.display = 'none';
-    prepareLotePgto(el.value);
+    window.prepareLotePgto(el.value);
   }
 };
 
@@ -6929,7 +7089,7 @@ window.applyCustomLotePeriod = function () {
   const iniEl = document.getElementById('lote-data-ini');
   const fimEl = document.getElementById('lote-data-fim');
   if (iniEl?.value && fimEl?.value) {
-    prepareLotePgto('custom', iniEl.value, fimEl.value);
+    window.prepareLotePgto('custom', iniEl.value, fimEl.value);
   }
 };
 
@@ -6938,7 +7098,7 @@ window.processLotePgto = async function () {
   if (cks.length === 0) { toast('Nenhum trabalhador selecionado!', 'error'); return; }
 
   cks.forEach(ck => {
-    const item = lotePendentes[parseInt(ck.value)];
+    const item = window.lotePendentes[parseInt(ck.value)];
     if (item) {
       item.indices.forEach(p => {
         p.pgtoStatus = 'Pago';
@@ -7805,9 +7965,13 @@ async function saveUsuario() {
   const editIdxEl = document.getElementById('usr-edit-idx');
   if (editIdxEl) editIdxEl.value = '-1';
 
-  if (credencial) {
+  if (credencial && credencial.senhaTemporaria !== false && credencial.password) {
     toast('Usuário criado! Confira as credenciais na tela.', 'success');
     abrirModalCredenciaisUsuario(credencial, name);
+  } else if (credencial && credencial.contaExistente) {
+    // Conta já existia no Firebase Auth: a senha atual foi preservada.
+    closeModal('modal-usuario');
+    toast('Convite salvo. Este e-mail já possui conta; o usuário deve usar a senha atual.', 'success');
   } else {
     closeModal('modal-usuario');
     toast('Convite salvo. Não foi possível gerar a senha automática; o usuário poderá criar a senha no primeiro acesso.', 'warning');
@@ -8250,16 +8414,24 @@ window.openTarefaFotos = openTarefaFotos;
 
 
 function openLightbox(url) {
+  const destino = String(url == null ? '' : url).trim();
+  if (!destino) return;
   let lb = document.getElementById('lightbox-container');
   if (!lb) {
     lb = document.createElement('div');
     lb.id = 'lightbox-container';
     lb.className = 'lightbox-overlay';
     lb.onclick = closeLightbox;
-    lb.innerHTML = `<div class="lightbox-content"><img src=""><span class="lightbox-close"><span class="material-symbols-outlined md-18">close</span></span></div>`;
+    lb.innerHTML = `<div class="lightbox-content"><img alt="Evidência em tamanho completo"><div class="lightbox-erro" hidden>Não foi possível carregar esta imagem.</div><span class="lightbox-close"><span class="material-symbols-outlined md-18">close</span></span></div>`;
     document.body.appendChild(lb);
   }
-  lb.querySelector('img').src = url;
+  const img = lb.querySelector('img');
+  const erro = lb.querySelector('.lightbox-erro');
+  img.onload = () => { img.hidden = false; erro.hidden = true; };
+  img.onerror = () => { img.hidden = true; erro.hidden = false; };
+  img.hidden = false;
+  erro.hidden = true;
+  img.src = destino;
   lb.classList.add('open');
 }
 

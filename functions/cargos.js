@@ -212,6 +212,15 @@ async function acaoDefinirCargo({ db, auth }, dados, chamador) {
   const nome = String(dados.nome || '').trim();
   if (nome) perfilUpdates.name = nome;
 
+  // Calcula ANTES de gravar: alguns adaptadores de DB devolvem a mesma referência
+  // do estado no snapshot, e o update abaixo sobrescreveria o "antes".
+  // Ajustar só nome/obra não altera role/tenant/status, então não revoga token.
+  const perfilAnterior = perfil || {};
+  const alterouAcesso =
+    normalizarRole(perfilAnterior.role || 'admin') !== cargo ||
+    (perfilAnterior.tenantId || null) !== (tenantId || null) ||
+    (perfilAnterior.status || 'ativo') !== status;
+
   // Permissões granulares e escopo de obras são opcionais e só valem para RH.
   // O admin define no modal; o servidor normaliza para não aceitar chaves
   // arbitrárias nem promover o usuário a admin disfarçado.
@@ -257,11 +266,15 @@ async function acaoDefinirCargo({ db, auth }, dados, chamador) {
       : null
   );
 
-  // Revoga tokens antigos: as novas claims só entram no próximo ID token.
-  try {
-    await auth.revokeRefreshTokens(alvo.uid);
-  } catch (e) {
-    console.warn('[Cargos] Falha ao revogar tokens:', e.message || e);
+  // Só revoga tokens quando o acesso realmente mudou; revogar por uma mudança
+  // de nome/obra derrubava a sessão do usuário sem motivo.
+  if (alterouAcesso) {
+    // Revoga tokens antigos: as novas claims só entram no próximo ID token.
+    try {
+      await auth.revokeRefreshTokens(alvo.uid);
+    } catch (e) {
+      console.warn('[Cargos] Falha ao revogar tokens:', e.message || e);
+    }
   }
 
   return {

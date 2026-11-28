@@ -289,49 +289,124 @@ function detectSubdomain() {
   return null;
 }
 
+// Cache de curta duração: usado SOMENTE se REST e SDK falharem (ex.: queda de rede).
+// Nunca é a primeira fonte, para não validar login contra um tenant renomeado.
+const _tenantCtxCache = new Map();
+const _cacheKeyTenant = (slug) => `tenantCtx:${slug}`;
+const _CACHE_TENANT_MS = 10 * 60 * 1000;
+
+function _readTenantCtxCache(slug) {
+  const chave = _cacheKeyTenant(slug);
+  try {
+    const bruto = sessionStorage.getItem(chave);
+    if (bruto) {
+      const item = JSON.parse(bruto);
+      if (item && item.slug === slug && Date.now() - item.em < _CACHE_TENANT_MS && item.pub) {
+        return item.pub;
+      }
+    }
+  } catch (e) { /* cache corrompida ou storage desabilitado: ignora */ }
+  return _tenantCtxCache.get(chave) || null;
+}
+
+function _saveTenantCtxCache(slug, pub) {
+  const chave = _cacheKeyTenant(slug);
+  _tenantCtxCache.set(chave, pub);
+  try {
+    sessionStorage.setItem(chave, JSON.stringify({ slug, em: Date.now(), pub }));
+  } catch (e) { /* storage cheio: segue sem cache */ }
+}
+
+// O SDK do RTDB mantém um WebSocket persistente e pode ficar pendurado quando a
+// rede/proxy não renova a conexão. O nó tenants_public/$slug é de leitura pública,
+// então um GET REST resolve sem depender do WebSocket (e o CSP já libera o host).
+async function _fetchTenantPublicRest(slug) {
+  const base = String(firebaseConfig.databaseURL || '').replace(/\/+$/, '');
+  const url = `${base}/tenants_public/${encodeURIComponent(slug)}.json`;
+  const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), 6000) : null;
+  try {
+    const resp = await fetch(url, { signal: ctrl ? ctrl.signal : undefined, cache: 'no-store' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const pub = await resp.json();
+    return pub && typeof pub === 'object' && !Array.isArray(pub) ? pub : null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function _resolverTenantLegado(slug) {
+  if (!firebase.auth().currentUser) return null;
+  try {
+    const snap = await comLimite(
+      firebase.database().ref('tenants').orderByChild('config/slug').equalTo(slug).once('value'),
+      6000,
+      'Tempo limite ao resolver tenant legado.'
+    );
+    const encontrados = snap.val();
+    return encontrados ? Object.keys(encontrados)[0] : null;
+  } catch (e) {
+    console.warn('Aviso ao resolver tenant legado por slug:', e.code || e.message);
+    return null;
+  }
+}
+
 async function loadTenantBySlug(slug) {
   if (!slug) return null;
+
+  // 1) REST (caminho normal — rápido e sem WebSocket).
+  let pub = null;
   try {
-    // Leitura direta por chave: não expõe a listagem de tenants_public.
-    // O slug é a própria chave do nó público.
-    const pubSnap = await firebase.database().ref(`tenants_public/${slug}`).once('value');
-    const pub = pubSnap.val();
-    if (pub) {
-      let tenantId = pub.tenantId;
-      // Nós públicos legados não tinham tenantId; nesse caso o ID pode ser
-      // diferente do slug e precisa ser resolvido antes de validar o login.
-      if (!tenantId && firebase.auth().currentUser) {
-        try {
-          const legado = await firebase.database().ref('tenants')
-            .orderByChild('config/slug')
-            .equalTo(slug)
-            .once('value');
-          const encontrados = legado.val();
-          if (encontrados) tenantId = Object.keys(encontrados)[0];
-        } catch (e) {
-          console.warn('Aviso ao resolver tenant legado por slug:', e.code || e.message);
-        }
-      }
-      return { id: tenantId || slug, data: { config: pub } };
-    }
-
-    // Fallback: tenant legado cujo ID difere do slug (nó público sob outra chave).
-    // Só é possível para usuário autenticado (regras de tenants).
-    if (firebase.auth().currentUser) {
-      const snapshot = await firebase.database().ref('tenants')
-        .orderByChild('config/slug')
-        .equalTo(slug)
-        .once('value');
-
-      const tenants = snapshot.val();
-      if (tenants) {
-        const tenantId = Object.keys(tenants)[0];
-        return { id: tenantId, data: tenants[tenantId] };
-      }
-    }
+    pub = await _fetchTenantPublicRest(slug);
   } catch (e) {
-    if (e.code !== 'PERMISSION_DENIED') {
-      console.warn('Aviso ao buscar tenant por slug:', e.code || e.message);
+    console.warn('Aviso ao buscar tenant por REST:', e.code || e.message);
+  }
+
+  // 2) SDK como segunda fonte (pode ter cache local do próprio SDK).
+  if (!pub) {
+    try {
+      const pubSnap = await comLimite(
+        firebase.database().ref(`tenants_public/${slug}`).once('value'),
+        6000,
+        'Tempo limite na leitura do tenant pelo SDK.'
+      );
+      pub = pubSnap.val();
+    } catch (e) {
+      if (e.code !== 'PERMISSION_DENIED') {
+        console.warn('Aviso ao buscar tenant por slug:', e.code || e.message);
+      }
+    }
+  }
+
+  // 3) Só agora usa o cache da sessão, se as duas fontes falharam.
+  if (!pub) pub = _readTenantCtxCache(slug);
+
+  if (!pub) {
+    console.warn(`Tenant "${slug}" não encontrado em tenants_public nem no cache da sessão.`);
+  }
+
+  if (pub) {
+    _saveTenantCtxCache(slug, pub);
+    const tenantId = pub.tenantId || await _resolverTenantLegado(slug);
+    return { id: tenantId || slug, data: { config: pub } };
+  }
+
+  // Fallback: tenant legado cujo ID difere do slug (sem nó público).
+  const tenantIdLegado = await _resolverTenantLegado(slug);
+  if (tenantIdLegado) {
+    try {
+      const snap = await comLimite(
+        firebase.database().ref(`tenants/${tenantIdLegado}`).once('value'),
+        6000,
+        'Tempo limite ao ler tenant legado.'
+      );
+      const dados = snap.val();
+      if (dados) {
+        _saveTenantCtxCache(slug, dados.config || {});
+        return { id: tenantIdLegado, data: dados };
+      }
+    } catch (e) {
+      console.warn('Aviso ao ler tenant legado:', e.code || e.message);
     }
   }
   return null;
@@ -341,7 +416,7 @@ function loadLegacyLocalIfAny() {
   try {
     const oldLocal = localStorage.getItem('gestaoObraDB');
     if (!oldLocal) return JSON.parse(JSON.stringify(staticDB));
-    return ensureSchema(JSON.parse(oldLocal));
+    return restaurarFotosLocais(ensureSchema(JSON.parse(oldLocal)));
   } catch (e) {
     return JSON.parse(JSON.stringify(staticDB));
   }
@@ -351,6 +426,47 @@ let _currentTenantId = null;
 let _isPersisting = false;
 // Super Admin: tenant ativo selecionado para operações de escrita
 let superAdminActiveTenant = null; // { id, nome, dbRef }
+
+// Aplica o mesmo pipeline de papéis/obras tanto ao snapshot do Firebase quanto ao
+// cache local. Sem isso, o cache de um usuário restrito podia renderizar dados de
+// outras obras antes da primeira resposta da nuvem.
+function aplicarEscopoLocal(data) {
+  const sessao = _getBillingSessionUser();
+  const papel = _sessionRole(sessao);
+  const permitidas = typeof window.getObrasPermitidas === 'function'
+    ? window.getObrasPermitidas(data && data.usuarios, sessao.email, papel)
+    : null;
+  return ensureSchema(window.filterDbByObras(
+    sanitizeComprasForRole(data, papel, modulosRhSessao()), permitidas
+  ));
+}
+
+// As fotos base64 ficam só no localStorage. Sem restaurar também no caminho do
+// cache, a tela abre sem elas até o snapshot da nuvem chegar.
+function restaurarFotosLocais(db) {
+  try {
+    const fotosMap = JSON.parse(localStorage.getItem('gestaoObraFotos') || '{}');
+    if (!fotosMap || typeof fotosMap !== 'object' || Array.isArray(fotosMap)) return db;
+    const restaurado = { ...db };
+    if (Array.isArray(db.trabalhadores)) {
+      restaurado.trabalhadores = db.trabalhadores.map(t =>
+        (!t.foto && fotosMap[t.cod] ? { ...t, foto: fotosMap[t.cod] } : t));
+    }
+    if (Array.isArray(db.tarefas)) {
+      restaurado.tarefas = db.tarefas.map(t => {
+        const savedFoto = fotosMap['tf_' + t.cod];
+        if (!savedFoto) return t;
+        const restauradas = (Array.isArray(savedFoto) ? savedFoto : [savedFoto]).filter(Boolean);
+        const atuais = Array.isArray(t.photos) ? t.photos.filter(Boolean) : [];
+        const fotos = [...new Set([...atuais, ...(t.photoUrl ? [t.photoUrl] : []), ...restauradas])].filter(Boolean);
+        return { ...t, photoUrl: t.photoUrl || fotos[0] || '', photos: fotos };
+      });
+    }
+    return restaurado;
+  } catch (e) {
+    return db;
+  }
+}
 
 function initDB(tenantId) {
   if (!tenantId) {
@@ -371,7 +487,7 @@ function initDB(tenantId) {
       // Só usa o cache se pertencer ao tenant atual (segurança cross-tenant)
       if (cached._tenantId === tenantId) {
         console.log('DB carregado via Cache Local para tenant:', tenantId);
-        DB = ensureSchema(cached);
+        DB = restaurarFotosLocais(aplicarEscopoLocal(cached));
         processCloudUpdate();
       }
     } catch(e) { console.warn('Erro ao ler cache local:', e); }
@@ -439,15 +555,9 @@ function _onFirebaseValue(snapshot) {
     }
 
     // Dados comerciais de compras não entram no DB do canteiro (nem no localStorage).
-    const _uSess = _getBillingSessionUser();
-    const _papelSess = _sessionRole(_uSess);
     // Acesso por obra: usuário designado a obras específicas só recebe os registros delas.
     // lastTenantData continua completo (usado para remontar os arrays na gravação).
-    const _obrasPerm = typeof window.getObrasPermitidas === 'function'
-      ? window.getObrasPermitidas(data.usuarios, _uSess.email, _papelSess) : null;
-    DB = ensureSchema(window.filterDbByObras(
-      sanitizeComprasForRole(data, _papelSess, modulosRhSessao()), _obrasPerm
-    ));
+    DB = aplicarEscopoLocal(data);
 
     // Calculado depois do ensureSchema: gravar em DB antes substituir o objeto perdia o valor.
     if (data.plano === 'free_trial' && data.trialExpiracao) {
@@ -456,32 +566,7 @@ function _onFirebaseValue(snapshot) {
     }
 
     // Restaura fotos do localStorage separado (não são salvas na nuvem por serem base64)
-    try {
-      const fotosRaw = localStorage.getItem('gestaoObraFotos');
-      if (fotosRaw) {
-        const fotosMap = JSON.parse(fotosRaw);
-        if (Array.isArray(DB.trabalhadores)) {
-          DB.trabalhadores = DB.trabalhadores.map(t => {
-            if (!t.foto && fotosMap[t.cod]) {
-              return { ...t, foto: fotosMap[t.cod] };
-            }
-            return t;
-          });
-        }
-        if (Array.isArray(DB.tarefas)) {
-          DB.tarefas = DB.tarefas.map(t => {
-            const savedFoto = fotosMap['tf_' + t.cod];
-            if (savedFoto) {
-              const restauradas = (Array.isArray(savedFoto) ? savedFoto : [savedFoto]).filter(Boolean);
-              const atuais = Array.isArray(t.photos) ? t.photos.filter(Boolean) : [];
-              const fotos = [...new Set([...atuais, ...(t.photoUrl ? [t.photoUrl] : []), ...restauradas])].filter(Boolean);
-              return { ...t, photoUrl: t.photoUrl || fotos[0] || '', photos: fotos };
-            }
-            return t;
-          });
-        }
-      }
-    } catch(e) { /* Silencioso: foto é opcional */ }
+  DB = restaurarFotosLocais(DB);
 
     processCloudUpdate();
     return;
@@ -609,8 +694,9 @@ const subdomainContextPromise = (async function initSubdomainContext() {
   if (slug) {
     let tenant = null;
     try {
-      // Sem limite o offline do RTDB deixaria o login preso para sempre.
-      tenant = await comLimite(loadTenantBySlug(slug), 8000, 'Tempo limite ao identificar a empresa deste endereço.');
+      // Limite amplo: REST costuma responder em <1s, mas a queda de conexão pode
+      // exigir as fontes seguintes. Falha só depois de esgotar todas elas.
+      tenant = await comLimite(loadTenantBySlug(slug), 26000, 'Tempo limite ao identificar a empresa deste endereço.');
     } catch (e) {
       console.error('Falha ao identificar o tenant do subdomínio:', e);
     }
@@ -624,9 +710,12 @@ const subdomainContextPromise = (async function initSubdomainContext() {
       if (document.body) {
         document.body.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding:20px">
           <h1 style="color:#ef4444;margin-bottom:10px"><span class="material-symbols-outlined md-24" style="vertical-align:middle;margin-right:6px;color:#ef4444;">error</span>Empresa Inexistente ou URL Incorreta</h1>
-          <p style="color:#cbd5e1;max-width:500px">O subdomínio <b>${slug}</b> não está vinculado a nenhuma empresa no sistema. Por favor, verifique se a URL da sua empresa está correta ou contrate um plano.</p>
+          <p style="color:#cbd5e1;max-width:500px">Não foi possível identificar a empresa <b>${slug}</b> deste endereço. Confira a URL ou tente novamente em instantes.</p>
+          <button id="retry-tenant-context" style="margin-top:18px;padding:10px 20px;border:0;border-radius:6px;background:#10b981;color:#fff;cursor:pointer;font-size:14px">Tentar novamente</button>
           <p style="color:#94a3b8;font-size:12px;margin-top:20px">Obra Real SaaS Security</p>
         </div>`;
+        const btnRetry = document.getElementById('retry-tenant-context');
+        if (btnRetry) btnRetry.onclick = () => window.location.reload();
       }
       throw new Error('Tenant não encontrado para este subdomínio.');
     }

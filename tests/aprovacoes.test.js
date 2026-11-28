@@ -7,7 +7,7 @@ import { criarFakeDB, baseTenant, aprovacaoBase, DIA } from './helpers/fake-db.j
 
 const {
   normalizarRole, papelPodeDecidir, podeAplicar, validarIntegridadeFinanceira,
-  aplicarAprovacaoPorId, aoEscreverAprovacao
+  aplicarAprovacaoPorId, aoEscreverAprovacao, aprovacaoDentroDoEscopo
 } = aprovacoes;
 
 const AGORA = Date.UTC(2026, 10, 4, 12); // 3 dias após solicitadoEm
@@ -18,6 +18,31 @@ function preparar(aprovacao, extras = {}) {
   inicial.tenants.t1.aprovacoes = { AP1: aprovacao };
   return criarFakeDB(inicial);
 }
+
+describe('aprovacoes — escopo por obra', () => {
+  const aprovacao = (obra, obraDestino) => ({
+    tipo: 'movimentacao_estoque',
+    payload: { obra, obraDestino }
+  });
+
+  it('admin e usuário sem restrição explícita mantêm o comportamento legado', () => {
+    expect(aprovacaoDentroDoEscopo(aprovacao('OB002'), { role: 'admin' })).toBe(true);
+    expect(aprovacaoDentroDoEscopo(aprovacao('OB002'), { role: 'engenheiro', acessoObras: 'todas' })).toBe(true);
+  });
+
+  it('usuário restrito só aplica aprovação da sua obra', () => {
+    const usuario = { role: 'engenheiro', acessoObras: 'especificas', obrasPermitidas: ['OB001'] };
+    expect(aprovacaoDentroDoEscopo(aprovacao('OB001'), usuario)).toBe(true);
+    expect(aprovacaoDentroDoEscopo(aprovacao('OB002'), usuario)).toBe(false);
+    expect(aprovacaoDentroDoEscopo(aprovacao('OB001; OB002'), usuario)).toBe(false);
+  });
+
+  it('transferência é checada na origem e no destino; sem obra é fail-closed', () => {
+    const usuario = { role: 'encarregado', acessoObras: 'especificas', obrasPermitidas: ['OB001'] };
+    expect(aprovacaoDentroDoEscopo(aprovacao('OB001', 'OB002'), usuario)).toBe(false);
+    expect(aprovacaoDentroDoEscopo(aprovacao('', ''), usuario)).toBe(false);
+  });
+});
 
 describe('aprovacoes — funções puras de autoridade', () => {
   it('normaliza o alias legado sem escalar papel', () => {

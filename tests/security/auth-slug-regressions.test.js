@@ -41,6 +41,15 @@ describe('login — contexto do tenant', () => {
     expect(bloco).toContain('sessionStorage.removeItem');
   });
 
+  it('INVALID_LOGIN_CREDENTIALS disfarçado de auth/internal-error vira mensagem amigável', () => {
+    const fn = auth.slice(auth.indexOf('function isInvalidCredentialsError'), auth.indexOf('async function handleAuthSuccess'));
+    expect(fn).toContain("code !== 'auth/internal-error'");
+    expect(fn).toContain('INVALID_LOGIN_CREDENTIALS');
+    const handler = auth.slice(auth.indexOf('function handleAuthError'), auth.indexOf('async function handleAuthSuccess'));
+    expect(handler).toContain('isInvalidCredentialsError(error)');
+    expect(handler).toContain('Credenciais inválidas. Tente novamente.');
+  });
+
   it('o guard do painel Master também vale para o login com Google', () => {
     const fn = auth.slice(auth.indexOf('function doGoogleLogin()'), auth.indexOf('// ================== EMAIL LOGIN'));
     expect(fn).toContain('window._adminLoginGuard = true');
@@ -52,6 +61,29 @@ describe('login — contexto do tenant', () => {
     expect(fn).toContain("host === 'obrareal.com'");
     expect(fn).toContain("host.endsWith('.obrareal.com')");
     expect(fn).toMatch(/tenantParam\s*&&\s*!isProducao/);
+  });
+
+  it('a leitura do slug usa REST antes do WebSocket (que pode travar)', () => {
+    expect(data).toContain('async function _fetchTenantPublicRest(slug)');
+    expect(data).toContain('tenants_public/${encodeURIComponent(slug)}.json');
+    const fn = data.slice(data.indexOf('async function loadTenantBySlug'), data.indexOf('function loadLegacyLocalIfAny'));
+    expect(fn.indexOf('_fetchTenantPublicRest')).toBeLessThan(fn.indexOf(".ref(`tenants_public/${slug}`)"));
+    expect(fn.indexOf('.ref(`tenants_public/${slug}`)')).toBeLessThan(fn.indexOf('_readTenantCtxCache'));
+  });
+
+  it('o cache da sessão é só fallback e expira em 10 minutos', () => {
+    expect(data).toContain('_CACHE_TENANT_MS = 10 * 60 * 1000');
+    expect(data).toContain('Só agora usa o cache da sessão');
+  });
+
+  it('o limite geral não corta o login antes das fontes disponíveis', () => {
+    expect(data).toContain('loadTenantBySlug(slug), 26000');
+    expect(data).not.toContain('loadTenantBySlug(slug), 8000');
+  });
+
+  it('a tela de falha oferece nova tentativa', () => {
+    expect(data).toContain('retry-tenant-context');
+    expect(data).toContain("btnRetry.onclick = () => window.location.reload()");
   });
 });
 
@@ -65,6 +97,13 @@ describe('deploy — headers, rotas e cache', () => {
     expect(cabecalho('Cross-Origin-Opener-Policy')).toBe('same-origin-allow-popups');
   });
 
+  it('script-src libera o transporte JSONP do RTDB (SDK 8 long-polling)', () => {
+    const csp = cabecalho('Content-Security-Policy');
+    const scriptSrc = csp.split(';').find(d => d.trim().startsWith('script-src'));
+    expect(scriptSrc).toContain('https://*.firebaseio.com');
+    expect(scriptSrc).toContain('https://*.firebaseapp.com');
+  });
+
   it('o Worker continua interceptando a raiz e os subdomínios', () => {
     expect(wrangler).toContain('{ pattern = "obrareal.com/*"');
     expect(wrangler).toContain('{ pattern = "*.obrareal.com/*"');
@@ -73,8 +112,8 @@ describe('deploy — headers, rotas e cache', () => {
 
   it('as páginas de login e o app servem a mesma versão corrigida dos scripts', () => {
     for (const html of htmls) {
-      expect(html).toContain('js/auth_core.js?v=20261126013');
-      expect(html).toContain('js/data_core.js?v=20261126013');
+      expect(html).toContain('js/auth_core.js?v=20261127001');
+      expect(html).toContain('js/data_core.js?v=20261127001');
     }
   });
 

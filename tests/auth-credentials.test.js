@@ -59,13 +59,25 @@ describe('Cloud Function — criação de usuário com senha temporária', () =>
     expect(usuariosFn).toContain('email_vinculado_outro_tenant');
   });
 
-  it('gera senha aleatória e nunca a grava no Realtime Database', () => {
+  it('gera senha aleatória só para contas novas e nunca a grava no Realtime Database', () => {
     expect(usuariosFn).toContain('crypto.randomInt');
     expect(usuariosFn).toMatch(/(?:admin\.auth\(\)|getAuth\(\))\.createUser\(/);
-    expect(usuariosFn).toMatch(/(?:admin\.auth\(\)|getAuth\(\))\.updateUser\(/);
+    expect(usuariosFn).toContain('senha = gerarSenhaTemporaria();');
     expect(usuariosFn).toContain('password: senha');
+    expect(usuariosFn).toContain('senhaTemporaria: criado');
     expect(usuariosFn).not.toMatch(/invites[^\n]*senha/);
     expect(usuariosFn).not.toContain(".set({ password");
+  });
+
+  it('não redefine senha nem revoga token de conta já existente no Auth', () => {
+    const existente = usuariosFn.slice(
+      usuariosFn.indexOf('if (existente) {'),
+      usuariosFn.indexOf('} else {', usuariosFn.indexOf('if (existente) {'))
+    );
+    expect(existente).not.toContain('password: senha');
+    expect(existente).not.toContain('updateUser(');
+    expect(existente).not.toContain('revokeRefreshTokens(');
+    expect(existente).toContain('uid = existente.uid');
   });
 });
 
@@ -78,6 +90,12 @@ describe('painel admin — exibição das credenciais', () => {
     expect(appSrc).toContain('CRED_ERRORES_FATAIS.includes(erroCredencial.code)');
     expect(appSrc).toContain('inviteRef.remove()');
     expect(appSrc).toContain('superAdminActiveTenant.id'); // tenant correto no Super Admin
+  });
+
+  it('não mostra senha temporária quando a conta já existia no Auth', () => {
+    expect(appSrc).toContain('credencial.senhaTemporaria !== false && credencial.password');
+    expect(appSrc).toContain('credencial.contaExistente');
+    expect(appSrc).toContain('o usuário deve usar a senha atual');
   });
 
   it('abre um modal com e-mail, senha e botão de copiar', () => {
